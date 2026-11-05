@@ -49,6 +49,7 @@
     "check-types": "turbo run check-types",
     "dev:web-hono": "turbo run dev -F web-hono",
     "dev:server-hono": "turbo run dev -F server-hono",
+    "dev:console": "turbo run dev -F console",
     "db:push": "bash scripts/require-env.sh packages/infra-db/.env && bun --env-file=packages/infra-db/.env run turbo run db:push -F @kaipu/infra-db",
     "db:studio": "bash scripts/require-env.sh packages/infra-db/.env && bun --env-file=packages/infra-db/.env run turbo run db:studio -F @kaipu/infra-db",
     "db:generate": "bash scripts/require-env.sh packages/infra-db/.env && bun --env-file=packages/infra-db/.env run turbo run db:generate -F @kaipu/infra-db",
