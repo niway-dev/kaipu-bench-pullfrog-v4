@@ -6,8 +6,8 @@ description: The Console mounts @niway/admin-kit's panel and authorizes through 
 # Console on admin-kit and Labs — design
 
 **Status: 🔵 Proposed · 2026-11-05.** Decisions approved by Cristian in chat on 2026-11-05;
-implementation not started. ADRs: [0047](/architecture/decisions/0047-console-is-the-admin-kit-panel-authorized-by-its-policies/)
-and [0048](/architecture/decisions/0048-flags-are-a-typed-registry-with-state-in-our-api-labs-is-user-opt-in/).
+implementation not started. ADRs: [0048](/architecture/decisions/0048-console-is-the-admin-kit-panel-authorized-by-its-policies/)
+and [0049](/architecture/decisions/0049-flags-are-a-typed-registry-with-state-in-our-api-labs-is-user-opt-in/).
 Linear: [NIW2-657](https://linear.app/niway/issue/NIW2-657/console-on-admin-kit-and-labs-typed-flags-labs-opt-in-in-settings).
 Depends on admin-kit [NIW2-653](https://linear.app/niway/issue/NIW2-653) (access policies),
 [NIW2-654](https://linear.app/niway/issue/NIW2-654) (features add-on) and
@@ -30,15 +30,15 @@ only when the Console is deployed, as an outer door; the kit's session stays the
 
 | #   | Decision                                                                                                                                                          | Why                                                                                                   | ADR         |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------- |
-| 1   | `apps/console` stays a separate Worker and mounts `<AdminPanel>` from `@niway/admin-kit/admin`; its hand-written users table stays until the kit has a users section | The owner wants the Console to be admin-kit; a separate Worker keeps the operator surface off kaipu.app | 0047 (new)  |
-| 2   | The kit's add-ons install in `infra-auth` (Better Auth plugins), so admin logic lives in the API; the Console's own auth proxy and allowlist code are deleted         | The kit is a Better Auth plugin set; the Console becomes a shell over the API                          | 0047 (new)  |
-| 3   | Admin authorization is the kit's policy chain: `adminSince()` by default, plus `users(CONSOLE_ADMIN_USER_IDS)` during the transition                                 | One mechanism, declared in the backend; the allowlist survives as a policy                              | 0047 (new)  |
-| 4   | Flags: typed registry in code (`packages/domain`, pinned in `src/shared/analytics.ts` by a test), state in the API via the kit's `features` add-on                   | The server never sends code; only booleans for keys the app already compiled against                    | 0048 (new)  |
-| 5   | The desktop reads `GET /api/v1/me/flags` (proxy to the kit's `features/me`) with its bearer session on launch and on sign-in; caches the last map; offline uses defaults | Same shape as `/me/entitlements`; offline-first                                                       | 0048 (new)  |
-| 6   | Labs: a Settings child `/settings/labs`, visible only when signed in, listing registry keys with `labs: true` whose remote availability is on; a toggle per key writes `features/opt-in` | The user chooses; the owner controls availability; release flags never appear                          | 0048 (new)  |
+| 1   | `apps/console` stays a separate Worker and mounts `<AdminPanel>` from `@niway/admin-kit/admin`; its hand-written users table stays until the kit has a users section | The owner wants the Console to be admin-kit; a separate Worker keeps the operator surface off kaipu.app | 0048 (new)  |
+| 2   | The kit's add-ons install in `infra-auth` (Better Auth plugins), so admin logic lives in the API; the Console's own auth proxy and allowlist code are deleted         | The kit is a Better Auth plugin set; the Console becomes a shell over the API                          | 0048 (new)  |
+| 3   | Admin authorization is the kit's policy chain: `adminSince()` by default, plus `users(CONSOLE_ADMIN_USER_IDS)` during the transition                                 | One mechanism, declared in the backend; the allowlist survives as a policy                              | 0048 (new)  |
+| 4   | Flags: typed registry in code (`packages/domain`, pinned in `src/shared/analytics.ts` by a test), state in the API via the kit's `features` add-on                   | The server never sends code; only booleans for keys the app already compiled against                    | 0049 (new)  |
+| 5   | The desktop reads `GET /api/v1/me/flags` (proxy to the kit's `features/me`) with its bearer session on launch and on sign-in; caches the last map; offline uses defaults | Same shape as `/me/entitlements`; offline-first                                                       | 0049 (new)  |
+| 6   | Labs: a Settings child `/settings/labs`, visible only when signed in, listing registry keys with `labs: true` whose remote availability is on; a toggle per key writes `features/opt-in` | The user chooses; the owner controls availability; release flags never appear                          | 0049 (new)  |
 | 7   | PostHog keeps analytics and exception capture; `useFlag` reads the new map; release flags (NIW2-603) migrate in a later amendment                                      | "Después" (owner); one migration at a time                                                            | —           |
 | 8   | Cloudflare Access in front of console.kaipu.app at deploy time, policy "email is the owner's"; the Worker verifies the JWT `aud`                                       | Outer door against bots and stolen credentials; not part of local development                           | —           |
-| 9   | Supersedes the Console spec's "no new admin REST API on server-hono"                                                                                                   | The kit's endpoints are that API                                                                        | 0047 (new)  |
+| 9   | Supersedes the Console spec's "no new admin REST API on server-hono"                                                                                                   | The kit's endpoints are that API                                                                        | 0048 (new)  |
 
 ## Open questions
 
