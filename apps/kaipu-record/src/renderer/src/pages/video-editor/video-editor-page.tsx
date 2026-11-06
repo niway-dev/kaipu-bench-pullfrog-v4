@@ -280,6 +280,13 @@ const TEXT_INPUT_TYPES = new Set([
   "week",
 ]);
 
+/** Space toggles a focused checkbox or radio; the page must not steal it for playback. */
+function ownsSpace(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement && (target.type === "checkbox" || target.type === "radio")
+  );
+}
+
 function isEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   // A range, checkbox or color input edits no text, and selecting a zoom focuses the
@@ -1301,6 +1308,9 @@ function VideoEditor({
       // while open. A video export runs in the background and blocks nothing.
       if (blocker.state === "blocked" || gifExport.status !== "idle" || exportSheetOpen) return;
       if (e.key === " ") {
+        // A focused checkbox or radio (cursor and webcam inspectors) owns Space: it
+        // toggles the control, not playback. Other shortcuts still reach them.
+        if (ownsSpace(e.target)) return;
         e.preventDefault();
         playback.toggle();
         return;

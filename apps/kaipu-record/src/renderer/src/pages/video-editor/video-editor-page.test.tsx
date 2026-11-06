@@ -801,6 +801,27 @@ describe("VideoEditorPage — Delete removes a selected mute", () => {
   });
 });
 
+describe("VideoEditorPage — Space on a focused checkbox stays with the checkbox", () => {
+  it("does not toggle playback and lets the checkbox toggle itself", async () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    try {
+      renderEditor();
+      await waitForEditorLoaded();
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      document.body.appendChild(checkbox);
+      checkbox.focus();
+      const event = fireEvent.keyDown(checkbox, { key: " " });
+      await act(async () => {});
+      expect(event).toBe(true); // not prevented: the browser toggles the checkbox
+      expect(playSpy).not.toHaveBeenCalled();
+      checkbox.remove();
+    } finally {
+      playSpy.mockRestore();
+    }
+  });
+});
+
 describe("VideoEditorPage — a tool flyout keeps its keys to itself", () => {
   beforeEach(() => {
     stubDecodedVideoSize(1280, 720);
