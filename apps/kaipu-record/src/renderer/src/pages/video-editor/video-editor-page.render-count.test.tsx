@@ -17,6 +17,7 @@ import { setHeaderActionsElement } from "@renderer/features/workspaces/header-sl
 import { VideoEditorLoader, type VideoEditorSource } from "./video-editor-page";
 
 const renders = vi.hoisted(() => ({}) as Record<string, number>);
+/** Records one render of the lane `name`; the counting wrappers below call it on every render. */
 function count(name: string): void {
   renders[name] = (renders[name] ?? 0) + 1;
 }
