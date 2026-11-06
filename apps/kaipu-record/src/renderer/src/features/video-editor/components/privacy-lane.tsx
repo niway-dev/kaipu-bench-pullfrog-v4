@@ -3,7 +3,7 @@
  * same selection and edge-drag contract as the Zooms lane. While a region is being drawn
  * the page passes `ghost` and a dashed "NEW BLUR / NEW COVER" block shows its window.
  */
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { Droplet, RectangleHorizontal } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { Redaction } from "../privacy/redaction";
@@ -23,7 +23,7 @@ export interface PrivacyLaneProps {
   ghost: { kind: "blur" | "cover"; start: number; end: number } | null;
 }
 
-export function PrivacyLane({
+export const PrivacyLane = memo(function PrivacyLane({
   redactions,
   layout,
   selectedId,
@@ -144,4 +144,4 @@ export function PrivacyLane({
         ))}
     </div>
   );
-}
+});

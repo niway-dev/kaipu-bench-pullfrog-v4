@@ -4,6 +4,7 @@
  * Marks are in SOURCE seconds and mapped through source-time.ts, so a cut hides the
  * evidence of deleted footage exactly like it hides the footage.
  */
+import { memo } from "react";
 import type { ActivityMark } from "../zoom/detect-zoom-segments";
 import { sourceRangeToTimelineBlocks } from "../source-time";
 import { type LayoutEntry, layoutDuration, sourceToTimeline } from "../timeline";
@@ -13,7 +14,7 @@ import styles from "./activity-lane.module.css";
 const DWELL_MIN_PX = 6;
 const DWELL_MAX_PX = 16;
 
-export function ActivityLane({
+export const ActivityLane = memo(function ActivityLane({
   marks,
   layout,
 }: {
@@ -50,4 +51,4 @@ export function ActivityLane({
       })}
     </div>
   );
-}
+});

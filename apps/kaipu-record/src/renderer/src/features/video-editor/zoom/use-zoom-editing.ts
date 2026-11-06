@@ -12,6 +12,7 @@
  * every dependency array.
  */
 import { useCallback, useMemo } from "react";
+import { useLatest } from "../use-latest";
 import type { CursorTrack } from "@shared/cursor-track";
 import { freeWindowAt, isSourceRangeVisible, sourceTimeAtTimeline } from "../source-time";
 import type { LayoutEntry } from "../timeline";
@@ -135,6 +136,7 @@ export function useZoomEditing({
     [controller],
   );
 
+  const controllerRef = useLatest(controller);
   const edgeDrag = useCallback(
     (
       id: string,
@@ -142,13 +144,15 @@ export function useZoomEditing({
       sourceTime: number | null,
       phase: "start" | "move" | "end",
     ) => {
-      if (phase === "start") controller.beginInteract();
+      if (phase === "start") controllerRef.current.beginInteract();
       if (phase === "move" && sourceTime !== null) {
-        controller.updateLive(dragZoomEdge(controller.scene, id, edge, sourceTime, sourceDuration));
+        controllerRef.current.updateLive(
+          dragZoomEdge(controllerRef.current.scene, id, edge, sourceTime, sourceDuration),
+        );
       }
-      if (phase === "end") controller.endInteract();
+      if (phase === "end") controllerRef.current.endInteract();
     },
-    [controller, sourceDuration],
+    [controllerRef, sourceDuration],
   );
 
   const liveLock = useCallback(

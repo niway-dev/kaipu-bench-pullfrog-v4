@@ -8,7 +8,7 @@
  * whole-video mute is turned off, but nothing in that state is editable, and
  * showing editable-looking blocks that do nothing would be a lie.
  */
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { VolumeX } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 
@@ -34,7 +34,7 @@ export interface AudioLaneProps {
   ): void;
 }
 
-export function AudioLane({
+export const AudioLane = memo(function AudioLane({
   ranges,
   layout,
   audioMuted,
@@ -162,4 +162,4 @@ export function AudioLane({
       })}
     </div>
   );
-}
+});
