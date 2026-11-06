@@ -177,6 +177,7 @@ function buildSession(): string {
 let headerActions: HTMLElement;
 const originalLoadSession = window.electronAPI.loadVideoEditSession;
 const originalLoadTrack = window.electronAPI.loadCursorTrack;
+const originalAcquire = window.electronAPI.acquireEditorSession;
 beforeEach(() => {
   window.electronAPI.acquireEditorSession = async () => SOURCE.id;
   const track = serializeCursorTrack(buildTrack());
@@ -197,6 +198,7 @@ afterEach(() => {
   headerActions.remove();
   window.electronAPI.loadVideoEditSession = originalLoadSession;
   window.electronAPI.loadCursorTrack = originalLoadTrack;
+  window.electronAPI.acquireEditorSession = originalAcquire;
 });
 
 describe("VideoEditorPage — render counts during a slider drag", () => {
@@ -210,11 +212,14 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
       timeout: 20_000,
     });
     const footer = document.querySelector("footer")!;
-    await waitFor(() => {
-      expect(footer.querySelectorAll('[data-testid="activity-lane"] span').length).toBeGreaterThan(
-        1000,
-      );
-    });
+    await waitFor(
+      () => {
+        expect(
+          footer.querySelectorAll('[data-testid="activity-lane"] span').length,
+        ).toBeGreaterThan(1000);
+      },
+      { timeout: 20_000 },
+    );
     expect(footer.querySelectorAll("[data-zoom-id]").length).toBeGreaterThanOrEqual(90);
 
     fireEvent.click(footer.querySelector<HTMLButtonElement>('button[aria-label="Zoom 1"]')!);
@@ -246,11 +251,13 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     }
     fireEvent.pointerUp(slider);
     const ms = performance.now() - start;
-    console.info(
-      `[render-count] activity=${renders["activity"] ?? 0} zoom=${renders["zoom"] ?? 0} ` +
-        `audio=${renders["audio"] ?? 0} privacy=${renders["privacy"] ?? 0} ` +
-        `strip=${renders["strip"] ?? 0} moves=${moves} ms=${ms.toFixed(0)}`,
-    );
+    // Evidence line for PR reports; run with `--disableConsoleIntercept` and RENDER_COUNT=1.
+    if (process.env.RENDER_COUNT)
+      console.info(
+        `[render-count] activity=${renders["activity"] ?? 0} zoom=${renders["zoom"] ?? 0} ` +
+          `audio=${renders["audio"] ?? 0} privacy=${renders["privacy"] ?? 0} ` +
+          `strip=${renders["strip"] ?? 0} moves=${moves} ms=${ms.toFixed(0)}`,
+      );
     // The lanes that do not depend on the zoom being dragged must not render at all.
     expect(renders["activity"] ?? 0).toBe(0);
     expect(renders["audio"] ?? 0).toBe(0);
@@ -259,7 +266,12 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     // frame); the +3 allows the gesture's own begin/end state changes. The strip hosts that
     // lane's element, so it re-renders alongside it, at the same bound; its own children are
     // memoised or cheap (ruler ticks are memoised on the duration).
+    expect(renders["zoom"] ?? 0).toBeGreaterThan(0);
     expect(renders["zoom"] ?? 0).toBeLessThanOrEqual(moves + 3);
     expect(renders["strip"] ?? 0).toBeLessThanOrEqual(moves + 3);
+    // The drag itself still behaves: the last value wins and the whole drag is one undo step.
+    expect(slider).toHaveValue("4");
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+    await waitFor(() => expect(screen.getByRole("slider", { name: "Level" })).not.toHaveValue("4"));
   }, 120_000);
 });

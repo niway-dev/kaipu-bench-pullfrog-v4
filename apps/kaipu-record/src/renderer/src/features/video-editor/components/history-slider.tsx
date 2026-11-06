@@ -52,12 +52,13 @@ export function HistorySlider({
   // input is controlled from the scene, so while dragging it shows `draft` — the latest
   // pointer value — and stays responsive even though the scene lags one frame behind.
   const [draft, setDraft] = useState<number | null>(null);
-  const pending = useRef<number | null>(null);
+  // The handler is queued with the value: the inspectors above are not keyed by item, so a
+  // selection change mid-drag swaps `onLive` under a still-mounted slider, and the pending
+  // value must reach the item it was dragged on, not the new one.
+  const pending = useRef<{ value: number; onLive: (v: number) => void } | null>(null);
   const frame = useRef<number | null>(null);
-  const onLiveRef = useRef(onLive);
   const onEndRef = useRef(onEnd);
   useEffect(() => {
-    onLiveRef.current = onLive;
     onEndRef.current = onEnd;
   });
   // Sends the newest pending value now and drops the scheduled frame.
@@ -69,7 +70,7 @@ export function HistorySlider({
     if (pending.current !== null) {
       const next = pending.current;
       pending.current = null;
-      onLiveRef.current(next);
+      next.onLive(next.value);
     }
   };
   const finish = (): void => {
@@ -89,7 +90,7 @@ export function HistorySlider({
       flush();
       onEndRef.current();
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- flush only touches refs
+    // `flush` only touches refs, so the empty deps are correct.
     [],
   );
   const shown = draft ?? value;
@@ -127,7 +128,7 @@ export function HistorySlider({
             return;
           }
           setDraft(next);
-          pending.current = next;
+          pending.current = { value: next, onLive };
           frame.current ??= requestAnimationFrame(() => {
             frame.current = null;
             flush();
