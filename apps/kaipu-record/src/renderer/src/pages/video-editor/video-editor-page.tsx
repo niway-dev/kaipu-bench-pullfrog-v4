@@ -287,6 +287,7 @@ function ownsSpace(target: EventTarget | null): boolean {
   );
 }
 
+/** Whether `target` edits text, so the page's single-key shortcuts must leave it alone. */
 function isEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   // A range, checkbox or color input edits no text, and selecting a zoom focuses the
