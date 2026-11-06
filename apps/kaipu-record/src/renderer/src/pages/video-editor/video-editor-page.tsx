@@ -264,14 +264,29 @@ function sameGroup(a: EditorTool, b: EditorTool): boolean {
 
 /** Target is a text field or a dropdown — don't hijack its keys (Space, letters that pick
  *  an option) for play/pause or tool shortcuts. */
+/** Input types whose keys the page must leave alone: Backspace, Space and letters edit them. */
+const TEXT_INPUT_TYPES = new Set([
+  "text",
+  "search",
+  "email",
+  "number",
+  "password",
+  "tel",
+  "url",
+  "date",
+  "time",
+  "datetime-local",
+  "month",
+  "week",
+]);
+
 function isEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT" ||
-    target.isContentEditable
-  );
+  // A range, checkbox or color input edits no text, and selecting a zoom focuses the
+  // inspector's Level slider (focusInspectorFirstControl) — Delete from there must still
+  // remove the zoom, so only text-like inputs count as editing.
+  if (target instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(target.type);
+  return target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
 }
 
 function formatTime(seconds: number): string {
@@ -1338,7 +1353,10 @@ function VideoEditor({
       // require !isMod so it doesn't also delete an overlay or a segment.
       if (!isMod && (e.key === "Delete" || e.key === "Backspace")) {
         if (selectedRedactionId) handleRemoveRedaction(selectedRedactionId);
-        else if (selectedZoomId) handleRemoveZoom(selectedZoomId);
+        else if (selectedMuteId) {
+          mutes.remove(selectedMuteId);
+          selectKind("mute", null);
+        } else if (selectedZoomId) handleRemoveZoom(selectedZoomId);
         else if (selectedWebcamId && selectedWebcamId !== WEBCAM_LAYER_SELECTION)
           handleRemoveWebcamSegment(selectedWebcamId);
         else if (selectedOverlayId) handleDeleteOverlay();
@@ -1361,6 +1379,9 @@ function VideoEditor({
     handleDeleteOverlay,
     clearSelection,
     selectedZoomId,
+    selectedMuteId,
+    mutes,
+    selectKind,
     selectedRedactionId,
     handleRemoveZoom,
     handleRemoveRedaction,

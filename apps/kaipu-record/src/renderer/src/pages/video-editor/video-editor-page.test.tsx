@@ -760,6 +760,47 @@ describe("VideoEditorPage — shortcuts leave dropdowns alone", () => {
   });
 });
 
+describe("VideoEditorPage — Delete works while an inspector slider holds focus", () => {
+  // Selecting a zoom moves focus into the inspector (focusInspectorFirstControl), whose
+  // first control is the Level range input. A range input edits no text, so Delete and
+  // Backspace must still remove the selected zoom from there.
+  it("Backspace on the focused Level slider removes the selected zoom", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
+    await screen.findByRole("heading", { name: "Zoom 1" });
+    expect(footer.querySelector("[data-zoom-id]")).not.toBeNull();
+
+    const level = screen.getByRole("slider", { name: "Level" });
+    level.focus();
+    expect(document.activeElement).toBe(level);
+
+    fireEvent.keyDown(level, { key: "Backspace" });
+    await waitFor(() => {
+      expect(footer.querySelector("[data-zoom-id]")).toBeNull();
+    });
+  });
+});
+
+describe("VideoEditorPage — Delete removes a selected mute", () => {
+  it("Mute here adds a selected range; Delete removes it", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mute a section" }));
+    const block = await waitFor(() => {
+      const found = footer.querySelector("[data-mute-id]");
+      expect(found).not.toBeNull();
+      return found as HTMLElement;
+    });
+    expect(block).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(window, { key: "Delete" });
+    await waitFor(() => {
+      expect(footer.querySelector("[data-mute-id]")).toBeNull();
+    });
+  });
+});
+
 describe("VideoEditorPage — a tool flyout keeps its keys to itself", () => {
   beforeEach(() => {
     stubDecodedVideoSize(1280, 720);
