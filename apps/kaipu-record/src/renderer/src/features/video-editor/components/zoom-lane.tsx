@@ -11,7 +11,7 @@
  * delete preserve it; there is no reorder UI). If reordering ever ships, select the
  * handle blocks by sourceStart/sourceEnd instead of by position.
  */
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { Lock } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { sourceRangeToTimelineBlocks, sourceTimeAtTimeline } from "../source-time";
@@ -38,7 +38,7 @@ export interface ZoomLaneProps {
   hasTrack?: boolean;
 }
 
-export function ZoomLane({
+export const ZoomLane = memo(function ZoomLane({
   segments,
   layout,
   selectedId,
@@ -149,4 +149,4 @@ export function ZoomLane({
       })}
     </div>
   );
-}
+});

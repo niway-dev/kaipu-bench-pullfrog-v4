@@ -1,6 +1,21 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { HistorySlider } from "./history-slider";
+
+/** requestAnimationFrame under our control, so "one live update per frame" is observable. */
+function manualFrames() {
+  const queue: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => queue.push(cb));
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  return {
+    pending: () => queue.length,
+    flush: () => {
+      for (const cb of queue.splice(0)) cb(0);
+    },
+  };
+}
+
+afterEach(() => vi.unstubAllGlobals());
 
 function setup() {
   const handlers = { onBegin: vi.fn(), onLive: vi.fn(), onEnd: vi.fn(), onCommit: vi.fn() };
@@ -28,6 +43,58 @@ describe("HistorySlider", () => {
     expect(handlers.onLive).toHaveBeenCalledWith(2.5);
     expect(handlers.onEnd).toHaveBeenCalledTimes(1);
     expect(handlers.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("coalesces moves into one live update per frame, carrying the last value", () => {
+    const frames = manualFrames();
+    const { handlers, input } = setup();
+    fireEvent.pointerDown(input, { pointerId: 1 });
+    fireEvent.change(input, { target: { value: "2.2" } });
+    fireEvent.change(input, { target: { value: "2.6" } });
+    fireEvent.change(input, { target: { value: "3" } });
+    expect(handlers.onLive).not.toHaveBeenCalled();
+    expect(frames.pending()).toBe(1);
+    // The input follows the pointer even though the scene has not heard about it yet.
+    expect(input).toHaveValue("3");
+    frames.flush();
+    expect(handlers.onLive).toHaveBeenCalledTimes(1);
+    expect(handlers.onLive).toHaveBeenCalledWith(3);
+  });
+
+  it("pointer up flushes the pending value before the gesture ends", () => {
+    manualFrames();
+    const order: string[] = [];
+    const handlers = {
+      onBegin: vi.fn(),
+      onLive: vi.fn((v: number) => order.push(`live ${v}`)),
+      onEnd: vi.fn(() => order.push("end")),
+      onCommit: vi.fn(),
+    };
+    render(<HistorySlider label="Level" value={2} min={1} max={4} step={0.1} {...handlers} />);
+    const input = screen.getByRole("slider");
+    fireEvent.pointerDown(input, { pointerId: 1 });
+    fireEvent.change(input, { target: { value: "2.8" } });
+    fireEvent.pointerUp(input, { pointerId: 1 });
+    expect(order).toEqual(["live 2.8", "end"]);
+  });
+
+  it("unmounting mid-drag flushes the pending value, then ends", () => {
+    manualFrames();
+    const order: string[] = [];
+    const handlers = {
+      onBegin: vi.fn(),
+      onLive: vi.fn((v: number) => order.push(`live ${v}`)),
+      onEnd: vi.fn(() => order.push("end")),
+      onCommit: vi.fn(),
+    };
+    const { unmount } = render(
+      <HistorySlider label="Level" value={2} min={1} max={4} step={0.1} {...handlers} />,
+    );
+    const input = screen.getByRole("slider");
+    fireEvent.pointerDown(input, { pointerId: 1 });
+    fireEvent.change(input, { target: { value: "3.1" } });
+    unmount();
+    expect(order).toEqual(["live 3.1", "end"]);
   });
 
   it("unmounting mid-drag ends the gesture, so the scene's drag is never left open", () => {

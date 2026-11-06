@@ -11,7 +11,7 @@
  * `aria-hidden`; a custom `format` is exposed as `aria-valuetext`, so the role announces
  * the same text the screen shows (a stored 0.12 reads "10%", not "0.12").
  */
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import styles from "./history-slider.module.css";
 
 export interface HistorySliderProps {
@@ -47,32 +47,58 @@ export function HistorySlider({
 }: HistorySliderProps): React.JSX.Element {
   const dragging = useRef(false);
   const noteId = useId();
+  // Live updates reach the scene at most once per animation frame: every scene change
+  // re-renders the whole editor page, and a pointer can fire several moves per frame. The
+  // input is controlled from the scene, so while dragging it shows `draft` — the latest
+  // pointer value — and stays responsive even though the scene lags one frame behind.
+  const [draft, setDraft] = useState<number | null>(null);
+  const pending = useRef<number | null>(null);
+  const frame = useRef<number | null>(null);
+  const onLiveRef = useRef(onLive);
+  const onEndRef = useRef(onEnd);
+  useEffect(() => {
+    onLiveRef.current = onLive;
+    onEndRef.current = onEnd;
+  });
+  // Sends the newest pending value now and drops the scheduled frame.
+  const flush = (): void => {
+    if (frame.current !== null) {
+      cancelAnimationFrame(frame.current);
+      frame.current = null;
+    }
+    if (pending.current !== null) {
+      const next = pending.current;
+      pending.current = null;
+      onLiveRef.current(next);
+    }
+  };
   const finish = (): void => {
     if (!dragging.current) return;
     dragging.current = false;
+    flush();
     onEnd();
+    setDraft(null);
   };
   // Unmounted mid-drag (the inspector swapped under the pointer): pointerup never reaches
   // this input, so close the gesture here — an open drag makes the scene drop every later
   // commit and undo.
-  const onEndRef = useRef(onEnd);
-  useEffect(() => {
-    onEndRef.current = onEnd;
-  });
   useEffect(
     () => () => {
       if (!dragging.current) return;
       dragging.current = false;
+      flush();
       onEndRef.current();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- flush only touches refs
     [],
   );
+  const shown = draft ?? value;
   return (
     <div className={styles.row}>
       <span className={styles.head}>
         <span className={styles.label}>{label}</span>
         <span className={styles.value} aria-hidden>
-          {format ? format(value) : String(value)}
+          {format ? format(shown) : String(shown)}
         </span>
       </span>
       <input
@@ -81,10 +107,10 @@ export function HistorySlider({
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={shown}
         disabled={disabled}
         aria-label={label}
-        aria-valuetext={format ? format(value) : undefined}
+        aria-valuetext={format ? format(shown) : undefined}
         aria-describedby={note ? noteId : undefined}
         onPointerDown={(event) => {
           // Optional call: jsdom has no setPointerCapture (same guard as the timeline).
@@ -96,8 +122,16 @@ export function HistorySlider({
         onPointerCancel={finish}
         onChange={(event) => {
           const next = Number(event.currentTarget.value);
-          if (dragging.current) onLive(next);
-          else onCommit(next);
+          if (!dragging.current) {
+            onCommit(next);
+            return;
+          }
+          setDraft(next);
+          pending.current = next;
+          frame.current ??= requestAnimationFrame(() => {
+            frame.current = null;
+            flush();
+          });
         }}
       />
       {note && (

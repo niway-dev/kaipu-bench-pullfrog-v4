@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { VideoScene } from "./scene";
 
 export interface VideoSceneController {
@@ -103,18 +103,39 @@ export function useVideoScene(initial: VideoScene): VideoSceneController {
     setFuture([]);
   }, []);
 
-  return {
-    scene,
-    dirty: past.length > 0,
-    canUndo: past.length > 0,
-    canRedo: future.length > 0,
-    interacting,
-    undo,
-    redo,
-    commit,
-    beginInteract,
-    updateLive,
-    endInteract,
-    markClean,
-  };
+  // One object per scene/flag change, not per render: consumers put it in dependency lists,
+  // and every callback in it is already stable.
+  const dirty = past.length > 0;
+  const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
+  return useMemo(
+    () => ({
+      scene,
+      dirty,
+      canUndo,
+      canRedo,
+      interacting,
+      undo,
+      redo,
+      commit,
+      beginInteract,
+      updateLive,
+      endInteract,
+      markClean,
+    }),
+    [
+      scene,
+      dirty,
+      canUndo,
+      canRedo,
+      interacting,
+      undo,
+      redo,
+      commit,
+      beginInteract,
+      updateLive,
+      endInteract,
+      markClean,
+    ],
+  );
 }

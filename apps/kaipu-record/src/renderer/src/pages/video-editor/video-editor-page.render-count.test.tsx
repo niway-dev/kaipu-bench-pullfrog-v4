@@ -2,12 +2,14 @@
  * Render-count guard (NIW2-662): dragging an inspector slider must not re-render the
  * timeline lanes that do not depend on the value being dragged.
  *
- * Each lane module is mocked with a plain (non-memo) counting wrapper, so a count means
- * "the parent re-rendered this lane" — which is exactly what React.memo on the real lane
- * has to prevent. The recording is SYNTHETIC: a one-hour cursor track and ~100 saved zooms,
+ * Each lane module is mocked with a counting wrapper that is itself `memo`: it re-renders
+ * under exactly the shallow prop comparison the real memoised lane uses, so a count is "this
+ * lane really rendered again". (Measured with a plain, non-memo wrapper before the change,
+ * the count was the number of parent renders: 63 per lane for 60 moves.) The recording is SYNTHETIC: a one-hour cursor track and ~100 saved zooms,
  * big enough that a wasted lane render is measurable.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { memo } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { serializeCursorTrack, type CursorClick, type CursorTrack } from "@shared/cursor-track";
@@ -44,10 +46,10 @@ vi.mock("@renderer/features/video-editor/components/activity-lane", async (impor
   const Orig = mod.ActivityLane;
   return {
     ...mod,
-    ActivityLane: (props: React.ComponentProps<typeof Orig>) => {
+    ActivityLane: memo((props: React.ComponentProps<typeof Orig>) => {
       count("activity");
       return <Orig {...props} />;
-    },
+    }),
   };
 });
 vi.mock("@renderer/features/video-editor/components/zoom-lane", async (importOriginal) => {
@@ -56,10 +58,10 @@ vi.mock("@renderer/features/video-editor/components/zoom-lane", async (importOri
   const Orig = mod.ZoomLane;
   return {
     ...mod,
-    ZoomLane: (props: React.ComponentProps<typeof Orig>) => {
+    ZoomLane: memo((props: React.ComponentProps<typeof Orig>) => {
       count("zoom");
       return <Orig {...props} />;
-    },
+    }),
   };
 });
 vi.mock("@renderer/features/video-editor/components/audio-lane", async (importOriginal) => {
@@ -68,10 +70,10 @@ vi.mock("@renderer/features/video-editor/components/audio-lane", async (importOr
   const Orig = mod.AudioLane;
   return {
     ...mod,
-    AudioLane: (props: React.ComponentProps<typeof Orig>) => {
+    AudioLane: memo((props: React.ComponentProps<typeof Orig>) => {
       count("audio");
       return <Orig {...props} />;
-    },
+    }),
   };
 });
 vi.mock("@renderer/features/video-editor/components/privacy-lane", async (importOriginal) => {
@@ -82,10 +84,10 @@ vi.mock("@renderer/features/video-editor/components/privacy-lane", async (import
   const Orig = mod.PrivacyLane;
   return {
     ...mod,
-    PrivacyLane: (props: React.ComponentProps<typeof Orig>) => {
+    PrivacyLane: memo((props: React.ComponentProps<typeof Orig>) => {
       count("privacy");
       return <Orig {...props} />;
-    },
+    }),
   };
 });
 vi.mock("@renderer/features/video-editor/components/timeline-strip", async (importOriginal) => {
@@ -96,10 +98,10 @@ vi.mock("@renderer/features/video-editor/components/timeline-strip", async (impo
   const Orig = mod.TimelineStrip;
   return {
     ...mod,
-    TimelineStrip: (props: React.ComponentProps<typeof Orig>) => {
+    TimelineStrip: memo((props: React.ComponentProps<typeof Orig>) => {
       count("strip");
       return <Orig {...props} />;
-    },
+    }),
   };
 });
 
@@ -190,6 +192,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   setHeaderActionsElement(null);
   headerActions.remove();
   window.electronAPI.loadVideoEditSession = originalLoadSession;
@@ -218,13 +221,28 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     await screen.findByRole("heading", { name: "Zoom 1" });
     const slider = screen.getByRole("slider", { name: "Level" });
 
+    // One animation frame per pointer move, as in a real drag: the slider hands the scene one
+    // live update per frame, so a frame has to pass after each move.
+    const queued: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => queued.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    // Only the slider's frame runs: it is queued first, by the change handler itself. Frames the
+    // page queues while re-rendering (camera path rebuild, playback loop) are dropped, so the
+    // measurement is the lanes' render cost and not a one-hour camera simulation per move.
+    const nextFrame = (): void => {
+      const [sliderFrame] = queued.splice(0);
+      act(() => sliderFrame?.(0));
+    };
+
     for (const key of Object.keys(renders)) renders[key] = 0;
     const moves = 60;
     const start = performance.now();
     fireEvent.pointerDown(slider);
     for (let i = 0; i < moves; i++) {
       const value = (1 + (3 * (i + 1)) / moves).toFixed(2);
+      queued.length = 0; // frames left over from the previous move's re-render
       fireEvent.change(slider, { target: { value } });
+      nextFrame();
     }
     fireEvent.pointerUp(slider);
     const ms = performance.now() - start;
@@ -233,5 +251,15 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
         `audio=${renders["audio"] ?? 0} privacy=${renders["privacy"] ?? 0} ` +
         `strip=${renders["strip"] ?? 0} moves=${moves} ms=${ms.toFixed(0)}`,
     );
+    // The lanes that do not depend on the zoom being dragged must not render at all.
+    expect(renders["activity"] ?? 0).toBe(0);
+    expect(renders["audio"] ?? 0).toBe(0);
+    expect(renders["privacy"] ?? 0).toBe(0);
+    // The zoom lane shows the dragged segment, so it renders once per live update (one per
+    // frame); the +3 allows the gesture's own begin/end state changes. The strip hosts that
+    // lane's element, so it re-renders alongside it, at the same bound; its own children are
+    // memoised or cheap (ruler ticks are memoised on the duration).
+    expect(renders["zoom"] ?? 0).toBeLessThanOrEqual(moves + 3);
+    expect(renders["strip"] ?? 0).toBeLessThanOrEqual(moves + 3);
   }, 120_000);
 });
