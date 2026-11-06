@@ -103,8 +103,9 @@ export function useVideoScene(initial: VideoScene): VideoSceneController {
     setFuture([]);
   }, []);
 
-  // One object per scene/flag change, not per render: consumers put it in dependency lists,
-  // and every callback in it is already stable.
+  // One object per scene/flag change, not per render: consumers put it in dependency lists.
+  // Every callback except undo/redo is stable; those two change with the history stacks,
+  // so the object also changes identity on every commit.
   const dirty = past.length > 0;
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
