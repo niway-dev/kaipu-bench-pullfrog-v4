@@ -298,14 +298,22 @@ describe("resizing under a live view (a cut while zoomed)", () => {
     expect(cut.scroll).toBe(1500);
   });
 
-  it("re-clamps the scroll when the lane grows wider than the remaining content", () => {
+  it("keeps the scroll when a wider lane still leaves room to scroll", () => {
     const zoomed = viewAt(4, 3000);
     const wider = clampView({ ...zoomed, laneWidth: 1500 });
-    // content is now 6000 px, so the maximum scroll is 4500: unchanged here.
+    // content is now 6000 px, so the maximum scroll is 4500: 3000 is still inside it.
+    expect(wider.zoom).toBe(4);
     expect(wider.scroll).toBe(3000);
-    const much = clampView({ ...zoomed, laneWidth: 4000 });
-    expect(much.zoom).toBeLessThanOrEqual(maxZoom(4000, 100));
-    expect(much.scroll).toBeLessThanOrEqual(Math.max(0, contentWidth(much) - 4000));
+  });
+
+  it("re-clamps the zoom and the scroll when the lane grows so wide that nothing is left to scroll", () => {
+    const zoomed = viewAt(4, 3000);
+    // 24 000 px for 100 s is 240 px/s at fit, already MAX_PX_PER_SECOND: maxZoom falls to 1,
+    // the content is exactly the lane, and the old scroll of 3000 has nowhere to go.
+    const huge = clampView({ ...zoomed, laneWidth: 24_000 });
+    expect(maxZoom(24_000, 100)).toBe(1);
+    expect(huge.zoom).toBe(1);
+    expect(huge.scroll).toBe(0);
   });
 
   it("drops the zoom to the new maximum when a cut leaves too little to zoom into", () => {
