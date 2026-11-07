@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, renameSync, rmSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -27,6 +27,10 @@ const LONG = 605; // 10:05, for the widest time label
 function fixture(seconds: number): string {
   const file = path.join(os.tmpdir(), `kaipu-verify-long-${seconds}.mp4`);
   if (existsSync(file)) return file;
+  // ffmpeg writes to a sibling and the file is renamed into place only when it exits 0, so an
+  // interrupted run never leaves a truncated fixture that every later run would reuse. The
+  // `.mp4` ending keeps the muxer ffmpeg infers from the extension.
+  const part = `${file}.part.mp4`;
   const run = spawnSync(
     "ffmpeg",
     [
@@ -52,11 +56,15 @@ function fixture(seconds: number): string {
       "-b:a",
       "48k",
       "-shortest",
-      file,
+      part,
     ],
     { encoding: "utf8" },
   );
-  if (run.status !== 0) throw new Error(`ffmpeg failed: ${run.stderr}`);
+  if (run.status !== 0) {
+    rmSync(part, { force: true });
+    throw new Error(`ffmpeg failed: ${run.stderr}`);
+  }
+  renameSync(part, file);
   return file;
 }
 
