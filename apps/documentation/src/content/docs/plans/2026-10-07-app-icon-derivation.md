@@ -48,3 +48,9 @@ was changed by hand. Until then the `.ico` was a June hand export with the old p
 
 Visual check in the Dock, ⌘-Tab and Finder for `bun run dev` and a fresh DMG install
 (`killall Dock` may be needed to flush the icon cache).
+
+## Stale Dock icon after a logo change
+
+macOS caches a rendered copy of each app icon and can keep drawing it after the bundle's `icon.icns` changed. On 2026-11-07 a Dock still showed the old play-mark triangle although the repository, the generated `build/icon.icns` and the installed 0.16.0 bundle all carried the fox (checked by hash: the installed `icon.icns` equals the one on `main`). No file in the repository references the old mark; the cache was stale.
+
+`apps/kaipu-record/scripts/refresh-icon-cache.sh` clears it: it re-registers the installed bundle, deletes the per-user IconServices and Dock icon caches, and restarts the Dock and Finder. `bun run icons` now runs it after generating the icons; `bun run icons:refresh` runs it alone. The system-wide store (`/Library/Caches/com.apple.iconservices.store`) needs `sudo`, so the script prints that command instead of running it.
