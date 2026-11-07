@@ -834,8 +834,6 @@
     "destinationAria": "Export a copy for {destination}",
     "exportCopy": "Export a copy",
     "metaDimensions": "{width} × {height}",
-    "sendTo": "Send to…",
-    "metaCopies": "{count, plural, one {# copy} other {# copies}}",
     "copyExporting": "Exporting · {percent}% · {eta} left",
     "copyExportingNoEta": "Exporting · {percent}%",
     "maintenanceRefused": "Kaipu is fixing your files. Try again in a moment.",
