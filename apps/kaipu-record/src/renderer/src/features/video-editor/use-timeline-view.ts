@@ -43,7 +43,8 @@ export interface TimelineViewStore {
   setLaneWidth(px: number): void;
   /** FIT: 1x, scroll 0. */
   fit(): void;
-  /** `+` / `−`: one {@link ZOOM_STEP} around the centre of the visible window. */
+  /** `+` / `−`: one {@link ZOOM_STEP} around the centre of the visible window. A zoom never
+   *  stops the view following the playhead (only a pan does), here and in the two below. */
   zoomStep(direction: 1 | -1): void;
   /** The slider: an absolute zoom, around the centre. */
   zoomTo(zoom: number): void;
@@ -66,7 +67,9 @@ export interface TimelineViewStore {
 export function createTimelineViewStore(): TimelineViewStore {
   let state: TimelineViewState = { zoom: 1, scroll: 0, laneWidth: 0 };
   let duration = 0;
-  // False once the user pans or zooms by hand: playback then leaves the view alone.
+  // False once the user PANS by hand (scrollbar, swipe, drag): playback then leaves the view
+  // alone until the next play. A zoom does not count: it keeps the anchor the user chose and
+  // the next playback tick turns the page if the playhead ended up outside the lane.
   let following = true;
   const listeners = new Set<() => void>();
 
@@ -95,7 +98,6 @@ export function createTimelineViewStore(): TimelineViewStore {
   const centred = (factor: number): void => {
     const current = view();
     commit(zoomAt(current, factor, current.laneWidth / 2, 0));
-    following = false;
   };
 
   return {
@@ -129,7 +131,6 @@ export function createTimelineViewStore(): TimelineViewStore {
     },
     zoomAtPointer(factor, clientX, laneLeft) {
       commit(zoomAt(view(), factor, clientX, laneLeft));
-      following = false;
     },
     scrollTo(px, by) {
       if (by === "user") following = false;

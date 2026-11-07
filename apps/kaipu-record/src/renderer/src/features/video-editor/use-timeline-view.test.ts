@@ -137,7 +137,7 @@ describe("following the playhead", () => {
     const store = makeStore();
     store.zoomTo(4); // 40 px/s, the lane shows 25 s
     store.scrollTo(0, "follow"); // zoomTo centred the view; start from the left
-    store.resumeFollow(); // a zoom by hand takes over; a play puts it back
+    store.resumeFollow(); // play was pressed
     return store;
   }
 
@@ -172,12 +172,44 @@ describe("following the playhead", () => {
     expect(store.getState().scroll).toBeGreaterThan(after);
   });
 
-  it("zooming by hand also takes over", () => {
+  // Only a PAN takes the view out of the playhead's hands. A zoom keeps the anchor the user
+  // chose (the centre, or the pointer) and the next playback tick turns the page if the
+  // playhead ended up outside the lane.
+  it.each([
+    [
+      "+ and − (twice)",
+      (store: ReturnType<typeof makeStore>) => {
+        store.zoomStep(1);
+        store.zoomStep(1);
+      },
+    ],
+    ["the slider", (store: ReturnType<typeof makeStore>) => store.zoomTo(8)],
+    ["⌘ + wheel / pinch", (store: ReturnType<typeof makeStore>) => store.zoomAtPointer(2, 500, 0)],
+  ])(
+    "zooming with %s keeps following: the playhead is back in the lane on the next tick",
+    (_name, zoom) => {
+      const store = zoomed(); // 4x: 40 px/s, the lane shows 0..25 s
+      store.follow(20); // x = 800, at the mark: no scroll yet
+      expect(store.getState().scroll).toBe(0);
+      zoom(store); // 8x around the centre (12.5 s): the playhead at 20 s is now at x = 1100
+      expect(xOf(store.getView(), 20)).toBeGreaterThan(1000); // off the right edge for now
+      store.follow(20); // the next tick
+      const x = xOf(store.getView(), 20);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(1000 * 0.8);
+    },
+  );
+
+  it("a pan then a zoom still does not follow, until the next play", () => {
     const store = zoomed();
-    store.zoomStep(1);
+    store.scrollTo(100, "user"); // the user took over
+    store.zoomStep(1); // a zoom must not give the view back
     const scroll = store.getState().scroll;
     store.follow(90);
     expect(store.getState().scroll).toBe(scroll);
+    store.resumeFollow(); // play pressed
+    store.follow(90);
+    expect(store.getState().scroll).toBeGreaterThan(scroll);
   });
 
   it("reveal scrolls to an off-screen time even after the user took over, but not a visible one", () => {

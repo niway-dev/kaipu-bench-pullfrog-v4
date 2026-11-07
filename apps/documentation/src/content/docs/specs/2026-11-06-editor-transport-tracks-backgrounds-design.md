@@ -415,8 +415,10 @@ What differs from the first draft of this section, and why:
 delivers as a wheel with `ctrlKey`) calls `zoomAt` around the pointer, one event moving the zoom by
 at most e^0.4. A plain horizontal swipe pans the scroll container natively. While playing,
 `followPlayhead` turns the page when the playhead passes 80 % of the visible width, putting it back
-at 20 %; the view stops following after the user pans or zooms by hand, until the next play, and
-never moves under a pointer that is scrubbing. While paused, a seek that lands off screen (a
+at 20 %; the view stops following after the user pans by hand (scrollbar, swipe, drag), until the
+next play, and never moves under a pointer that is scrubbing. A zoom made while playing keeps
+following: it keeps the anchor the user chose and the next tick turns the page if the playhead
+ended up outside the lane. While paused, a seek that lands off screen (a
 keyboard step, rewind/forward) scrolls it into view (`revealTime`); a click on the ruler never does.
 
 `thumbnailTiles` takes the block, the scale and the visible range and returns only the tiles in

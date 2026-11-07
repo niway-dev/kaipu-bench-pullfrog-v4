@@ -636,6 +636,30 @@ describe("following the playhead", () => {
     expect(store.getState().scroll).toBeGreaterThan(100);
   });
 
+  it("pressing + while playing keeps following: the playhead is back in the lane on the next tick", () => {
+    const { store, tick } = playingStrip();
+    tick(20); // x = 800 at 4x: at the mark, no page turn yet
+    expect(store.getState().scroll).toBe(0);
+    act(() => {
+      store.zoomStep(1);
+      store.zoomStep(1);
+    }); // 8x around the centre: the playhead at 20 s is now off the right edge
+    tick(20);
+    const x = xOf(store.getView(), 20);
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThanOrEqual(LANE_WIDTH * 0.8);
+  });
+
+  it("a pan then a zoom leaves the view where the user put it, until the next play", () => {
+    const { store, body, tick } = playingStrip();
+    body.scrollLeft = 100;
+    fireEvent.scroll(body); // the user took over
+    act(() => store.zoomStep(1));
+    const scroll = store.getState().scroll;
+    tick(90);
+    expect(store.getState().scroll).toBe(scroll);
+  });
+
   it("pausing does not snap the view back to a playhead the user panned away from", () => {
     const playing = makePlayback({ playing: true, timelineTime: 10 }); // 10 s = 400 px in
     const { store, body, rerender } = renderZoomed({ playback: playing });
