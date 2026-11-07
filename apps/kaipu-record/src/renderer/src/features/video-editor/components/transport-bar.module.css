@@ -323,15 +323,16 @@
  * query reads its CONTENT box (the bar minus its 24 px of padding), and each side column is
  * (that - 132) / 2. The label is 116 px (108 under 10 minutes) and hangs 12 px off the centre
  * column, 128 px in all; its short form (the current time) is 43 px, 55 px with the gap. The
- * cluster is 176 px without the zoom control and, with it, 279 px (en) / 307 px (es) as
+ * cluster is 176 px without the zoom control and, with it, 281 px (en) / 309 px (es) as
  * `− FIT +`, 355 px (en) / 383 px (es) with the 72 px slider, and 250 px as `− +`.
  *
- * So the cluster plus the full label fits from a content box of about 1010 px (Spanish, the
- * longer FIT), the slider as well from about 1160 px, `− FIT +` beside the short time from
- * about 865 px, and at the editor's 1180 px floor (content 768, side columns 318) only `− +`
- * does, with 19 px to spare. Each query below drops one thing, cheapest first: the slider
+ * So the cluster plus the full label fits from a content box of about 1006 px (Spanish, the
+ * longer FIT), the slider as well from about 1154 px, `− FIT +` beside the short time from
+ * about 860 px, and at the editor's 1180 px floor (content 768, side columns 318) only `− +`
+ * does, with 25 px to spare. Clear space measured between the label and the first button:
+ * 51 px (en) / 23 px (es) at 1440, 25 px at 1180, 43 / 15 px at 1280. Each query below drops one thing, cheapest first: the slider
  * (the wheel and the buttons do the same), the time's total (the ruler ends on it), then FIT
- * (`−` steps back to it). The margins are 4 px over the measured need. Re-measure whenever a
+ * (`−` steps back to it). The thresholds sit 2 to 6 px over the measured need. Re-measure whenever a
  * control joins the right cluster or the label grows, and `bun run verify -- timeline-zoom`
  * on the Mac mini prints the numbers.
  */
@@ -341,7 +342,7 @@
   }
 }
 
-@container transport (max-width: 1008px) {
+@container transport (max-width: 1012px) {
   .timeFull {
     position: absolute;
     width: 1px;
@@ -355,7 +356,7 @@
   }
 }
 
-@container transport (max-width: 862px) {
+@container transport (max-width: 866px) {
   .fitButton {
     display: none;
   }

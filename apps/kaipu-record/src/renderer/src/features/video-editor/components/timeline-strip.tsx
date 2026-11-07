@@ -137,19 +137,22 @@ export function TimelineStrip({
   const view = useMemo(() => clampView({ ...viewState, duration }), [viewState, duration]);
 
   // The lane's place on screen, read live: the strip's left edge plus the (sticky) label
-  // column and the inset the stylesheet leaves for edge handles (--lane-inset, on both
-  // sides). Nothing is cached, so a window resize or a layout shift cannot leave a stale
-  // number behind a pointer conversion.
+  // column and the gap to the lanes, and its width less those and the room the stylesheet
+  // leaves after the lanes for the last handle (--lane-gap, --lane-end). Nothing is
+  // cached, so a window resize or a layout shift cannot leave a stale number behind a
+  // pointer conversion.
   const measureLane = useCallback((): { laneLeft: number; laneWidth: number } | null => {
     const body = bodyRef.current;
     const corner = cornerRef.current;
     if (!body || !corner) return null;
     const bodyRect = body.getBoundingClientRect();
     const labels = corner.getBoundingClientRect().width;
-    const inset = parseFloat(getComputedStyle(body).getPropertyValue("--lane-inset")) || 0;
+    const style = getComputedStyle(body);
+    const gap = parseFloat(style.getPropertyValue("--lane-gap")) || 0;
+    const end = parseFloat(style.getPropertyValue("--lane-end")) || 0;
     return {
-      laneLeft: bodyRect.left + labels + inset,
-      laneWidth: Math.max(0, bodyRect.width - labels - 2 * inset),
+      laneLeft: bodyRect.left + labels + gap,
+      laneWidth: Math.max(0, bodyRect.width - labels - gap - end),
     };
   }, []);
 

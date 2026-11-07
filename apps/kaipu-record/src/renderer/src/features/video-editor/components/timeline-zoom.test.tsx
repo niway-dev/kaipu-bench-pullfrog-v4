@@ -215,8 +215,8 @@ describe("the ruler and the track at 4x, scrolled", () => {
   });
 });
 
-describe("the inset the stylesheet leaves for edge handles", () => {
-  it("is part of the lane's geometry: the lane starts after the labels AND the inset, and ends before the right one", () => {
+describe("the room the stylesheet leaves around the lanes", () => {
+  it("is part of the lane's geometry: the lane starts after the labels AND the gap, and ends before the trailing room", () => {
     const playback = makePlayback();
     stubGeometry();
     const store = createTimelineViewStore();
@@ -224,17 +224,18 @@ describe("the inset the stylesheet leaves for edge handles", () => {
     const { container } = render(strip(store, { playback }));
     const body = container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement;
     // What `.timelineBody` declares (jsdom loads no stylesheet, so say it inline).
-    body.style.setProperty("--lane-inset", "6px");
+    body.style.setProperty("--lane-gap", "8px");
+    body.style.setProperty("--lane-end", "6px");
     const ruler = captureStubs(container.querySelector('[data-testid="ruler"]') as HTMLElement);
-    // The lane is 1000 - 12 = 988 px wide and starts at 220 + 6: 10 s at fit is 98.8 px.
+    // The lane starts at 100 + 120 + 8 = 228 and is 1120 - 120 - 8 - 6 = 986 px wide.
     const seekedTo = (clientX: number): number => {
       fireEvent.pointerDown(ruler, { pointerId: 1, clientX });
       return (playback.seek as Mock).mock.lastCall![0] as number;
     };
-    expect(seekedTo(226)).toBeCloseTo(0, 9);
-    expect(seekedTo(226 + 494)).toBeCloseTo(50, 9);
-    expect(seekedTo(226 + 988)).toBeCloseTo(100, 9);
-    expect(store.getState().laneWidth).toBe(988);
+    expect(seekedTo(228)).toBeCloseTo(0, 9);
+    expect(seekedTo(228 + 493)).toBeCloseTo(50, 9);
+    expect(seekedTo(228 + 986)).toBeCloseTo(100, 9);
+    expect(store.getState().laneWidth).toBe(986);
   });
 });
 

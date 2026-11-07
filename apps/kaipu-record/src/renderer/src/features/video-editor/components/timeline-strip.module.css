@@ -16,27 +16,25 @@
 .timelineBody {
   position: relative;
   display: grid;
-  /* Label column (UI spec § 6) + the lanes column. Every lane lives in column 2, so all
-     lanes share one horizontal extent. The width is declared ONCE, here: the grid
-     template and .playheadLayer's offset both read it and must never drift apart. The
-     8 px that used to be the column gap is the label's own padding now (see .laneLabel),
-     because a sticky label has to cover the gap too, or lanes would show through it. */
+  /* Label column (UI spec § 6), a gap, and the lanes column. Every lane lives in the last
+     column, so all lanes share one horizontal extent. The numbers are declared ONCE, here:
+     the grid template, .playheadLayer and TimelineStrip's pixel conversions (it reads
+     --lane-gap and --lane-end back) must never drift apart. */
   --lane-label-w: 112px;
-  --lane-label-col: calc(var(--lane-label-w) + var(--space-sm));
-  /* Room on both sides of the lanes for the trim and edge handles, which sit half outside
-     the block they belong to: without it the first clip's start handle would be half under
-     the sticky label and the last clip's end handle half cut off by the scroll container
-     (4 px left of an 8 px target). The gap column gives the left, .timelineBody's right
-     padding the right; TimelineStrip reads this variable to place its pixel conversions. */
-  --lane-inset: 6px;
+  --lane-gap: var(--space-sm);
+  /* Room after the lanes for the last clip's end handle, which sits half outside its block
+     (the scroll container would cut it to 4 px of an 8 px target). The strip's own right
+     padding is where that room used to come from; this takes it from there again with the
+     negative margin below, so a timeline at fit is laid out exactly as before zoom existed. */
+  --lane-end: 8px;
   /* The lanes column is `--zoom` lane widths wide (set by TimelineStrip; 1 = fit, the
-     whole recording in the visible width). `100%` is this container's content box, so the
-     same expression sizes the grid and .playheadLayer. */
-  grid-template-columns: var(--lane-label-col) calc(
-      (100% - var(--lane-label-col) - var(--lane-inset)) * var(--zoom, 1)
+     whole recording in the visible width, which is what 1fr was). `100%` is this
+     container's content box, so the same expression sizes the grid and .playheadLayer. */
+  grid-template-columns: var(--lane-label-w) calc(
+      (100% - var(--lane-label-w) - var(--lane-gap)) * var(--zoom, 1)
     );
   align-items: center;
-  column-gap: var(--lane-inset);
+  column-gap: var(--lane-gap);
   /* 3 px between lanes (Kaipu Black, NIW2-619). */
   row-gap: 3px;
   flex: 1;
@@ -44,12 +42,13 @@
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+  padding-right: var(--lane-end);
+  margin-right: calc(-1 * var(--lane-end));
   /* A scrollbar that overlays content (macOS with a trackpad) would sit on the last lane.
      This padding gives it a strip of its own, and the negative margin gives the height
      back, so a timeline at fit is exactly as tall as before zoom existed. */
   padding-bottom: 8px;
   margin-bottom: -8px;
-  padding-right: var(--lane-inset);
 }
 
 /* Sticky, not outside the scroller: the label rows must line up with the lane rows, and
@@ -65,8 +64,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  /* Includes the 8 px gap to the lanes (see --lane-label-col). */
-  padding-right: var(--space-sm);
   background: var(--bg-panel);
   box-shadow: 0 3px 0 0 var(--bg-panel);
   white-space: nowrap;
@@ -91,15 +88,17 @@
 
 /* Covers the lanes column across every row; the playhead's left % is relative to it,
    i.e. to the CONTENT's width (zoom included), exactly like each lane's own blocks, and it
-   scrolls with them. --lane-label-col and --lane-inset are inherited from .timelineBody, so
-   they live in exactly one place. Below the labels (z-index 4), so a playhead scrolled off the left
-   edge disappears under them instead of drawing over their text. */
+   scrolls with them. --lane-label-w, --lane-gap and --lane-end are inherited from
+   .timelineBody, so they live in exactly one place. Its `100%` is the padding box (the
+   grid's is the content box), hence the extra `--lane-end`. Below the labels (z-index 4), so
+   a playhead scrolled off the left edge disappears under them instead of drawing over their
+   text. */
 .playheadLayer {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--lane-label-col) + var(--lane-inset));
-  width: calc((100% - var(--lane-label-col) - 2 * var(--lane-inset)) * var(--zoom, 1));
+  left: calc(var(--lane-label-w) + var(--lane-gap));
+  width: calc((100% - var(--lane-label-w) - var(--lane-gap) - var(--lane-end)) * var(--zoom, 1));
   pointer-events: none;
   z-index: 3;
 }

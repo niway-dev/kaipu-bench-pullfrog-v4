@@ -308,6 +308,29 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     };
 
     await shoot("1x");
+    // At fit the timeline must be laid out exactly as before zoom existed: the same lane
+    // edges and the same footer height, before and after (compare the two runs' numbers).
+    console.log(
+      `[verify] ${NAME}: walk 1x layout ${JSON.stringify(
+        await page.evaluate(() => {
+          const ruler = document.querySelector('[data-testid="ruler"]')!.getBoundingClientRect();
+          const footerBox = document
+            .querySelector("[data-ui-area='editorVideo.timeline']")!
+            .getBoundingClientRect();
+          const labels = Array.from(
+            document.querySelectorAll("[data-ui-area='editorVideo.timeline'] span"),
+          )
+            .filter((el) => el.querySelector("svg") && el.textContent)
+            .map((el) => Math.round(el.getBoundingClientRect().left));
+          return {
+            laneLeft: Number(ruler.left.toFixed(2)),
+            laneRight: Number(ruler.right.toFixed(2)),
+            footerHeight: Math.round(footerBox.height),
+            labelLefts: labels,
+          };
+        }),
+      )}`,
+    );
     if (!hasZoom) {
       console.log(`[verify] ${NAME}: walk no zoom control in this tree (before)`);
       return;
