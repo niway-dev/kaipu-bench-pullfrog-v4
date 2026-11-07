@@ -623,7 +623,8 @@ describe("the static background layer is built once, not once per frame (review 
     const first = made;
     for (let i = 1; i < FRAMES; i++) clip(l, frame, i);
     expect(made).toBe(first);
-    // The picture canvas, the layer, and the output the test made itself.
+    // Only `new OffscreenCanvas` calls are counted: the composer's picture canvas and its cached
+    // background layer. The output the test makes is a direct `SoftCanvas` and is not counted.
     expect(first).toBeGreaterThan(plain);
   });
 
