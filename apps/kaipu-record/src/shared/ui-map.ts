@@ -154,13 +154,24 @@ export const UI_MAP = {
     areas: {
       page: { states: ["recording", "screenshot", "gif", "loading"] },
       missing: { states: ["notFound"] },
+      header: { states: ["recording", "screenshot", "gif", "cloudOnly"] },
       details: { states: ["recording", "edited", "stale", "copy"] },
       postRecordingCard: { states: ["fresh"], gatedBy: [{ setting: "showRecordingSavedCard" }] },
       savedNotice: { states: ["shown"] },
       preview: { states: ["video", "image", "gif", "unavailable"] },
       actions: { states: ["recording", "screenshot", "gif", "cloudOnly"] },
-      destinations: { states: ["ready"] },
-      copies: { states: ["master", "copy", "running"] },
+      tabs: { states: ["destinations", "versions", "details"] },
+      // VersionsList: the original alone; with its edited project; with the copies made from
+      // it; a copy viewed on its own page (the Viewing pill sits on that row); a copy being
+      // made; a copy whose original was deleted.
+      versions: {
+        states: ["original", "edited", "withCopies", "copy", "running", "sourceDeleted"],
+      },
+      itemDetails: { states: ["recording", "screenshot", "gif"] },
+      // DestinationsList: "heavy" adds the heavy-to-send line under the rows (over 25 MB).
+      destinations: { states: ["ready", "heavy"] },
+      // The ••• menu floats below its button, outside the actions box, so it is its own area.
+      itemMenu: { states: ["open"] },
     },
   },
   export: {

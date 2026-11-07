@@ -179,6 +179,8 @@ window.electronAPI = {
   backfillLocalRecordingMeta: async () => null,
   deleteLocalRecording: async () => {},
   revealLocalRecording: async () => {},
+  openLocalRecording: async () => {},
+  localRecordingPath: async () => null,
   gifSave: async () => {
     throw new Error("gifSave not stubbed in this test");
   },
