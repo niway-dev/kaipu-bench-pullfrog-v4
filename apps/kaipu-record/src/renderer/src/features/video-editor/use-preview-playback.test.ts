@@ -1049,6 +1049,23 @@ describe.each([1, 2])("usePreviewPlayback — play at the layout end restarts, a
 });
 
 describe("usePreviewPlayback — the native ended path", () => {
+  it("is ignored while a slide owns the clock (a queued `ended` after the clip before it)", () => {
+    const { result, playTo } = setupCutRig(GAP_THEN_SLIDE, 2);
+    act(() => result.current.play());
+    playTo(5.3); // the hand-off into the slide ran; the element's `ended` was already queued
+    frame();
+    expect(result.current.activeSlideId).toBe("s1");
+
+    act(() => result.current.onVideoEnded());
+
+    expect(result.current.playing).toBe(true); // the slide is still running
+    expect(result.current.timelineTime).toBe(5); // not snapped to the layout end (13)
+    expect(result.current.activeSlideId).toBe("s1");
+    advance(1700); // the slide still ends on its own clock and chains into clip b
+    expect(result.current.activeSlideId).toBeNull();
+    expect(result.current.playing).toBe(true);
+  });
+
   it("still stops at the layout end, and play restarts from 0", () => {
     const { result, seeks } = setupCutRig(ONE_CLIP, 1);
     act(() => result.current.play());

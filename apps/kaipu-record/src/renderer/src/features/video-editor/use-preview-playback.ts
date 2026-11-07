@@ -514,6 +514,9 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
   }, [pause, seekVideoToSource, handOffAtCut, applyMute]);
 
   const onVideoEnded = useCallback(() => {
+    // A slide owns the clock: an `ended` queued by the clip before it (the hand-off beat
+    // the event) must not stop playback or snap the time to the end under the slide.
+    if (slideRef.current !== null) return;
     playingRef.current = false;
     setPlaying(false);
     setTimelineTime(layoutDuration(layoutRef.current));
