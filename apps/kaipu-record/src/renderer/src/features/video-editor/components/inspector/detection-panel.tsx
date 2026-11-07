@@ -3,7 +3,7 @@
  * re-runs detection, a live summary and Re-analyse. Without a cursor track it explains
  * why there is nothing to detect instead of showing dead controls.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { ZoomEditing } from "../../zoom/use-zoom-editing";
@@ -31,20 +31,41 @@ export function DetectionPanel({
   const [preview, setPreview] = useState<{ count: number; coverage: number } | null>(null);
   const lastValue = useRef<number | null>(null);
   const lastPreviewAt = useRef(Number.NEGATIVE_INFINITY);
-  const onLive = (value: number): void => {
-    lastValue.current = value;
-    const now = performance.now();
-    if (now - lastPreviewAt.current < PREVIEW_INTERVAL_MS) return;
-    lastPreviewAt.current = now;
+  const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearTrailing = (): void => {
+    if (trailing.current === null) return;
+    clearTimeout(trailing.current);
+    trailing.current = null;
+  };
+  const previewNow = (value: number): void => {
+    lastPreviewAt.current = performance.now();
     setPreview(zooms.sensitivityPreview(value));
   };
+  // Leading edge previews at once; a move inside the interval schedules one trailing
+  // preview for the rest of it, so holding the pointer still never leaves the summary on
+  // an older value.
+  const onLive = (value: number): void => {
+    lastValue.current = value;
+    const wait = PREVIEW_INTERVAL_MS - (performance.now() - lastPreviewAt.current);
+    if (wait <= 0) {
+      clearTrailing();
+      previewNow(value);
+      return;
+    }
+    trailing.current ??= setTimeout(() => {
+      trailing.current = null;
+      if (lastValue.current !== null) previewNow(lastValue.current);
+    }, wait);
+  };
   const onEnd = (): void => {
+    clearTrailing();
     const value = lastValue.current;
     lastValue.current = null;
     lastPreviewAt.current = Number.NEGATIVE_INFINITY;
     setPreview(null);
     if (value !== null) zooms.sensitivityCommit(value);
   };
+  useEffect(() => clearTrailing, []);
   const shown = preview ?? { count: zooms.visibleZooms.length, coverage: zooms.coverage };
   return (
     <section className={styles.panel} aria-label={t("detectionTitle")}>

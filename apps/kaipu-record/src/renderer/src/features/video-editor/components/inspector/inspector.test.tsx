@@ -65,7 +65,18 @@ describe("DetectionPanel", () => {
     });
     expect(z.sensitivityPreview).toHaveBeenCalledWith(70);
     expect(screen.getByText("7 zooms · 20% of clip")).toBeInTheDocument();
+    // A move inside the throttle interval is not dropped: the trailing preview shows it
+    // even though the pointer stays down.
     fireEvent.change(slider, { target: { value: "80" } });
+    act(() => {
+      vi.advanceTimersByTime(20);
+    });
+    expect(z.sensitivityPreview).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(z.sensitivityPreview).toHaveBeenLastCalledWith(80);
+    expect(z.sensitivityPreview).toHaveBeenCalledTimes(2);
     expect(z.sensitivityCommit).not.toHaveBeenCalled();
     fireEvent.pointerUp(slider);
     expect(z.sensitivityCommit).toHaveBeenCalledTimes(1);

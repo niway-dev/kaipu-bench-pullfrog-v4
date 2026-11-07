@@ -319,6 +319,10 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     }
     const dragMs = performance.now() - start;
     const duringDrag = { zoom: renders["zoom"] ?? 0, strip: renders["strip"] ?? 0 };
+    // The throttled preview settles on the last value while the pointer is still down.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
     const summaryDuringDrag = summary();
     const releaseStart = performance.now();
     fireEvent.pointerUp(slider);
@@ -333,9 +337,10 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     expect(duringDrag.zoom).toBe(0);
     expect(duringDrag.strip).toBe(0);
     expect(renders["activity"] ?? 0).toBe(0);
-    // The summary still follows the drag, and the value shown is the last one.
+    // The slider shows the last value.
     expect(slider).toHaveValue("70");
-    expect(summaryDuringDrag).not.toBe("");
+    // What the drag previewed is exactly what the release applied.
+    expect(summaryDuringDrag).toBe(summary());
     expect(before).not.toBe("");
     // Release applies the new detection once (at least one zoom render, far below one per move).
     expect(renders["zoom"] ?? 0).toBeGreaterThan(0);
