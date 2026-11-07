@@ -393,11 +393,16 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     }
 
     // --- a trim at 4x ------------------------------------------------------------------
+    // Select the clip by a click in view (a locator click would scroll its centre into view
+    // and take the end of the clip out of it), then scroll to the end where the handle is.
+    await scroller.evaluate((el) => (el.scrollLeft = 0));
+    await page.waitForTimeout(250);
+    const clipBox = (await footer.locator("button").first().boundingBox())!;
+    await page.mouse.click(visibleLeft + 80, clipBox.y + clipBox.height / 2);
+    const end = page.locator('[data-trim-handle="end"]');
+    await end.waitFor({ state: "attached" });
     await scroller.evaluate((el) => (el.scrollLeft = el.scrollWidth));
     await page.waitForTimeout(250);
-    const clip = footer.locator("button").first();
-    await clip.click();
-    const end = page.locator('[data-trim-handle="end"]');
     await end.waitFor({ state: "visible" });
     const before = parseClock(await timeText(page)).total;
     const handle = (await end.boundingBox())!;

@@ -68,12 +68,14 @@ describe("tool rail and picture", () => {
 
 describe("timeline zoom layout (NIW2-667)", () => {
   const strip = css("timeline-strip.module.css");
-  const body = rule(strip, ".timelineBody");
+  /** The formatter wraps long declarations: compare them with their whitespace collapsed. */
+  const flat = (declarations: string): string => declarations.replace(/\s+/g, " ");
+  const body = flat(rule(strip, ".timelineBody"));
 
   it("scrolls horizontally in one container and sizes the lanes column by --zoom", () => {
     expect(body).toMatch(/overflow-x:\s*auto;/);
     expect(body).toMatch(
-      /grid-template-columns:\s*var\(--lane-label-col\) calc\(\(100% - var\(--lane-label-col\) - var\(--lane-inset\)\) \* var\(--zoom, 1\)\);/,
+      /grid-template-columns: var\(--lane-label-col\) calc\( ?\(100% - var\(--lane-label-col\) - var\(--lane-inset\)\) \* var\(--zoom, 1\) ?\);/,
     );
   });
 
@@ -82,7 +84,7 @@ describe("timeline zoom layout (NIW2-667)", () => {
     // one inset); the layer's is the padding box (clientWidth). Taking the extra inset off
     // the layer's side makes both the same width at every zoom.
     expect(body).toMatch(/padding-right:\s*var\(--lane-inset\);/);
-    const layer = rule(strip, ".playheadLayer");
+    const layer = flat(rule(strip, ".playheadLayer"));
     expect(layer).toMatch(
       /width:\s*calc\(\(100% - var\(--lane-label-col\) - 2 \* var\(--lane-inset\)\) \* var\(--zoom, 1\)\);/,
     );
@@ -90,7 +92,7 @@ describe("timeline zoom layout (NIW2-667)", () => {
   });
 
   it("the labels stay put and cover their whole row, including the 3px between rows", () => {
-    const label = rule(strip, ".laneLabel");
+    const label = flat(rule(strip, ".laneLabel"));
     expect(label).toMatch(/position:\s*sticky;/);
     expect(label).toMatch(/left:\s*0;/);
     expect(label).toMatch(/align-self:\s*stretch;/);
