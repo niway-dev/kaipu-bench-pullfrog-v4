@@ -39,15 +39,17 @@ vi.mock("@renderer/features/video-editor/use-source-thumbnails", async (importOr
   useCompanionThumbnails: () => ({ thumbnails: [], covered: null }),
 }));
 
-vi.mock("@renderer/features/video-editor/components/activity-lane", async (importOriginal) => {
+// The cursor-activity marks draw inside the Zooms lane (NIW2-665); their layer is its own
+// memoised module, so "activity" keeps counting the same thing it did as a lane.
+vi.mock("@renderer/features/video-editor/components/activity-marks", async (importOriginal) => {
   const mod =
     await importOriginal<
-      typeof import("@renderer/features/video-editor/components/activity-lane")
+      typeof import("@renderer/features/video-editor/components/activity-marks")
     >();
-  const Orig = mod.ActivityLane;
+  const Orig = mod.ActivityMarks;
   return {
     ...mod,
-    ActivityLane: memo((props: React.ComponentProps<typeof Orig>) => {
+    ActivityMarks: memo((props: React.ComponentProps<typeof Orig>) => {
       count("activity");
       return <Orig {...props} />;
     }),
@@ -215,9 +217,7 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     const footer = document.querySelector("footer")!;
     await waitFor(
       () => {
-        expect(
-          footer.querySelectorAll('[data-testid="activity-lane"] span').length,
-        ).toBeGreaterThan(1000);
+        expect(footer.querySelectorAll("[data-activity-marks] span").length).toBeGreaterThan(1000);
       },
       { timeout: 20_000 },
     );
@@ -288,9 +288,7 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     const footer = document.querySelector("footer")!;
     await waitFor(
       () => {
-        expect(
-          footer.querySelectorAll('[data-testid="activity-lane"] span').length,
-        ).toBeGreaterThan(1000);
+        expect(footer.querySelectorAll("[data-activity-marks] span").length).toBeGreaterThan(1000);
       },
       { timeout: 20_000 },
     );

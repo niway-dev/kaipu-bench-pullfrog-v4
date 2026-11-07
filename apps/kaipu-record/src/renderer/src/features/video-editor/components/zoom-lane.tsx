@@ -16,8 +16,11 @@ import { Lock } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { sourceRangeToTimelineBlocks, sourceTimeAtTimeline } from "../source-time";
 import { type LayoutEntry, layoutDuration } from "../timeline";
+import type { ActivityMark } from "../zoom/detect-zoom-segments";
 import type { ZoomSegment } from "../zoom/zoom-model";
-import { fractionToTime, timeToFraction } from "./timeline-geometry";
+import { ActivityMarks } from "./activity-marks";
+import { timeToFraction } from "./timeline-geometry";
+import { useTimelinePointer } from "./timeline-pointer";
 import styles from "./zoom-lane.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
@@ -36,6 +39,13 @@ export interface ZoomLaneProps {
    *  silent for it instead of doubling up. Defaults to false for callers that don't pass
    *  it (e.g. existing tests with a fixed set of segments). */
   hasTrack?: boolean;
+  /** The cursor's evidence for the zooms (Cursor activity): a thin tick per click and a short
+   *  bar per pointer pause, drawn under the blocks. In SOURCE seconds, so a cut hides the
+   *  evidence of deleted footage exactly like it hides the footage. */
+  marks?: ActivityMark[];
+  /** Draw `marks`. Off while the user hides Cursor activity (the Zooms lane itself being
+   *  hidden is the page's concern: this component is then not rendered at all). */
+  showMarks?: boolean;
 }
 
 export const ZoomLane = memo(function ZoomLane({
@@ -45,19 +55,20 @@ export const ZoomLane = memo(function ZoomLane({
   onSelect,
   onEdgeDrag,
   hasTrack = false,
+  marks = [],
+  showMarks = false,
 }: ZoomLaneProps): React.JSX.Element {
   const t = useTranslations("videoEditor");
   const laneRef = useRef<HTMLDivElement | null>(null);
   const dragEdge = useRef<{ id: string; edge: "start" | "end" } | null>(null);
   const duration = layoutDuration(layout);
 
+  // The pointer's SOURCE time, through the strip's one pixel-to-time conversion (it knows
+  // the zoom and the scroll; this lane does not). Null over a slide or while unmeasured.
+  const timeAtPointer = useTimelinePointer(laneRef, duration);
   const sourceFromPointer = (clientX: number): number | null => {
-    const rect = laneRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0) return null;
-    return sourceTimeAtTimeline(
-      layout,
-      fractionToTime((clientX - rect.left) / rect.width, duration),
-    );
+    const at = timeAtPointer(clientX);
+    return at === null ? null : sourceTimeAtTimeline(layout, at);
   };
 
   const handle = (segment: ZoomSegment, edge: "start" | "end", timelineAt: number) => {
@@ -109,6 +120,9 @@ export const ZoomLane = memo(function ZoomLane({
       className={styles.lane}
       data-testid="zoom-lane"
     >
+      {showMarks && marks.length > 0 && (
+        <ActivityMarks marks={marks} layout={layout} duration={duration} />
+      )}
       {segments.length === 0 && hasTrack && <p className={styles.empty}>{t("zoomEmptyState")}</p>}
       {segments.flatMap((segment, index) => {
         const blocks = sourceRangeToTimelineBlocks(layout, segment.start, segment.end);

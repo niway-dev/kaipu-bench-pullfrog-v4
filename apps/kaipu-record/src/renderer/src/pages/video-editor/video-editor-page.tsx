@@ -1,25 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generatePath, Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@shared/routes";
-import {
-  AudioLines,
-  Maximize2,
-  Minimize2,
-  MousePointerClick,
-  Pause,
-  Play,
-  Shield,
-  Trash2,
-  TriangleAlert,
-  Volume2,
-  VolumeX,
-  Webcam,
-  ZoomIn,
-} from "lucide-react";
+import { AudioLines, Shield, Trash2, TriangleAlert, Webcam, ZoomIn } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { parseCursorTrack, type CursorTrack } from "@shared/cursor-track";
 import type { WebcamTrackMeta } from "@shared/webcam-track";
-import { captureException } from "@renderer/features/analytics";
+import { captureEvent, captureException } from "@renderer/features/analytics";
+import { buildEditorSpeedChangedProperties, EDITOR_SPEED_CHANGED_EVENT } from "@shared/analytics";
 import {
   initialScene,
   reconcileWebcam,
@@ -70,7 +57,6 @@ import { activityMarks } from "@renderer/features/video-editor/zoom/detect-zoom-
 import { useZoomEditing } from "@renderer/features/video-editor/zoom/use-zoom-editing";
 import { seekTargetForSegment } from "@renderer/features/video-editor/zoom/select-seek";
 import { focusInspectorFirstControl } from "@renderer/features/video-editor/focus-inspector";
-import { ActivityLane } from "@renderer/features/video-editor/components/activity-lane";
 import { ZoomLane } from "@renderer/features/video-editor/components/zoom-lane";
 import { WebcamLane } from "@renderer/features/video-editor/components/webcam-lane";
 import { WebcamLayer } from "@renderer/features/video-editor/components/webcam-layer";
@@ -88,6 +74,7 @@ import {
   EditorInspector,
   InspectorEmptyState,
 } from "@renderer/features/video-editor/components/inspector/editor-inspector";
+import { BackgroundPanel } from "@renderer/features/video-editor/components/inspector/background-panel";
 import { DetectionPanel } from "@renderer/features/video-editor/components/inspector/detection-panel";
 import { ZoomInspector } from "@renderer/features/video-editor/components/inspector/zoom-inspector";
 import {
@@ -141,6 +128,13 @@ import {
 import { useSourceExports } from "@renderer/features/video-editor/export/use-source-exports";
 import { probeSource, type SourceProbe } from "@renderer/features/video-editor/export/probe-source";
 import { useAppSettings } from "@renderer/pages/settings/use-app-settings";
+import { useHiddenTracks } from "@renderer/features/video-editor/use-hidden-tracks";
+import {
+  availableTracks,
+  isTrackHidden,
+  trackForSelection,
+  type TrackKey,
+} from "@renderer/features/video-editor/tracks";
 import { formatSize } from "@renderer/features/library/format";
 import { VideoAnnotationLayer } from "@renderer/features/video-editor/annotations/video-annotation-layer";
 import {
@@ -152,6 +146,8 @@ import {
 import { ExportDialog } from "@renderer/features/video-editor/components/export-dialog";
 import { PreviewStage } from "@renderer/features/video-editor/components/preview-stage";
 import { TimelineStrip } from "@renderer/features/video-editor/components/timeline-strip";
+import { TransportBar } from "@renderer/features/video-editor/components/transport-bar";
+import { useTimelineViewStore } from "@renderer/features/video-editor/use-timeline-view";
 import { showToast } from "@renderer/ui/toast-store";
 import { isAmbiguousIdentityError } from "@renderer/features/library/rename-outcome";
 import { registerSwitchFlush } from "@renderer/features/workspaces/prepare-switch";
@@ -173,6 +169,7 @@ const sxEditor = stylex.create({
     textTransform: "uppercase",
   },
 });
+import { useBackgroundEditing } from "@renderer/features/video-editor/use-background-editing";
 import { useMuteEditing } from "@renderer/features/video-editor/use-mute-editing";
 import { AudioLane } from "@renderer/features/video-editor/components/audio-lane";
 import { MuteInspector } from "@renderer/features/video-editor/components/inspector/mute-inspector";
@@ -296,13 +293,6 @@ function isEditingTarget(target: EventTarget | null): boolean {
   // remove the zoom, so only text-like inputs count as editing.
   if (target instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(target.type);
   return target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
-}
-
-function formatTime(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 /** Replace the overlay with the same id, or append it if none exists yet — used to
@@ -551,6 +541,20 @@ function VideoEditor({
     [scene.audioMuted, scene.mutedRanges],
   );
   const playback = usePreviewPlayback(layout, audioEdits);
+  // The timeline's zoom and scroll: view state, never saved, reset to fit on open. Held
+  // in a store the transport bar and the strip subscribe to, not in this component's state,
+  // so a scroll (a frame at a time) does not re-render the editor.
+  const timelineView = useTimelineViewStore(playback.duration);
+  const { setSpeed: setPreviewSpeed } = playback;
+  // The speed is preview-only (NIW2-666): it lives in the playback hook and goes nowhere
+  // else, not the scene, the session or the export. The one thing it leaves is the event.
+  const handleSpeedChange = useCallback(
+    (speed: number) => {
+      setPreviewSpeed(speed);
+      captureEvent(EDITOR_SPEED_CHANGED_EVENT, buildEditorSpeedChangedProperties({ speed }));
+    },
+    [setPreviewSpeed],
+  );
   // Lane handlers read the current scene, layout and playback through these refs, so they keep
   // one identity across slider moves and the memoised lanes below do not re-render (NIW2-662).
   const controllerRef = useLatest(controller);
@@ -564,6 +568,9 @@ function VideoEditor({
     cursorTrack,
   });
   const mutes = useMuteEditing(controller, layout, source.durationSeconds);
+  // The picture's background, padding, corners and shadow (ADR 0051): a scene field like a
+  // zoom, so the undo history, the session and the export fingerprint all carry it.
+  const backgroundEdits = useBackgroundEditing(controller);
   const webcamEdits = useWebcamEditing({
     controller,
     layout,
@@ -581,7 +588,7 @@ function VideoEditor({
   // One camera simulation shared by the preview (useCameraPreview) and the export (doc 05).
   // Declared before any callback that closes over it (handleExport).
   const cameraPath = useCameraPath(scene.zoomSegments, cursorTrack, source.durationSeconds);
-  // Evidence for the Activity lane — depends only on the (immutable) track.
+  // Cursor activity: the marks drawn inside the Zooms lane — depend only on the (immutable) track.
   const activity = useMemo(
     () => (cursorTrack ? activityMarks(cursorTrack, source.durationSeconds) : []),
     [cursorTrack, source.durationSeconds],
@@ -598,16 +605,42 @@ function VideoEditor({
     source.durationSeconds,
     (webcamTrack?.startOffsetMs ?? 0) / 1000,
   );
+  // Per-user settings. `editor.hiddenTracks` is view state: it decides which lanes the
+  // timeline draws and is read nowhere else (ADR 0050); the export sheet reads the rest.
+  const appSettings = useAppSettings();
+  const trackVisibility = useHiddenTracks(appSettings);
+  const { hidden: hiddenTracks, showTrack } = trackVisibility;
   const selection = useEditorSelection();
   // `select` / `clear` are stable (useCallback, no deps); the `selection` object itself
   // is rebuilt every render, so never put it in a dependency array.
   const { select: selectSelection, clear: clearSelection } = selection;
   // Selecting anything, like picking a tool (handleToolChange), hands the inspector back
   // from the cursor settings to that thing.
+  // Selecting an item on a hidden lane shows that lane first, so a selection is never
+  // invisible (a zoom clicked on the preview, a mute added from the rail). Every kind of
+  // selection goes through here, so no caller has to remember.
   const selectKind = useCallback((...args: Parameters<typeof selectSelection>) => {
+    const [kind, id] = args;
+    const lane = id === null ? null : trackForSelection(kind);
+    if (lane) showTrack(lane);
     setCursorInspectorOpen(false);
     selectSelection(...args);
-  }, [selectSelection]);
+  }, [selectSelection, showTrack]);
+  // Hiding a lane clears a selection that lives on it: the item would stay selected on a
+  // lane nobody can see, and Delete (the page's key handler) would remove it unseen. The
+  // other direction (selecting on a hidden lane shows the lane) is `selectKind` above.
+  // Decided here, at the toggle, and not by watching `hiddenTracks`: that list reaches the
+  // page one round trip after `showTrack`, so a watcher would clear a selection that was
+  // just made on a lane that is about to be shown.
+  const selectedKind = selection.selection?.kind ?? null;
+  const toggleTrack = useCallback(
+    (key: TrackKey) => {
+      const lane = selectedKind === null ? null : trackForSelection(selectedKind);
+      if (lane === key && !isTrackHidden(key, hiddenTracks)) clearSelection();
+      trackVisibility.toggle(key);
+    },
+    [selectedKind, hiddenTracks, clearSelection, trackVisibility],
+  );
   const selectedItemId = selection.itemId;
   const selectedOverlayId = selection.overlayId;
   const setSelectedItemId = useCallback(
@@ -780,7 +813,6 @@ function VideoEditor({
   // memoized — the box can resize between renders) and hands off to the export
   // hook, which owns the whole worker/writer pipeline. `markClean` runs before
   // navigating so `useBlocker` doesn't intercept this programmatic navigation.
-  const appSettings = useAppSettings();
   // NIW2-218: frame rate + audio layout for the preset estimates and bitrates. Probed once
   // per source; until it resolves the presets assume 30 fps with audio (conservative).
   const [sourceProbe, setSourceProbe] = useState<SourceProbe | null>(null);
@@ -1434,86 +1466,80 @@ function VideoEditor({
   );
   const webcamSelectedId = selectedWebcamId === WEBCAM_LAYER_SELECTION ? null : selectedWebcamId;
   const extraLanes = useMemo(
-    () => [
-      ...(cursorTrack
-        ? [
-            {
-              key: "activity",
-              label: t("laneActivity"),
-              icon: MousePointerClick,
-              node: <ActivityLane marks={activity} layout={layout} />,
-            },
-          ]
-        : []),
-      {
-        key: "zooms",
-        label: t("laneZooms"),
-        icon: ZoomIn,
-        node: (
-          <ZoomLane
-            segments={zooms.visibleZooms}
-            layout={layout}
-            selectedId={selectedZoomId}
-            onSelect={handleSelectZoom}
-            onEdgeDrag={zooms.edgeDrag}
-            hasTrack={cursorTrack !== null}
-          />
-        ),
-      },
-      ...(hasWebcam
-        ? [
-            {
-              key: "webcam",
-              label: t("laneWebcam"),
-              icon: Webcam,
-              node: (
-                <WebcamLane
-                  segments={webcamEdits.visibleSegments}
-                  layout={layout}
-                  thumbnails={webcamStrip.thumbnails}
-                  covered={webcamStrip.covered}
-                  selectedId={webcamSelectedId}
-                  onSelect={handleSelectWebcam}
-                  onEdgeDrag={webcamEdits.edgeDrag}
-                />
-              ),
-            },
-          ]
-        : []),
-      {
-        key: "privacy",
-        label: t("lanePrivacy"),
-        icon: Shield,
-        node: (
-          <PrivacyLane
-            redactions={redactionEdits.visibleRedactions}
-            layout={layout}
-            selectedId={selectedRedactionId}
-            onSelect={handleSelectRedaction}
-            onEdgeDrag={redactionEdits.edgeDrag}
-            ghost={privacyGhost}
-          />
-        ),
-      },
-      {
-        key: "audio",
-        label: t("laneAudio"),
-        icon: AudioLines,
-        node: (
-          <AudioLane
-            ranges={mutes.mutedRanges}
-            layout={layout}
-            audioMuted={mutes.audioMuted}
-            selectedId={selectedMuteId}
-            onSelect={handleSelectMute}
-            onEdgeDrag={mutes.edgeDrag}
-          />
-        ),
-      },
-    ],
+    () =>
+      [
+        {
+          key: "zooms",
+          label: t("laneZooms"),
+          icon: ZoomIn,
+          node: (
+            <ZoomLane
+              segments={zooms.visibleZooms}
+              layout={layout}
+              selectedId={selectedZoomId}
+              onSelect={handleSelectZoom}
+              onEdgeDrag={zooms.edgeDrag}
+              hasTrack={cursorTrack !== null}
+              marks={activity}
+              showMarks={cursorTrack !== null && !isTrackHidden("activity", hiddenTracks)}
+            />
+          ),
+        },
+        ...(hasWebcam
+          ? [
+              {
+                key: "webcam",
+                label: t("laneWebcam"),
+                icon: Webcam,
+                node: (
+                  <WebcamLane
+                    segments={webcamEdits.visibleSegments}
+                    layout={layout}
+                    thumbnails={webcamStrip.thumbnails}
+                    covered={webcamStrip.covered}
+                    selectedId={webcamSelectedId}
+                    onSelect={handleSelectWebcam}
+                    onEdgeDrag={webcamEdits.edgeDrag}
+                  />
+                ),
+              },
+            ]
+          : []),
+        {
+          key: "privacy",
+          label: t("lanePrivacy"),
+          icon: Shield,
+          node: (
+            <PrivacyLane
+              redactions={redactionEdits.visibleRedactions}
+              layout={layout}
+              selectedId={selectedRedactionId}
+              onSelect={handleSelectRedaction}
+              onEdgeDrag={redactionEdits.edgeDrag}
+              ghost={privacyGhost}
+            />
+          ),
+        },
+        {
+          key: "audio",
+          label: t("laneAudio"),
+          icon: AudioLines,
+          node: (
+            <AudioLane
+              ranges={mutes.mutedRanges}
+              layout={layout}
+              audioMuted={mutes.audioMuted}
+              selectedId={selectedMuteId}
+              onSelect={handleSelectMute}
+              onEdgeDrag={mutes.edgeDrag}
+            />
+          ),
+        },
+      ].filter((lane) => !isTrackHidden(lane.key as TrackKey, hiddenTracks)),
     [
       cursorTrack,
       activity,
+      hiddenTracks,
       layout,
       t,
       zooms.visibleZooms,
@@ -1558,6 +1584,7 @@ function VideoEditor({
               slideUrl={slideUrl}
               expanded={isFullscreen}
               contentRef={contentRef}
+              background={backgroundEdits.background}
               onFrameSize={(size) => {
                 setSourceHeight(size.height);
                 setFrameSize(size);
@@ -1702,54 +1729,35 @@ function VideoEditor({
             />
           </div>
           {/* Transport bar lives outside the overflow:hidden video region so it is always
-              visible even when the video fills the full available height. Three columns
-              (see .transport): the play button stays optically centred however wide the
-              side clusters get — v2 puts the zoom count on the right. */}
-          <div {...uiArea("editorVideo.transport")} className={styles.transport}>
-            <div className={styles.transportSide}>
-              <button
-                type="button"
-                className={styles.muteButton}
-                aria-label={playback.muted ? t("unmute") : t("mute")}
-                onClick={playback.toggleMute}
-              >
-                {playback.muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
-              </button>
-            </div>
-            <button
-              type="button"
-              className={styles.playButton}
-              aria-label={playback.playing ? t("pause") : t("play")}
-              onClick={playback.toggle}
-            >
-              {playback.playing ? <Pause size={15} /> : <Play size={15} />}
-            </button>
-            <div className={`${styles.transportSide} ${styles.transportRight}`}>
-              <span className={styles.timeDisplay}>
-                {formatTime(playback.timelineTime)} / {formatTime(playback.duration)}
-              </span>
-              {/* Shown whenever there is something to count: a pre-v2 recording has no
-                  cursor track but can still carry hand-made zooms. */}
-              {(cursorTrack || zooms.visibleZooms.length > 0) && (
-                <span className={styles.counts}>
-                  {t("zoomCount", { count: zooms.visibleZooms.length })}
-                </span>
-              )}
-              {redactionEdits.visibleRedactions.length > 0 && (
-                <span className={styles.counts}>
-                  {t("privacyCount", { count: redactionEdits.visibleRedactions.length })}
-                </span>
-              )}
-              <button
-                type="button"
-                className={styles.fullscreenButton}
-                aria-label={isFullscreen ? t("exitFullscreen") : t("fullscreen")}
-                onClick={handleFullscreen}
-              >
-                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-              </button>
-            </div>
-          </div>
+              visible even when the video fills the full available height. */}
+          <TransportBar
+            layout={layout}
+            playing={playback.playing}
+            muted={playback.muted}
+            speed={playback.speed}
+            timelineTime={playback.timelineTime}
+            duration={playback.duration}
+            isFullscreen={isFullscreen}
+            zoomCount={
+              cursorTrack || zooms.visibleZooms.length > 0 ? zooms.visibleZooms.length : null
+            }
+            privacyCount={redactionEdits.visibleRedactions.length}
+            tracks={{
+              available: availableTracks({ hasCursorTrack: cursorTrack !== null, hasWebcam }),
+              hidden: hiddenTracks,
+              onToggle: toggleTrack,
+            }}
+            onTogglePlay={playback.toggle}
+            onToggleMute={playback.toggleMute}
+            onSpeedChange={handleSpeedChange}
+            onSeek={playback.seek}
+            onSplit={handleSplit}
+            splitDisabled={splitDisabled}
+            onDeleteSelected={handleDeleteSelected}
+            deleteDisabled={deleteDisabled}
+            onToggleFullscreen={handleFullscreen}
+            timelineView={timelineView}
+          />
         </main>
         {/* NIW2-611: the video takes the left edge and the tools sit on its right, so the
             picture gets the width and the height the top bar used. */}
@@ -1777,10 +1785,6 @@ function VideoEditor({
             canRedo={controller.canRedo}
             onUndo={controller.undo}
             onRedo={controller.redo}
-            onSplit={handleSplit}
-            splitDisabled={splitDisabled}
-            onDeleteSelected={handleDeleteSelected}
-            deleteDisabled={deleteDisabled}
             onAddImage={handleAddImage}
             onExport={handleExport}
             exportDisabled={gifExport.status === "exporting" || scene.items.length === 0}
@@ -1895,6 +1899,7 @@ function VideoEditor({
               // drawing tool is armed, or the Detection panel.
               <>
                 <InspectorEmptyState tool={videoTools.tool} />
+                <BackgroundPanel edits={backgroundEdits} />
                 {videoTools.tool === "box" ||
                 videoTools.tool === "arrow" ||
                 videoTools.tool === "text" ? (
@@ -1922,9 +1927,11 @@ function VideoEditor({
           slideUrlFor={slideUrlFor}
           onSlideDuration={handleSlideDuration}
           overlays={scene.overlays}
+          showOverlays={!isTrackHidden("annotations", hiddenTracks)}
           selectedOverlayId={selectedOverlayId}
           onSelectOverlay={setSelectedOverlayId}
           onWindowChange={handleWindowChange}
+          timelineView={timelineView}
           extraLanes={extraLanes}
         />
       </footer>

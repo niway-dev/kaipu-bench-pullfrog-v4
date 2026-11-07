@@ -22,6 +22,13 @@ const settings = (patch: Record<string, string>): Step => ({
   call: "updateSettings",
   args: [patch],
 });
+/** The `+` of the timeline zoom, on the transport bar. */
+const zoomIn: Step = {
+  click: {
+    area: "editorVideo.transport",
+    part: { role: "button", name: "Zoom in the timeline", exact: true },
+  },
+};
 const exportSheet: Step = {
   click: { area: "editorVideo.toolbar", part: { role: "button", name: "Export", exact: true } },
 };
@@ -90,6 +97,7 @@ export const editorVideo = catalog(
         "editorVideo.toolRail:default",
         "editorVideo.toolbar:default",
         "editorVideo.inspector:detection",
+        "editorVideo.background:default",
         "editorVideo.timeline:default",
         "editorVideo.zoomLane:empty",
         "editorVideo.privacyLane:empty",
@@ -112,6 +120,7 @@ export const editorVideo = catalog(
       how: "Open “Team notes”: a zoom, a muted range, a blur and a box are on the timeline.",
       steps: [open(ASSETS.teamNotes)],
       demonstrates: [
+        "editorVideo.transport:withCounts",
         "editorVideo.zoomLane:segments",
         "editorVideo.privacyLane:regions",
         "editorVideo.audioLane:mutedRanges",
@@ -161,6 +170,39 @@ export const editorVideo = catalog(
       ],
       demonstrates: ["editorVideo.preview:overlaySelected", "editorVideo.inspector:annotation"],
     },
+    "background-set": {
+      profile: "default",
+      how: "Open “Walkthrough 1”, choose the Magenta background and set padding 48, corners 16 and shadow 24: the picture sits inset on the gradient.",
+      steps: [
+        open(ASSETS.walkthrough),
+        loaded,
+        {
+          click: {
+            area: "editorVideo.background",
+            part: { role: "button", name: "Magenta", exact: true },
+          },
+        },
+        ...(
+          [
+            ["Padding", "48"],
+            ["Corners", "16"],
+            ["Shadow", "24"],
+          ] as const
+        ).map(
+          ([name, value]): Step => ({
+            fill: { area: "editorVideo.background", part: { role: "slider", name, exact: true } },
+            value,
+          }),
+        ),
+        saved,
+      ],
+      demonstrates: ["editorVideo.background:set"],
+      ready: { video: true },
+      // The background saved into the vault (autosave, then a flush on unmount): without this the
+      // later states that open “Walkthrough 1” find the magenta frame, and the shot can race the
+      // “Saving…” chip.
+      after: [{ action: "restoreVault" }],
+    },
     "tool-box": {
       profile: "default",
       steps: [open(ASSETS.walkthrough), loaded, rail("Box")],
@@ -208,6 +250,47 @@ export const editorVideo = catalog(
       how: "Open “Bug report” and press Audio in the tool rail: a menu offers Mute a section and Mute the whole recording.",
       steps: [open(ASSETS.bugReport), loaded, rail("Audio")],
       demonstrates: ["editorVideo.toolFlyout:audio"],
+    },
+    "tracks-popover": {
+      profile: "default",
+      how: "Open “Team notes” and press Tracks in the transport bar: a panel lists the lanes with a checkbox each, Clips always on.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        // The trigger's name carries the count ("Tracks, 5 of 5 shown"), so match the start.
+        { click: { area: "editorVideo.transport", part: { role: "button", name: "Tracks" } } },
+      ],
+      demonstrates: ["editorVideo.tracksPopover:open"],
+    },
+    "playback-speed": {
+      profile: "default",
+      how: "Open “Team notes” and press the speed button next to mute twice: it reads 2× and the preview plays at double speed.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        // The button's name carries the speed ("Playback speed 1×"), so match the start.
+        {
+          click: {
+            area: "editorVideo.transport",
+            part: { role: "button", name: "Playback speed" },
+          },
+        },
+        {
+          click: {
+            area: "editorVideo.transport",
+            part: { role: "button", name: "Playback speed" },
+          },
+        },
+      ],
+      demonstrates: ["editorVideo.transport:speedChanged"],
+    },
+    "timeline-zoomed": {
+      profile: "default",
+      how: "Open “Team notes” and press + in the transport bar twice: the lanes stretch to the deepest zoom a 9 s take allows in this window (about 1.7×), the labels stay put and a scrollbar appears under the lanes.",
+      // Two presses, not more: the second reaches the deepest zoom, and a third would be a
+      // click on a disabled button, which Playwright waits on until the step times out.
+      steps: [open(ASSETS.teamNotes), loaded, zoomIn, zoomIn],
+      demonstrates: ["editorVideo.transport:zoomed", "editorVideo.timeline:zoomed"],
     },
     "mute-all": {
       profile: "default",
