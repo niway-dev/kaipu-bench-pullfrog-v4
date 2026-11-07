@@ -13,9 +13,11 @@ set -euo pipefail
 #   bun run icons:refresh                  (from apps/kaipu-record)
 #   bun run icons:refresh -- "/path/App.app" ...   extra bundles to refresh
 #
-# It runs after `bun run icons` (see package.json) and is safe to run any time:
-# it deletes only caches macOS rebuilds by itself, and restarts the Dock and Finder
-# (a one-second flicker). It never touches the app or your recordings.
+# Run it AFTER installing the new build, not after `bun run icons`: `icons` only writes
+# files in build/ and resources/, and the installed app keeps its old icon until a new build
+# is packaged and installed, so a flush before that lets the cache refill with the old art.
+# It is safe to run any time: it deletes only caches macOS rebuilds by itself, and restarts
+# the Dock and Finder (a one-second flicker). It never touches the app or your recordings.
 #
 # macOS only. The system-wide store needs sudo; the script prints that one command
 # instead of running it.
@@ -30,9 +32,13 @@ LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchS
 apps=("/Applications/Kaipu Record.app" "$HOME/Applications/Kaipu Record.app" "$@")
 for app in "${apps[@]}"; do
   [ -d "$app" ] || continue
-  touch "$app"
-  [ -x "$LSREGISTER" ] && "$LSREGISTER" -f "$app" >/dev/null 2>&1 || true
-  echo "✓ re-registered $app"
+  # A bundle the user cannot modify is still worth registering, so a failed touch is not fatal.
+  touch "$app" 2>/dev/null || echo "! could not update the modification time of $app (continuing)" >&2
+  if [ -x "$LSREGISTER" ] && "$LSREGISTER" -f "$app" >/dev/null 2>&1; then
+    echo "✓ re-registered $app"
+  else
+    echo "! could not re-register $app with LaunchServices" >&2
+  fi
 done
 
 # The per-user caches, all rebuilt by macOS on demand.
@@ -47,8 +53,13 @@ for stale in \
   "$HOME/Library/Caches/com.apple.iconservices.store"; do
   case "$stale" in /com.apple.* | "com.apple."*) continue ;; esac
   if [ -e "$stale" ]; then
-    rm -rf "$stale"
-    echo "✓ removed $stale"
+    # Root-owned entries can exist here: report them and keep going, so the Dock still restarts
+    # and the sudo hint below still prints.
+    if rm -rf "$stale" 2>/dev/null && [ ! -e "$stale" ]; then
+      echo "✓ removed $stale"
+    else
+      echo "✗ could not remove $stale (root-owned? see the sudo line below)" >&2
+    fi
   fi
 done
 
