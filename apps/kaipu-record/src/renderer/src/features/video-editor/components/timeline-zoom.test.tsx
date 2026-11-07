@@ -1,0 +1,716 @@
+/**
+ * The timeline at 4x and scrolled (NIW2-667). The failure this file exists to catch: a pointer
+ * conversion that divides by a width of its own, which is right at 1x and wrong the moment
+ * the lanes are wider than the screen — a trim, an edge drag or a seek moving by the 1x
+ * amount instead of landing on the time under the pointer. Every test here puts the pointer
+ * on a pixel, computes the time that pixel shows from the SCALE and the SCROLL, and checks the
+ * lane reports that time (and, where it differs, not the 1x one).
+ *
+ * The geometry: a 100 s recording in a 1000 px lane (10 px/s at fit), the lane starting at
+ * x = 220 (strip at 100, labels 120). At 4x the scale is 40 px/s; scrolled 1200 px, the lane
+ * shows 30 s..55 s, so a pointer at clientX 720 (500 px into the lane) is at
+ * (500 + 1200) / 40 = 42.5 s. At 1x the same pixel would be 28.5 s.
+ */
+import { act, fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
+import type { TrackItem, VideoOverlay } from "../scene";
+import { toLayout, type LayoutEntry } from "../timeline";
+import type { PreviewPlayback } from "../use-preview-playback";
+import { createTimelineViewStore, type TimelineViewStore } from "../use-timeline-view";
+import type { BlurRedaction } from "../privacy/redaction";
+import type { ZoomSegment } from "../zoom/zoom-model";
+import type { WebcamSegment } from "../webcam/webcam-model";
+import { AudioLane } from "./audio-lane";
+import { PrivacyLane } from "./privacy-lane";
+import { TimelineStrip, type ExtraLane } from "./timeline-strip";
+import { thumbnailTiles } from "./timeline-geometry";
+import { WebcamLane } from "./webcam-lane";
+import { ZoomLane } from "./zoom-lane";
+import { ZoomIn } from "lucide-react";
+
+const LANE_LEFT = 220;
+const LANE_WIDTH = 1000;
+const ZOOM = 4;
+const SCROLL = 1200;
+/** 500 px into the lane → 42.5 s at 4x scrolled 1200; 28.5 s if a lane forgot both. */
+const POINTER = LANE_LEFT + 500;
+const TIME_UNDER_POINTER = 42.5;
+
+function rectOf(left: number, width: number): DOMRect {
+  return {
+    left,
+    right: left + width,
+    width,
+    top: 0,
+    bottom: 20,
+    height: 20,
+    x: left,
+    y: 0,
+    toJSON: () => ({}),
+  };
+}
+
+function stubGeometry(): void {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      const id = this.dataset.testid;
+      if (id === "timeline-scroller") return rectOf(100, 120 + LANE_WIDTH);
+      if (id === "lane-corner") return rectOf(100, 120);
+      return rectOf(0, 0);
+    },
+  );
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function makePlayback(overrides: Partial<PreviewPlayback> = {}): PreviewPlayback {
+  return {
+    videoRef: { current: null },
+    playing: false,
+    muted: false,
+    speed: 1,
+    duration: 100,
+    timelineTime: 0,
+    activeSlideId: null,
+    play: vi.fn(),
+    pause: vi.fn(),
+    toggle: vi.fn(),
+    toggleMute: vi.fn(),
+    setSpeed: vi.fn(),
+    seek: vi.fn(),
+    onVideoTimeUpdate: vi.fn(),
+    onVideoEnded: vi.fn(),
+    onVideoLoadedMetadata: vi.fn(),
+    onVideoPlay: vi.fn(),
+    onVideoPause: vi.fn(),
+    subscribeTime: vi.fn(() => () => {}),
+    ...overrides,
+  };
+}
+
+const oneClip: LayoutEntry[] = toLayout([
+  { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 100 },
+] as TrackItem[]);
+
+// Two clips of 50 s: the handle of clip "a" sits at 50 s.
+const twoClips: LayoutEntry[] = toLayout([
+  { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 50 },
+  { id: "b", kind: "clip", sourceStart: 50, sourceEnd: 100 },
+] as TrackItem[]);
+
+type EdgeSpy = (
+  id: string,
+  edge: "start" | "end",
+  sourceTime: number | null,
+  phase: "start" | "move" | "end",
+) => void;
+
+interface Rendered {
+  store: TimelineViewStore;
+  container: HTMLElement;
+  body: HTMLElement;
+  rerender: (ui: React.ReactElement) => void;
+}
+
+type StripProps = Partial<Parameters<typeof TimelineStrip>[0]>;
+
+function strip(store: TimelineViewStore, props: StripProps = {}): React.ReactElement {
+  return (
+    <TimelineStrip
+      layout={oneClip}
+      playback={makePlayback()}
+      thumbnails={[]}
+      selectedItemId={null}
+      onSelectItem={vi.fn()}
+      onTrim={vi.fn()}
+      overlays={[]}
+      selectedOverlayId={null}
+      onSelectOverlay={vi.fn()}
+      timelineView={store}
+      {...props}
+    />
+  );
+}
+
+/** A strip at 4x, scrolled to 1200 px, with the lane sitting where the geometry says. */
+function renderZoomed(props: StripProps = {}, duration = 100): Rendered {
+  stubGeometry();
+  const store = createTimelineViewStore();
+  store.setDuration(duration);
+  const utils = render(strip(store, props));
+  act(() => {
+    store.zoomTo(ZOOM);
+    store.scrollTo(SCROLL, "user");
+  });
+  return {
+    store,
+    container: utils.container,
+    body: utils.container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement,
+    rerender: utils.rerender,
+  };
+}
+
+function captureStubs(el: HTMLElement): HTMLElement {
+  el.setPointerCapture = vi.fn();
+  el.hasPointerCapture = vi.fn(() => true);
+  el.releasePointerCapture = vi.fn();
+  return el;
+}
+
+describe("the view the tests rely on", () => {
+  it("is 4x scrolled 1200 px, with the strip measuring the lane at 1000 px", () => {
+    const { store, body } = renderZoomed();
+    expect(store.getView()).toMatchObject({ zoom: ZOOM, scroll: SCROLL, laneWidth: LANE_WIDTH });
+    expect(body.scrollLeft).toBe(SCROLL);
+    expect(body.dataset.zoom).toBe(String(ZOOM));
+  });
+});
+
+describe("the ruler and the track at 4x, scrolled", () => {
+  it("a click on the ruler seeks to the time under the pointer, not the 1x time", () => {
+    const playback = makePlayback();
+    const { container } = renderZoomed({ playback });
+    const ruler = captureStubs(container.querySelector('[data-testid="ruler"]') as HTMLElement);
+    fireEvent.pointerDown(ruler, { pointerId: 1, clientX: POINTER });
+    expect(playback.seek).toHaveBeenLastCalledWith(TIME_UNDER_POINTER);
+  });
+
+  it("dragging along the ruler scrubs to the time under each pointer position", () => {
+    const playback = makePlayback();
+    const { container } = renderZoomed({ playback });
+    const ruler = captureStubs(container.querySelector('[data-testid="ruler"]') as HTMLElement);
+    fireEvent.pointerDown(ruler, { pointerId: 1, clientX: LANE_LEFT });
+    expect(playback.seek).toHaveBeenLastCalledWith(30); // the left edge shows 30 s
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: LANE_LEFT + LANE_WIDTH });
+    expect(playback.seek).toHaveBeenLastCalledWith(55); // the right edge shows 55 s
+  });
+
+  it("a click on empty track seeks to the time under the pointer too", () => {
+    const playback = makePlayback();
+    const { container } = renderZoomed({ playback });
+    const track = captureStubs(container.querySelector("button")!.parentElement as HTMLElement);
+    fireEvent.pointerDown(track, { pointerId: 1, clientX: POINTER });
+    expect(playback.seek).toHaveBeenLastCalledWith(TIME_UNDER_POINTER);
+  });
+
+  it("the hover readout names the time under the pointer", () => {
+    const { container } = renderZoomed();
+    const ruler = container.querySelector('[data-testid="ruler"]') as HTMLElement;
+    ruler.hasPointerCapture = vi.fn(() => false);
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: POINTER });
+    expect(container.querySelector("[data-visible]")?.textContent).toBe("0:42.5");
+  });
+
+  it("flips the readout by where the line sits in the VISIBLE lane, not in the whole content", () => {
+    const { container } = renderZoomed();
+    const ruler = container.querySelector('[data-testid="ruler"]') as HTMLElement;
+    ruler.hasPointerCapture = vi.fn(() => false);
+    // 950 px into the lane: 95% of what is on screen, but only 54% of the whole timeline.
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: LANE_LEFT + 950 });
+    expect(container.querySelector("[data-visible]")).toHaveAttribute("data-flip");
+    fireEvent.pointerMove(ruler, { pointerId: 1, clientX: LANE_LEFT + 500 });
+    expect(container.querySelector("[data-visible]")).not.toHaveAttribute("data-flip");
+  });
+});
+
+describe("trim and slide handles at 4x, scrolled", () => {
+  it("a trim handle moves by the pointer distance over the 4x scale, not the 1x scale", () => {
+    const onTrim = vi.fn();
+    const { container } = renderZoomed({
+      layout: twoClips,
+      selectedItemId: "a",
+      onTrim,
+    });
+    const end = captureStubs(container.querySelector('[data-trim-handle="end"]') as HTMLElement);
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 500 }); // clip a ends at 50 s
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 700 }); // +200 px
+    // 200 px at 40 px/s is 5 s. At 1x (10 px/s) it would have been 20 s.
+    expect(onTrim).toHaveBeenLastCalledWith("a", "end", 55, "move");
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 420 }); // -80 px
+    expect(onTrim).toHaveBeenLastCalledWith("a", "end", 48, "move");
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 420 });
+    expect(onTrim).toHaveBeenLastCalledWith("a", "end", 48, "end");
+  });
+
+  it("the start handle of the second clip too", () => {
+    const onTrim = vi.fn();
+    const { container } = renderZoomed({ layout: twoClips, selectedItemId: "b", onTrim });
+    const start = captureStubs(
+      container.querySelector('[data-trim-handle="start"]') as HTMLElement,
+    );
+    fireEvent.pointerDown(start, { pointerId: 1, clientX: 600 }); // clip b starts at source 50
+    fireEvent.pointerMove(start, { pointerId: 1, clientX: 680 }); // +80 px = +2 s
+    expect(onTrim).toHaveBeenLastCalledWith("b", "start", 52, "move");
+  });
+
+  it("a trim handle can still be dragged past the visible end to win footage back", () => {
+    // Clip a's source runs to 100 but it is trimmed to 50: dragging the handle right of the
+    // last pixel must keep extending it, not stick where the visible timeline ends.
+    const onTrim = vi.fn();
+    const { container } = renderZoomed({ layout: twoClips, selectedItemId: "b", onTrim });
+    const end = captureStubs(container.querySelector('[data-trim-handle="end"]') as HTMLElement);
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 900 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 900 + 4000 }); // far right: +100 s
+    expect(onTrim).toHaveBeenLastCalledWith("b", "end", 200, "move");
+  });
+
+  it("a slide's duration handle follows the 4x scale", () => {
+    const onSlideDuration = vi.fn();
+    const slideThenClip = toLayout([
+      { id: "s1", kind: "slide", assetId: "x", duration: 40 },
+      { id: "b", kind: "clip", sourceStart: 0, sourceEnd: 60 },
+    ] as TrackItem[]);
+    const { container } = renderZoomed({
+      layout: slideThenClip,
+      selectedItemId: "s1",
+      onSlideDuration,
+      slideUrlFor: () => null,
+    });
+    const handle = captureStubs(container.querySelector("[data-slide-handle]") as HTMLElement);
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 400 });
+    expect(onSlideDuration).toHaveBeenLastCalledWith("s1", 40, "start");
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 440 }); // +40 px = +1 s at 4x
+    expect(onSlideDuration).toHaveBeenLastCalledWith("s1", 41, "move");
+  });
+});
+
+describe("every lane's edge drag at 4x, scrolled", () => {
+  const zoomSegment: ZoomSegment = {
+    id: "z",
+    start: 42,
+    end: 50,
+    scale: 2,
+    mode: "follow",
+    anchor: null,
+    smoothing: 70,
+    origin: "auto",
+    trigger: "click",
+  };
+  const webcamSegment: WebcamSegment = { id: "w", start: 42, end: 50, mode: "hidden" };
+  const blur: BlurRedaction = {
+    id: "b1",
+    kind: "blur",
+    start: 42,
+    end: 50,
+    rect: { x: 0.1, y: 0.2, w: 0.3, h: 0.1 },
+    intensity: 70,
+    style: "gaussian",
+  };
+  const box: VideoOverlay = {
+    id: "o1",
+    kind: "box",
+    x: 0.1,
+    y: 0.1,
+    w: 0.2,
+    h: 0.2,
+    color: "#f6055c",
+    stroke: 1,
+    seed: 1,
+    start: 42,
+    end: 50,
+  };
+
+  /** Each lane, selected on a block that ends at 50 s, handing back its edge-drag spy. */
+  const lanes: {
+    name: string;
+    handle: string;
+    build: (spy: Mock<EdgeSpy>) => ExtraLane;
+  }[] = [
+    {
+      name: "zooms",
+      handle: '[data-zoom-handle="end"]',
+      build: (spy) => ({
+        key: "zooms",
+        label: "Zooms",
+        icon: ZoomIn,
+        node: (
+          <ZoomLane
+            layout={oneClip}
+            segments={[zoomSegment]}
+            selectedId="z"
+            onSelect={vi.fn()}
+            onEdgeDrag={spy}
+          />
+        ),
+      }),
+    },
+    {
+      name: "webcam",
+      handle: '[data-webcam-handle="end"]',
+      build: (spy) => ({
+        key: "webcam",
+        label: "Webcam",
+        icon: ZoomIn,
+        node: (
+          <WebcamLane
+            layout={oneClip}
+            segments={[webcamSegment]}
+            selectedId="w"
+            onSelect={vi.fn()}
+            onEdgeDrag={spy}
+          />
+        ),
+      }),
+    },
+    {
+      name: "privacy",
+      handle: '[data-privacy-handle="end"]',
+      build: (spy) => ({
+        key: "privacy",
+        label: "Privacy",
+        icon: ZoomIn,
+        node: (
+          <PrivacyLane
+            layout={oneClip}
+            redactions={[blur]}
+            selectedId="b1"
+            onSelect={vi.fn()}
+            onEdgeDrag={spy}
+            ghost={null}
+          />
+        ),
+      }),
+    },
+    {
+      name: "audio",
+      handle: '[data-mute-handle="end"]',
+      build: (spy) => ({
+        key: "audio",
+        label: "Audio",
+        icon: ZoomIn,
+        node: (
+          <AudioLane
+            layout={oneClip}
+            ranges={[{ id: "m1", sourceStart: 42, sourceEnd: 50 }]}
+            audioMuted={false}
+            selectedId="m1"
+            onSelect={vi.fn()}
+            onEdgeDrag={spy}
+          />
+        ),
+      }),
+    },
+  ];
+
+  it.each(lanes)("$name: the dragged edge lands on the time under the pointer", (lane) => {
+    const spy = vi.fn<EdgeSpy>();
+    const { container } = renderZoomed({ extraLanes: [lane.build(spy)] });
+    const handle = captureStubs(container.querySelector(lane.handle) as HTMLElement);
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT + 320 });
+    // 700 px into the lane: (700 + 1200) / 40 = 47.5 s. At 1x it would have been 70 s.
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: LANE_LEFT + 700 });
+    expect(spy).toHaveBeenLastCalledWith(expect.any(String), "end", 47.5, "move");
+    // The left edge of the lane shows 30 s; the right edge, 55 s.
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: LANE_LEFT });
+    expect(spy).toHaveBeenLastCalledWith(expect.any(String), "end", 30, "move");
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: LANE_LEFT + LANE_WIDTH });
+    expect(spy).toHaveBeenLastCalledWith(expect.any(String), "end", 55, "move");
+  });
+
+  it("annotations: a pill dragged by its body moves by the time under the pointer", () => {
+    const onWindowChange = vi.fn();
+    const { container } = renderZoomed({
+      overlays: [box],
+      onWindowChange,
+      selectedOverlayId: "o1",
+    });
+    const pill = captureStubs(
+      container.querySelector("[data-overlay-handle]")!.previousElementSibling as HTMLElement,
+    );
+    fireEvent.pointerDown(pill, { pointerId: 1, clientX: POINTER }); // 42.5 s
+    fireEvent.pointerMove(pill, { pointerId: 1, clientX: POINTER + 40 }); // +1 s at 4x
+    expect(onWindowChange).toHaveBeenLastCalledWith("o1", 43, 51, "move");
+  });
+
+  it("annotations: a pill's end handle lands on the time under the pointer", () => {
+    const onWindowChange = vi.fn();
+    const { container } = renderZoomed({ overlays: [box], onWindowChange });
+    const end = captureStubs(container.querySelector('[data-overlay-handle="end"]') as HTMLElement);
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: LANE_LEFT + 320 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: LANE_LEFT + 700 });
+    expect(onWindowChange).toHaveBeenLastCalledWith("o1", 42, 47.5, "move");
+  });
+});
+
+describe("zoom and pan", () => {
+  it("⌘ + wheel zooms around the pointer: the time under it stays under it", () => {
+    const { store, body } = renderZoomed();
+    const before = store.getView();
+    const notPrevented = fireEvent.wheel(body, { metaKey: true, deltaY: -40, clientX: POINTER });
+    const after = store.getView();
+    expect(notPrevented).toBe(false); // the page's own zoom was stopped
+    expect(after.zoom).toBeGreaterThan(before.zoom);
+    const timeAfter = (POINTER - LANE_LEFT + after.scroll) / ((after.zoom * LANE_WIDTH) / 100);
+    expect(timeAfter).toBeCloseTo(TIME_UNDER_POINTER, 6);
+  });
+
+  it("Ctrl + wheel does the same: a trackpad pinch reaches Chromium as a wheel with ctrlKey", () => {
+    const { store, body } = renderZoomed();
+    fireEvent.wheel(body, { ctrlKey: true, deltaY: 6, clientX: POINTER });
+    expect(store.getView().zoom).toBeLessThan(ZOOM); // scrolling down zooms out
+  });
+
+  it("a plain wheel is left to the browser: the container pans natively, nothing zooms", () => {
+    const { store, body } = renderZoomed();
+    const notPrevented = fireEvent.wheel(body, { deltaX: 80, deltaY: 0, clientX: POINTER });
+    expect(notPrevented).toBe(true);
+    expect(store.getView().zoom).toBe(ZOOM);
+  });
+
+  it("a scroll the user makes (scrollbar, trackpad swipe) reaches the store", () => {
+    const { store, body } = renderZoomed();
+    body.scrollLeft = 640;
+    fireEvent.scroll(body);
+    expect(store.getState().scroll).toBe(640);
+  });
+
+  it("FIT returns to 1x and scroll 0, in the DOM too", () => {
+    const { store, body } = renderZoomed();
+    act(() => store.fit());
+    expect(body.dataset.zoom).toBe("1");
+    expect(body.scrollLeft).toBe(0);
+  });
+
+  it("the lanes are zoom-times as wide: the content column follows --zoom, the labels do not", () => {
+    const { body } = renderZoomed();
+    expect(body.style.getPropertyValue("--zoom")).toBe(String(ZOOM));
+  });
+});
+
+describe("a cut while zoomed", () => {
+  it("keeps the scroll inside the shorter content and the apparent zoom where it still fits", () => {
+    const { store, body, rerender } = renderZoomed();
+    act(() => store.scrollTo(3000, "user")); // the very end of the 4x content
+    // Delete 40 s: 60 s left, which can still zoom 14x, so the zoom stays at 4x.
+    const shorter = toLayout([
+      { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 60 },
+    ] as TrackItem[]);
+    act(() => store.setDuration(60));
+    rerender(strip(store, { layout: shorter, playback: makePlayback({ duration: 60 }) }));
+    expect(store.getView().zoom).toBe(ZOOM);
+    expect(body.scrollLeft).toBeLessThanOrEqual(ZOOM * LANE_WIDTH - LANE_WIDTH);
+  });
+
+  it("drops the zoom to what the remaining footage allows and re-clamps the scroll", () => {
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(100);
+    const utils = render(strip(store));
+    act(() => {
+      store.zoomTo(20);
+      store.scrollTo(17_000, "user");
+    });
+    const body = utils.container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement;
+    expect(body.scrollLeft).toBe(17_000);
+    const shorter = toLayout([
+      { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 40 },
+    ] as TrackItem[]);
+    act(() => store.setDuration(40));
+    utils.rerender(strip(store, { layout: shorter, playback: makePlayback({ duration: 40 }) }));
+    const view = store.getView();
+    expect(view.zoom).toBeCloseTo(9.6, 6); // 240 px/s over 40 s in 1000 px
+    expect(body.scrollLeft).toBeLessThanOrEqual(view.zoom * LANE_WIDTH - LANE_WIDTH);
+    expect(body.dataset.zoom).toBe(String(view.zoom));
+  });
+});
+
+describe("following the playhead", () => {
+  function playingStrip(): Rendered & { tick: (t: number) => void } {
+    let listener: ((t: number) => void) | null = null;
+    const playback = makePlayback({
+      playing: true,
+      subscribeTime: vi.fn((cb: (t: number) => void) => {
+        listener = cb;
+        return () => {};
+      }),
+    });
+    const rendered = renderZoomed({ playback });
+    act(() => {
+      rendered.store.scrollTo(0, "follow"); // start at the left, still following
+      rendered.store.resumeFollow();
+    });
+    return {
+      ...rendered,
+      tick: (t) => {
+        act(() => listener?.(t));
+      },
+    };
+  }
+
+  it("scrolls once the playhead passes 80% of the visible lane, and keeps it in view", () => {
+    const { store, body, tick } = playingStrip();
+    tick(10); // 400 px in: left of the 800 px mark
+    expect(body.scrollLeft).toBe(0);
+    tick(21); // 840 px in: past it
+    expect(body.scrollLeft).toBeGreaterThan(0);
+    const x = 21 * 40 - store.getState().scroll;
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThan(LANE_WIDTH * 0.8);
+  });
+
+  it("moves the playhead line itself as a share of the content, wherever the view is", () => {
+    const { container, tick } = playingStrip();
+    tick(25);
+    const playhead = container.querySelector<HTMLElement>(
+      '[data-testid="timeline-scroller"] > div:last-child > div:last-child',
+    );
+    expect(playhead?.style.left).toBe("25%");
+  });
+
+  it("stops following when the user pans, until the next play", () => {
+    const { store, body, tick, rerender } = playingStrip();
+    body.scrollLeft = 100;
+    fireEvent.scroll(body); // the user took over
+    tick(60);
+    expect(store.getState().scroll).toBe(100);
+    // Pause, then play again: the playhead leads again.
+    rerender(strip(store, { playback: makePlayback({ playing: false }) }));
+    rerender(
+      strip(store, {
+        playback: makePlayback({
+          playing: true,
+          subscribeTime: vi.fn((cb: (t: number) => void) => {
+            cb(60);
+            return () => {};
+          }),
+        }),
+      }),
+    );
+    expect(store.getState().scroll).toBeGreaterThan(100);
+  });
+
+  it("pausing does not snap the view back to a playhead the user panned away from", () => {
+    const playing = makePlayback({ playing: true, timelineTime: 10 }); // 10 s = 400 px in
+    const { store, body, rerender } = renderZoomed({ playback: playing });
+    act(() => store.scrollTo(0, "follow"));
+    body.scrollLeft = 1500; // the user pans well past the playhead
+    fireEvent.scroll(body);
+    rerender(strip(store, { playback: makePlayback({ playing: false, timelineTime: 10 }) }));
+    expect(store.getState().scroll).toBe(1500);
+  });
+
+  it("a scroll the strip made itself is not mistaken for the user taking over", () => {
+    const { store, body, tick } = playingStrip();
+    tick(21); // the strip scrolls the element
+    fireEvent.scroll(body); // ...which fires a scroll event
+    tick(60); // still following
+    expect(store.getState().scroll).toBeGreaterThan(0);
+    expect(60 * 40 - store.getState().scroll).toBeLessThan(LANE_WIDTH);
+  });
+
+  it("does not turn a page under the pointer that is scrubbing the playhead", () => {
+    const { store, container, tick } = playingStrip();
+    const ruler = captureStubs(container.querySelector('[data-testid="ruler"]') as HTMLElement);
+    fireEvent.pointerDown(ruler, { pointerId: 1, clientX: LANE_LEFT + 900 });
+    tick(21);
+    expect(store.getState().scroll).toBe(0);
+    fireEvent.pointerUp(ruler, { pointerId: 1, clientX: LANE_LEFT + 900 });
+    tick(21);
+    expect(store.getState().scroll).toBeGreaterThan(0);
+  });
+});
+
+describe("the playhead stays aligned with the ruler", () => {
+  it("lives inside the scroll container, so it scrolls with the lanes it points into", () => {
+    const { container, body } = renderZoomed({ playback: makePlayback({ timelineTime: 42.5 }) });
+    const playhead = container.querySelector<HTMLElement>("[style*='left: 42.5%']");
+    expect(playhead).not.toBeNull();
+    expect(body.contains(playhead)).toBe(true);
+  });
+
+  it("is placed by the same share of the content as the ruler's tick for that time", () => {
+    const { container } = renderZoomed({ playback: makePlayback({ timelineTime: 40 }) });
+    const ruler = container.querySelector('[data-testid="ruler"]') as HTMLElement;
+    const ticks = Array.from(ruler.querySelectorAll<HTMLElement>("span")).map(
+      (el) => el.style.left,
+    );
+    // 100 s at 4x labels every 5 s: 40 s is a labelled tick at 40%.
+    expect(ticks).toContain("40%");
+    expect(container.querySelector("[style*='left: 40%']")).not.toBeNull();
+  });
+});
+
+describe("thumbnails at high zoom", () => {
+  const thumbnails = Array.from({ length: 24 }, (_, i) => ({
+    sourceTime: 5 + i * 10,
+    url: `u${i}`,
+  }));
+  const long = toLayout([{ id: "a", kind: "clip", sourceStart: 0, sourceEnd: 240 }] as TrackItem[]);
+
+  it("draws only the tiles in view, and leaves no blank stretch in them", () => {
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(240);
+    const { container } = render(
+      strip(store, { layout: long, playback: makePlayback({ duration: 240 }), thumbnails }),
+    );
+    act(() => {
+      store.zoomTo(16);
+      store.scrollTo(5000, "user");
+    });
+    const view = store.getView();
+    const content = view.zoom * LANE_WIDTH;
+    const imgs = Array.from(container.querySelectorAll<HTMLImageElement>("img"));
+    expect(imgs.length).toBeGreaterThan(0);
+    expect(imgs.length).toBeLessThan(30); // ~178 tiles in all; a screenful here
+    // Every pixel of the visible window [scroll, scroll + lane] is under some tile.
+    const spans = imgs
+      .map((img) => ({
+        from: (parseFloat(img.style.left) / 100) * content,
+        to: ((parseFloat(img.style.left) + parseFloat(img.style.width)) / 100) * content,
+      }))
+      .sort((a, b) => a.from - b.from);
+    let covered = view.scroll;
+    for (const span of spans) {
+      if (span.from > covered + 0.5) break; // a gap: stop, the check below fails
+      covered = Math.max(covered, span.to);
+    }
+    expect(covered).toBeGreaterThanOrEqual(view.scroll + LANE_WIDTH - 0.5);
+    // ...and the tile count is what the geometry module says.
+    const scale = (view.zoom * LANE_WIDTH) / 240;
+    const { tiles } = thumbnailTiles({
+      timelineStart: 0,
+      timelineEnd: 240,
+      sourceStart: 0,
+      sourceEnd: 240,
+      scale,
+      visible: { start: view.scroll / scale, end: (view.scroll + LANE_WIDTH) / scale },
+    });
+    expect(imgs).toHaveLength(tiles.length);
+  });
+
+  it("scrolling swaps the tiles: the ones that left the window are gone", () => {
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(240);
+    const { container } = render(
+      strip(store, { layout: long, playback: makePlayback({ duration: 240 }), thumbnails }),
+    );
+    act(() => {
+      store.zoomTo(16);
+      store.scrollTo(0, "user");
+    });
+    const first = container.querySelectorAll("img").length;
+    act(() => store.scrollTo(8000, "user"));
+    const second = container.querySelectorAll("img").length;
+    expect(first).toBeLessThan(30);
+    expect(second).toBeLessThan(30);
+  });
+
+  it("the ruler is windowed too: a 4-minute take at 16x does not build every tick", () => {
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(240);
+    const { container } = render(
+      strip(store, { layout: long, playback: makePlayback({ duration: 240 }), thumbnails }),
+    );
+    act(() => {
+      store.zoomTo(16);
+      store.scrollTo(5000, "user");
+    });
+    const ruler = container.querySelector('[data-testid="ruler"]') as HTMLElement;
+    expect(ruler.querySelectorAll("span").length).toBeLessThan(80);
+  });
+});

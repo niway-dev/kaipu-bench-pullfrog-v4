@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { SourceThumbnail } from "../use-source-thumbnails";
 import {
   fractionToTime,
   formatScrubTime,
@@ -7,8 +6,6 @@ import {
   rulerTicks,
   thumbnailAt,
   thumbnailTiles,
-  thumbnailsForRange,
-  thumbnailsForRangeWithin,
   timeToFraction,
 } from "./timeline-geometry";
 
@@ -72,46 +69,6 @@ describe("formatScrubTime", () => {
   });
 });
 
-describe("thumbnailsForRange", () => {
-  const thumbs = Array.from({ length: 10 }, (_, i) => ({
-    sourceTime: i * 10 + 5, // 5, 15, ... 95
-    url: `u${i}`,
-  }));
-
-  it("picks nearest thumbnails evenly across the source range", () => {
-    const picked = thumbnailsForRange(thumbs, 20, 60, 4);
-    expect(picked).toHaveLength(4);
-    expect(picked[0].sourceTime).toBeGreaterThanOrEqual(15);
-    expect(picked.at(-1)!.sourceTime).toBeLessThanOrEqual(65);
-  });
-
-  it("returns [] when there are no thumbnails", () => {
-    expect(thumbnailsForRange([], 0, 10, 4)).toEqual([]);
-  });
-});
-
-describe("thumbnailsForRangeWithin", () => {
-  // A long recording (240 s) has one thumbnail every 10 s of source: 5, 15, ... 235.
-  const thumbs = Array.from({ length: 24 }, (_, i) => ({ sourceTime: 5 + i * 10, url: `c${i}` }));
-  const urls = (picked: (SourceThumbnail | null)[]) => picked.map((t) => t?.url ?? null);
-
-  it("leaves a tile empty before a late start shorter than one thumbnail spacing", () => {
-    // The webcam starts 3 s in: the tile at source 1 s has a frame 4 s away, but no footage.
-    const picked = thumbnailsForRangeWithin(thumbs, 0, 10, 5, { start: 3, end: 240 });
-    expect(urls(picked)).toEqual([null, "c0", "c0", "c0", "c0"]);
-  });
-
-  it("leaves a tile empty after an early end shorter than one thumbnail spacing", () => {
-    // The webcam ends 4 s before the screen: the tile at 239 s must not show the last face.
-    const picked = thumbnailsForRangeWithin(thumbs, 230, 240, 5, { start: 0, end: 236 });
-    expect(urls(picked)).toEqual(["c23", "c23", "c23", null, null]);
-  });
-
-  it("returns [] when there are no thumbnails", () => {
-    expect(thumbnailsForRangeWithin([], 0, 10, 4, { start: 0, end: 10 })).toEqual([]);
-  });
-});
-
 describe("rulerTicks while zoomed", () => {
   it("labels about as many ticks per VISIBLE lane as it does at fit, so labels never crowd", () => {
     // 100 s at 4x: the lane shows 25 s, so the step is the one a 25 s timeline would pick.
@@ -156,8 +113,6 @@ describe("rulerTicks while zoomed", () => {
 });
 
 describe("thumbnailTiles", () => {
-  // 24 evenly spaced frames over a 240 s source, like the real strip.
-  const thumbs = Array.from({ length: 24 }, (_, i) => ({ sourceTime: 5 + i * 10, url: `u${i}` }));
   const TILE_PX = 72;
 
   // A 240 s clip occupying the whole 240 s timeline.
@@ -276,5 +231,36 @@ describe("thumbnailAt", () => {
 
   it("is null when there are no frames", () => {
     expect(thumbnailAt([], 4)).toBeNull();
+  });
+
+  describe("with a covered range (the webcam file may not span the whole source)", () => {
+    // A long recording (240 s) has one thumbnail every 10 s of source: 5, 15, ... 235.
+    const long = Array.from({ length: 24 }, (_, i) => ({ sourceTime: 5 + i * 10, url: `c${i}` }));
+    const row = (
+      sourceStart: number,
+      sourceEnd: number,
+      covered: { start: number; end: number },
+    ): (string | null)[] => {
+      // Five tiles over a 10 s clip: 360 px at 36 px/s.
+      const { tiles } = thumbnailTiles({
+        timelineStart: 0,
+        timelineEnd: 10,
+        sourceStart,
+        sourceEnd,
+        scale: 36,
+        visible: { start: 0, end: 10 },
+      });
+      return tiles.map((tile) => thumbnailAt(long, tile.sourceTime, covered)?.url ?? null);
+    };
+
+    it("leaves a tile empty before a late start shorter than one thumbnail spacing", () => {
+      // The webcam starts 3 s in: the tile at source 1 s has a frame 4 s away, but no footage.
+      expect(row(0, 10, { start: 3, end: 240 })).toEqual([null, "c0", "c0", "c0", "c0"]);
+    });
+
+    it("leaves a tile empty after an early end shorter than one thumbnail spacing", () => {
+      // The webcam ends 4 s before the screen: the tile at 239 s must not show the last face.
+      expect(row(230, 240, { start: 0, end: 236 })).toEqual(["c23", "c23", "c23", null, null]);
+    });
   });
 });

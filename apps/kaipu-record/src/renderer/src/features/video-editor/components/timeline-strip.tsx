@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ReactElement,
+} from "react";
 import { Film, ImagePlus, PenLine, type LucideIcon } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { PreviewPlayback } from "../use-preview-playback";
@@ -6,18 +14,36 @@ import type { LayoutEntry } from "../timeline";
 import { layoutDuration } from "../timeline";
 import type { VideoOverlay } from "../scene";
 import type { SourceThumbnail } from "../use-source-thumbnails";
+import {
+  useTimelineViewState,
+  useTimelineViewStore,
+  type TimelineViewStore,
+} from "../use-timeline-view";
 import { OverlayLane, type WindowChangePhase } from "./overlay-lane";
 import {
   formatScrubTime,
-  fractionToTime,
   rulerMinorTicks,
   rulerTicks,
-  thumbnailsForRange,
+  thumbnailAt,
+  thumbnailTiles,
   timeToFraction,
 } from "./timeline-geometry";
+import {
+  TimelinePointerContext,
+  TimelineViewContext,
+  type TimelinePointer,
+} from "./timeline-pointer";
+import {
+  clampView,
+  scaleOf,
+  timeAt,
+  timeDelta,
+  visibleRange,
+  wheelZoomFactor,
+  xOf,
+  type TimelineView,
+} from "./timeline-view";
 import styles from "./timeline-strip.module.css";
-
-const THUMBS_PER_BLOCK_PX = 72; // one thumbnail tile roughly every 72px of block width
 
 // Past this fraction the hover readout sits LEFT of its line: on the right it would hang
 // past the end of the ruler and get clipped at the window edge.
@@ -56,6 +82,7 @@ export function TimelineStrip({
   onSelectOverlay,
   onWindowChange,
   extraLanes = [],
+  timelineView,
 }: {
   layout: LayoutEntry[];
   playback: PreviewPlayback;
@@ -85,60 +112,172 @@ export function TimelineStrip({
   onWindowChange?: (id: string, start: number, end: number, phase: WindowChangePhase) => void;
   /** Lanes rendered below the main track, each with its label, in order. */
   extraLanes?: ExtraLane[];
+  /** The page's zoom and scroll (the transport bar's zoom control drives the same store).
+   *  Omitted, the strip keeps its own, at fit. */
+  timelineView?: TimelineViewStore;
 }): React.JSX.Element {
   const t = useTranslations("videoEditor");
-  const trackRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const cornerRef = useRef<HTMLSpanElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
   const hoverRef = useRef<HTMLDivElement | null>(null);
   const hoverLabelRef = useRef<HTMLSpanElement | null>(null);
+  // True while a pointer is scrubbing the ruler or the track: the view must not turn a
+  // page under the pointer that is dragging the playhead.
+  const scrubbingRef = useRef(false);
+  // The scroll position the strip itself last put on the element, so the scroll event it
+  // causes is not mistaken for the user panning.
+  const appliedScrollRef = useRef(0);
   const duration = layoutDuration(layout);
+
+  const ownStore = useTimelineViewStore(duration);
+  const store = timelineView ?? ownStore;
+  const viewState = useTimelineViewState(store);
+  const view = useMemo(
+    () => clampView({ ...viewState, duration }),
+    [viewState.zoom, viewState.scroll, viewState.laneWidth, duration],
+  );
+
+  // The lane's place on screen, read live: the strip's left edge plus the (sticky) label
+  // column. Nothing is cached, so a window resize or a layout shift cannot leave a stale
+  // number behind a pointer conversion.
+  const measureLane = useCallback((): { laneLeft: number; laneWidth: number } | null => {
+    const body = bodyRef.current;
+    const corner = cornerRef.current;
+    if (!body || !corner) return null;
+    const bodyRect = body.getBoundingClientRect();
+    const labels = corner.getBoundingClientRect().width;
+    return { laneLeft: bodyRect.left + labels, laneWidth: Math.max(0, bodyRect.width - labels) };
+  }, []);
+
+  // The view as it is right now: the store's zoom, the DOM's scroll (the user's wheel can
+  // move it a frame before the store hears about it) and the live lane width.
+  const readView = useCallback((): { view: TimelineView; laneLeft: number } | null => {
+    const lane = measureLane();
+    if (!lane || lane.laneWidth <= 0) return null;
+    store.setLaneWidth(lane.laneWidth);
+    const live = store.getView();
+    const scroll = bodyRef.current?.scrollLeft ?? live.scroll;
+    return { view: clampView({ ...live, scroll }), laneLeft: lane.laneLeft };
+  }, [store, measureLane]);
+
+  // THE conversion: every lane, the ruler and the track ask this, nothing divides by its
+  // own width (see timeline-pointer.tsx).
+  const timeAtPointer = useCallback(
+    (clientX: number): number | null => {
+      const read = readView();
+      return read ? timeAt(read.view, clientX, read.laneLeft) : null;
+    },
+    [readView],
+  );
+  const pointer = useMemo<TimelinePointer>(() => ({ timeAtPointer }), [timeAtPointer]);
+
+  // A drag that moves an edge by a pointer delta freezes the mapping on pointerdown: a trim
+  // changes `duration`, so the live pixel-to-time mapping moves under the pointer.
+  const freezeMapping = useCallback(
+    (): TimelineView | null => readView()?.view ?? null,
+    [readView],
+  );
+
+  // Lane width: measured before the first paint, then on every resize.
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const sync = (): void => {
+      const lane = measureLane();
+      if (lane) store.setLaneWidth(lane.laneWidth);
+    };
+    sync();
+    if (!body || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(sync);
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [store, measureLane]);
+
+  // The store decides the scroll (zoom around the pointer, follow, FIT); the element
+  // obeys. After the commit, so the content already has its new width.
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    if (Math.abs(body.scrollLeft - view.scroll) > 0.5) body.scrollLeft = view.scroll;
+    appliedScrollRef.current = body.scrollLeft;
+  }, [view.scroll, view.zoom, view.laneWidth]);
+
+  // A scroll nobody here asked for is the user panning: tell the store, which stops
+  // following the playhead until the next play.
+  const onScroll = useCallback(() => {
+    const body = bodyRef.current;
+    if (!body || Math.abs(body.scrollLeft - appliedScrollRef.current) <= 0.5) return;
+    appliedScrollRef.current = body.scrollLeft;
+    store.scrollTo(body.scrollLeft, "user");
+  }, [store]);
+
+  // ⌘/Ctrl + wheel, and a trackpad pinch (Chromium delivers it as a wheel with ctrlKey),
+  // zoom around the pointer. A plain wheel is left to the browser: a horizontal swipe pans
+  // the scroll container natively. Native listener, not onWheel: React's is passive and
+  // cannot stop the page zooming.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const onWheel = (event: WheelEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.deltaY === 0) return;
+      event.preventDefault();
+      const lane = measureLane();
+      store.zoomAtPointer(
+        wheelZoomFactor(event.deltaY, event.deltaMode),
+        event.clientX,
+        lane?.laneLeft ?? 0,
+      );
+    };
+    body.addEventListener("wheel", onWheel, { passive: false });
+    return () => body.removeEventListener("wheel", onWheel);
+  }, [store, measureLane]);
+
+  // Playing hands the view back to the playhead.
+  useEffect(() => {
+    if (playback.playing) store.resumeFollow();
+  }, [playback.playing, store]);
 
   // Playhead follows playback at rAF frequency via direct style mutation —
   // re-rendering the strip 60×/s would drop frames during playback.
+  const playingRef = useRef(playback.playing);
+  playingRef.current = playback.playing;
   useEffect(() => {
-    return playback.subscribeTime((t) => {
+    return playback.subscribeTime((time) => {
       const el = playheadRef.current;
-      if (el) el.style.left = `${timeToFraction(t, duration) * 100}%`;
+      if (el) el.style.left = `${timeToFraction(time, duration) * 100}%`;
+      if (playingRef.current && !scrubbingRef.current) store.follow(time);
     });
-  }, [playback, duration]);
+  }, [playback, duration, store]);
 
-  // Also position on low-frequency updates (paused seeks don't run the rAF loop).
+  // Also position on low-frequency updates (paused seeks don't run the rAF loop). A seek
+  // by keyboard or button can land off screen: bring it into view, but never move the
+  // view under a pointer that is scrubbing or for a playhead that is already visible.
+  // Keyed on the TIME, not on `playing`: pausing must not snap the view back to a
+  // playhead the user had panned away from.
   useEffect(() => {
     const el = playheadRef.current;
     if (el) el.style.left = `${timeToFraction(playback.timelineTime, duration) * 100}%`;
-  }, [playback.timelineTime, duration]);
-
-  // Compute timeline time from a clientX coordinate relative to the given element.
-  // The ruler and track span the same horizontal extent (no padding inside the
-  // timelineBody wrapper), so either element's rect yields the same fraction → time
-  // mapping. We read the ACTUAL receiving element to stay correct if layout changes.
-  const timeFromPointerOnElement = useCallback(
-    (clientX: number, el: Element | null): number => {
-      const rect = el?.getBoundingClientRect();
-      if (!rect || rect.width === 0) return 0;
-      return fractionToTime((clientX - rect.left) / rect.width, duration);
-    },
-    [duration],
-  );
-
-  // Seconds per CSS pixel of the track right now. Drags freeze it on pointerdown: a trim
-  // changes `duration`, so the live pixel->time mapping moves under the pointer.
-  const secondsPerPixel = useCallback((): number => {
-    const rect = trackRef.current?.getBoundingClientRect();
-    return rect && rect.width > 0 ? duration / rect.width : 0;
-  }, [duration]);
+    if (scrubbingRef.current) return;
+    if (playingRef.current) store.follow(playback.timelineTime);
+    else store.reveal(playback.timelineTime);
+  }, [playback.timelineTime, duration, store]);
 
   // The ruler is the dedicated scrub surface. It sits in its own row ABOVE all clip
   // blocks, so it is always reachable no matter how the clips are laid out. Blocks
   // call stopPropagation on their own pointerdown to remain select-only; this ruler
   // row is never blocked by them. Scrubbing does NOT pause — the user can drag the
   // playhead while video plays and it keeps playing from the new position.
-  const onRulerPointerDown = useCallback(
+  const endScrub = useCallback(() => {
+    scrubbingRef.current = false;
+  }, []);
+
+  const startScrub = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
-      playback.seek(timeFromPointerOnElement(event.clientX, event.currentTarget));
+      scrubbingRef.current = true;
+      playback.seek(timeAtPointer(event.clientX) ?? 0);
     },
-    [playback, timeFromPointerOnElement],
+    [playback, timeAtPointer],
   );
 
   // The hover preview: a faint line and the time under the pointer, so the ruler shows
@@ -149,14 +288,19 @@ export function TimelineStrip({
       const el = hoverRef.current;
       const label = hoverLabelRef.current;
       if (!el || !label) return;
-      const fraction = timeToFraction(time, duration);
-      el.style.left = `${fraction * 100}%`;
+      el.style.left = `${timeToFraction(time, duration) * 100}%`;
       el.dataset.visible = "true";
-      if (fraction > HOVER_FLIP_FRACTION) el.dataset.flip = "true";
+      // Flip by where the line sits in the VISIBLE lane: zoomed, the line can be far from
+      // the end of the content and still at the edge of what is on screen.
+      const read = readView();
+      const share = read
+        ? xOf(read.view, time) / read.view.laneWidth
+        : timeToFraction(time, duration);
+      if (share > HOVER_FLIP_FRACTION) el.dataset.flip = "true";
       else delete el.dataset.flip;
       label.textContent = formatScrubTime(time);
     },
-    [duration],
+    [duration, readView],
   );
 
   const hideHover = useCallback(() => {
@@ -165,114 +309,137 @@ export function TimelineStrip({
 
   const onRulerPointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      const time = timeFromPointerOnElement(event.clientX, event.currentTarget);
+      const time = timeAtPointer(event.clientX) ?? 0;
       showHoverAt(time);
       if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
       playback.seek(time);
     },
-    [playback, timeFromPointerOnElement, showHoverAt],
+    [playback, timeAtPointer, showHoverAt],
   );
 
   // The track background also handles scrub for clicks that land on empty track area
   // (between blocks). Consistent with the ruler: no forced pause — scrubbing keeps
   // playback running from the new point.
-  const onTrackPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      event.currentTarget.setPointerCapture(event.pointerId);
-      playback.seek(timeFromPointerOnElement(event.clientX, event.currentTarget));
-    },
-    [playback, timeFromPointerOnElement],
-  );
-
   const onTrackPointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-      playback.seek(timeFromPointerOnElement(event.clientX, event.currentTarget));
+      playback.seek(timeAtPointer(event.clientX) ?? 0);
     },
-    [playback, timeFromPointerOnElement],
+    [playback, timeAtPointer],
   );
+
+  // What the lane draws is windowed by what is on screen: a ruler or a filmstrip for a
+  // 10-minute take at 24x would otherwise be thousands of elements nobody sees.
+  const scale = scaleOf(view);
+  const shown = scale > 0 ? visibleRange(view) : { start: 0, end: duration };
+  const tickWindow = view.zoom > 1 ? shown : undefined;
 
   return (
     <div className={styles.strip}>
-      {/* timelineBody is a two-column grid: labels (--lane-label-w) + lanes. Every lane
-          sits in column 2, so all lanes share one horizontal extent and the fraction →
-          time mapping is identical on each. The playhead lives in its own layer
-          spanning column 2 across every row (see .playheadLayer). */}
-      <div className={styles.timelineBody}>
-        <span className={styles.laneLabel} />
-        <div
-          data-testid="ruler"
-          className={styles.ruler}
-          onPointerDown={onRulerPointerDown}
-          onPointerMove={onRulerPointerMove}
-          onPointerLeave={hideHover}
-        >
-          {rulerMinorTicks(duration).map((time) => (
-            <span
-              key={time}
-              className={styles.minorTick}
-              style={{ left: `${timeToFraction(time, duration) * 100}%` }}
-            />
-          ))}
-          {rulerTicks(duration).map((tick) => {
-            const fraction = timeToFraction(tick.time, duration);
-            return (
-              <span key={tick.time} className={styles.tick} style={{ left: `${fraction * 100}%` }}>
-                {fraction < LAST_LABEL_FRACTION && tick.label}
-              </span>
-            );
-          })}
-        </div>
-        {/* Clips lead: the recording is what every other lane edits. */}
-        <LaneLabel icon={Film} label={t("laneClips")} />
-        <div
-          ref={trackRef}
-          className={styles.track}
-          onPointerDown={onTrackPointerDown}
-          onPointerMove={onTrackPointerMove}
-        >
-          {layout.map((entry) => (
-            <TrackBlock
-              key={entry.itemId}
-              entry={entry}
-              duration={duration}
-              thumbnails={thumbnails}
-              selected={entry.itemId === selectedItemId}
-              onSelect={() => onSelectItem(entry.itemId)}
-              secondsPerPixel={secondsPerPixel}
-              onTrim={onTrim}
-              slideUrlFor={slideUrlFor}
-              onSlideDuration={onSlideDuration}
-            />
-          ))}
-        </div>
-        {/* Annotations are made with the drawing tools on the preview, never on this lane,
-            so an empty lane would only be a blank row: it appears with the first one. */}
-        {showOverlays && overlays.length > 0 && (
-          <LaneRow icon={PenLine} label={t("laneAnnotations")}>
-            <OverlayLane
-              overlays={overlays}
-              duration={duration}
-              selectedOverlayId={selectedOverlayId}
-              onSelectOverlay={onSelectOverlay}
-              onWindowChange={(id, start, end, phase) => onWindowChange?.(id, start, end, phase)}
-            />
-          </LaneRow>
-        )}
-        {extraLanes.map((lane) => (
-          <LaneRow key={lane.key} icon={lane.icon} label={lane.label}>
-            {lane.node}
-          </LaneRow>
-        ))}
-        {/* Positioned via direct DOM mutation in the subscribeTime callback (avoid React
-            re-renders at 60fps). The layer spans every row of the lanes column. */}
-        <div className={styles.playheadLayer}>
-          <div ref={hoverRef} className={styles.hoverLine}>
-            <span ref={hoverLabelRef} className={styles.hoverTime} />
+      {/* timelineBody is the ONE horizontal scroll container: a two-column grid, labels
+          (--lane-label-col, sticky, so they stay put) + the lanes, whose column is
+          `--zoom` lanes wide. Every lane sits in column 2, so all lanes share one extent and
+          scroll together. The playhead lives in its own layer spanning column 2 across
+          every row (see .playheadLayer) and scrolls with them. */}
+      <TimelinePointerContext.Provider value={pointer}>
+        <TimelineViewContext.Provider value={view}>
+          <div
+            ref={bodyRef}
+            data-testid="timeline-scroller"
+            data-zoom={view.zoom}
+            className={styles.timelineBody}
+            style={{ "--zoom": view.zoom } as CSSProperties}
+            onScroll={onScroll}
+          >
+            <span ref={cornerRef} data-testid="lane-corner" className={styles.laneLabel} />
+            <div
+              data-testid="ruler"
+              className={styles.ruler}
+              onPointerDown={startScrub}
+              onPointerMove={onRulerPointerMove}
+              onPointerUp={endScrub}
+              onPointerCancel={endScrub}
+              onLostPointerCapture={endScrub}
+              onPointerLeave={hideHover}
+            >
+              {rulerMinorTicks(duration, view.zoom, tickWindow).map((time) => (
+                <span
+                  key={time}
+                  className={styles.minorTick}
+                  style={{ left: `${timeToFraction(time, duration) * 100}%` }}
+                />
+              ))}
+              {rulerTicks(duration, view.zoom, tickWindow).map((tick) => {
+                const fraction = timeToFraction(tick.time, duration);
+                return (
+                  <span
+                    key={tick.time}
+                    className={styles.tick}
+                    style={{ left: `${fraction * 100}%` }}
+                  >
+                    {fraction < LAST_LABEL_FRACTION && tick.label}
+                  </span>
+                );
+              })}
+            </div>
+            {/* Clips lead: the recording is what every other lane edits. */}
+            <LaneLabel icon={Film} label={t("laneClips")} />
+            <div
+              className={styles.track}
+              onPointerDown={startScrub}
+              onPointerMove={onTrackPointerMove}
+              onPointerUp={endScrub}
+              onPointerCancel={endScrub}
+              onLostPointerCapture={endScrub}
+            >
+              {layout.map((entry) => (
+                <TrackBlock
+                  key={entry.itemId}
+                  entry={entry}
+                  duration={duration}
+                  thumbnails={thumbnails}
+                  scale={scale}
+                  shown={shown}
+                  selected={entry.itemId === selectedItemId}
+                  onSelect={() => onSelectItem(entry.itemId)}
+                  freezeMapping={freezeMapping}
+                  onTrim={onTrim}
+                  slideUrlFor={slideUrlFor}
+                  onSlideDuration={onSlideDuration}
+                />
+              ))}
+            </div>
+            {/* Annotations are made with the drawing tools on the preview, never on this lane,
+                so an empty lane would only be a blank row: it appears with the first one. */}
+            {showOverlays && overlays.length > 0 && (
+              <LaneRow icon={PenLine} label={t("laneAnnotations")}>
+                <OverlayLane
+                  overlays={overlays}
+                  duration={duration}
+                  selectedOverlayId={selectedOverlayId}
+                  onSelectOverlay={onSelectOverlay}
+                  onWindowChange={(id, start, end, phase) =>
+                    onWindowChange?.(id, start, end, phase)
+                  }
+                />
+              </LaneRow>
+            )}
+            {extraLanes.map((lane) => (
+              <LaneRow key={lane.key} icon={lane.icon} label={lane.label}>
+                {lane.node}
+              </LaneRow>
+            ))}
+            {/* Positioned via direct DOM mutation in the subscribeTime callback (avoid React
+                re-renders at 60fps). The layer spans every row of the lanes column. */}
+            <div className={styles.playheadLayer}>
+              <div ref={hoverRef} className={styles.hoverLine}>
+                <span ref={hoverLabelRef} className={styles.hoverTime} />
+              </div>
+              <div ref={playheadRef} className={styles.playhead} />
+            </div>
           </div>
-          <div ref={playheadRef} className={styles.playhead} />
-        </div>
-      </div>
+        </TimelineViewContext.Provider>
+      </TimelinePointerContext.Provider>
     </div>
   );
 }
@@ -314,9 +481,11 @@ function TrackBlock({
   entry,
   duration,
   thumbnails,
+  scale,
+  shown,
   selected,
   onSelect,
-  secondsPerPixel,
+  freezeMapping,
   onTrim,
   slideUrlFor,
   onSlideDuration,
@@ -324,9 +493,14 @@ function TrackBlock({
   entry: LayoutEntry;
   duration: number;
   thumbnails: SourceThumbnail[];
+  /** Pixels per timeline second, and the window of timeline time on screen: the block
+   *  draws only the thumbnails in that window. */
+  scale: number;
+  shown: { start: number; end: number };
   selected: boolean;
   onSelect: () => void;
-  secondsPerPixel: () => number;
+  /** The pixel-to-time mapping as it is right now, to freeze on pointerdown. */
+  freezeMapping: () => TimelineView | null;
   onTrim?: (
     itemId: string,
     edge: "start" | "end",
@@ -336,33 +510,39 @@ function TrackBlock({
   slideUrlFor?: (assetId: string) => string | null;
   onSlideDuration?: (itemId: string, duration: number, phase: "start" | "move" | "end") => void;
 }): React.JSX.Element {
-  const blockRef = useRef<HTMLButtonElement | null>(null);
   const left = timeToFraction(entry.timelineStart, duration) * 100;
   const width = timeToFraction(entry.timelineEnd - entry.timelineStart, duration) * 100;
-  const approxWidthPx = (width / 100) * (blockRef.current?.parentElement?.clientWidth ?? 800);
   const isSlide = entry.kind === "slide";
   const slideUrl = isSlide && entry.assetId ? (slideUrlFor?.(entry.assetId) ?? null) : null;
   const tiles =
     entry.kind === "clip"
-      ? thumbnailsForRange(
-          thumbnails,
-          entry.sourceStart,
-          entry.sourceEnd,
-          Math.max(1, Math.round(approxWidthPx / THUMBS_PER_BLOCK_PX)),
-        )
+      ? thumbnailTiles({
+          timelineStart: entry.timelineStart,
+          timelineEnd: entry.timelineEnd,
+          sourceStart: entry.sourceStart,
+          sourceEnd: entry.sourceEnd,
+          scale,
+          visible: shown,
+        }).tiles
       : [];
 
   // A drag freezes its baseline on pointerdown (same idea as overlay-lane's bodyOrigin):
-  // `orig` is the dragged value then, x0 the pointer x, secPerPx the track scale. Moves
-  // are `orig + (clientX - x0) * secPerPx`, never derived from the live entry, so a
-  // start trim (which changes entry.sourceStart every frame) cannot feed back.
+  // `orig` is the dragged value then, x0 the pointer x, `mapping` the view (zoom, scroll,
+  // lane) then. Moves are `orig + timeDelta(mapping, x0, clientX)`, never derived from the
+  // live entry, so a start trim (which changes entry.sourceStart every frame) cannot
+  // feed back. `timeDelta` is the pixel-to-time conversion of every other lane: at 4x a
+  // drag moves by a quarter of the 1x amount.
   const trimDrag = useRef<{
     edge: "start" | "end";
     orig: number;
     x0: number;
-    secPerPx: number;
+    mapping: TimelineView | null;
     last: number;
   } | null>(null);
+  const dragged = (
+    drag: { orig: number; x0: number; mapping: TimelineView | null },
+    clientX: number,
+  ): number => (drag.mapping ? drag.orig + timeDelta(drag.mapping, drag.x0, clientX) : drag.orig);
 
   // One handler factory for both edges — pointerdown seeds the drag with the edge's
   // current source time, move reports the live source time, up/cancel/lost capture end
@@ -386,7 +566,7 @@ function TrackBlock({
           edge,
           orig,
           x0: event.clientX,
-          secPerPx: secondsPerPixel(),
+          mapping: freezeMapping(),
           last: orig,
         };
         onTrim?.(entry.itemId, edge, orig, "start");
@@ -395,14 +575,14 @@ function TrackBlock({
         event.stopPropagation();
         const drag = trimDrag.current;
         if (!drag || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-        drag.last = drag.orig + (event.clientX - drag.x0) * drag.secPerPx;
+        drag.last = dragged(drag, event.clientX);
         onTrim?.(entry.itemId, edge, drag.last, "move");
       },
       onPointerUp: (event) => {
         event.stopPropagation();
         const drag = trimDrag.current;
         if (!drag) return;
-        drag.last = drag.orig + (event.clientX - drag.x0) * drag.secPerPx;
+        drag.last = dragged(drag, event.clientX);
         event.currentTarget.releasePointerCapture?.(event.pointerId);
         finish();
       },
@@ -412,9 +592,12 @@ function TrackBlock({
   };
 
   // A slide's right handle sets the hold DURATION: same frozen-baseline contract.
-  const slideDrag = useRef<{ orig: number; x0: number; secPerPx: number; last: number } | null>(
-    null,
-  );
+  const slideDrag = useRef<{
+    orig: number;
+    x0: number;
+    mapping: TimelineView | null;
+    last: number;
+  } | null>(null);
 
   const slideDurationHandlers = (): DragHandlers => {
     const finish = (): void => {
@@ -428,21 +611,21 @@ function TrackBlock({
         event.stopPropagation();
         event.currentTarget.setPointerCapture(event.pointerId);
         const orig = entry.timelineEnd - entry.timelineStart;
-        slideDrag.current = { orig, x0: event.clientX, secPerPx: secondsPerPixel(), last: orig };
+        slideDrag.current = { orig, x0: event.clientX, mapping: freezeMapping(), last: orig };
         onSlideDuration?.(entry.itemId, orig, "start");
       },
       onPointerMove: (event) => {
         event.stopPropagation();
         const drag = slideDrag.current;
         if (!drag || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-        drag.last = drag.orig + (event.clientX - drag.x0) * drag.secPerPx;
+        drag.last = dragged(drag, event.clientX);
         onSlideDuration?.(entry.itemId, drag.last, "move");
       },
       onPointerUp: (event) => {
         event.stopPropagation();
         const drag = slideDrag.current;
         if (!drag) return;
-        drag.last = drag.orig + (event.clientX - drag.x0) * drag.secPerPx;
+        drag.last = dragged(drag, event.clientX);
         event.currentTarget.releasePointerCapture?.(event.pointerId);
         finish();
       },
@@ -454,7 +637,6 @@ function TrackBlock({
   return (
     <>
       <button
-        ref={blockRef}
         type="button"
         className={[styles.block, isSlide && styles.slideBlock, selected && styles.blockSelected]
           .filter(Boolean)
@@ -480,9 +662,19 @@ function TrackBlock({
             </span>
           </>
         ) : (
-          tiles.map((tile, i) => (
-            <img key={i} src={tile.url} alt="" className={styles.tile} draggable={false} />
-          ))
+          tiles.map((tile) => {
+            const thumb = thumbnailAt(thumbnails, tile.sourceTime);
+            return thumb ? (
+              <img
+                key={tile.index}
+                src={thumb.url}
+                alt=""
+                className={styles.tile}
+                style={{ left: `${tile.left * 100}%`, width: `${tile.width * 100}%` }}
+                draggable={false}
+              />
+            ) : null;
+          })
         )}
       </button>
       {/* Rendered as siblings, not children of the button: the button clips its

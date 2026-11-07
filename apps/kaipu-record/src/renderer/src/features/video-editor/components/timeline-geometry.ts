@@ -115,13 +115,6 @@ export function formatScrubTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}.${tenths % 10}`;
 }
 
-function tileTargets(sourceStart: number, sourceEnd: number, count: number): number[] {
-  return Array.from(
-    { length: Math.max(0, count) },
-    (_, i) => sourceStart + ((i + 0.5) / count) * (sourceEnd - sourceStart),
-  );
-}
-
 function nearestThumbnail(thumbnails: SourceThumbnail[], target: number): SourceThumbnail {
   let nearest = thumbnails[0];
   for (const thumb of thumbnails) {
@@ -132,40 +125,20 @@ function nearestThumbnail(thumbnails: SourceThumbnail[], target: number): Source
   return nearest;
 }
 
-export function thumbnailsForRange(
-  thumbnails: SourceThumbnail[],
-  sourceStart: number,
-  sourceEnd: number,
-  count: number,
-): SourceThumbnail[] {
-  if (thumbnails.length === 0) return [];
-  return tileTargets(sourceStart, sourceEnd, count).map((t) => nearestThumbnail(thumbnails, t));
-}
-
 /**
- * {@link thumbnailsForRange} for a file that does not cover the whole source (the webcam
- * starts late or ends early): a tile outside `covered` ([start, end), SOURCE time) is null —
- * there is no footage there, so it must not borrow the first or last frame.
+ * The frame nearest to a SOURCE time, or null when none have been decoded yet. With
+ * `covered` (a companion file that does not span the whole source: the webcam starts late
+ * or ends early) a time outside `[start, end)` is null too — there is no footage there, so
+ * the tile must stay empty instead of borrowing the first or last frame.
  */
-export function thumbnailsForRangeWithin(
-  thumbnails: SourceThumbnail[],
-  sourceStart: number,
-  sourceEnd: number,
-  count: number,
-  covered: CoveredRange,
-): (SourceThumbnail | null)[] {
-  if (thumbnails.length === 0) return [];
-  return tileTargets(sourceStart, sourceEnd, count).map((t) =>
-    t >= covered.start && t < covered.end ? nearestThumbnail(thumbnails, t) : null,
-  );
-}
-
-/** The frame nearest to a SOURCE time, or null when none have been decoded yet. */
 export function thumbnailAt(
   thumbnails: SourceThumbnail[],
   sourceTime: number,
+  covered?: CoveredRange,
 ): SourceThumbnail | null {
-  return thumbnails.length === 0 ? null : nearestThumbnail(thumbnails, sourceTime);
+  if (thumbnails.length === 0) return null;
+  if (covered && !(sourceTime >= covered.start && sourceTime < covered.end)) return null;
+  return nearestThumbnail(thumbnails, sourceTime);
 }
 
 /** One thumbnail slot of a block: `left` and `width` are fractions of the BLOCK's width. */

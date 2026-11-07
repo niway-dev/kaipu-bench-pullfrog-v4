@@ -106,6 +106,15 @@ export function timeAt(
   return clampToTimeline ? clamp(t, 0, view.duration) : t;
 }
 
+/**
+ * Timeline seconds between two pointer positions, UNCLAMPED, for dragging an edge by a
+ * delta: a trimmed clip's end handle must be able to travel past the end of the visible
+ * timeline to win footage back. Goes through {@link timeAt} like every other conversion.
+ */
+export function timeDelta(view: TimelineView, fromClientX: number, toClientX: number): number {
+  return timeAt(view, toClientX, 0, false) - timeAt(view, fromClientX, 0, false);
+}
+
 /** Where a time sits in the visible lane: px from its left edge (negative: scrolled off). */
 export function xOf(view: TimelineView, t: number): number {
   return t * scaleOf(view) - view.scroll;

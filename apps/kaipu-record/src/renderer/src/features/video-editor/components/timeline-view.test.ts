@@ -12,6 +12,7 @@ import {
   scaleOf,
   sliderToZoom,
   timeAt,
+  timeDelta,
   visibleRange,
   wheelZoomFactor,
   xOf,
@@ -123,6 +124,23 @@ describe("timeAt and xOf", () => {
   it("puts the end of the timeline on the lane's right edge at fit", () => {
     expect(xOf(fit, 100)).toBe(1000);
     expect(xOf(viewAt(4, 3000), 100)).toBe(1000);
+  });
+});
+
+describe("timeDelta", () => {
+  it("is the pointer distance over the scale, whatever the scroll", () => {
+    // 40 px per second: 200 px is 5 s, at any scroll.
+    expect(timeDelta(viewAt(4, 0), 300, 500)).toBeCloseTo(5, 9);
+    expect(timeDelta(viewAt(4, 1700), 300, 500)).toBeCloseTo(5, 9);
+    expect(timeDelta(viewAt(4, 1700), 500, 300)).toBeCloseTo(-5, 9);
+  });
+
+  it("is not clamped: a handle dragged past the end of the visible timeline keeps going", () => {
+    expect(timeDelta(fit, 900, 3000)).toBeCloseTo(210, 9);
+  });
+
+  it("is 0 while the lane is unmeasured", () => {
+    expect(timeDelta(fitView(0, 100), 10, 500)).toBe(0);
   });
 });
 
@@ -334,6 +352,7 @@ describe("wheelZoomFactor", () => {
   });
 
   it("reads line-mode deltas (a mouse wheel on some platforms) as lines, not pixels", () => {
-    expect(wheelZoomFactor(-3, 1)).toBe(wheelZoomFactor(-48, 0));
+    expect(wheelZoomFactor(-1, 1)).toBe(wheelZoomFactor(-16, 0));
+    expect(wheelZoomFactor(-1, 1)).not.toBe(wheelZoomFactor(-1, 0));
   });
 });
