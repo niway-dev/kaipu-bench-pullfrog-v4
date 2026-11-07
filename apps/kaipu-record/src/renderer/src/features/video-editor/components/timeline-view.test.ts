@@ -1,0 +1,339 @@
+import { describe, expect, it } from "vitest";
+import {
+  FOLLOW_EDGE,
+  MAX_PX_PER_SECOND,
+  clampView,
+  contentWidth,
+  fitView,
+  followPlayhead,
+  maxZoom,
+  panBy,
+  revealTime,
+  scaleOf,
+  sliderToZoom,
+  timeAt,
+  visibleRange,
+  wheelZoomFactor,
+  xOf,
+  zoomAt,
+  zoomToSlider,
+  type TimelineView,
+} from "./timeline-view";
+
+// A 100 s timeline in a 1000 px lane: 10 px per second at fit.
+const LANE_LEFT = 120;
+const fit = fitView(1000, 100);
+
+function viewAt(zoom: number, scroll: number): TimelineView {
+  return clampView({ ...fit, zoom, scroll });
+}
+
+describe("fitView", () => {
+  it("is 1x with scroll 0: the whole recording in the lane, as before zoom existed", () => {
+    expect(fit).toEqual({ zoom: 1, scroll: 0, laneWidth: 1000, duration: 100 });
+    expect(scaleOf(fit)).toBe(10);
+    expect(contentWidth(fit)).toBe(1000);
+  });
+
+  it("an empty timeline or an unmeasured lane has no scale and converts everything to 0", () => {
+    expect(scaleOf(fitView(1000, 0))).toBe(0);
+    expect(scaleOf(fitView(0, 100))).toBe(0);
+    expect(timeAt(fitView(1000, 0), 500, LANE_LEFT)).toBe(0);
+    expect(timeAt(fitView(0, 100), 500, LANE_LEFT)).toBe(0);
+    expect(xOf(fitView(0, 100), 5)).toBe(0);
+  });
+});
+
+describe("maxZoom", () => {
+  it("is the zoom at which one second is MAX_PX_PER_SECOND wide", () => {
+    // fit = 10 px/s, so 240 px/s is 24x.
+    expect(maxZoom(1000, 100)).toBeCloseTo(MAX_PX_PER_SECOND / 10);
+  });
+
+  it("is never below 1x: a recording already wider than the maximum cannot zoom out of fit", () => {
+    // 2 s in 1000 px is 500 px/s at fit, past the 240 px/s cap.
+    expect(maxZoom(1000, 2)).toBe(1);
+  });
+
+  it("is 1x while the lane or the timeline is unmeasured", () => {
+    expect(maxZoom(0, 100)).toBe(1);
+    expect(maxZoom(1000, 0)).toBe(1);
+  });
+});
+
+describe("clampView", () => {
+  it("keeps zoom within [1, maxZoom]", () => {
+    expect(clampView({ ...fit, zoom: 0.2 }).zoom).toBe(1);
+    expect(clampView({ ...fit, zoom: 1000 }).zoom).toBeCloseTo(24);
+  });
+
+  it("keeps scroll within [0, contentWidth - laneWidth]", () => {
+    expect(clampView({ ...fit, zoom: 4, scroll: -50 }).scroll).toBe(0);
+    expect(clampView({ ...fit, zoom: 4, scroll: 99_999 }).scroll).toBe(3000);
+    expect(clampView({ ...fit, zoom: 1, scroll: 300 }).scroll).toBe(0);
+  });
+
+  it("repairs non-finite input instead of spreading NaN into every lane", () => {
+    const view = clampView({
+      zoom: Number.NaN,
+      scroll: Number.NaN,
+      laneWidth: 1000,
+      duration: 100,
+    });
+    expect(view.zoom).toBe(1);
+    expect(view.scroll).toBe(0);
+  });
+});
+
+describe("timeAt and xOf", () => {
+  it.each([
+    [1, 0],
+    [2, 0],
+    [2, 500],
+    [4, 0],
+    [4, 1500],
+    [4, 3000],
+    [16, 0],
+    [16, 7000],
+    [16, 15_000],
+  ])("round-trips at zoom %d, scroll %d", (zoom, scroll) => {
+    const view = viewAt(zoom, scroll);
+    for (const t of [0, 1.25, 33.3, 50, 99.9]) {
+      const x = xOf(view, t);
+      // A time scrolled out of the lane is still converted back exactly.
+      expect(timeAt(view, LANE_LEFT + x, LANE_LEFT, false)).toBeCloseTo(t, 9);
+    }
+  });
+
+  it("converts the pointer by the scale, not by the 1x amount (the failure this exists to stop)", () => {
+    const view = viewAt(4, 1200); // 40 px per second, scrolled 1200 px = 30 s in
+    // 200 px right of the lane's left edge is 5 s into the visible window, 35 s overall.
+    expect(timeAt(view, LANE_LEFT + 200, LANE_LEFT)).toBeCloseTo(35, 9);
+    // At 1x the same pixel would have been 20 s.
+    expect(timeAt(fit, LANE_LEFT + 200, LANE_LEFT)).toBeCloseTo(20, 9);
+  });
+
+  it("clamps to the timeline by default and leaves the raw value for drags that extend a trim", () => {
+    expect(timeAt(fit, LANE_LEFT - 80, LANE_LEFT)).toBe(0);
+    expect(timeAt(fit, LANE_LEFT + 2000, LANE_LEFT)).toBe(100);
+    expect(timeAt(fit, LANE_LEFT - 80, LANE_LEFT, false)).toBeCloseTo(-8, 9);
+    expect(timeAt(fit, LANE_LEFT + 2000, LANE_LEFT, false)).toBeCloseTo(200, 9);
+  });
+
+  it("puts the end of the timeline on the lane's right edge at fit", () => {
+    expect(xOf(fit, 100)).toBe(1000);
+    expect(xOf(viewAt(4, 3000), 100)).toBe(1000);
+  });
+});
+
+describe("zoomAt", () => {
+  // The time under the pointer is the thing that must not move.
+  function timeUnder(view: TimelineView, clientX: number): number {
+    return timeAt(view, clientX, LANE_LEFT, false);
+  }
+
+  it.each([
+    ["left edge", LANE_LEFT],
+    ["centre", LANE_LEFT + 500],
+    ["right edge", LANE_LEFT + 1000],
+  ])("keeps the time under the pointer fixed at the %s", (_name, anchor) => {
+    const before = viewAt(2, 400);
+    const t = timeUnder(before, anchor);
+    const after = zoomAt(before, 2, anchor, LANE_LEFT);
+    expect(after.zoom).toBeCloseTo(4);
+    expect(timeUnder(after, anchor)).toBeCloseTo(t, 6);
+  });
+
+  it("zooms in from fit around the pointer, so the pointer keeps its time", () => {
+    const anchor = LANE_LEFT + 250; // 25 s at fit
+    const after = zoomAt(fit, 4, anchor, LANE_LEFT);
+    expect(after.zoom).toBe(4);
+    expect(timeUnder(after, anchor)).toBeCloseTo(25, 9);
+    expect(after.scroll).toBeCloseTo(25 * 40 - 250, 9);
+  });
+
+  it("clamps the zoom at the maximum and still keeps the time under the pointer", () => {
+    const anchor = LANE_LEFT + 700;
+    const t = timeUnder(fit, anchor);
+    const after = zoomAt(fit, 10_000, anchor, LANE_LEFT);
+    expect(after.zoom).toBeCloseTo(24);
+    expect(timeUnder(after, anchor)).toBeCloseTo(t, 6);
+  });
+
+  it("cannot zoom out past fit, and returns to scroll 0 there", () => {
+    const after = zoomAt(viewAt(4, 1500), 0.0001, LANE_LEFT + 300, LANE_LEFT);
+    expect(after.zoom).toBe(1);
+    expect(after.scroll).toBe(0);
+  });
+
+  it("at the far left a zoom-in keeps scroll 0 (nothing to the left of the start)", () => {
+    const after = zoomAt(fit, 2, LANE_LEFT, LANE_LEFT);
+    expect(after.scroll).toBe(0);
+  });
+
+  it("at the far right a zoom-in stays pinned to the end of the timeline", () => {
+    const after = zoomAt(fit, 2, LANE_LEFT + 1000, LANE_LEFT);
+    expect(after.scroll).toBe(contentWidth(after) - after.laneWidth);
+    expect(timeUnder(after, LANE_LEFT + 1000)).toBeCloseTo(100, 9);
+  });
+
+  it("treats a pointer outside the lane (the label column, past the end) as the nearest edge", () => {
+    const left = zoomAt(fit, 2, LANE_LEFT - 60, LANE_LEFT);
+    expect(timeUnder(left, LANE_LEFT)).toBeCloseTo(0, 9);
+    const right = zoomAt(fit, 2, LANE_LEFT + 1300, LANE_LEFT);
+    expect(timeUnder(right, LANE_LEFT + 1000)).toBeCloseTo(100, 9);
+  });
+});
+
+describe("panBy", () => {
+  it("moves the scroll and clamps it at both ends", () => {
+    const view = viewAt(4, 1000);
+    expect(panBy(view, 250).scroll).toBe(1250);
+    expect(panBy(view, -5000).scroll).toBe(0);
+    expect(panBy(view, 5000).scroll).toBe(3000);
+  });
+
+  it("does nothing at fit: there is nowhere to scroll", () => {
+    expect(panBy(fit, 400)).toEqual(fit);
+  });
+});
+
+describe("followPlayhead", () => {
+  const zoomed = viewAt(4, 1000); // visible 25 s .. 50 s (40 px/s)
+
+  it("leaves the view alone while the playhead is left of the 80% mark", () => {
+    // 80% of 1000 px is 800 px = 20 s into the window: 45 s overall.
+    expect(followPlayhead(zoomed, 44).scroll).toBe(1000);
+    expect(followPlayhead(zoomed, 30).scroll).toBe(1000);
+  });
+
+  it("scrolls once the playhead passes 80% of the visible width, keeping it in view", () => {
+    const next = followPlayhead(zoomed, 46);
+    expect(next.scroll).toBeGreaterThan(1000);
+    const x = xOf(next, 46);
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThanOrEqual(next.laneWidth * FOLLOW_EDGE);
+  });
+
+  it("brings a playhead that is off screen (a loop back to the start) into view", () => {
+    const next = followPlayhead(zoomed, 2);
+    expect(xOf(next, 2)).toBeGreaterThanOrEqual(0);
+    expect(xOf(next, 2)).toBeLessThanOrEqual(next.laneWidth * FOLLOW_EDGE);
+  });
+
+  it("never scrolls past the end of the timeline", () => {
+    const next = followPlayhead(zoomed, 100);
+    expect(next.scroll).toBe(3000);
+  });
+
+  it("does nothing at fit", () => {
+    expect(followPlayhead(fit, 99)).toEqual(fit);
+  });
+
+  it("returns the same object when nothing changes, so callers can skip a re-render", () => {
+    expect(followPlayhead(zoomed, 30)).toBe(zoomed);
+  });
+});
+
+describe("revealTime", () => {
+  const zoomed = viewAt(4, 1000);
+
+  it("does not move the view for a time that is already visible, even past 80%", () => {
+    expect(revealTime(zoomed, 49)).toBe(zoomed);
+  });
+
+  it("scrolls only when the time is outside the visible window", () => {
+    const after = revealTime(zoomed, 80);
+    expect(xOf(after, 80)).toBeGreaterThanOrEqual(0);
+    expect(xOf(after, 80)).toBeLessThanOrEqual(after.laneWidth);
+    const before = revealTime(zoomed, 3);
+    expect(xOf(before, 3)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("visibleRange", () => {
+  it("is the whole timeline at fit", () => {
+    expect(visibleRange(fit)).toEqual({ start: 0, end: 100 });
+  });
+
+  it("is the window the lane shows when zoomed and scrolled", () => {
+    const range = visibleRange(viewAt(4, 1000));
+    expect(range.start).toBeCloseTo(25, 9);
+    expect(range.end).toBeCloseTo(50, 9);
+  });
+
+  it("stays inside [0, duration]", () => {
+    const range = visibleRange(viewAt(4, 3000));
+    expect(range.end).toBe(100);
+    expect(range.start).toBeCloseTo(75, 9);
+  });
+});
+
+describe("resizing under a live view (a cut while zoomed)", () => {
+  it("keeps the zoom factor when the duration shrinks, so a cut does not change the apparent zoom", () => {
+    const zoomed = viewAt(4, 1500);
+    const cut = clampView({ ...zoomed, duration: 60 });
+    expect(cut.zoom).toBe(4);
+    expect(contentWidth(cut)).toBe(4000);
+    expect(cut.scroll).toBe(1500);
+  });
+
+  it("re-clamps the scroll when the lane grows wider than the remaining content", () => {
+    const zoomed = viewAt(4, 3000);
+    const wider = clampView({ ...zoomed, laneWidth: 1500 });
+    // content is now 6000 px, so the maximum scroll is 4500: unchanged here.
+    expect(wider.scroll).toBe(3000);
+    const much = clampView({ ...zoomed, laneWidth: 4000 });
+    expect(much.zoom).toBeLessThanOrEqual(maxZoom(4000, 100));
+    expect(much.scroll).toBeLessThanOrEqual(Math.max(0, contentWidth(much) - 4000));
+  });
+
+  it("drops the zoom to the new maximum when a cut leaves too little to zoom into", () => {
+    const zoomed = viewAt(20, 0);
+    const cut = clampView({ ...zoomed, duration: 10 });
+    expect(cut.zoom).toBeCloseTo(maxZoom(1000, 10));
+    expect(cut.scroll).toBeLessThanOrEqual(contentWidth(cut) - cut.laneWidth);
+  });
+});
+
+describe("the zoom slider", () => {
+  it("maps fit to 0 and the maximum to 1", () => {
+    expect(zoomToSlider(fit.zoom, 1000, 100)).toBe(0);
+    expect(zoomToSlider(maxZoom(1000, 100), 1000, 100)).toBeCloseTo(1, 9);
+  });
+
+  it("is logarithmic: the midpoint is the geometric mean, not the average", () => {
+    const max = maxZoom(1000, 100);
+    expect(sliderToZoom(0.5, 1000, 100)).toBeCloseTo(Math.sqrt(max), 9);
+  });
+
+  it("round-trips", () => {
+    for (const v of [0, 0.1, 0.37, 0.8, 1]) {
+      expect(zoomToSlider(sliderToZoom(v, 1000, 100), 1000, 100)).toBeCloseTo(v, 9);
+    }
+  });
+
+  it("is pinned at 0 when the recording cannot zoom (already past the maximum at fit)", () => {
+    expect(zoomToSlider(1, 1000, 2)).toBe(0);
+    expect(sliderToZoom(0.7, 1000, 2)).toBe(1);
+  });
+});
+
+describe("wheelZoomFactor", () => {
+  it("zooms in on a scroll up and out on a scroll down", () => {
+    expect(wheelZoomFactor(-10, 0)).toBeGreaterThan(1);
+    expect(wheelZoomFactor(10, 0)).toBeLessThan(1);
+  });
+
+  it("is symmetric, so a pinch out then in lands where it started", () => {
+    expect(wheelZoomFactor(-12, 0) * wheelZoomFactor(12, 0)).toBeCloseTo(1, 12);
+  });
+
+  it("caps one event, so a mouse-wheel notch does not jump the whole range", () => {
+    expect(wheelZoomFactor(-4000, 0)).toBe(wheelZoomFactor(-40, 0));
+  });
+
+  it("reads line-mode deltas (a mouse wheel on some platforms) as lines, not pixels", () => {
+    expect(wheelZoomFactor(-3, 1)).toBe(wheelZoomFactor(-48, 0));
+  });
+});
