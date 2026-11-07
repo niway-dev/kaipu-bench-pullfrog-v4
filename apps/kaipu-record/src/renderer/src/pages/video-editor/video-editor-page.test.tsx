@@ -1936,7 +1936,7 @@ describe("VideoEditorPage — background (NIW2-668)", () => {
     expect(
       section.compareDocumentPosition(detection) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(within(section).getAllByRole("button")).toHaveLength(9);
+    expect(within(section).getAllByRole("button")).toHaveLength(17);
     expect(swatch("None")).toHaveAttribute("aria-pressed", "true");
     for (const name of ["Padding", "Corners", "Shadow"]) expect(slider(name)).toBeDisabled();
     expect(slider("Padding")).toHaveValue("0");
