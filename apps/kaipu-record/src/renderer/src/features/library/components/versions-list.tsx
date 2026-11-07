@@ -31,6 +31,9 @@ interface VersionsListProps {
   /** The list the page walks with previous and next; a row's link carries it along, so opening
    *  another version keeps the walk (and its counter) instead of resetting to the whole library. */
   order?: string[];
+  /** The item has the "Where is it going?" tab (a local recording), so the empty state can point
+   *  to it. Without that tab the sentence would name a place that does not exist. */
+  canExport?: boolean;
   now?: () => number;
 }
 
@@ -45,6 +48,7 @@ export function VersionsList({
   running,
   probe,
   order,
+  canExport = false,
   now = Date.now,
 }: VersionsListProps): React.JSX.Element {
   const t = useTranslations("library");
@@ -221,7 +225,11 @@ export function VersionsList({
           );
         })}
       </ul>
-      {empty && <p className={styles.empty}>{tPrepare("versionsEmpty")}</p>}
+      {empty && (
+        <p className={styles.empty}>
+          {canExport ? tPrepare("versionsEmpty") : tPrepare("versionsEmptyPlain")}
+        </p>
+      )}
     </section>
   );
 }
@@ -257,9 +265,10 @@ function Row({
       {icon}
       <span className={styles.text}>
         <span className={styles.name}>{name}</span>
-        <span className={styles.facts}>{kind}</span>
+        <span className={styles.facts}>
+          {kind} · {facts}
+        </span>
       </span>
-      <span className={styles.meta}>{facts}</span>
     </>
   );
   const drag = dragSource && (
@@ -288,7 +297,6 @@ function Row({
       <li className={styles.row} data-state="viewing" aria-current="true">
         <div className={styles.inner}>{body}</div>
         <span className={styles.pill}>{viewingLabel}</span>
-        {drag}
       </li>
     );
   }

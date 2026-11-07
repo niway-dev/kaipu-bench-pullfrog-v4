@@ -78,8 +78,8 @@
 
 .thumb {
   flex-shrink: 0;
-  width: 44px;
-  height: 28px;
+  width: 56px;
+  height: 36px;
   border-radius: 4px;
   object-fit: cover;
   background: var(--bg-app);
@@ -133,13 +133,6 @@
   display: inline-flex;
   color: var(--text-muted);
   cursor: help;
-}
-
-.meta {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-muted);
 }
 
 /* The one pink in the list: which version is on screen. */

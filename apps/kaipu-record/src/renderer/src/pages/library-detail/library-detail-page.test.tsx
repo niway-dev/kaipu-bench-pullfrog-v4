@@ -199,9 +199,9 @@ describe("LibraryDetailPage", () => {
     await waitForLoaded();
 
     // How it was captured lives in the Details tab, not in the metadata line.
-    expect(screen.queryByText("FRAME · 1234 × 567")).toBeNull();
+    expect(screen.queryByText("Region recording")).toBeNull();
     openTab("Details");
-    expect(screen.getByText("FRAME · 1234 × 567")).toBeVisible();
+    expect(screen.getByText("Region recording")).toBeVisible();
   });
 
   it("a re-list keeps the page on screen instead of swapping it for the loader", async () => {
@@ -253,7 +253,7 @@ describe("LibraryDetailPage", () => {
     await waitForLoaded();
 
     openTab("Details");
-    expect(screen.getByText("IMPORTED")).toBeVisible();
+    expect(screen.getByText("Imported video")).toBeVisible();
   });
 
   it("puts the title and every action on one row, with the way back above", async () => {

@@ -22,7 +22,6 @@ import { useLocalLibrary } from "@renderer/features/library/hooks/use-local-libr
 import { useMissingRecordingRecovery } from "@renderer/features/library/hooks/use-missing-recording-recovery";
 import { reportError } from "@renderer/features/analytics";
 import { showToast } from "@renderer/ui/toast-store";
-import { useRecordingCaptureLabel } from "@renderer/features/library/components/recording-capture-tag";
 import { DeleteConfirmDialog } from "@renderer/features/library/components/delete-confirm-dialog";
 import { RecordingPlayer } from "@renderer/features/library/components/recording-player";
 import { ScreenshotViewer } from "@renderer/features/library/components/screenshot-viewer";
@@ -124,7 +123,6 @@ export function LibraryDetailPage(): React.JSX.Element {
   // and buildLineage works fine on an empty/loading `videos` list.
   const { openItem } = useOpenInEditor();
   const lineage = useMemo(() => buildLineage(videos), [videos]);
-  const captureLabel = useRecordingCaptureLabel(video?.capture);
 
   // The Library passes the list as it shows it (filter and sort applied); opened from
   // anywhere else, the whole library in its own order is the list.
@@ -695,7 +693,7 @@ export function LibraryDetailPage(): React.JSX.Element {
                 video={video}
                 probe={probe}
                 dimensions={screenshotDimensions}
-                captureLabel={captureLabel}
+                capture={video.capture}
                 path={path}
               />
             ) : (
@@ -705,6 +703,7 @@ export function LibraryDetailPage(): React.JSX.Element {
                 running={running}
                 probe={probe}
                 order={order}
+                canExport={preparable !== null}
               />
             )}
           </div>

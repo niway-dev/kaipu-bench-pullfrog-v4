@@ -1,3 +1,4 @@
+import type { RecordingCapture } from "@shared/recording-capture";
 import { useLocale, useTranslations } from "@kaipu/i18n";
 import type { SourceProbe } from "@renderer/features/video-editor/export/probe-source";
 import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-context";
@@ -14,14 +15,15 @@ export function ItemDetails({
   video,
   probe,
   dimensions,
-  captureLabel,
+  capture,
   path,
 }: {
   video: LibraryVideo;
   probe: SourceProbe | null;
   /** The picture size when the page knows it from somewhere other than `probe` (a screenshot). */
   dimensions: { width: number; height: number } | null;
-  captureLabel: string | null;
+  /** How the recording was captured; the Source row names it in a sentence. */
+  capture: RecordingCapture | null | undefined;
   /** Absolute path of the local file; null for a cloud-only item or while it loads. */
   path: string | null;
 }): React.JSX.Element {
@@ -36,12 +38,19 @@ export function ItemDetails({
     : video.gif
       ? { width: video.gif.width, height: video.gif.height }
       : dimensions;
+  const recordingSourceLabel = (c: RecordingCapture | null | undefined): string | null => {
+    if (!c) return null;
+    if (c.mode === "window") return t("detailsSourceWindow");
+    if (c.mode === "area") return t("detailsSourceArea");
+    if (c.mode === "import") return t("detailsSourceImported");
+    return t("detailsSourceRecording");
+  };
   const source =
     video.kind === "screenshot"
       ? t("detailsSourceScreenshot")
       : video.kind === "gif"
         ? t("kindGif")
-        : (captureLabel ?? t("detailsSourceRecording"));
+        : (recordingSourceLabel(capture) ?? t("detailsSourceRecording"));
 
   const rows: Array<[label: string, value: string, key: string]> = [];
   rows.push([t("detailsSource"), source, "source"]);

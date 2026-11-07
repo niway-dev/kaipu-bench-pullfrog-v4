@@ -50,7 +50,12 @@ const probe = {
   sampleRate: 48000,
 };
 
-function renderList(item: LibraryVideo, all: LibraryVideo[], running: RunningCopy | null = null) {
+function renderList(
+  item: LibraryVideo,
+  all: LibraryVideo[],
+  running: RunningCopy | null = null,
+  canExport = false,
+) {
   render(
     <MemoryRouter>
       <VersionsList
@@ -58,6 +63,7 @@ function renderList(item: LibraryVideo, all: LibraryVideo[], running: RunningCop
         lineage={buildLineage(all)}
         running={running}
         probe={probe}
+        canExport={canExport}
         now={() => 100_000}
       />
     </MemoryRouter>,
@@ -77,7 +83,8 @@ describe("VersionsList", () => {
     expect(within(rows[0]!).getByRole("img", { name: "Never changes" })).toBeTruthy();
     expect(within(rows[1]!).getByText("YouTube 1440p")).toBeTruthy();
     expect(within(rows[1]!).getByRole("link").getAttribute("href")).toBe("/library/yt");
-    expect(within(region).getAllByText("Exported copy")).toHaveLength(2);
+    expect(rows[1]!.textContent).toContain("Exported copy");
+    expect(rows[2]!.textContent).toContain("Exported copy");
     expect(within(region).getByText("3")).toBeTruthy();
   });
 
@@ -114,8 +121,24 @@ describe("VersionsList", () => {
     expect(within(region).getByText("Viewing")).toBeTruthy();
   });
 
-  it("suggests where it is going when there are no copies", () => {
-    const region = renderList(master, [master]);
+  it("shows each row's name and its kind with facts on one muted line", () => {
+    const region = renderList(master, [master, yt]);
+    const rows = within(region).getAllByRole("listitem");
+    expect(within(rows[0]!).getByText("My master")).toBeTruthy();
+    expect(rows[0]!.textContent).toMatch(/Original · .*3:02.* · /);
+    expect(within(rows[0]!).getByText("Viewing")).toBeTruthy();
+    expect(within(rows[1]!).getByText("YouTube 1440p")).toBeTruthy();
+    expect(rows[1]!.textContent).toMatch(/Exported copy · .*3:02/);
+  });
+
+  it("suggests where it is going when a local recording has no copies", () => {
+    const region = renderList(master, [master], null, true);
     expect(within(region).getByText(/Pick a place/)).toBeTruthy();
+  });
+
+  it("does not point to a tab the item lacks", () => {
+    const region = renderList(master, [master], null, false);
+    expect(within(region).queryByText(/Pick a place/)).toBeNull();
+    expect(within(region).getByText("No copies yet.")).toBeTruthy();
   });
 });

@@ -70,12 +70,12 @@ export function DestinationsList({
                       <span className={styles.line}>
                         {tPrepare(DESTINATION_COPY[destination].line)}
                       </span>
-                    </span>
-                    <span
-                      className={styles.size}
-                      data-tone={group.id === "send-more" ? "upload" : "light"}
-                    >
-                      {estimate(destination) ?? "…"}
+                      <span
+                        className={styles.size}
+                        data-tone={group.id === "send-more" ? "upload" : "light"}
+                      >
+                        {estimate(destination) ?? "…"}
+                      </span>
                     </span>
                     <ChevronRight
                       size={14}

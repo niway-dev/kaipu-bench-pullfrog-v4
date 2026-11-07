@@ -734,6 +734,9 @@
     "detailsSource": "Source",
     "detailsSourceScreenshot": "Screenshot",
     "detailsSourceRecording": "Screen recording",
+    "detailsSourceWindow": "Window recording",
+    "detailsSourceArea": "Region recording",
+    "detailsSourceImported": "Imported video",
     "detailsResolution": "Resolution",
     "detailsFrameRate": "Frame rate",
     "detailsFps": "{fps} fps",
@@ -1014,6 +1017,7 @@
     "versionsEditedProject": "Edited project",
     "versionsExportedCopy": "Exported copy",
     "versionsEmpty": "No copies yet. Pick a place in “Where is it going?” to make one.",
+    "versionsEmptyPlain": "No copies yet.",
     "shotZoomOut": "Zoom out",
     "shotZoomIn": "Zoom in",
     "shotZoomFit": "Fit"

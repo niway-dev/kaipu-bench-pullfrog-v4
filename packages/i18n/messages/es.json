@@ -734,6 +734,9 @@
     "detailsSource": "Origen",
     "detailsSourceScreenshot": "Captura",
     "detailsSourceRecording": "Grabación de pantalla",
+    "detailsSourceWindow": "Grabación de ventana",
+    "detailsSourceArea": "Grabación de región",
+    "detailsSourceImported": "Video importado",
     "detailsResolution": "Resolución",
     "detailsFrameRate": "Fotogramas",
     "detailsFps": "{fps} fps",
@@ -1014,6 +1017,7 @@
     "versionsEditedProject": "Proyecto editado",
     "versionsExportedCopy": "Copia exportada",
     "versionsEmpty": "Aún no hay copias. Elige un lugar en “¿A dónde va?” para crear una.",
+    "versionsEmptyPlain": "Aún no hay copias.",
     "shotZoomOut": "Alejar",
     "shotZoomIn": "Acercar",
     "shotZoomFit": "Ajustar"

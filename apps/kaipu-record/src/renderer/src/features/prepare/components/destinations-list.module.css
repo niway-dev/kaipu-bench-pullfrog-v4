@@ -97,15 +97,14 @@
   color: var(--text-muted);
 }
 
+/* The copy is read in full: it wraps instead of being cut at the narrow panel's width. */
 .name,
 .line {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
+/* Under the line, not beside it: at the panel's width a side column starves the copy. */
 .size {
-  flex-shrink: 0;
   font-family: var(--font-mono);
   font-size: 11px;
 }
