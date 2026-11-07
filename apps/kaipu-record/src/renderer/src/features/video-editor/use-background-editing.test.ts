@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
+import { BACKGROUND_STARTER_LOOK } from "./background";
 import { initialScene } from "./scene";
 import { useBackgroundEditing } from "./use-background-editing";
 import { useVideoScene } from "./use-video-scene";
@@ -36,6 +37,60 @@ describe("useBackgroundEditing", () => {
     expect(result.current.edits.background.bg).toBe("magenta");
   });
 
+  it("choosing a preset on a fresh scene brings the starter look in the SAME undo step", () => {
+    const { result } = setup();
+    act(() => result.current.edits.choose("sunset"));
+    expect(result.current.edits.background).toEqual({
+      bg: "sunset",
+      padding: 60,
+      radius: 10,
+      shadow: 64,
+    });
+    act(() => result.current.controller.undo());
+    expect(result.current.edits.background).toEqual({
+      bg: "none",
+      padding: 0,
+      radius: 0,
+      shadow: 0,
+    });
+    expect(result.current.controller.canUndo).toBe(false);
+  });
+
+  it("a pick keeps the user's own numbers: only the preset changes", () => {
+    const { result } = setup();
+    act(() => result.current.edits.choose("sunset"));
+    act(() => result.current.edits.commit({ padding: 12 }));
+    act(() => result.current.edits.choose("ocean"));
+    expect(result.current.edits.background).toEqual({
+      bg: "ocean",
+      padding: 12,
+      radius: 10,
+      shadow: 64,
+    });
+    act(() => result.current.controller.undo());
+    expect(result.current.edits.background.bg).toBe("sunset");
+  });
+
+  it("none keeps the numbers, and picking again restores them rather than the starter look", () => {
+    const { result } = setup();
+    act(() => result.current.edits.choose("sunset"));
+    act(() => result.current.edits.commit({ padding: 12 }));
+    act(() => result.current.edits.choose("none"));
+    expect(result.current.edits.background).toEqual({
+      bg: "none",
+      padding: 12,
+      radius: 10,
+      shadow: 64,
+    });
+    act(() => result.current.edits.choose("forest"));
+    expect(result.current.edits.background).toEqual({
+      bg: "forest",
+      padding: 12,
+      radius: 10,
+      shadow: 64,
+    });
+  });
+
   it("choosing the preset that is already chosen records nothing", () => {
     const { result } = setup();
     act(() => result.current.edits.choose("magenta"));
@@ -54,13 +109,9 @@ describe("useBackgroundEditing", () => {
     act(() => result.current.edits.end());
     expect(result.current.edits.background.padding).toBe(48);
     act(() => result.current.controller.undo());
-    // Back to just before the drag: the preset stays, the padding is the value before it.
-    expect(result.current.edits.background).toEqual({
-      bg: "magenta",
-      padding: 0,
-      radius: 0,
-      shadow: 0,
-    });
+    // Back to just before the drag: the preset stays, the padding is the value before it
+    // (the starter look the pick came with).
+    expect(result.current.edits.background).toEqual({ bg: "magenta", ...BACKGROUND_STARTER_LOOK });
     act(() => result.current.controller.undo());
     expect(result.current.edits.background.bg).toBe("none");
   });

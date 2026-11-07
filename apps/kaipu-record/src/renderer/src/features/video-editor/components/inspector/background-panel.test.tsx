@@ -138,15 +138,15 @@ describe("BackgroundPanel with the real scene history", () => {
     expect(hook.result.current.edits.background).toEqual({
       bg: "magenta",
       padding: 48,
-      radius: 0,
-      shadow: 0,
+      radius: 10,
+      shadow: 64,
     });
     act(() => hook.result.current.controller.undo());
     expect(hook.result.current.edits.background).toEqual({
       bg: "magenta",
-      padding: 0,
-      radius: 0,
-      shadow: 0,
+      padding: 60,
+      radius: 10,
+      shadow: 64,
     });
     act(() => hook.result.current.controller.undo());
     expect(hook.result.current.edits.background.bg).toBe("none");

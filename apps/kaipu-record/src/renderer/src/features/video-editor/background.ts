@@ -30,6 +30,16 @@ export interface VideoBackground {
 
 export const DEFAULT_BACKGROUND: VideoBackground = { bg: "none", padding: 0, radius: 0, shadow: 0 };
 
+/**
+ * The look a background starts from when it is picked on a scene whose padding, corners and
+ * shadow are all 0 (NIW2-676): padding 60, corners 10, shadow 64. Without it a pick on a fresh
+ * scene is invisible, because the picture fills the output. It is a companion of the CHOICE
+ * (`chooseBackground`), never the default of a plain scene: `DEFAULT_BACKGROUND` stays
+ * `none / 0 / 0 / 0`, so a scene that never chose a background fingerprints and exports exactly
+ * as before. The three values are inside the slider ranges; `parseBackground` clamps anyway.
+ */
+export const BACKGROUND_STARTER_LOOK = { padding: 60, radius: 10, shadow: 64 } as const;
+
 /** The output height the three numbers are expressed at. */
 export const BACKGROUND_REFERENCE_HEIGHT = 1080;
 

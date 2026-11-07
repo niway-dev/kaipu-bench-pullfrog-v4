@@ -8,6 +8,7 @@ import {
   BACKGROUND_IDS,
 } from "../screenshots/beautify/backgrounds";
 import {
+  BACKGROUND_STARTER_LOOK,
   DEFAULT_BACKGROUND,
   backgroundFrame,
   hasBackground,
@@ -29,6 +30,15 @@ describe("parseBackground", () => {
   it("the default is none with zeros, and a fresh object each call", () => {
     expect(DEFAULT_BACKGROUND).toEqual({ bg: "none", padding: 0, radius: 0, shadow: 0 });
     expect(parseBackground(undefined)).not.toBe(DEFAULT_BACKGROUND);
+  });
+
+  it("pins the starter look: padding 60, corners 10, shadow 64, inside the slider ranges", () => {
+    expect(BACKGROUND_STARTER_LOOK).toEqual({ padding: 60, radius: 10, shadow: 64 });
+    expect(BACKGROUND_STARTER_LOOK.padding).toBeLessThanOrEqual(PADDING_RANGE.max);
+    expect(BACKGROUND_STARTER_LOOK.radius).toBeLessThanOrEqual(RADIUS_RANGE.max);
+    expect(BACKGROUND_STARTER_LOOK.shadow).toBeLessThanOrEqual(SHADOW_RANGE.max);
+    // The starter look is a choice's companion, never the default of a plain scene.
+    expect(DEFAULT_BACKGROUND).toEqual({ bg: "none", padding: 0, radius: 0, shadow: 0 });
   });
 
   it("keeps a valid background as it is", () => {

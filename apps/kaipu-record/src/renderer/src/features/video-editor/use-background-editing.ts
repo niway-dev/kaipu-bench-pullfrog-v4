@@ -1,14 +1,14 @@
 import { useCallback } from "react";
 import type { BackgroundId } from "../screenshots/beautify/backgrounds";
 import type { VideoBackground } from "./background";
-import { updateBackground, type BackgroundPatch } from "./background-edits";
+import { chooseBackground, updateBackground, type BackgroundPatch } from "./background-edits";
 import { backgroundOf } from "./scene";
 import type { VideoSceneController } from "./use-video-scene";
 
 export interface BackgroundEditing {
   /** The scene's background as it is now (the default for a scene that never set one). */
   background: VideoBackground;
-  /** A preset click: one undo step. */
+  /** A preset click: one undo step; with all three numbers at 0 it brings the starter look. */
   choose(bg: BackgroundId): void;
   /** A discrete number change (a keyboard step): one undo step. */
   commit(patch: BackgroundPatch): void;
@@ -31,7 +31,13 @@ export function useBackgroundEditing(controller: VideoSceneController): Backgrou
     },
     [controller],
   );
-  const choose = useCallback((bg: BackgroundId) => commit({ bg }), [commit]);
+  const choose = useCallback(
+    (bg: BackgroundId) => {
+      if (controller.interacting) return;
+      controller.commit(chooseBackground(controller.scene, bg));
+    },
+    [controller],
+  );
   const live = useCallback(
     (patch: BackgroundPatch) => controller.updateLive(updateBackground(controller.scene, patch)),
     [controller],
