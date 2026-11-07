@@ -138,6 +138,9 @@ function snapped(frame: ReturnType<typeof backgroundFrame>): {
 }
 
 describe("a plain scene composes exactly as before", () => {
+  // This compares the composer with ITSELF (absent vs `none` vs `none` + numbers): it proves the
+  // background option is inert for `none`, not that the plain path is unchanged. That one is
+  // compose-output-frame.plain-pin.test.ts, pinned to hashes captured from the base code.
   it("is byte-identical with no background, with none, and with none + stored numbers", () => {
     const frame = frameWithRedCorner();
     const plain = run(SRC, { frame, camera: camera(2) });
