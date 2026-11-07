@@ -15,7 +15,7 @@ import { copyDestinationOf, copyPresetOf } from "@renderer/features/prepare/copy
 import { type DestinationId, destinationOfPreset } from "@renderer/features/prepare/destinations";
 import { DESTINATION_COPY } from "@renderer/features/prepare/destination-copy";
 import { DestinationLogo } from "@renderer/features/prepare/components/destination-logo";
-import type { runningCopyOf } from "@renderer/features/prepare/components/master-copies-panel";
+import type { runningCopyOf } from "@renderer/features/prepare/running-copy";
 import styles from "./versions-list.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 

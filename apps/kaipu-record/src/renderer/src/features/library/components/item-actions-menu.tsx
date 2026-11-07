@@ -5,6 +5,7 @@ import { showToast } from "@renderer/ui/toast-store";
 import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-context";
 import { MoveTargetList, useMoveLock } from "@renderer/features/workspaces/move/move-target-list";
 import { useMoveItems } from "@renderer/features/workspaces/move/use-move-items";
+import { uiArea } from "@renderer/lib/ui-area";
 import { reasonText } from "@renderer/features/workspaces/move/move-flow";
 import { closeItemPage } from "@renderer/features/workspaces/prepare-switch";
 import styles from "./item-actions-menu.module.css";
@@ -119,7 +120,13 @@ export function ItemActionsMenu({
         <MoreHorizontal size={16} strokeWidth={1.8} />
       </button>
       {open && (
-        <div ref={menu} className={styles.menu} role="menu" aria-label={t("moreActions")}>
+        <div
+          {...uiArea("libraryDetail.itemMenu")}
+          ref={menu}
+          className={styles.menu}
+          role="menu"
+          aria-label={t("moreActions")}
+        >
           {view === "menu" ? (
             <>
               {isScreenshot && (

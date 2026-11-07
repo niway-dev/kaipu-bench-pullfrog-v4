@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LibraryVideo } from "@renderer/features/library/types";
 import { buildLineage } from "@renderer/features/library/lineage";
-import type { RunningCopy } from "@renderer/features/prepare/components/master-copies-panel";
+import type { RunningCopy } from "@renderer/features/prepare/running-copy";
 import { VersionsList } from "./versions-list";
 
 const video = (overrides: Partial<LibraryVideo>): LibraryVideo => ({

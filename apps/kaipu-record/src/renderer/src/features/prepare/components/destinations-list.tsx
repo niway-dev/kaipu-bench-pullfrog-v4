@@ -23,10 +23,9 @@ interface DestinationsListProps {
 }
 
 /**
- * "Where is it going?" as a tab: the same question as `DestinationsPanel`, but a vertical
- * list grouped by who compresses the video last. Each row is one destination with the size
- * of the copy it would make; amber where the platform compresses again, teal where the file
- * plays as it is.
+ * "Where is it going?" as a tab on the item page: a vertical list grouped by who compresses
+ * the video last. Each row is one destination with the size of the copy it would make; amber
+ * where the platform compresses again, teal where the file plays as it is.
  */
 export function DestinationsList({
   sizeBytes,

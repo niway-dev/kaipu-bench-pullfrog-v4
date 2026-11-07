@@ -38,7 +38,7 @@ import {
 import { formatMB, isHeavyToSend } from "@renderer/features/video-editor/export/export-size";
 import { useExportRunner } from "@renderer/features/video-editor/export/export-runner";
 import type { DestinationId } from "@renderer/features/prepare/destinations";
-import { runningCopyOf } from "@renderer/features/prepare/components/master-copies-panel";
+import { runningCopyOf } from "@renderer/features/prepare/running-copy";
 import { DestinationsList } from "@renderer/features/prepare/components/destinations-list";
 import { preparePath } from "@renderer/features/prepare/prepare-path";
 import { asPreparable, useSourceProbe } from "@renderer/features/prepare/use-prepare-copy";
