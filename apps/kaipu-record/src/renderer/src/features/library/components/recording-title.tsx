@@ -48,8 +48,16 @@ export function RecordingTitle({ title, onRename }: RecordingTitleProps): React.
   return (
     <div className={styles.titleRow}>
       <h1 className={styles.title}>
-        {/* Clicking the title itself opens the rename input; the pencil stays as the cue. */}
-        <button type="button" className={styles.titleButton} onClick={startEdit}>
+        {/* Clicking the title itself opens the rename input; the pencil stays as the cue.
+            `title` gives a screen reader the action as a description and sighted users a
+            tooltip, while the button's name stays the recording title (an `aria-label`
+            would replace it, and the heading's name with it). */}
+        <button
+          type="button"
+          className={styles.titleButton}
+          onClick={startEdit}
+          title={t("rename")}
+        >
           {title || t("untitled")}
         </button>
       </h1>
