@@ -41,6 +41,8 @@ user_dir="$(getconf DARWIN_USER_DIR 2>/dev/null || true)"
 for stale in \
   "${cache_dir}com.apple.iconservices" \
   "${cache_dir}com.apple.iconservices.store" \
+  "${cache_dir}com.apple.iconservicesagent" \
+  "${cache_dir}com.apple.dock.iconcache" \
   "${user_dir}com.apple.dock.iconcache" \
   "$HOME/Library/Caches/com.apple.iconservices.store"; do
   case "$stale" in /com.apple.* | "com.apple."*) continue ;; esac
