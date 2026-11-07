@@ -154,12 +154,18 @@ export const UI_MAP = {
     areas: {
       page: { states: ["recording", "screenshot", "gif", "loading"] },
       missing: { states: ["notFound"] },
+      header: { states: ["recording", "screenshot", "gif", "cloudOnly"] },
       details: { states: ["recording", "edited", "stale", "copy"] },
       postRecordingCard: { states: ["fresh"], gatedBy: [{ setting: "showRecordingSavedCard" }] },
       savedNotice: { states: ["shown"] },
       preview: { states: ["video", "image", "gif", "unavailable"] },
       actions: { states: ["recording", "screenshot", "gif", "cloudOnly"] },
+      tabs: { states: ["destinations", "versions", "details"] },
+      versions: { states: ["original", "withCopies"] },
+      itemDetails: { states: ["recording", "screenshot", "gif"] },
       destinations: { states: ["ready"] },
+      // No longer rendered by the page (VersionsList replaced it); kept until MasterCopiesPanel
+      // and its catalog states are removed.
       copies: { states: ["master", "copy", "running"] },
     },
   },

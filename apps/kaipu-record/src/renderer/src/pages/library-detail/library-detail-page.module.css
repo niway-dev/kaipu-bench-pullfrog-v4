@@ -1,9 +1,13 @@
+/* The page fills the route and never scrolls: the header takes its height, the body takes
+   the rest, and only the panel scrolls (inside itself). It is a size container, so the small
+   window's layout follows the page's own width, not the screen's. */
 .page {
-  max-width: 880px;
-  margin: 0 auto;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  container-type: inline-size;
 }
 
 /* ── States ───────────────────────────── */
@@ -28,13 +32,21 @@
   color: var(--text-primary);
 }
 
-/* ── Title row: back · title · master tag ─ */
+/* ── Header ───────────────────────────── */
 
-.titleRow {
+.header {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.navRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-md);
-  min-width: 0;
 }
 
 .back {
@@ -57,25 +69,100 @@
   color: var(--text-primary);
 }
 
-/* Takes every pixel the back link and the tag leave; it ellipsizes only at that edge. */
-.title {
-  flex: 1;
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.counter {
+  margin-right: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.iconButton {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   min-width: 0;
 }
 
-.titleTag {
-  flex-shrink: 0;
-  display: inline-flex;
+/* Shrinks first and ellipsizes; the actions beside it keep their size. */
+.title {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
-/* ── Metadata, tags, lineage ─────────── */
+.infoButton {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: help;
+}
+
+.infoButton:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.actions {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Small window: Reveal and Open keep their icon, aria-label and tooltip, and lose the word. */
+@container (max-width: 1000px) {
+  .btnLabel {
+    display: none;
+  }
+}
+
+/* ── Metadata, tags ───────────────────── */
 
 .details {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  margin-top: calc(-1 * var(--space-sm));
+  gap: 8px;
 }
 
 .meta {
@@ -86,6 +173,9 @@
 }
 
 .metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   color: var(--text-muted);
@@ -96,14 +186,7 @@
   opacity: 0.5;
 }
 
-.editingLine {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-/* "This is your original. It never changes." — brighter than the facts above it. */
-.masterNote {
+.note {
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
@@ -120,29 +203,128 @@
   cursor: default;
 }
 
-.lineageLabel {
-  margin-right: 8px;
+/* ── Body: media | panel ──────────────── */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 354px;
+  gap: var(--space-lg);
+}
+
+@container (max-width: 1000px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: var(--space-md);
+  }
+}
+
+.media {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* The stage is a size container: the player and the viewers fit its box (cq units) whatever
+   the window's height, so nothing below the media is pushed out of view. */
+.stage {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player {
+  width: min(100cqw, calc(100cqh * 16 / 9));
+}
+
+div.stage > div:not(.player) {
+  width: 100%;
+  min-height: 0;
+  max-height: 100cqh;
+}
+
+.stage img {
+  max-height: 100cqh;
+}
+
+.fileName {
+  flex-shrink: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Panel ────────────────────────────── */
+
+.panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.tabList {
+  flex-shrink: 0;
+  display: flex;
+  gap: var(--space-md);
+  padding: 0 var(--space-md);
+  border-bottom: 1px solid var(--line);
+}
+
+.tabButton {
+  position: relative;
+  padding: 11px 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
   font-family: var(--font-family);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-label);
-  letter-spacing: 0;
-  color: var(--text-4);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--transition);
 }
 
-.lineageLink {
+.tabButton:hover,
+.tabButton[data-active] {
   color: var(--text-primary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
-.lineageLink:hover {
-  color: var(--accent-primary);
+.tabButton[data-active]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent-primary);
+}
+
+.tabPanel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-md);
 }
 
 /* ── "Saved to your Library" ─────────── */
 
 .savedNotice {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -192,38 +374,6 @@
 .savedDismiss:hover {
   color: var(--text-primary);
   background: var(--bg-card-hover);
-}
-
-/* ── Player ──────────────────────────── */
-
-/* Capped by the window's height, so at the default 900 × 670 the actions and most of the
-   panel below stay in view; the page scrolls for the rest. The master tag sits over the
-   top-left corner; clicks around the tag pass through to the video, while the tag itself
-   takes the pointer so its hint shows on hover. */
-.player {
-  position: relative;
-  width: min(100%, max(420px, calc((100vh - 300px) * 16 / 9)));
-  align-self: center;
-}
-
-.masterTag {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.masterTag > * {
-  pointer-events: auto;
-}
-
-/* ── Actions: buttons only ───────────── */
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
 }
 
 /* NIW2-218: the size in amber when the file is heavy to send (over 25 MB). */

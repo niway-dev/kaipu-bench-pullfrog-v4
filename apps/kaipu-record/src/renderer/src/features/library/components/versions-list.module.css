@@ -1,0 +1,177 @@
+.root {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.row[data-state="viewing"] {
+  border-color: var(--border-light);
+}
+
+.link,
+.inner {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.link {
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.link:hover .name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 44px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--bg-app);
+}
+
+.genericIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 27%;
+  background: #2a2a30;
+  color: #fff;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name,
+.facts {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.facts {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.kindWithInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.info {
+  display: inline-flex;
+  color: var(--text-muted);
+  cursor: help;
+}
+
+.meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+/* The one pink in the list: which version is on screen. */
+.pill {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-primary-soft);
+  color: var(--accent-primary);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.bar {
+  flex-shrink: 0;
+  width: 70px;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--tone-saving);
+  transition: width 0.4s ease;
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--text-muted);
+}

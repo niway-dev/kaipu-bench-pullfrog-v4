@@ -1,3 +1,9 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .viewer {
   position: relative;
   display: flex;
@@ -7,7 +13,7 @@
   max-height: 70vh;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--bg-app);
+  background-color: var(--bg-app);
   border: 1px solid var(--border);
   /* Subtle checker so transparent shots read as transparent, not black. */
   background-image:
@@ -21,6 +27,12 @@
     0 11px,
     11px -11px,
     -11px 0;
+}
+
+.viewer[data-zoomed="true"] {
+  /* Zoomed past Fit: the frame scrolls and the image pans inside it. */
+  display: block;
+  overflow: auto;
 }
 
 .image {
@@ -37,4 +49,50 @@
   gap: var(--space-sm);
   color: var(--text-muted);
   font-size: var(--font-size-base);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.natural {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.zoomButton,
+.fit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.zoomButton:hover:not(:disabled),
+.fit:hover {
+  background: var(--bg-card-hover);
+}
+
+.zoomButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.zoomButton:focus-visible,
+.fit:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
 }

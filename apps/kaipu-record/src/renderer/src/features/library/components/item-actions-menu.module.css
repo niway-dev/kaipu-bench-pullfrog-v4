@@ -1,0 +1,84 @@
+.anchor {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.trigger {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.trigger:hover,
+.trigger[data-open] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Floats over the panel and the media: absolute, so opening it never moves the page. */
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 210px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-modal);
+  box-shadow: var(--shadow-popover);
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.item[data-danger] {
+  color: var(--accent-red);
+}
+
+.divider {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--line);
+}
+
+.moveView {
+  width: 260px;
+}
+
+.footnote {
+  margin: 6px 9px 4px;
+  font-size: var(--font-size-xs);
+  color: var(--text-4);
+}

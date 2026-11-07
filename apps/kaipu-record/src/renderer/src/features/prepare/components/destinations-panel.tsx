@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { Upload } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { SourceProbe } from "@renderer/features/video-editor/export/probe-source";
-import { formatMB } from "@renderer/features/video-editor/export/export-size";
-import { DESTINATION_IDS, groupOf, planCopy, presetForDestination } from "../destinations";
+import { DESTINATION_IDS, groupOf } from "../destinations";
+import { useDestinationEstimate } from "../use-destination-estimate";
 import type { DestinationId } from "../destinations";
 import { DESTINATION_COPY } from "../destination-copy";
 import { DestinationLogo } from "./destination-logo";
@@ -37,24 +37,8 @@ export function DestinationsPanel({
 }: DestinationsPanelProps): React.JSX.Element {
   const t = useTranslations("library");
   const tPrepare = useTranslations("prepare");
-  const tEditor = useTranslations("videoEditor");
 
-  const estimate = (destination: DestinationId): string | null => {
-    if (destination === "archive") return formatMB(sizeBytes);
-    if (!probe) return null;
-    const plan = planCopy({
-      destination,
-      presetId: presetForDestination(destination, probe),
-      source: probe,
-      durationSec: probe.durationSec,
-      sourceSizeBytes: sizeBytes,
-    });
-    if (plan.estimateBytes === null) return tEditor("sizeFull");
-    const size = formatMB(plan.estimateBytes);
-    return plan.sizeKind === "up-to"
-      ? tEditor("sizeUpTo", { size })
-      : tEditor("sizeAbout", { size });
-  };
+  const estimate = useDestinationEstimate(sizeBytes, probe);
 
   return (
     <section
