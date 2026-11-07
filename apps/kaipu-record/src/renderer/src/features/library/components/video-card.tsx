@@ -1,4 +1,4 @@
-import { Film, PenLine, Send, Tag, Trash2, Play } from "lucide-react";
+import { Film, PenLine, Tag, Trash2, Play, Upload } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { formatDuration, formatSize } from "@renderer/features/library/format";
 import type { TagSummary } from "@shared/types";
@@ -26,7 +26,7 @@ interface VideoCardProps {
   onDelete(): void;
   /** Opens the item in the Editor workspace; omitted when it cannot be edited. */
   onEdit?(): void;
-  /** Opens Prepare — "Send to…" — for this recording (NIW2-578); omitted when there is nothing to prepare. */
+  /** Opens Export — "Export a copy" — for this recording (NIW2-578); omitted when there is nothing to prepare. */
   onPrepare?(): void;
   /** Opens the tag side panel for this item; omitted when it cannot be tagged. */
   onTags?(): void;
@@ -157,10 +157,10 @@ export function VideoCard({
               <button
                 className={styles.action}
                 onClick={onPrepare}
-                title={t("sendTo")}
-                aria-label={t("sendTo")}
+                title={t("exportCopy")}
+                aria-label={t("exportCopy")}
               >
-                <Send size={14} strokeWidth={1.8} />
+                <Upload size={14} strokeWidth={1.8} />
               </button>
             )}
             {moveMenu}

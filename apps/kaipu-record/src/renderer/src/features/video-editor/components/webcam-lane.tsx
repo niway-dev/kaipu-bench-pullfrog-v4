@@ -9,7 +9,7 @@
  * Under the segments runs a filmstrip of the webcam file's own frames, laid out per clip
  * like the clips lane, so the row reads as "the face" even with no segment on it.
  */
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { EyeOff } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { sourceRangeToTimelineBlocks, sourceTimeAtTimeline } from "../source-time";
@@ -39,7 +39,7 @@ export interface WebcamLaneProps {
   onEdgeDrag(id: string, edge: "start" | "end", sourceTime: number | null, phase: EdgePhase): void;
 }
 
-export function WebcamLane({
+export const WebcamLane = memo(function WebcamLane({
   segments,
   layout,
   thumbnails = [],
@@ -189,4 +189,4 @@ export function WebcamLane({
       })}
     </div>
   );
-}
+});

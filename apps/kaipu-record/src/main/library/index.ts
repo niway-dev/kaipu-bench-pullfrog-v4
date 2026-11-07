@@ -1,3 +1,4 @@
+import { lstat } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import {
   app,
@@ -84,6 +85,22 @@ export function scopedAdmitted<A extends unknown[], R>(
 ): (event: IpcMainInvokeEvent, stamp: unknown, ...args: A) => Promise<Awaited<R>> {
   return scoped((...args: A) =>
     vaultActivity.run(kind, async (): Promise<Awaited<R>> => await fn(...args)),
+  );
+}
+
+/**
+ * NIW2-669: the file of a local item in the current vault, or null when the id is not a plain
+ * item id or no file exists for it. `filePath` alone returns a non-existent `.mp4` path for an
+ * unknown id, so the existence check is what makes "unknown" come back as null.
+ */
+async function localRecordingFile(id: string): Promise<string | null> {
+  if (!isPlainItemId(id)) return null;
+  const file = await currentVault().filePath(id);
+  // lstat, not stat: a symlink named like an item must not hand its target to the OS, and a
+  // directory is not a recording.
+  return lstat(file).then(
+    (info) => (info.isFile() ? file : null),
+    () => null,
   );
 }
 
@@ -296,6 +313,16 @@ export function registerLibraryVaultHandlers(deps: {
     IPC_CHANNELS.revealLocalRecording,
     scoped(async (id: string) => shell.showItemInFolder(await currentVault().filePath(id))),
   );
+  // NIW2-669: open a local recording in its default app, and give the renderer its path. Both
+  // resolve the id inside the vault (the renderer never names a path) and go through
+  // handleVault, so maintenance mode refuses them: openPath launches the file itself.
+  handleVault(IPC_CHANNELS.openLocalRecording, async (id: string) => {
+    const file = await localRecordingFile(id);
+    if (!file) throw new Error("open: no local recording for this id");
+    const error = await shell.openPath(file);
+    if (error) throw new Error(error);
+  });
+  handleVault(IPC_CHANNELS.localRecordingPath, (id: string) => localRecordingFile(id));
   // NIW2-217: GIF export. Bytes are validated (GIF89a, ≤ 64 MB) and the path is chosen here.
   handleVault(IPC_CHANNELS.gifSave, async (bytes: ArrayBuffer, meta: GifSaveMeta) => {
     const recording = await saveGif({ vaultDir: vaultPath }, bytes, meta);

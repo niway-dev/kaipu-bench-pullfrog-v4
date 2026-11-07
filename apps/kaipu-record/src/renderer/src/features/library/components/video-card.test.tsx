@@ -40,17 +40,17 @@ describe("VideoCard", () => {
     expect(screen.queryByText(/FRAME|SCREEN|WINDOW/)).toBeNull();
   });
 
-  it("Send to… opens Prepare without opening the card (NIW2-578, NIW2-585)", async () => {
+  it("Export a copy opens Export without opening the card (NIW2-578, NIW2-585)", async () => {
     const onNavigate = vi.fn();
     const onPrepare = vi.fn();
     const { rerender } = render(
       <VideoCard video={video} onNavigate={onNavigate} onDelete={vi.fn()} onPrepare={onPrepare} />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Send to…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Export a copy" }));
     expect(onPrepare).toHaveBeenCalledOnce();
     expect(onNavigate).not.toHaveBeenCalled();
     rerender(<VideoCard video={video} onNavigate={onNavigate} onDelete={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Send to…" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export a copy" })).toBeNull();
   });
 
   it("tags an original as the master instead of a plain Recording badge (NIW2-585)", () => {

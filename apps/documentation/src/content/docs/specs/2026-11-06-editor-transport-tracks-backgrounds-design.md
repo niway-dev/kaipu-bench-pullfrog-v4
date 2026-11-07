@@ -43,7 +43,7 @@ in the session, and part of the export fingerprint.
 | 1   | **Five PRs in one stack, in this order**: (1) transport bar, (2) Tracks popover, (3) speed, (4) timeline zoom, (5) backgrounds. Each merges bottom-up on its own.                                                                                                                               | Owner: "varios PR uno tras otro en un stack". (1) is pure layout and every later PR adds a control to it; (5) is the only one that touches the composer, so it goes last and cannot block the rest.                                                      | —           |
 | 2   | **Timeline actions live on the transport bar; global actions stay in the header.** Split, delete, mute and speed move next to play. Undo/redo, Add image and Export stay in the title bar. The tool rail (select, annotate, zoom, privacy, audio, camera, cursor) does not move.                | Owner gap 2: "los que son globales puedes dejarlos arriba". Split and delete act on the playhead and the selection, which is the timeline's state; the rail is for adding things, not acting on them.                                                    | —           |
 | 3   | **Track visibility is view state, per user, not part of the scene.** Hiding a lane never changes the preview or the export; the edits stay drawn and burned in. Clips cannot be hidden. The set is saved in the app's settings store under `editor.hiddenTracks`, keyed by lane key.            | Owner gap 3 and the mock's own copy: "Hidden tracks keep their edits." NIW2-612 asked for the same. This differs from timeline v2's `removedTracks` (edits hidden from the export); that model is parked with that spec.                                 | 0050 (new)  |
-| 4   | **Audio is hideable; mute stays a separate control.** The Audio lane joins the popover like any other. Hiding it hides the mute ranges from the timeline only.                                                                                                                                  | Owner gap 3: "ponerle mute". ADR 0040 said Audio is always shown; 0050 amends that line.                                                                                                                                                                 | 0050        |
+| 4   | **Audio is hideable; mute stays a separate control.** The Audio lane joins the popover like any other. Hiding it hides the mute ranges from the timeline only.                                                                                                                                  | Owner gap 3: "ponerle mute". ADR 0040 said Audio is always shown and the Camera lane cannot be removed; 0050 amends both lines.                                                                                                                          | 0050        |
 | 5   | **"Cursor activity" is a child of Zooms** and means the activity marks. Unchecking it hides the marks; unchecking Zooms hides both. The Activity lane row disappears: the marks draw inside the Zooms lane, under the blocks.                                                                   | Owner gap 4 ("supongo") and the mock. The marks explain where auto-zooms come from and mean nothing without the zooms. Folding the row in is the one thing taken from timeline v2's decision 9, because the mock already shows it.                       | 0050        |
 | 6   | **A lane a user turns on stays on, even when empty.** The trigger's `n/m` counts visible lanes over the lanes this recording has (Webcam only with a camera, Zooms always, Activity only with a cursor track).                                                                                  | Owner gap 5. View state has no reason to second-guess the user; the count is honest about what can be shown.                                                                                                                                             | 0050        |
 | 7   | **Playback speed is preview-only**: 0.5×, 1×, 1.5×, 2× on a cycling button next to mute, applied as `video.playbackRate` and as a multiplier on the slide clock. Not saved in the session; resets to 1× on open.                                                                                | Owner: "un botón de velocidad para tener un x2 … para que pase rápido o más lento el video con el timeline". The export has no speed; the file plays at 1× and nothing in the request says otherwise. A saved speed would surprise the next open.        | —           |
@@ -143,8 +143,9 @@ hasWebcam })`, tested for a take without camera and without cursor track.
 
 PR 1 — transport bar:
 
-- [ ] The transport bar shows, left to right: `Tracks n/m` (disabled, PR 2 enables it), rewind,
-      play/pause, forward, `0:09.0 / 0:29.0`, split, delete, mute, fullscreen.
+- [ ] The transport bar shows, left to right: `Tracks n/m` (disabled, PR 2 enables it), the zoom
+      and privacy counts when they exist, rewind, play/pause, forward, `0:09.0 / 0:29.0`, split,
+      delete, mute, fullscreen.
 - [ ] Split and delete are gone from the title bar; undo/redo, Add image and Export are still
       there; the tool rail is unchanged.
 - [ ] Split and delete keep their shortcuts, disabled states and `aria-label`s; the Delete-key
@@ -160,8 +161,9 @@ PR 2 — Tracks popover:
       reads `5/5` and Cursor activity is absent.
 - [ ] Unchecking Zooms hides the lane and the marks; the preview still zooms; the export is
       byte-identical to the one with the lane shown.
-- [ ] The trigger reads `4/6` after hiding two lanes; closing and reopening the editor keeps
-      them hidden; a different recording shows the same choice.
+- [ ] The trigger reads `4/6` after hiding two lanes other than Zooms (hiding Zooms also hides
+      Cursor activity, so Zooms plus one other lane reads `3/6`); closing and reopening the
+      editor keeps them hidden; a different recording shows the same choice.
 - [ ] Clicking a zoom on the preview while Zooms is hidden shows the lane again, selected.
 - [ ] The Activity row is gone; its marks draw under the zoom blocks.
 
@@ -310,9 +312,12 @@ take with a cursor track). Open question: none; it is a count.
 
 ### 3.2 Persistence
 
-`editor.hiddenTracks: TrackKey[]` in the app settings store (where `exportQuality` lives), read
-through the existing settings hook, written on every toggle. Per user, not per recording
-(NIW2-612 and open question 4). The session is untouched.
+`AppSettings.editor.hiddenTracks: TrackKey[]` in the app settings store. `mergeSettings`
+(`apps/kaipu-record/src/main/services/settings.service.ts`) rebuilds settings field by field and
+drops unknown keys, so it needs an `editor` field and a sanitizer that runs `parseHiddenTracks`.
+It is read through the settings hook and written on every toggle. Per user, not per recording and
+not per workspace: the key is not in `OVERRIDABLE_KEYS`
+(`apps/kaipu-record/src/shared/settings-scope.ts`) (NIW2-612 and open question 4). The session is untouched.
 
 ### 3.3 Behaviour
 

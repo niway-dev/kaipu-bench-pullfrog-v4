@@ -27,6 +27,52 @@ export function buildLineage(videos: readonly LibraryVideo[]): Lineage {
   return { byAssetId, exportsOf };
 }
 
+/**
+ * The family an item belongs to: its root original and every descendant (copies of copies
+ * included), so the original and any copy show the same list. When the chain is broken anywhere
+ * (a link points at an asset that no longer exists) the family has no master (`master: null`)
+ * and its list is headed by the topmost surviving item, so every member shows the same rows
+ * ("source deleted" included). Cycles are cut at the first repeat.
+ */
+export function familyOf(
+  item: LibraryVideo,
+  lineage: Lineage,
+): { master: LibraryVideo | null; copies: LibraryVideo[] } {
+  let root = item;
+  const seen = new Set([item.assetId]);
+  let cur: LibraryVideo = item;
+  while (cur.derivedFromAssetId !== null) {
+    const parent = lineage.byAssetId.get(cur.derivedFromAssetId);
+    if (!parent) {
+      return { master: null, copies: [root, ...descendantsOf(root, lineage)] };
+    }
+    if (seen.has(parent.assetId)) break;
+    seen.add(parent.assetId);
+    root = parent;
+    cur = parent;
+  }
+  return { master: root, copies: descendantsOf(root, lineage) };
+}
+
+function descendantsOf(root: LibraryVideo, lineage: Lineage): LibraryVideo[] {
+  const out: LibraryVideo[] = [];
+  const seen = new Set([root.assetId]);
+  let level = [root.assetId];
+  while (level.length > 0) {
+    const next: string[] = [];
+    for (const id of level) {
+      for (const c of lineage.exportsOf.get(id) ?? []) {
+        if (seen.has(c.assetId)) continue;
+        seen.add(c.assetId);
+        out.push(c);
+        next.push(c.assetId);
+      }
+    }
+    level = next;
+  }
+  return out;
+}
+
 export type EditBadge = "never-exported" | "stale" | "edited" | null;
 
 /**

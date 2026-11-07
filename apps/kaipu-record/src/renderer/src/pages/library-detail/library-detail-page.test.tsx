@@ -135,6 +135,15 @@ function renderDetail(assetId: string) {
   return router;
 }
 
+/** Opens the ••• menu of the page header. */
+function openMenu(): void {
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+}
+
+function openTab(name: string): void {
+  fireEvent.click(screen.getByRole("tab", { name }));
+}
+
 async function waitForLoaded(): Promise<void> {
   await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
 }
@@ -161,18 +170,15 @@ describe("LibraryDetailPage", () => {
 
     expect(screen.getByText("Cloud")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /reveal/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^copy$/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /remove local download/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Export a copy" })).toBeNull();
-    expect(screen.queryByRole("region", { name: "Where is it going?" })).toBeNull();
-    // A screenshot is not a master: no tag, no copies.
-    expect(screen.queryByText("Master · full quality")).toBeNull();
-    expect(screen.queryByRole("region", { name: "Copies from this original" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^edit/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Where is it going?" })).toBeNull();
+    // A screenshot is not a master: no "original" hint.
+    expect(screen.queryByRole("button", { name: /your original stays unchanged/i })).toBeNull();
   });
 
-  it("shows how a recording was captured in the metadata line", async () => {
+  it("shows how a recording was captured in the Details tab", async () => {
     window.electronAPI.listLibraryItems = vi.fn(async () => ({
       items: [
         {
@@ -192,7 +198,10 @@ describe("LibraryDetailPage", () => {
     renderDetail("asset-b");
     await waitForLoaded();
 
-    expect(screen.getByTestId("capture-meta")).toHaveTextContent("FRAME · 1234 × 567");
+    // How it was captured lives in the Details tab, not in the metadata line.
+    expect(screen.queryByText("Region recording")).toBeNull();
+    openTab("Details");
+    expect(screen.getByText("Region recording")).toBeVisible();
   });
 
   it("a re-list keeps the page on screen instead of swapping it for the loader", async () => {
@@ -228,7 +237,7 @@ describe("LibraryDetailPage", () => {
     await act(async () => finishRelist());
   });
 
-  it("says an imported video was imported in the metadata line (NIW2-579)", async () => {
+  it("says an imported video was imported in the Details tab (NIW2-579)", async () => {
     window.electronAPI.listLibraryItems = vi.fn(async () => ({
       items: [
         {
@@ -243,10 +252,11 @@ describe("LibraryDetailPage", () => {
     renderDetail("asset-b");
     await waitForLoaded();
 
-    expect(screen.getByTestId("capture-meta")).toHaveTextContent("IMPORTED");
+    openTab("Details");
+    expect(screen.getByText("Imported video")).toBeVisible();
   });
 
-  it("puts the title in the top row with the way back and the master tag, never with the actions", async () => {
+  it("puts the title and every action on one row, with the way back above", async () => {
     window.electronAPI.listLibraryItems = vi.fn(async () => ({
       items: [exportedOnlyItem],
       vaultError: null,
@@ -256,15 +266,24 @@ describe("LibraryDetailPage", () => {
     const router = renderDetail("asset-b");
     await waitForLoaded();
     const title = screen.getByRole("heading", { level: 1, name: "Exported Recording" });
-    const back = screen.getByRole("button", { name: "Library" });
-    const row = back.parentElement!;
+    const edit = screen.getByRole("button", { name: "Edit video" });
+    // The actions group sits in the title's own row.
+    const row = edit.parentElement!.parentElement!;
     expect(row).toContainElement(title);
-    expect(within(row).getByText("Master · full quality")).toBeVisible();
-    expect(within(row).queryByRole("button", { name: "Delete" })).toBeNull();
-    // The resolution, once the file is read, joins the metadata line under it.
+    expect(row).toContainElement(edit);
+    expect(row).toContainElement(screen.getByRole("button", { name: "Reveal in Finder" }));
+    expect(row).toContainElement(screen.getByRole("button", { name: "Open" }));
+    expect(row).toContainElement(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByText("Master · full quality")).toBeNull();
+    // One metadata line: kind, duration, size and an absolute date; no "Local", no relative date.
+    expect(screen.queryByText("Local and cloud")).toBeNull();
+    expect(screen.getByText("Video")).toBeVisible();
+    expect(screen.getByText("0:45")).toBeVisible();
+    expect(screen.getByText(/\d{4} · \d{2}:\d{2}$/)).toBeVisible();
+    // The resolution, once the file is read, joins the metadata line.
     expect(await screen.findByTestId("dimensions-meta")).toHaveTextContent("2560 × 1440");
 
-    fireEvent.click(back);
+    fireEvent.click(screen.getByRole("button", { name: "Library" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/library"));
   });
 
@@ -327,7 +346,7 @@ describe("LibraryDetailPage", () => {
     );
   });
 
-  it("Not now hides the panel and brings back Export a copy, which opens Export on nothing", async () => {
+  it("Open Export in the destinations tab opens Export on nothing", async () => {
     window.electronAPI.listLibraryItems = vi.fn(async () => ({
       items: [exportedOnlyItem],
       vaultError: null,
@@ -336,14 +355,17 @@ describe("LibraryDetailPage", () => {
 
     const router = renderDetail("asset-b");
     await waitForLoaded();
-    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    // The old "Not now" is gone: switching tabs is the dismissal.
+    expect(screen.queryByRole("button", { name: "Not now" })).toBeNull();
+    openTab("Versions");
     expect(screen.queryByRole("region", { name: "Where is it going?" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Export a copy" }));
+    openTab("Where is it going?");
+    fireEvent.click(screen.getByRole("button", { name: /^Open Export/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/export/asset-b"));
     expect(router.state.location.search).toBe("");
   });
 
-  it("tags the title and the player as the master and says the original never changes", async () => {
+  it("hints in the header that the original stays unchanged, without a master tag or note", async () => {
     window.electronAPI.listLibraryItems = vi.fn(async () => ({
       items: [exportedOnlyItem],
       vaultError: null,
@@ -352,8 +374,13 @@ describe("LibraryDetailPage", () => {
 
     renderDetail("asset-b");
     await waitForLoaded();
-    expect(screen.getAllByText("Master · full quality")).toHaveLength(2);
-    expect(screen.getByText("This is your original. It never changes.")).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: "Your original stays unchanged. Edits are exported as copies.",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText("Master · full quality")).toBeNull();
+    expect(screen.queryByText("This is your original. It never changes.")).toBeNull();
     // Opened from the Library, not right after recording: no "Saved" notice.
     expect(screen.queryByText("Saved to your Library.")).toBeNull();
   });
@@ -382,7 +409,8 @@ describe("LibraryDetailPage", () => {
     renderDetail("asset-b");
     await waitForLoaded();
 
-    expect(screen.getByRole("button", { name: /remove local download/i })).toBeInTheDocument();
+    openMenu();
+    expect(screen.getByRole("menuitem", { name: /remove local download/i })).toBeInTheDocument();
   });
 
   it("toasts the blocked-reason copy when removeLocalCopy refuses", async () => {
@@ -399,7 +427,8 @@ describe("LibraryDetailPage", () => {
     renderDetail("asset-b");
     await waitForLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: /remove local download/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /remove local download/i }));
 
     await waitFor(() =>
       expect(getToasts()).toContainEqual(
@@ -424,8 +453,9 @@ describe("LibraryDetailPage", () => {
     await waitForLoaded();
     expect(listMock).toHaveBeenCalledTimes(1);
 
+    openMenu();
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /remove local download/i }));
+      fireEvent.click(screen.getByRole("menuitem", { name: /remove local download/i }));
     });
 
     await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
@@ -445,7 +475,8 @@ describe("LibraryDetailPage", () => {
     renderDetail("asset-c");
     await waitForLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: /remove local download/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /remove local download/i }));
 
     await waitFor(() =>
       expect(getToasts()).toContainEqual(
@@ -516,21 +547,26 @@ describe("LibraryDetailPage — lineage and edit badge", () => {
     }));
     renderDetail("exp");
     await waitForLoaded();
-    const link = await screen.findByRole("link", { name: /original take$/i });
-    expect(link).toHaveAttribute("href", "/library/src");
+    const versions = await screen.findByRole("region", { name: "Versions" });
+    expect(
+      within(versions)
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href") === "/library/src"),
+    ).toBe(true);
 
     cleanup();
     renderDetail("src");
     await waitForLoaded();
-    const copies = await screen.findByRole("region", { name: "Copies from this original" });
+    const copies = await screen.findByRole("region", { name: "Versions" });
     expect(within(copies).getByRole("link", { name: /original take \(export\)/i })).toHaveAttribute(
       "href",
       "/library/exp",
     );
-    // With copies, the page lists them instead of asking where it is going.
+    // With copies, the page opens on the versions instead of asking where it is going; the
+    // destinations stay one tab away.
+    expect(screen.getByRole("tab", { name: "Versions" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("region", { name: "Where is it going?" })).toBeNull();
-    expect(screen.getByText("1 copy")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Export a copy" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Where is it going?" })).toBeVisible();
   });
 
   it("names a copy made for a destination by its destination, and keeps the copy untagged", async () => {
@@ -556,14 +592,11 @@ describe("LibraryDetailPage — lineage and edit badge", () => {
     }));
     renderDetail("src");
     await waitForLoaded();
-    const copies = await screen.findByRole("region", { name: "Copies from this original" });
+    const copies = await screen.findByRole("region", { name: "Versions" });
     const row = within(copies).getByRole("link", { name: /^GitHub · Jira · Linear/ });
     expect(row).toHaveAttribute("href", "/library/gh");
     // The copy's picture size follows from the master's (2560 × 1440) and its preset.
-    expect(await within(row).findByText(/× \d+ · 9.0 MB$/)).toBeVisible();
-    expect(
-      within(copies).getByRole("button", { name: "Drag GitHub · Jira · Linear into another app" }),
-    ).toBeVisible();
+    expect(await within(row).findByText(/× \d+ · 9.0 MB/)).toBeVisible();
 
     cleanup();
     renderDetail("gh");
@@ -705,30 +738,13 @@ describe("LibraryDetailPage — lineage and edit badge", () => {
       catalogVerifiedAt: null,
     }));
 
-  it("says on an edited original that the file never changes and the edits live in the editor", async () => {
-    // The player streams the vault file, which ADR 0003 keeps untouched — so it never
-    // shows the edits. Nothing said so, which is what made the badge above it read as
-    // a contradiction.
-    window.electronAPI.listLibraryItems = vi.fn(async () => ({
-      items: [{ ...base, assetId: "src", title: "Take", local: local("src"), editSavedAt: 5_000 }],
-      vaultError: null,
-      catalogVerifiedAt: null,
-    }));
-    renderDetail("src");
-    await waitForLoaded();
-    expect(
-      await screen.findByText(
-        "This is your original. It never changes. Your edits live in the editor.",
-      ),
-    ).toBeInTheDocument();
-  });
-
   it("omits the master tag and note on an export, where the player IS the edited video", async () => {
     window.electronAPI.listLibraryItems = pair();
     renderDetail("exp");
     await waitForLoaded();
     expect(screen.queryByText(/it never changes/i)).toBeNull();
     expect(screen.queryByText("Master · full quality")).toBeNull();
+    expect(screen.queryByRole("button", { name: /your original stays unchanged/i })).toBeNull();
     expect(screen.queryByRole("region", { name: "Where is it going?" })).toBeNull();
   });
 });
@@ -957,11 +973,8 @@ describe("LibraryDetailPage — your video is ready (NIW2-584)", () => {
     expect(notice).toHaveTextContent(
       "Saved to your Library. This is the original — every copy you export is made from it and it never changes.",
     );
-    // The notice says it, so the standing note waits.
-    expect(screen.queryByText("This is your original. It never changes.")).toBeNull();
     fireEvent.click(within(notice).getByRole("button", { name: "Hide this notice" }));
     expect(screen.queryByText("Saved to your Library.")).toBeNull();
-    expect(screen.getByText("This is your original. It never changes.")).toBeVisible();
   });
 
   it("not when the page was opened from the Library", async () => {
@@ -1158,3 +1171,549 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   const promise = new Promise<T>((r) => (resolve = r));
   return { promise, resolve };
 }
+
+describe("LibraryDetailPage — header, menu, navigation and tabs (NIW2-669)", () => {
+  const screenshotItem: LibraryItem = {
+    ...exportedOnlyItem,
+    assetId: "shot-1",
+    kind: "screenshot",
+    title: "A screenshot",
+    durationSeconds: 0,
+    local: {
+      ...exportedOnlyItem.local!,
+      id: "shot-1",
+      assetId: "shot-1",
+      kind: "screenshot",
+      title: "A screenshot",
+      filePath: "/vault/shot-1.png",
+    },
+    cloud: null,
+    availability: "local",
+    editing: "project-available",
+  };
+  const gifItem: LibraryItem = {
+    ...screenshotItem,
+    assetId: "gif-1",
+    kind: "gif",
+    title: "A gif",
+    local: {
+      ...screenshotItem.local!,
+      id: "gif-1",
+      assetId: "gif-1",
+      kind: "gif",
+      title: "A gif",
+      filePath: "/vault/gif-1.gif",
+    },
+  };
+
+  const list = (...items: LibraryItem[]): void => {
+    window.electronAPI.listLibraryItems = vi.fn(async () => ({
+      items,
+      vaultError: null,
+      catalogVerifiedAt: null,
+    }));
+  };
+
+  beforeEach(() => {
+    window.electronAPI.removeLocalCopy = vi.fn(async () => ({ ok: true as const }));
+    window.electronAPI.onLibraryChanged = () => () => {};
+    window.electronAPI.localRecordingPath = vi.fn(async (id: string) => `/vault/${id}.mp4`);
+  });
+
+  afterEach(() => {
+    for (const t of getToasts()) dismissToast(t.id);
+  });
+
+  function renderWithState(path: string, state?: unknown) {
+    const router = createMemoryRouter(
+      [
+        { path: "/library/:assetId", element: <LibraryDetailPage /> },
+        { path: "/library", element: <div>library-page</div> },
+        { path: "/editor/video/:assetId", element: <div>editor-video</div> },
+        { path: "/editor/image/:assetId", element: <div>editor-image</div> },
+      ],
+      { initialEntries: [{ pathname: path, state }] },
+    );
+    render(<RouterProvider router={router} />);
+    return router;
+  }
+
+  it("Open hands the file to the default app", async () => {
+    list(exportedOnlyItem);
+    window.electronAPI.openLocalRecording = vi.fn(async () => {});
+    renderDetail("asset-b");
+    await waitForLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(window.electronAPI.openLocalRecording).toHaveBeenCalledWith("local-b");
+  });
+
+  it("Open reports a failure with a toast that can retry", async () => {
+    list(exportedOnlyItem);
+    window.electronAPI.openLocalRecording = vi.fn(async () => {
+      throw new Error("no application knows how to open this file");
+    });
+    renderDetail("asset-b");
+    await waitForLoaded();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    });
+    expect(getToasts()).toContainEqual(
+      expect.objectContaining({
+        message: "Couldn't open the file.",
+        action: expect.objectContaining({ onClick: expect.any(Function) }),
+      }),
+    );
+  });
+
+  it("Reveal in Finder reveals the file", async () => {
+    list(exportedOnlyItem);
+    window.electronAPI.revealLocalRecording = vi.fn(async () => {});
+    renderDetail("asset-b");
+    await waitForLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Reveal in Finder" }));
+    expect(window.electronAPI.revealLocalRecording).toHaveBeenCalledWith("local-b");
+  });
+
+  it("a screenshot leads with Edit image, which opens the image editor", async () => {
+    list(screenshotItem);
+    const router = renderWithState("/library/shot-1");
+    await waitForLoaded();
+    expect(screen.queryByRole("button", { name: "Edit video" })).toBeNull();
+    expect(screen.queryByText("0:00")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/editor/image/shot-1"));
+  });
+
+  it("a GIF has no primary edit action", async () => {
+    list(gifItem);
+    renderWithState("/library/gif-1");
+    await waitForLoaded();
+    expect(screen.queryByRole("button", { name: /^Edit/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Reveal in Finder" })).toBeVisible();
+  });
+
+  it("the ••• menu of a recording: Copy path, Remove local download, Delete…; no Copy image", async () => {
+    list(exportedOnlyItem);
+    renderDetail("asset-b");
+    await waitForLoaded();
+    expect(screen.queryByRole("menu")).toBeNull();
+    openMenu();
+    const items = within(screen.getByRole("menu"))
+      .getAllByRole("menuitem")
+      .map((item) => item.textContent);
+    expect(items).toEqual(["Copy path", "Remove local download", "Delete…"]);
+  });
+
+  it("the ••• menu of a screenshot adds Copy image, which copies it", async () => {
+    list(screenshotItem);
+    window.electronAPI.copyScreenshotById = vi.fn(async () => {});
+    renderWithState("/library/shot-1");
+    await waitForLoaded();
+    openMenu();
+    expect(
+      within(screen.getByRole("menu"))
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Copy image", "Copy path", "Delete…"]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy image" }));
+    });
+    expect(window.electronAPI.copyScreenshotById).toHaveBeenCalledWith("shot-1");
+  });
+
+  it("Copy path writes the absolute path to the clipboard and toasts", async () => {
+    list(exportedOnlyItem);
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderDetail("asset-b");
+    await waitForLoaded();
+    openMenu();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy path" }));
+    });
+    expect(writeText).toHaveBeenCalledWith("/vault/local-b.mp4");
+    expect(getToasts()).toContainEqual(expect.objectContaining({ message: "Path copied" }));
+  });
+
+  it("Escape and a click outside close the menu", async () => {
+    list(exportedOnlyItem);
+    renderDetail("asset-b");
+    await waitForLoaded();
+    openMenu();
+    expect(screen.getByRole("menu")).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    openMenu();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Delete… asks for confirmation before deleting", async () => {
+    list(exportedOnlyItem);
+    window.electronAPI.deleteLocalRecording = vi.fn(async () => {});
+    const router = renderDetail("asset-b");
+    await waitForLoaded();
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete…" }));
+    expect(window.electronAPI.deleteLocalRecording).not.toHaveBeenCalled();
+    expect(await screen.findByText("Delete recording?")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(window.electronAPI.deleteLocalRecording).toHaveBeenCalledWith("local-b"),
+    );
+    await waitFor(() => expect(router.state.location.pathname).toBe("/library"));
+  });
+
+  describe("per-item state, menu feedback and the editing line (review fixes)", () => {
+    const shot = (assetId: string): LibraryItem => ({
+      ...screenshotItem,
+      assetId,
+      title: assetId,
+      local: {
+        ...screenshotItem.local!,
+        id: assetId,
+        assetId,
+        title: assetId,
+        thumbnailUrl: `kaipu-media://screenshot/${assetId}`,
+      },
+    });
+
+    it("moving to another screenshot starts it at Fit, with its image available again", async () => {
+      list(shot("shot-a"), shot("shot-b"));
+      renderWithState("/library/shot-a", { order: ["shot-a", "shot-b"] });
+      await waitForLoaded();
+      fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+      expect(document.querySelector("img")!.style.width).toBe("150%");
+      fireEvent.click(screen.getByRole("button", { name: "Next item" }));
+      await waitFor(() =>
+        expect(screen.getByTestId("position-counter")).toHaveTextContent("2 of 2"),
+      );
+      expect(document.querySelector("img")!.style.width).toBe("");
+
+      fireEvent.error(document.querySelector("img")!);
+      expect(screen.getByText("Image unavailable")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Previous item" }));
+      await waitFor(() =>
+        expect(screen.getByTestId("position-counter")).toHaveTextContent("1 of 2"),
+      );
+      expect(screen.queryByText("Image unavailable")).toBeNull();
+      expect(document.querySelector("img")).not.toBeNull();
+    });
+
+    it("Copy image confirms with a toast that outlives the menu", async () => {
+      list(screenshotItem);
+      window.electronAPI.copyScreenshotById = vi.fn(async () => {});
+      renderWithState("/library/shot-1");
+      await waitForLoaded();
+      openMenu();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("menuitem", { name: "Copy image" }));
+      });
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(getToasts()).toContainEqual(expect.objectContaining({ message: "Image copied" }));
+    });
+
+    it("a version row keeps the walk: its link carries the passed order", async () => {
+      const copy: LibraryItem = {
+        ...exportedOnlyItem,
+        assetId: "asset-copy",
+        title: "Copy file",
+        derivedFromAssetId: "asset-b",
+        local: {
+          ...exportedOnlyItem.local!,
+          id: "local-copy",
+          assetId: "asset-copy",
+          title: "Copy file",
+          derivedFromAssetId: "asset-b",
+        },
+        cloud: null,
+        availability: "local",
+      };
+      list(exportedOnlyItem, copy);
+      const order = ["asset-copy", "asset-b"];
+      const router = renderWithState("/library/asset-b", { order });
+      await waitForLoaded();
+      fireEvent.click(
+        within(screen.getByRole("region", { name: "Versions" })).getByRole("link", {
+          name: /Copy file/,
+        }),
+      );
+      await waitFor(() => expect(router.state.location.pathname).toBe("/library/asset-copy"));
+      expect(router.state.location.state).toEqual({ order });
+    });
+
+    it("a version row's drag handle starts a native file drag of that copy", async () => {
+      const copy: LibraryItem = {
+        ...exportedOnlyItem,
+        assetId: "asset-copy",
+        title: "Copy file",
+        derivedFromAssetId: "asset-b",
+        local: {
+          ...exportedOnlyItem.local!,
+          id: "local-copy",
+          assetId: "asset-copy",
+          title: "Copy file",
+          derivedFromAssetId: "asset-b",
+        },
+        cloud: null,
+        availability: "local",
+      };
+      list(exportedOnlyItem, copy);
+      window.electronAPI.startFileDrag = vi.fn();
+      renderWithState("/library/asset-b");
+      await waitForLoaded();
+      fireEvent.dragStart(screen.getByRole("button", { name: "Drag Copy file into another app" }));
+      expect(window.electronAPI.startFileDrag).toHaveBeenCalledWith("local-copy", "Copy file");
+    });
+
+    it("says what a recording needs when it cannot be edited here, and nothing for project-available", async () => {
+      list(
+        { ...exportedOnlyItem, assetId: "asset-ns", editing: "needs-source" },
+        projectAvailableItem,
+      );
+      renderDetail("asset-ns");
+      await waitForLoaded();
+      expect(screen.getByText("Download to edit")).toBeVisible();
+      cleanup();
+      renderDetail("asset-c");
+      await waitForLoaded();
+      expect(screen.queryByText("Editing project available on this device")).toBeNull();
+      expect(screen.queryByText("Download to edit")).toBeNull();
+    });
+
+    it("a GIF's Details tab lists its frame rate", async () => {
+      list({
+        ...gifItem,
+        local: { ...gifItem.local!, gif: { width: 480, height: 270, fps: 12 } },
+      });
+      renderWithState("/library/gif-1");
+      await waitForLoaded();
+      openTab("Details");
+      expect(screen.getByText("Frame rate")).toBeVisible();
+      expect(screen.getByText("12 fps")).toBeVisible();
+    });
+
+    it("another item opens on its own default tab, with the menu closed", async () => {
+      list(exportedOnlyItem, screenshotItem);
+      const router = renderWithState("/library/asset-b");
+      await waitForLoaded();
+      openTab("Details");
+      openMenu();
+      expect(screen.getByRole("menu")).toBeVisible();
+      await act(async () => {
+        await router.navigate("/library/shot-1");
+      });
+      expect(screen.getByRole("tab", { name: "Versions" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("Escape is left alone while the menu is closed, and Tab out closes it", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      const seen = vi.fn();
+      document.addEventListener("keydown", seen);
+      try {
+        fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Escape" });
+        expect(seen).toHaveBeenCalledTimes(1);
+        openMenu();
+        fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+        expect(seen).toHaveBeenCalledTimes(1);
+      } finally {
+        document.removeEventListener("keydown", seen);
+      }
+      openMenu();
+      fireEvent.blur(screen.getAllByRole("menuitem")[0]!, {
+        relatedTarget: screen.getByRole("button", { name: "Open" }),
+      });
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+  });
+
+  describe("previous and next", () => {
+    const three = (): LibraryItem[] =>
+      ["asset-a", "asset-b", "asset-c"].map((assetId) => ({
+        ...exportedOnlyItem,
+        assetId,
+        title: assetId,
+        local: { ...exportedOnlyItem.local!, id: `local-${assetId}`, assetId, title: assetId },
+        cloud: null,
+        availability: "local" as const,
+      }));
+
+    it("walks the order the Library passed, keeping it in the navigation state", async () => {
+      list(...three());
+      const router = renderWithState("/library/asset-b", {
+        order: ["asset-c", "asset-b", "asset-a"],
+      });
+      await waitForLoaded();
+      expect(screen.getByTestId("position-counter")).toHaveTextContent("2 of 3");
+      fireEvent.click(screen.getByRole("button", { name: "Next item" }));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/library/asset-a"));
+      expect(router.state.location.state).toEqual({ order: ["asset-c", "asset-b", "asset-a"] });
+      await waitFor(() =>
+        expect(screen.getByTestId("position-counter")).toHaveTextContent("3 of 3"),
+      );
+      expect(screen.getByRole("button", { name: "Next item" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Previous item" }));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/library/asset-b"));
+    });
+
+    it("falls back to the library's own order when none was passed", async () => {
+      list(...three());
+      renderWithState("/library/asset-a");
+      await waitForLoaded();
+      expect(screen.getByTestId("position-counter")).toHaveTextContent("1 of 3");
+      expect(screen.getByRole("button", { name: "Previous item" })).toBeDisabled();
+    });
+
+    it("falls back to the whole library when the item is not in the passed order", async () => {
+      list(...three());
+      renderWithState("/library/asset-a", { order: ["asset-b", "asset-c"] });
+      await waitForLoaded();
+      expect(screen.getByTestId("position-counter")).toHaveTextContent("1 of 3");
+      expect(screen.getByRole("button", { name: "Next item" })).toBeEnabled();
+    });
+
+    it("drops ids that are no longer in the library from the passed order", async () => {
+      list(...three());
+      renderWithState("/library/asset-b", { order: ["asset-c", "asset-gone", "asset-b"] });
+      await waitForLoaded();
+      expect(screen.getByTestId("position-counter")).toHaveTextContent("2 of 2");
+      expect(screen.getByRole("button", { name: "Next item" })).toBeDisabled();
+    });
+  });
+
+  describe("original info tip", () => {
+    const infoName = "Your original stays unchanged. Edits are exported as copies.";
+
+    it("shows its text on keyboard focus, on click, and hides on Escape", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      const button = screen.getByRole("button", { name: infoName });
+      const tip = screen.getByRole("tooltip", { hidden: true });
+      expect(button.getAttribute("aria-describedby")).toBe(tip.id);
+      expect(tip).not.toBeVisible();
+      fireEvent.focus(button);
+      expect(tip).toBeVisible();
+      expect(tip).toHaveTextContent(infoName);
+      fireEvent.keyDown(button, { key: "Escape" });
+      expect(tip).not.toBeVisible();
+      fireEvent.click(button);
+      expect(tip).toBeVisible();
+      fireEvent.blur(button);
+      expect(tip).not.toBeVisible();
+    });
+  });
+
+  describe("tabs", () => {
+    it("only the selected tab points aria-controls at the rendered panel", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      const tabs = screen.getAllByRole("tab");
+      expect(tabs.length).toBeGreaterThan(1);
+      const panel = screen.getByRole("tabpanel");
+      for (const tab of tabs) {
+        if (tab.getAttribute("aria-selected") === "true") {
+          expect(tab.getAttribute("aria-controls")).toBe(panel.id);
+        } else {
+          expect(tab.hasAttribute("aria-controls")).toBe(false);
+        }
+      }
+    });
+
+    it("opens on Where is it going? until the first copy exists", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      expect(screen.getByRole("tab", { name: "Where is it going?" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByRole("tabpanel")).toContainElement(
+        screen.getByRole("region", { name: "Where is it going?" }),
+      );
+    });
+
+    it("opens on Versions once a copy exists", async () => {
+      const copy: LibraryItem = {
+        ...exportedOnlyItem,
+        assetId: "asset-copy",
+        title: "Copy",
+        derivedFromAssetId: "asset-b",
+        local: {
+          ...exportedOnlyItem.local!,
+          id: "local-copy",
+          assetId: "asset-copy",
+          derivedFromAssetId: "asset-b",
+        },
+        cloud: null,
+        availability: "local",
+      };
+      list(exportedOnlyItem, copy);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      expect(screen.getByRole("tab", { name: "Versions" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("a screenshot has Versions and Details only, opening on Versions", async () => {
+      list(screenshotItem);
+      renderWithState("/library/shot-1");
+      await waitForLoaded();
+      expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+        "Versions",
+        "Details",
+      ]);
+      expect(screen.getByRole("tab", { name: "Versions" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("switches by click and by arrow keys, and Details lists the file's facts", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent);
+      expect(tabs).toEqual(["Versions", "Details", "Where is it going?"]);
+
+      openTab("Details");
+      const panel = screen.getByRole("tabpanel");
+      expect(within(panel).getByText("Frame rate")).toBeVisible();
+      expect(await within(panel).findByText("30 fps")).toBeVisible();
+      expect(within(panel).getByText("Audio")).toBeVisible();
+      expect(within(panel).getByText("Yes")).toBeVisible();
+      expect(await within(panel).findByText("/vault/local-b.mp4")).toBeVisible();
+
+      fireEvent.keyDown(screen.getByRole("tab", { name: "Details" }), { key: "ArrowLeft" });
+      expect(screen.getByRole("tab", { name: "Versions" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      fireEvent.keyDown(screen.getByRole("tab", { name: "Versions" }), { key: "ArrowLeft" });
+      expect(screen.getByRole("tab", { name: "Where is it going?" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("Details leaves out the video-only rows for a screenshot", async () => {
+      list(screenshotItem);
+      renderWithState("/library/shot-1");
+      await waitForLoaded();
+      openTab("Details");
+      const panel = screen.getByRole("tabpanel");
+      expect(within(panel).getByText("Screenshot")).toBeVisible();
+      expect(within(panel).queryByText("Frame rate")).toBeNull();
+      expect(within(panel).queryByText("Audio")).toBeNull();
+    });
+  });
+});

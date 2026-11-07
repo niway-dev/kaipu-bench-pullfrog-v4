@@ -12,6 +12,7 @@
  * every dependency array.
  */
 import { useCallback, useMemo } from "react";
+import { useLatest } from "../use-latest";
 import type { CursorTrack } from "@shared/cursor-track";
 import { freeWindowAt, isSourceRangeVisible, sourceTimeAtTimeline } from "../source-time";
 import type { LayoutEntry } from "../timeline";
@@ -51,11 +52,36 @@ export interface ZoomEditing {
   ): void;
   /** Camera-box drag in the preview: locks the segment at `center` (doc 05). */
   liveLock(id: string, center: { x: number; y: number }): void;
-  sensitivityLive(value: number): void;
+  /**
+   * What the Detection summary would read at `value`, without touching the scene. The
+   * Sensitivity drag shows this while the pointer is down and applies once on release,
+   * so a long recording's ~100 zooms are not rebuilt on every move (NIW2-672).
+   */
+  sensitivityPreview(value: number): { count: number; coverage: number };
   sensitivityCommit(value: number): void;
   reanalyse(): void;
   /** False when the recording has no cursor track (Detection panel shows its empty state). */
   canDetect: boolean;
+}
+
+/** Fraction (0–1) of the TIMELINE covered by zoom pieces inside clips. */
+function coverageOf(
+  segments: ZoomSegment[],
+  layout: LayoutEntry[],
+  timelineDuration: number,
+): number {
+  if (timelineDuration <= 0) return 0;
+  let covered = 0;
+  for (const entry of layout) {
+    if (entry.kind !== "clip") continue;
+    for (const z of segments) {
+      covered += Math.max(
+        0,
+        Math.min(z.end, entry.sourceEnd) - Math.max(z.start, entry.sourceStart),
+      );
+    }
+  }
+  return Math.min(1, covered / timelineDuration);
 }
 
 export function useZoomEditing({
@@ -78,20 +104,10 @@ export function useZoomEditing({
     [scene.zoomSegments, layout],
   );
 
-  const coverage = useMemo(() => {
-    if (timelineDuration <= 0) return 0;
-    let covered = 0;
-    for (const entry of layout) {
-      if (entry.kind !== "clip") continue;
-      for (const z of scene.zoomSegments) {
-        covered += Math.max(
-          0,
-          Math.min(z.end, entry.sourceEnd) - Math.max(z.start, entry.sourceStart),
-        );
-      }
-    }
-    return Math.min(1, covered / timelineDuration);
-  }, [scene.zoomSegments, layout, timelineDuration]);
+  const coverage = useMemo(
+    () => coverageOf(scene.zoomSegments, layout, timelineDuration),
+    [scene.zoomSegments, layout, timelineDuration],
+  );
 
   const addAtPlayhead = useCallback(
     (timelineTime: number): AddZoomResult => {
@@ -135,6 +151,7 @@ export function useZoomEditing({
     [controller],
   );
 
+  const controllerRef = useLatest(controller);
   const edgeDrag = useCallback(
     (
       id: string,
@@ -142,13 +159,15 @@ export function useZoomEditing({
       sourceTime: number | null,
       phase: "start" | "move" | "end",
     ) => {
-      if (phase === "start") controller.beginInteract();
+      if (phase === "start") controllerRef.current.beginInteract();
       if (phase === "move" && sourceTime !== null) {
-        controller.updateLive(dragZoomEdge(controller.scene, id, edge, sourceTime, sourceDuration));
+        controllerRef.current.updateLive(
+          dragZoomEdge(controllerRef.current.scene, id, edge, sourceTime, sourceDuration),
+        );
       }
-      if (phase === "end") controller.endInteract();
+      if (phase === "end") controllerRef.current.endInteract();
     },
-    [controller, sourceDuration],
+    [controllerRef, sourceDuration],
   );
 
   const liveLock = useCallback(
@@ -157,12 +176,16 @@ export function useZoomEditing({
     [controller],
   );
 
-  const sensitivityLive = useCallback(
+  const sensitivityPreview = useCallback(
     (value: number) => {
-      if (!cursorTrack) return;
-      controller.updateLive(applySensitivity(controller.scene, cursorTrack, sourceDuration, value));
+      if (!cursorTrack) return { count: visibleZooms.length, coverage };
+      const next = applySensitivity(controller.scene, cursorTrack, sourceDuration, value);
+      return {
+        count: next.zoomSegments.filter((z) => isSourceRangeVisible(layout, z.start, z.end)).length,
+        coverage: coverageOf(next.zoomSegments, layout, timelineDuration),
+      };
     },
-    [controller, cursorTrack, sourceDuration],
+    [controller, cursorTrack, sourceDuration, layout, timelineDuration, visibleZooms, coverage],
   );
 
   const sensitivityCommit = useCallback(
@@ -191,7 +214,7 @@ export function useZoomEditing({
     end: controller.endInteract,
     edgeDrag,
     liveLock,
-    sensitivityLive,
+    sensitivityPreview,
     sensitivityCommit,
     reanalyse,
     canDetect: cursorTrack !== null,
