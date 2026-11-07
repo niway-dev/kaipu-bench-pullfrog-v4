@@ -1,5 +1,5 @@
 import { ImageOff, Minus, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "@kaipu/i18n";
 import styles from "./screenshot-viewer.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
@@ -23,12 +23,38 @@ export function ScreenshotViewer({ src, onNaturalSize }: ScreenshotViewerProps):
   const [failed, setFailed] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(FIT_INDEX);
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  const [frame, setFrame] = useState<{ width: number; height: number } | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const zoom = ZOOM_STEPS[zoomIndex]!;
+  // The size the image has at Fit: natural size, capped to the frame. Zooming out scales it.
+  const fitSize =
+    natural && frame && natural.width > 0 && natural.height > 0
+      ? (() => {
+          const scale = Math.min(1, frame.width / natural.width, frame.height / natural.height);
+          return { width: natural.width * scale, height: natural.height * scale };
+        })()
+      : null;
   const shown = Boolean(src) && !failed;
+
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect();
+      setFrame((prev) =>
+        prev && prev.width === width && prev.height === height ? prev : { width, height },
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [shown]);
 
   return (
     <div {...uiArea("libraryDetail.preview")} className={styles.root}>
-      <div className={styles.viewer} data-zoomed={zoom > 1 ? "true" : "false"}>
+      <div ref={frameRef} className={styles.viewer} data-zoomed={zoom > 1 ? "true" : "false"}>
         {shown ? (
           <img
             src={src!}
@@ -38,9 +64,12 @@ export function ScreenshotViewer({ src, onNaturalSize }: ScreenshotViewerProps):
               zoom === 1
                 ? undefined
                 : zoom < 1
-                  ? // Zoomed out: scale the Fit box (the frame-bound max size), so a tall image
-                    // shrinks inside it instead of growing past the frame's height.
-                    { maxWidth: `${zoom * 100}%`, maxHeight: `${zoom * 100}%` }
+                  ? fitSize
+                    ? // Zoomed out: a fraction of the size shown at Fit, so a small image shrinks
+                      // too and a tall one never passes the Fit box.
+                      { width: `${zoom * fitSize.width}px` }
+                    : // Frame or image size not known yet: scale the frame-bound max size.
+                      { maxWidth: `${zoom * 100}%`, maxHeight: `${zoom * 100}%` }
                   : { width: `${zoom * 100}%`, maxWidth: "none", maxHeight: "none" }
             }
             onLoad={(e) => {

@@ -58,6 +58,24 @@ describe("ScreenshotViewer", () => {
     ]);
   });
 
+  it("zoomed out, a screenshot smaller than the frame shrinks from its Fit size", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 800, height: 500 } as DOMRect);
+    try {
+      const { container } = render(<ScreenshotViewer src="kaipu-media://screenshot/a" />);
+      const img = container.querySelector("img")!;
+      loadImage(img, 300, 200);
+      const zoomOut = screen.getByRole("button", { name: "Zoom out" });
+      fireEvent.click(zoomOut);
+      expect(img.style.width).toBe("225px");
+      fireEvent.click(zoomOut);
+      expect(img.style.width).toBe("150px");
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
   it("stops at the ends of the zoom range", () => {
     render(<ScreenshotViewer src="kaipu-media://screenshot/a" />);
     const zoomIn = screen.getByRole("button", { name: "Zoom in" }) as HTMLButtonElement;
