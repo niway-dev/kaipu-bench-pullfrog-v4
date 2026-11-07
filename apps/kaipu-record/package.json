@@ -27,6 +27,7 @@
     "webcam-track:check": "bun run scripts/webcam-track-check.ts",
     "icons": "bash scripts/generate-app-icons.sh && bash scripts/refresh-icon-cache.sh",
     "icons:refresh": "bash scripts/refresh-icon-cache.sh",
+    "icons:refresh:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-icon-cache.ps1",
     "start": "electron-vite preview",
     "dev": "bash ../../scripts/require-env.sh .env && bun run build:native-capture && electron-vite dev",
     "dev:native-capture": "bash ../../scripts/require-env.sh .env && bun run build:native-capture && electron-vite dev -- --experimental-native-recording",
