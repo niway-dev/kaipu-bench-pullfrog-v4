@@ -37,7 +37,11 @@ export function ScreenshotViewer({ src, onNaturalSize }: ScreenshotViewerProps):
             style={
               zoom === 1
                 ? undefined
-                : { width: `${zoom * 100}%`, maxWidth: "none", maxHeight: "none" }
+                : zoom < 1
+                  ? // Zoomed out: scale the Fit box (the frame-bound max size), so a tall image
+                    // shrinks inside it instead of growing past the frame's height.
+                    { maxWidth: `${zoom * 100}%`, maxHeight: `${zoom * 100}%` }
+                  : { width: `${zoom * 100}%`, maxWidth: "none", maxHeight: "none" }
             }
             onLoad={(e) => {
               const { naturalWidth, naturalHeight } = e.currentTarget;

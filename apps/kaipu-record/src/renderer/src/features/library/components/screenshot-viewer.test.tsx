@@ -37,7 +37,25 @@ describe("ScreenshotViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fit" }));
     expect(img.style.width).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
-    expect(img.style.width).toBe("75%");
+    expect(img.style.maxWidth).toBe("75%");
+  });
+
+  it("zoomed out, the image scales inside the Fit box; zoomed in, it grows past it", () => {
+    const { container } = render(<ScreenshotViewer src="kaipu-media://screenshot/a" />);
+    const img = container.querySelector("img")!;
+    const zoomOut = screen.getByRole("button", { name: "Zoom out" });
+    fireEvent.click(zoomOut);
+    expect([img.style.maxWidth, img.style.maxHeight, img.style.width]).toEqual(["75%", "75%", ""]);
+    fireEvent.click(zoomOut);
+    expect([img.style.maxWidth, img.style.maxHeight, img.style.width]).toEqual(["50%", "50%", ""]);
+    fireEvent.click(screen.getByRole("button", { name: "Fit" }));
+    expect([img.style.maxWidth, img.style.maxHeight, img.style.width]).toEqual(["", "", ""]);
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect([img.style.width, img.style.maxWidth, img.style.maxHeight]).toEqual([
+      "150%",
+      "none",
+      "none",
+    ]);
   });
 
   it("stops at the ends of the zoom range", () => {
