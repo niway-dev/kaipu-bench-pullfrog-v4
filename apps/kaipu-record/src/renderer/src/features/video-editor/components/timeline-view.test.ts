@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   FOLLOW_EDGE,
-  MAX_PX_PER_SECOND,
+  MAX_ZOOM,
+  ZOOM_STEPS,
   clampView,
   contentWidth,
   fitView,
@@ -13,6 +14,7 @@ import {
   revealTime,
   scaleOf,
   sliderToZoom,
+  stepZoom,
   timeAt,
   timeDelta,
   visibleRange,
@@ -48,14 +50,16 @@ describe("fitView", () => {
 });
 
 describe("maxZoom", () => {
-  it("is the zoom at which one second is MAX_PX_PER_SECOND wide", () => {
-    // fit = 10 px/s, so 240 px/s is 24x.
-    expect(maxZoom(1000, 100)).toBeCloseTo(MAX_PX_PER_SECOND / 10);
+  it("is 8, which the UI shows as 800%, whatever the duration (NIW2-675)", () => {
+    expect(MAX_ZOOM).toBe(8);
+    for (const duration of [2, 40, 100, 605, 3600]) {
+      expect(maxZoom(1000, duration)).toBe(8);
+    }
   });
 
-  it("is never below 1x: a recording already wider than the maximum cannot zoom out of fit", () => {
-    // 2 s in 1000 px is 500 px/s at fit, past the 240 px/s cap.
-    expect(maxZoom(1000, 2)).toBe(1);
+  it("does not depend on the lane width either", () => {
+    expect(maxZoom(300, 100)).toBe(8);
+    expect(maxZoom(24_000, 100)).toBe(8);
   });
 
   it("is 1x while the lane or the timeline is unmeasured", () => {
@@ -67,7 +71,7 @@ describe("maxZoom", () => {
 describe("clampView", () => {
   it("keeps zoom within [1, maxZoom]", () => {
     expect(clampView({ ...fit, zoom: 0.2 }).zoom).toBe(1);
-    expect(clampView({ ...fit, zoom: 1000 }).zoom).toBeCloseTo(24);
+    expect(clampView({ ...fit, zoom: 1000 }).zoom).toBe(8);
   });
 
   it("keeps scroll within [0, contentWidth - laneWidth]", () => {
@@ -96,9 +100,9 @@ describe("timeAt and xOf", () => {
     [4, 0],
     [4, 1500],
     [4, 3000],
-    [16, 0],
-    [16, 7000],
-    [16, 15_000],
+    [8, 0],
+    [8, 3500],
+    [8, 7000],
   ])("round-trips at zoom %d, scroll %d", (zoom, scroll) => {
     const view = viewAt(zoom, scroll);
     for (const t of [0, 1.25, 33.3, 50, 99.9]) {
@@ -176,7 +180,7 @@ describe("zoomAt", () => {
     const anchor = LANE_LEFT + 700;
     const t = timeUnder(fit, anchor);
     const after = zoomAt(fit, 10_000, anchor, LANE_LEFT);
-    expect(after.zoom).toBeCloseTo(24);
+    expect(after.zoom).toBe(8);
     expect(timeUnder(after, anchor)).toBeCloseTo(t, 6);
   });
 
@@ -306,26 +310,35 @@ describe("resizing under a live view (a cut while zoomed)", () => {
     expect(wider.scroll).toBe(3000);
   });
 
-  it("re-clamps the zoom and the scroll when the lane grows so wide that nothing is left to scroll", () => {
-    const zoomed = viewAt(4, 3000);
-    // 24 000 px for 100 s is 240 px/s at fit, already MAX_PX_PER_SECOND: maxZoom falls to 1,
-    // the content is exactly the lane, and the old scroll of 3000 has nowhere to go.
-    const huge = clampView({ ...zoomed, laneWidth: 24_000 });
-    expect(maxZoom(24_000, 100)).toBe(1);
-    expect(huge.zoom).toBe(1);
-    expect(huge.scroll).toBe(0);
+  it("re-clamps the scroll when the lane shrinks and the old scroll is past the new content", () => {
+    // 8x in 1000 px is 8000 px of content, 7000 of scroll; a 500 px lane has 3500 px at most.
+    const zoomed = viewAt(8, 7000);
+    const narrow = clampView({ ...zoomed, laneWidth: 500 });
+    expect(narrow.zoom).toBe(8);
+    expect(narrow.scroll).toBe(3500);
   });
 
-  it("drops the zoom to the new maximum when a cut leaves too little to zoom into", () => {
-    const zoomed = viewAt(20, 0);
+  it("keeps the zoom when a cut shortens the timeline: the cap no longer depends on the duration", () => {
+    const zoomed = viewAt(8, 0);
     const cut = clampView({ ...zoomed, duration: 10 });
-    expect(cut.zoom).toBeCloseTo(maxZoom(1000, 10));
+    expect(cut.zoom).toBe(8);
     expect(cut.scroll).toBeLessThanOrEqual(contentWidth(cut) - cut.laneWidth);
   });
 });
 
 describe("the zoom slider", () => {
   const max = maxZoom(1000, 100);
+
+  it("covers [1, 8] on a log scale: 100% at one end, 800% at the other", () => {
+    expect(max).toBe(8);
+    expect(zoomToSlider(1, max)).toBe(0);
+    expect(zoomToSlider(8, max)).toBeCloseTo(1, 12);
+    // 200% and 400% are a third and two thirds along: equal ratios are equal distances.
+    expect(zoomToSlider(2, max)).toBeCloseTo(1 / 3, 12);
+    expect(zoomToSlider(4, max)).toBeCloseTo(2 / 3, 12);
+    expect(sliderToZoom(0, max)).toBe(1);
+    expect(sliderToZoom(1, max)).toBeCloseTo(8, 12);
+  });
 
   it("maps fit to 0 and the maximum to 1", () => {
     expect(zoomToSlider(fit.zoom, max)).toBe(0);
@@ -342,9 +355,9 @@ describe("the zoom slider", () => {
     }
   });
 
-  it("is pinned at 0 when the recording cannot zoom (already past the maximum at fit)", () => {
-    expect(zoomToSlider(1, maxZoom(1000, 2))).toBe(0);
-    expect(sliderToZoom(0.7, maxZoom(1000, 2))).toBe(1);
+  it("is pinned at 0 while nothing can zoom (an unmeasured lane or an empty timeline)", () => {
+    expect(zoomToSlider(1, maxZoom(1000, 0))).toBe(0);
+    expect(sliderToZoom(0.7, maxZoom(1000, 0))).toBe(1);
   });
 });
 
@@ -384,11 +397,11 @@ describe("keepLeftEdge", () => {
   });
 
   it("clamps the zoom first, then sets the scroll for the clamped zoom's scale", () => {
-    // 20x in 100 s; the cut to 40 s allows 9.6x at most (240 px/s). 50 s is the left edge,
-    // which is past the end of 40 s, so the scroll ends up clamped to the content.
-    const deep = viewAt(20, 10_000);
+    // 8x in 100 s, the lane starting at 70 s; the cut to 40 s puts that left edge past the
+    // end, so the scroll ends up clamped to the content.
+    const deep = viewAt(8, 5600); // 80 px/s: the lane starts at 70 s
     const next = keepLeftEdge(deep, { ...deep, duration: 40 });
-    expect(next.zoom).toBeCloseTo(9.6, 9);
+    expect(next.zoom).toBe(8);
     expect(next.scroll).toBeCloseTo(contentWidth(next) - next.laneWidth, 9);
   });
 
@@ -414,20 +427,76 @@ describe("keepLeftEdge", () => {
 });
 
 describe("formatZoom", () => {
-  it("writes one decimal with the locale's separator: 4.0 in English, 4,0 in Spanish", () => {
-    expect(formatZoom(4, "en")).toBe("4.0");
-    expect(formatZoom(4, "es")).toBe("4,0");
-    expect(formatZoom(1, "en")).toBe("1.0");
-    expect(formatZoom(1, "es")).toBe("1,0");
+  it("is the zoom as a whole percent: 100%, 200%, 480% in English", () => {
+    expect(formatZoom(1, "en")).toBe("100%");
+    expect(formatZoom(2, "en")).toBe("200%");
+    expect(formatZoom(4.8, "en")).toBe("480%");
+    expect(formatZoom(8, "en")).toBe("800%");
   });
 
-  it("rounds to one decimal", () => {
-    expect(formatZoom(Math.SQRT2, "en")).toBe("1.4");
-    expect(formatZoom(Math.SQRT2, "es")).toBe("1,4");
-    expect(formatZoom(23.96, "en")).toBe("24.0");
+  it("uses the locale's own percent format: Spanish puts a no-break space before the sign", () => {
+    expect(formatZoom(1, "es")).toBe("100\u00a0%");
+    expect(formatZoom(4.8, "es")).toBe("480\u00a0%");
+    expect(formatZoom(8, "es")).toBe("800\u00a0%");
+  });
+
+  it("rounds to an integer percent, so a wheel zoom never shows a decimal", () => {
+    expect(formatZoom(Math.SQRT2, "en")).toBe("141%");
+    expect(formatZoom(4.8049, "en")).toBe("480%");
+    expect(formatZoom(7.996, "en")).toBe("800%");
+    expect(formatZoom(1.004, "es")).toBe("100\u00a0%");
   });
 
   it("gives the same text on a second call (the formatter is reused per locale)", () => {
     expect(formatZoom(2.5, "es")).toBe(formatZoom(2.5, "es"));
+  });
+});
+
+describe("ZOOM_STEPS and stepZoom (the + and − buttons, NIW2-675)", () => {
+  const max = 8;
+
+  it("are the whole steps 100%, 200%, 400% and 800%", () => {
+    expect([...ZOOM_STEPS]).toEqual([1, 2, 4, 8]);
+  });
+
+  it("+ goes up one whole step from 100%: 100% → 200% → 400% → 800%", () => {
+    expect(stepZoom(1, 1, max)).toBe(2);
+    expect(stepZoom(2, 1, max)).toBe(4);
+    expect(stepZoom(4, 1, max)).toBe(8);
+  });
+
+  it("− goes back down: 800% → 400% → 200% → 100%", () => {
+    expect(stepZoom(8, -1, max)).toBe(4);
+    expect(stepZoom(4, -1, max)).toBe(2);
+    expect(stepZoom(2, -1, max)).toBe(1);
+  });
+
+  it("from an in-between level (480% after a wheel zoom) + goes to 800% and − to 400%", () => {
+    expect(stepZoom(4.8, 1, max)).toBe(8);
+    expect(stepZoom(4.8, -1, max)).toBe(4);
+    expect(stepZoom(1.4, 1, max)).toBe(2);
+    expect(stepZoom(1.4, -1, max)).toBe(1);
+    expect(stepZoom(7.9, -1, max)).toBe(4);
+  });
+
+  it("is strict: a level a hair off a step (float error) does not stay on it", () => {
+    expect(stepZoom(4 - 1e-12, 1, max)).toBe(8);
+    expect(stepZoom(4 + 1e-12, 1, max)).toBe(8);
+    expect(stepZoom(4 + 1e-12, -1, max)).toBe(2);
+    expect(stepZoom(2 - 1e-12, -1, max)).toBe(1);
+  });
+
+  it("does nothing at the cap (+ at 800%) and at the floor (− at 100%)", () => {
+    expect(stepZoom(8, 1, max)).toBe(8);
+    expect(stepZoom(1, -1, max)).toBe(1);
+  });
+
+  it("stays inside [1, max] for any input, and holds at 1 when nothing can zoom", () => {
+    expect(stepZoom(20, 1, max)).toBe(8);
+    // An out-of-range level is first clamped to the cap, then stepped.
+    expect(stepZoom(20, -1, max)).toBe(4);
+    expect(stepZoom(0.3, 1, max)).toBe(2);
+    expect(stepZoom(1, 1, 1)).toBe(1);
+    expect(stepZoom(Number.NaN, 1, max)).toBe(2);
   });
 });

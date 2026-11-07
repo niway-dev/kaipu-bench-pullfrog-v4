@@ -120,38 +120,46 @@ describe("TransportBar — the speed label follows the locale's number format", 
   });
 });
 
-describe("TransportBar — the zoom readout follows the locale's number format", () => {
+describe("TransportBar — the zoom level follows the locale's number format (NIW2-675)", () => {
+  const level = (): HTMLElement => screen.getByTitle(/^(Timeline zoom level|Nivel de zoom)/);
+
   beforeEach(() => {
     locale.current = "en";
   });
 
-  it("writes the zoom with a dot in English: 1.0× at fit, 1.4× after one step", () => {
+  it("writes whole percents in English: 100% at fit, 200% after one step, in the slider's value too", () => {
     const props = renderBar(1);
     const slider = screen.getByRole("slider", { name: "Timeline zoom" });
-    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1.0×");
+    expect(level()).toHaveTextContent("100%");
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 100%");
     fireEvent.keyDown(slider, { key: "ArrowRight" });
-    expect(props.timelineView.getState().zoom).toBeCloseTo(Math.SQRT2, 9);
-    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1.4×");
+    expect(props.timelineView.getState().zoom).toBeCloseTo(2, 9);
+    expect(level()).toHaveTextContent("200%");
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 200%");
   });
 
-  it("writes the zoom with a comma in Spanish: 1,0× at fit, 1,4× then 2,0× on the keyboard", () => {
+  it("writes them Spanish's way, with a no-break space before the sign: 100 %, then 200 %, 400 %", () => {
     locale.current = "es";
     renderBar(1);
     const slider = screen.getByRole("slider", { name: "Zoom de la línea de tiempo" });
-    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1,0×");
+    expect(level().textContent).toBe("100\u00a0%");
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 100\u00a0%");
     fireEvent.keyDown(slider, { key: "ArrowRight" });
-    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1,4×");
+    expect(level().textContent).toBe("200\u00a0%");
     fireEvent.keyDown(slider, { key: "ArrowRight" });
-    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 2,0×");
+    expect(level().textContent).toBe("400\u00a0%");
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 400\u00a0%");
   });
 
-  it("keeps one decimal even for a whole zoom: 4,0× not 4×", () => {
-    locale.current = "es";
+  it("rounds a wheel zoom to a whole percent in both languages: 480% / 480 %", () => {
     const props = renderBar(1);
-    act(() => props.timelineView.zoomTo(4));
-    expect(screen.getByRole("slider", { name: "Zoom de la línea de tiempo" })).toHaveAttribute(
-      "aria-valuetext",
-      "Zoom 4,0×",
-    );
+    act(() => props.timelineView.zoomAtPointer(4.8049, 500, 0));
+    expect(level().textContent).toBe("480%");
+  });
+
+  it("names the level in Spanish for assistive technology", () => {
+    locale.current = "es";
+    renderBar(1);
+    expect(level()).toHaveAttribute("title", "Nivel de zoom de la línea de tiempo");
   });
 });

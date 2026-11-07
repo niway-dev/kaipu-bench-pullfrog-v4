@@ -102,9 +102,11 @@ function zoomKeyDirection(key: string): 1 | -1 | 0 {
 }
 
 /**
- * `−`, slider, FIT, `+` (NIW2-667). It subscribes to the zoom factor and the deepest zoom
- * only: a scroll, which fires every frame, never re-renders the bar. The slider is
- * logarithmic, so each step feels the same size whether the recording is 10 s or 10 min.
+ * `−`, slider, FIT, the level, `+` (NIW2-667, NIW2-675). It subscribes to the zoom factor and
+ * the deepest zoom only: a scroll, which fires every frame, never re-renders the bar. The
+ * slider is logarithmic over 100% to 800%; `−` and `+` move between whole steps. The level
+ * ("480%") is plain text that no width query hides: a narrow bar drops the slider and FIT,
+ * and the level stays between `−` and `+` so the zoom can always be read.
  */
 function TimelineZoomControl({ store }: { store: TimelineViewStore }): React.JSX.Element {
   const t = useTranslations("videoEditor");
@@ -112,6 +114,7 @@ function TimelineZoomControl({ store }: { store: TimelineViewStore }): React.JSX
   const zoom = useTimelineZoom(store);
   const max = useTimelineMaxZoom(store);
   const canZoom = max > 1;
+  const percent = formatZoom(zoom, locale);
   return (
     <div className={styles.zoomGroup}>
       <button
@@ -133,7 +136,7 @@ function TimelineZoomControl({ store }: { store: TimelineViewStore }): React.JSX
         value={zoomToSlider(zoom, max)}
         disabled={!canZoom}
         aria-label={t("timelineZoomSlider")}
-        aria-valuetext={t("timelineZoomValue", { zoom: formatZoom(zoom, locale) })}
+        aria-valuetext={t("timelineZoomValue", { zoom: percent })}
         onChange={(event) => store.zoomTo(sliderToZoom(Number(event.target.value), max))}
         // The native keyboard step is one thousandth of the range, and the range is
         // logarithmic: a press would zoom by 0.3 % and the readout would not change for dozens
@@ -157,6 +160,9 @@ function TimelineZoomControl({ store }: { store: TimelineViewStore }): React.JSX
       >
         {t("timelineZoomFit")}
       </button>
+      <span className={styles.zoomLevel} title={t("timelineZoomLevelTitle")}>
+        {percent}
+      </span>
       <button
         type="button"
         className={styles.iconButton}

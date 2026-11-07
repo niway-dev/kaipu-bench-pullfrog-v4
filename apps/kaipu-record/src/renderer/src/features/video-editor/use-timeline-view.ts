@@ -16,12 +16,12 @@
  */
 import { useLayoutEffect, useState, useSyncExternalStore } from "react";
 import {
-  ZOOM_STEP,
   clampView,
   followPlayhead,
   keepLeftEdge,
   maxZoom,
   revealTime,
+  stepZoom,
   zoomAt,
   type TimelineView,
 } from "./components/timeline-view";
@@ -37,15 +37,16 @@ export interface TimelineViewStore {
   getState(): TimelineViewState;
   /** The state against the live duration, clamped — what event handlers should read. */
   getView(): TimelineView;
-  /** The deepest zoom this lane and duration allow (1 when it cannot zoom at all). */
+  /** The deepest zoom: 8 (800%) for a measured lane and timeline, 1 while either is empty. */
   getMaxZoom(): number;
   subscribe(listener: () => void): () => void;
   setDuration(duration: number): void;
   setLaneWidth(px: number): void;
   /** FIT: 1x, scroll 0. */
   fit(): void;
-  /** `+` / `−`: one {@link ZOOM_STEP} around the centre of the visible window. A zoom never
-   *  stops the view following the playhead (only a pan does), here and in the two below. */
+  /** `+` / `−`: the next whole step (100% / 200% / 400% / 800%) strictly above or below the
+   *  current level, around the centre of the visible window; nothing at either end. A zoom
+   *  never stops the view following the playhead (only a pan does), here and in the two below. */
   zoomStep(direction: 1 | -1): void;
   /** The slider: an absolute zoom, around the centre. */
   zoomTo(zoom: number): void;
@@ -143,7 +144,9 @@ export function createTimelineViewStore(): TimelineViewStore {
       commit({ ...view(), zoom: 1, scroll: 0 });
     },
     zoomStep(direction) {
-      centred(direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP);
+      const current = view().zoom;
+      const target = stepZoom(current, direction, limit());
+      if (target !== current) centred(target / current);
     },
     zoomTo(zoom) {
       centred(zoom / view().zoom);

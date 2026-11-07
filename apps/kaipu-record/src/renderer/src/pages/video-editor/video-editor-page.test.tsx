@@ -1731,7 +1731,7 @@ describe("VideoEditorPage — preview playback speed (NIW2-666)", () => {
 
 describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
   // jsdom lays nothing out: the lane sits at x = 220 and is 1000 px wide, so the 30 s
-  // recording is 33.3 px/s at fit and zooms up to 240 / 33.3 = 7.2x.
+  // recording is 33.3 px/s at fit and zooms up to 8x (800%), whatever its duration (NIW2-675).
   const LANE_LEFT = 220;
   const LANE_WIDTH = 1000;
 
@@ -1776,7 +1776,7 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
   const fit = (): HTMLElement =>
     screen.getByRole("button", { name: "Fit the whole recording in the timeline" });
   const zoomTo4x = (): void => {
-    for (let i = 0; i < 4; i++) fireEvent.click(zoomIn()); // (√2)^4
+    for (let i = 0; i < 2; i++) fireEvent.click(zoomIn()); // 100% → 200% → 400%
     expect(Number(scroller().dataset.zoom)).toBeCloseTo(4, 6);
   };
   const stubCapture = (el: HTMLElement): HTMLElement => {
@@ -1799,8 +1799,9 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     renderEditor();
     await waitForEditorLoaded();
     fireEvent.click(zoomIn());
+    expect(Number(scroller().dataset.zoom)).toBeCloseTo(2, 6); // one press = 200%
     fireEvent.click(zoomIn());
-    expect(Number(scroller().dataset.zoom)).toBeCloseTo(2, 6);
+    expect(Number(scroller().dataset.zoom)).toBeCloseTo(4, 6);
     expect(fit()).toBeEnabled();
     fireEvent.click(fit());
     expect(scroller().dataset.zoom).toBe("1");
@@ -1851,24 +1852,24 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Split here" }));
     await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
-    for (let i = 0; i < 6; i++) fireEvent.click(zoomIn()); // 8x would pass the 7.2x maximum
+    for (let i = 0; i < 4; i++) fireEvent.click(zoomIn()); // the 4th press is already at 800%
     const zoomBefore = Number(scroller().dataset.zoom);
-    expect(zoomBefore).toBeCloseTo(7.2, 6);
+    expect(zoomBefore).toBe(8);
     act(() => {
       scroller().scrollLeft = 99_999;
       fireEvent.scroll(scroller());
     });
-    // The scroll really sits on the 7.2x maximum (6200 px), far past the 200 px that the
-    // content left after the delete allows, so the re-clamp below has work to do.
+    // The scroll really sits on the 8x maximum (7000 px), where the left edge is at 26 s: past
+    // the 5 s that are left after the delete, so the re-clamp below has work to do.
     expect(scroller().scrollLeft).toBeCloseTo(zoomBefore * LANE_WIDTH - LANE_WIDTH, 3);
     fireEvent.click(footer.querySelectorAll("button")[1]); // select the second clip (25 s)
     fireEvent.click(screen.getByRole("button", { name: "Delete segment" }));
     await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(1));
-    // 5 s are left: it can only zoom 1.2x now, so the zoom and the scroll came down with it.
+    // 5 s are left. The zoom is a factor and its cap does not depend on the duration, so the
+    // view stays at 800% (it re-fits what is left) and the scroll stays inside the content.
     const zoomAfter = Number(scroller().dataset.zoom);
-    expect(zoomAfter).toBeLessThan(zoomBefore);
+    expect(zoomAfter).toBe(zoomBefore);
     expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomAfter * LANE_WIDTH - LANE_WIDTH + 0.5);
-    expect(scroller().scrollLeft).toBeLessThan(zoomBefore * LANE_WIDTH - LANE_WIDTH);
   });
 
   // Esc runs clearSelection(), which unmounts the trim handles. The handle held pointer
