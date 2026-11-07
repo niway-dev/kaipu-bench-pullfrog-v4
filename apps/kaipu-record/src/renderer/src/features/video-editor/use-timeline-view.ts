@@ -125,7 +125,14 @@ export function createTimelineViewStore(): TimelineViewStore {
       }
     },
     setLaneWidth(px) {
-      // Same reason: a resize changes the scale, so the window is kept by its left-edge time.
+      // A lane that measures 0 px is not a lane that shrank to nothing: the element is hidden
+      // (a collapsed panel, a background tab) or a ResizeObserver fired before layout. Taking
+      // it at its word would clamp the zoom to 1 (a 0 px lane cannot zoom) and the scroll to 0,
+      // and the zoom the user chose would be gone when the lane comes back. So the last width,
+      // zoom and scroll stay as they were. `!(px > 0)` also turns away a negative or NaN.
+      if (!(px > 0)) return;
+      // Same reason as setDuration: a resize changes the scale, so the window is kept by its
+      // left-edge time.
       const from = view();
       commit(keepLeftEdge(from, { ...from, laneWidth: px }));
     },

@@ -245,6 +245,39 @@ describe("the time at the left edge survives a resize and a cut", () => {
     store.setLaneWidth(1000);
     expect(store.getState()).toEqual({ zoom: 1, scroll: 0, laneWidth: 1000 });
   });
+
+  // A lane that measures 0 px is not a lane that got narrower: the element is hidden (a
+  // collapsed panel, a background tab) or a ResizeObserver fired before layout. Taking it at
+  // its word clamps the zoom to 1 (nothing can be zoomed in a 0 px lane) and the scroll to 0,
+  // and the zoom the user chose is gone when the lane comes back (NIW2-667 review R2-4).
+  it("ignores a lane that measures 0 px: the zoom and the window are still there when it returns", () => {
+    const store = zoomedAt30s();
+    const before = store.getState();
+    const listener = vi.fn();
+    store.subscribe(listener);
+    store.setLaneWidth(0);
+    expect(store.getState()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
+    store.setLaneWidth(1200);
+    expect(store.getState().zoom).toBe(4);
+    expect(leftEdge(store)).toBeCloseTo(30, 6);
+  });
+
+  it("keeps the zoom and the left edge when the lane returns at another width", () => {
+    const store = zoomedAt30s();
+    store.setLaneWidth(0);
+    store.setLaneWidth(900); // came back narrower: rescaled as any resize is
+    expect(store.getState().zoom).toBe(4);
+    expect(leftEdge(store)).toBeCloseTo(30, 6);
+  });
+
+  it("ignores a negative or non-numeric width the same way", () => {
+    const store = zoomedAt30s();
+    const before = store.getState();
+    store.setLaneWidth(-20);
+    store.setLaneWidth(Number.NaN);
+    expect(store.getState()).toBe(before);
+  });
 });
 
 describe("following the playhead", () => {

@@ -1068,6 +1068,47 @@ describe("a handle that goes away in the middle of its drag", () => {
 });
 
 /**
+ * The strip measures its lane with a ResizeObserver. An element that is hidden (a collapsed
+ * panel) or not laid out yet reports a 0 px lane; that is "not measurable", not "a lane that
+ * shrank to nothing", and must not cost the user the zoom they chose (R2-4).
+ */
+describe("a lane that measures 0 px", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does not reset the zoom: it is still 4x, at the same left edge, when the lane returns", () => {
+    const callbacks: Array<() => void> = [];
+    class FakeResizeObserver {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    const resized = (): void => act(() => callbacks.forEach((callback) => callback()));
+
+    const { store } = renderZoomed();
+    const leftEdge = (): number => timeAt(store.getView(), LANE_LEFT, LANE_LEFT);
+    expect(store.getState().zoom).toBe(ZOOM);
+    expect(leftEdge()).toBeCloseTo(30, 6); // 4x scrolled 1200 px: the lane starts at 30 s
+
+    // The strip is hidden: everything measures 0.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => rectOf(0, 0));
+    resized();
+    expect(store.getState().zoom).toBe(ZOOM);
+
+    // It is shown again, as wide as before.
+    stubGeometry();
+    resized();
+    expect(store.getState().zoom).toBe(ZOOM);
+    expect(leftEdge()).toBeCloseTo(30, 6);
+  });
+});
+
+/**
  * `data-scrolled` on the scroll container (NIW2-667 review R2-2). The sticky label column
  * fills the gap to the lane with a shadow so scrolled content cannot show through it; that fill
  * must exist only while the content IS scrolled, or it covers what sits in the gap at scroll 0
