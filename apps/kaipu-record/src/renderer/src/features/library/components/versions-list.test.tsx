@@ -141,4 +141,40 @@ describe("VersionsList", () => {
     expect(within(region).queryByText(/Pick a place/)).toBeNull();
     expect(within(region).getByText("No copies yet.")).toBeTruthy();
   });
+
+  it("walks a copy of a copy up to the root original, and shows the same family from any member", () => {
+    const a = video({ id: "a", assetId: "a", title: "Root A", createdAt: 1000 });
+    const b = video({
+      id: "b",
+      assetId: "b",
+      title: "Copy B",
+      derivedFromAssetId: "a",
+      createdAt: 2000,
+    });
+    const c = video({
+      id: "c",
+      assetId: "c",
+      title: "Copy C",
+      derivedFromAssetId: "b",
+      createdAt: 3000,
+    });
+    const all = [a, b, c];
+    for (const opened of [c, b, a]) {
+      const region = renderList(opened, all);
+      const rows = within(region).getAllByRole("listitem");
+      expect(rows).toHaveLength(3);
+      expect(within(rows[0]!).getByText("Original")).toBeTruthy();
+      expect(within(rows[0]!).getByText("Root A")).toBeTruthy();
+      expect(rows[1]!.textContent).toContain("Copy B");
+      expect(rows[2]!.textContent).toContain("Copy C");
+      cleanup();
+    }
+  });
+
+  it("does not loop on a cyclic lineage", () => {
+    const x = video({ id: "x", assetId: "x", title: "X", derivedFromAssetId: "y" });
+    const y = video({ id: "y", assetId: "y", title: "Y", derivedFromAssetId: "x" });
+    const region = renderList(x, [x, y]);
+    expect(within(region).getAllByRole("listitem").length).toBeGreaterThan(0);
+  });
 });

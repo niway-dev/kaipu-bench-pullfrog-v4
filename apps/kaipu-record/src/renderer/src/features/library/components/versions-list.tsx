@@ -4,7 +4,7 @@ import { Film, GripVertical, ImagePlay, Info, Pencil } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { LibraryVideo } from "@renderer/features/library/types";
 import { formatDuration, formatSize, relativeDate } from "@renderer/features/library/format";
-import type { buildLineage } from "@renderer/features/library/lineage";
+import { familyOf, type buildLineage } from "@renderer/features/library/lineage";
 import {
   type ExportPresetId,
   resolveExportTarget,
@@ -55,16 +55,8 @@ export function VersionsList({
   const tPrepare = useTranslations("prepare");
   const tEditor = useTranslations("videoEditor");
 
-  const isCopy = item.derivedFromAssetId !== null;
-  const master = isCopy ? (lineage.byAssetId.get(item.derivedFromAssetId!) ?? null) : item;
-  const sourceDeleted = isCopy && master === null;
-  const copies = [
-    ...(master ? (lineage.exportsOf.get(master.assetId) ?? []) : []),
-    // A copy that has copies of its own lists them after its siblings.
-    ...(isCopy ? (lineage.exportsOf.get(item.assetId) ?? []) : []),
-  ];
-  // A copy whose source is gone is not in its source's list: it still has to appear.
-  if (sourceDeleted && !copies.some((c) => c.assetId === item.assetId)) copies.unshift(item);
+  const { master, copies } = familyOf(item, lineage);
+  const sourceDeleted = master === null;
 
   const hasEdit = master !== null && master.kind === "recording" && master.editSavedAt !== null;
   const count = (master || sourceDeleted ? 1 : 0) + (hasEdit ? 1 : 0) + copies.length;

@@ -27,6 +27,53 @@ export function buildLineage(videos: readonly LibraryVideo[]): Lineage {
   return { byAssetId, exportsOf };
 }
 
+/**
+ * The family an item belongs to: its root original and every descendant (copies of copies
+ * included), so the original and any copy show the same list. A copy whose direct source is
+ * gone has no master (`master: null`) and heads its own list. A broken link higher up makes the
+ * deepest ancestor that still exists the master. Cycles are cut at the first repeat.
+ */
+export function familyOf(
+  item: LibraryVideo,
+  lineage: Lineage,
+): { master: LibraryVideo | null; copies: LibraryVideo[] } {
+  let root = item;
+  if (item.derivedFromAssetId !== null) {
+    const parent = lineage.byAssetId.get(item.derivedFromAssetId);
+    if (!parent) {
+      return { master: null, copies: [item, ...descendantsOf(item, lineage)] };
+    }
+    const seen = new Set([item.assetId]);
+    let cur: LibraryVideo | undefined = parent;
+    while (cur && !seen.has(cur.assetId)) {
+      seen.add(cur.assetId);
+      root = cur;
+      cur =
+        cur.derivedFromAssetId !== null ? lineage.byAssetId.get(cur.derivedFromAssetId) : undefined;
+    }
+  }
+  return { master: root, copies: descendantsOf(root, lineage) };
+}
+
+function descendantsOf(root: LibraryVideo, lineage: Lineage): LibraryVideo[] {
+  const out: LibraryVideo[] = [];
+  const seen = new Set([root.assetId]);
+  let level = [root.assetId];
+  while (level.length > 0) {
+    const next: string[] = [];
+    for (const id of level) {
+      for (const c of lineage.exportsOf.get(id) ?? []) {
+        if (seen.has(c.assetId)) continue;
+        seen.add(c.assetId);
+        out.push(c);
+        next.push(c.assetId);
+      }
+    }
+    level = next;
+  }
+  return out;
+}
+
 export type EditBadge = "never-exported" | "stale" | "edited" | null;
 
 /**
