@@ -83,4 +83,23 @@ describe("useHiddenTracks", () => {
       }),
     );
   });
+
+  it("falls back to the last list the store delivered when a save is refused", async () => {
+    captureException.mockClear();
+    const failure = new Error("settings:update refused");
+    const update = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue(undefined);
+    // The store never changes: the refused hide of Zooms was not applied, and the mock does
+    // not deliver the later successful write back either.
+    const { result } = renderHook(() => useHiddenTracks(store([], update)));
+    act(() => result.current.toggle("zooms"));
+    expect(update).toHaveBeenLastCalledWith({ editor: { hiddenTracks: ["zooms"] } });
+    await waitFor(() => expect(captureException).toHaveBeenCalledTimes(1));
+
+    // The refused hide must not leak into the next write.
+    act(() => result.current.toggle("privacy"));
+    expect(update).toHaveBeenLastCalledWith({ editor: { hiddenTracks: ["privacy"] } });
+    // That write succeeded, so the next toggle builds on it.
+    act(() => result.current.toggle("zooms"));
+    expect(update).toHaveBeenLastCalledWith({ editor: { hiddenTracks: ["privacy", "zooms"] } });
+  });
 });

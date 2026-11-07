@@ -22,10 +22,14 @@ export function useHiddenTracks({ settings, update }: AppSettingsStore): HiddenT
   // The write is async and settings come back later, so two quick changes (a selection that
   // shows a lane right after a toggle) must start from the list the first one wrote.
   const latest = useRef(hidden);
+  // The last list the store itself delivered: what a refused write falls back to, because
+  // the effect below never re-runs when the store did not change.
+  const delivered = useRef(hidden);
   // Follows the store only when it delivers a new list, so a re-render in between (playback
   // ticks the page) cannot put a pending write back to the old one.
   useEffect(() => {
     latest.current = hidden;
+    delivered.current = hidden;
   }, [hidden]);
 
   // The rest of `editor`, read at write time through a ref so `write` (and the callbacks
@@ -40,6 +44,8 @@ export function useHiddenTracks({ settings, update }: AppSettingsStore): HiddenT
       // holding only `hiddenTracks` would replace the whole `editor` object and wipe any
       // other field it gains: send the object whole.
       update({ editor: { ...editor.current, hiddenTracks: next } }).catch((error: unknown) => {
+        // The store never took this list, so the next toggle must start from the one it holds.
+        latest.current = delivered.current;
         captureException(error, { context: "editor-hidden-tracks-save" });
       });
     },
