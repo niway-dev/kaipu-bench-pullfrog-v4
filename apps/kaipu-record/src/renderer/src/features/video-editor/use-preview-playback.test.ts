@@ -941,3 +941,127 @@ describe.each([0.5, 1, 1.5, 2])(
     });
   },
 );
+
+// The rAF hand-off stops the element up to 20 ms BEFORE its native end, so `ended` never
+// fires and the playhead rests at the layout end. Pressing play there must restart from
+// 0 the way a native `ended` element does; resuming at the end would hand off again on
+// the first frame and the button would flicker.
+const ONE_CLIP = [clip("a", 0, 10)];
+const CLIP_THEN_SLIDE_END = [clip("a", 0, 5), slide("s1", 3)];
+
+describe.each([1, 2])("usePreviewPlayback — play at the layout end restarts, at %sx", (speed) => {
+  it("restarts from 0 after the last clip ended playback, and keeps playing", () => {
+    const { result, video, seeks, playTo } = setupCutRig(ONE_CLIP, speed);
+    const times: number[] = [];
+    result.current.subscribeTime((t) => times.push(t));
+    act(() => result.current.play());
+    playTo(9.99);
+    frame();
+    expect(result.current.playing).toBe(false);
+    expect(result.current.timelineTime).toBe(10);
+    expect(video.pause).toHaveBeenCalledTimes(1);
+    times.length = 0;
+
+    act(() => result.current.play());
+
+    expect(seeks).toEqual([0]); // the restart
+    expect(result.current.playing).toBe(true);
+    expect(result.current.timelineTime).toBe(0);
+    expect(video.paused).toBe(false);
+    // Continuous advance, no immediate re-hand-off, no flicker.
+    playFrames(playTo, speed, 0.02, 0.5);
+    expect(result.current.playing).toBe(true);
+    expect(video.pause).toHaveBeenCalledTimes(1); // still only the one from the end
+    expect(seeks).toEqual([0]);
+    expect(times.length).toBeGreaterThan(5);
+    for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+    expect(times.at(-1)).toBeGreaterThan(0.3);
+  });
+
+  it("the transport toggle restarts too", () => {
+    const { result, seeks, playTo } = setupCutRig(ONE_CLIP, speed);
+    act(() => result.current.play());
+    playTo(9.99);
+    frame();
+    expect(result.current.playing).toBe(false);
+
+    act(() => result.current.toggle());
+
+    expect(seeks).toEqual([0]);
+    expect(result.current.playing).toBe(true);
+    expect(result.current.timelineTime).toBe(0);
+  });
+
+  it("restarts from 0 after a trailing slide finished", () => {
+    const { result, video, seeks, playTo } = setupCutRig(CLIP_THEN_SLIDE_END, speed);
+    act(() => result.current.play());
+    playTo(5.1); // past clip a's cut: the slide follows
+    frame();
+    expect(result.current.activeSlideId).toBe("s1");
+    advance((3 / speed) * 1000 + 100); // the slide holds its duration, then playback ends
+    expect(result.current.playing).toBe(false);
+    expect(result.current.timelineTime).toBe(8);
+    expect(result.current.activeSlideId).toBeNull();
+    const pausesAtEnd = (video.pause as ReturnType<typeof vi.fn>).mock.calls.length;
+    const times: number[] = [];
+    result.current.subscribeTime((t) => times.push(t));
+
+    act(() => result.current.play());
+
+    expect(seeks).toEqual([0]);
+    expect(result.current.playing).toBe(true);
+    expect(result.current.activeSlideId).toBeNull();
+    expect(result.current.timelineTime).toBe(0);
+    playFrames(playTo, speed, 0.02, 0.5);
+    expect(result.current.playing).toBe(true);
+    expect((video.pause as ReturnType<typeof vi.fn>).mock.calls.length).toBe(pausesAtEnd);
+    expect(times.at(-1)).toBeGreaterThan(0.3);
+  });
+
+  it("restarts when the layout starts with a slide: the slide clock runs from its start", () => {
+    const { result, seeks } = setupCutRig([slide("s0", 3), clip("a", 0, 5)], speed);
+    act(() => result.current.seek(8)); // the layout end, in clip a
+    expect(result.current.timelineTime).toBe(8);
+
+    act(() => result.current.play());
+
+    expect(result.current.activeSlideId).toBe("s0");
+    expect(result.current.timelineTime).toBe(0);
+    expect(seeks).toEqual([5]); // only the earlier seek(8): the slide is not sought
+    advance(1000);
+    expect(result.current.playing).toBe(true);
+    expect(result.current.activeSlideId).toBe("s0");
+  });
+
+  it("resumes in place when the playhead is not at the end", () => {
+    const { result, seeks, playTo } = setupCutRig(ONE_CLIP, speed);
+    act(() => result.current.play());
+    playTo(9.5);
+    frame();
+    act(() => result.current.pause());
+    act(() => result.current.seek(9.5)); // 0.5 s from the end: well outside the epsilon
+
+    act(() => result.current.play());
+
+    expect(seeks).toEqual([9.5]); // no restart
+    expect(result.current.timelineTime).toBe(9.5);
+  });
+});
+
+describe("usePreviewPlayback — the native ended path", () => {
+  it("still stops at the layout end, and play restarts from 0", () => {
+    const { result, seeks } = setupCutRig(ONE_CLIP, 1);
+    act(() => result.current.play());
+
+    act(() => result.current.onVideoEnded());
+
+    expect(result.current.playing).toBe(false);
+    expect(result.current.timelineTime).toBe(10);
+
+    act(() => result.current.play());
+
+    expect(seeks).toEqual([0]);
+    expect(result.current.playing).toBe(true);
+    expect(result.current.timelineTime).toBe(0);
+  });
+});

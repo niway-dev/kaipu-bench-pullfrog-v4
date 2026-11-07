@@ -384,15 +384,26 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
   );
 
   const play = useCallback(() => {
+    // Playing from the layout end restarts, like a native `ended` element does. The
+    // hand-off stops the element up to END_EPSILON before its own end (so `ended` never
+    // fires) and the playhead rests at the end; resuming from there would hand off again
+    // on the first frame and the button would flicker. Done before `playingRef` flips so
+    // the seek only positions the element and play() below is the one that starts it.
+    let from = timelineTimeRef.current;
+    const layoutNow = layoutRef.current;
+    if (layoutNow.length > 0 && from >= layoutDuration(layoutNow) - END_EPSILON) {
+      seek(0);
+      from = 0;
+    }
     playingRef.current = true;
-    const entry = entryAt(layoutRef.current, timelineTimeRef.current);
+    const entry = entryAt(layoutRef.current, from);
     if (entry?.kind === "slide") {
       // Start (or resume) the slide clock. Re-anchor without losing consumed time when
       // resuming the same slide; otherwise enter it fresh from the current offset.
       if (slideRef.current?.itemId === entry.itemId) {
         slideRef.current.anchorAt = performance.now();
       } else {
-        enterSlide(entry, timelineTimeRef.current - entry.timelineStart);
+        enterSlide(entry, from - entry.timelineStart);
       }
     } else {
       if (slideRef.current) exitSlide();
@@ -411,7 +422,7 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       }
     }
     setPlaying(true);
-  }, [enterSlide, exitSlide, applyRate, resolveActiveClip]);
+  }, [enterSlide, exitSlide, applyRate, resolveActiveClip, seek]);
 
   const pause = useCallback(() => {
     playingRef.current = false;
