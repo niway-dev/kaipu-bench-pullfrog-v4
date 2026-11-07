@@ -832,6 +832,7 @@
     "destinationsTitle": "¿A dónde va?",
     "destinationsBody": "Elige un lugar y exportamos una copia a su medida. El original queda como está.",
     "destinationAria": "Exportar una copia para {destination}",
+    "exportCopy": "Exportar una copia",
     "metaDimensions": "{width} × {height}",
     "sendTo": "Enviar a…",
     "metaCopies": "{count, plural, one {# copia} other {# copias}}",
