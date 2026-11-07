@@ -133,7 +133,8 @@ hasWebcam })`, tested for a take without camera and without cursor track.
     `padding: "black" | "blur"` is bypassed and the background paints; `bg = none` keeps today's
     letterbox byte for byte.
 16. An old export is reused for a scene with a background → `bg1` in the fingerprint; a plain
-    scene's fingerprint is unchanged (snapshot test on both).
+    scene's fingerprint is unchanged, and so is a `none` scene with non-zero numbers (snapshot test
+    on both).
 17. A session with a wrong background shape crashes the parser → unknown `bg` → `none`; numbers
     clamped to `PADDING_RANGE`, `RADIUS_RANGE` and `SHADOW_RANGE` (the screenshot editor's
     constants, reused, not copied); non-finite → 0; absent → the default.
@@ -541,7 +542,9 @@ a `ResizeObserver` before paint. The `<video>` is never remounted when the backg
 - `session.ts`: `background` parsed by `parseBackground`; unknown `bg` → `none`; numbers clamped
   to the ranges above; absent → default. Older builds ignore the key.
 - `export-reuse.ts`: `BACKGROUND_COMPOSE_REVISION = "bg1"` joins the fingerprint tag when
-  `hasBackground`; the normalised scene already hashes the field.
+  `hasBackground`. `editFingerprint` removes `background` from the normalised scene when
+  `!hasBackground` (as it does a default `cursor`), because `parseSession` fills the default and
+  would otherwise change the hash of every plain scene.
 - Inspector: a "Background" section when nothing is selected, above Detection, built from the
   screenshot editor's `BeautifyPanel` pieces (the swatch grid is now one shared component, used by
   both panels; the names come from the `screenshots` namespace). The three sliders are the video

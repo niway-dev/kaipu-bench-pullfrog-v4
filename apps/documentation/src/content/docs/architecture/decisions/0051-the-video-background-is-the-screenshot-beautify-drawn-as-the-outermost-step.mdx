@@ -78,7 +78,9 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
 5. **Export reuse.** `BACKGROUND_COMPOSE_REVISION = "bg1"` is added to the edit fingerprint only
    when `bg ≠ none`. With `none`, padding, radius and shadow are stored but not drawn and the
    sliders are disabled, so a plain scene's fingerprint does not change and its old exports
-   keep matching.
+   keep matching. `editFingerprint` enforces it by removing `background` from the normalised scene
+   when `bg = none` (as it does a default `cursor`), because `parseSession` fills the default and
+   would otherwise change the hash of every plain scene.
 
 ## Alternatives rejected
 
