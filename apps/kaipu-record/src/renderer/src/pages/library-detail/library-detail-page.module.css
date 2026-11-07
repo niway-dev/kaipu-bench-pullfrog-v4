@@ -121,6 +121,33 @@
   min-width: 0;
 }
 
+.infoWrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.infoTip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: 280px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-modal);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  box-shadow: var(--shadow-popover);
+}
+
+.infoTip[hidden] {
+  display: none;
+}
+
 .infoButton {
   flex-shrink: 0;
   width: 24px;

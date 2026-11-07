@@ -1569,7 +1569,46 @@ describe("LibraryDetailPage — header, menu, navigation and tabs (NIW2-669)", (
     });
   });
 
+  describe("original info tip", () => {
+    const infoName = "Your original stays unchanged. Edits are exported as copies.";
+
+    it("shows its text on keyboard focus, on click, and hides on Escape", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      const button = screen.getByRole("button", { name: infoName });
+      const tip = screen.getByRole("tooltip", { hidden: true });
+      expect(button.getAttribute("aria-describedby")).toBe(tip.id);
+      expect(tip).not.toBeVisible();
+      fireEvent.focus(button);
+      expect(tip).toBeVisible();
+      expect(tip).toHaveTextContent(infoName);
+      fireEvent.keyDown(button, { key: "Escape" });
+      expect(tip).not.toBeVisible();
+      fireEvent.click(button);
+      expect(tip).toBeVisible();
+      fireEvent.blur(button);
+      expect(tip).not.toBeVisible();
+    });
+  });
+
   describe("tabs", () => {
+    it("only the selected tab points aria-controls at the rendered panel", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      const tabs = screen.getAllByRole("tab");
+      expect(tabs.length).toBeGreaterThan(1);
+      const panel = screen.getByRole("tabpanel");
+      for (const tab of tabs) {
+        if (tab.getAttribute("aria-selected") === "true") {
+          expect(tab.getAttribute("aria-controls")).toBe(panel.id);
+        } else {
+          expect(tab.hasAttribute("aria-controls")).toBe(false);
+        }
+      }
+    });
+
     it("opens on Where is it going? until the first copy exists", async () => {
       list(exportedOnlyItem);
       renderDetail("asset-b");

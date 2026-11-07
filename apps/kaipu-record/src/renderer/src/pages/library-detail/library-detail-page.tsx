@@ -119,6 +119,8 @@ export function LibraryDetailPage(): React.JSX.Element {
   });
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // The `i` by the title: its text shows on hover, keyboard focus and click, until Escape or blur.
+  const [infoOpen, setInfoOpen] = useState(false);
   // Computed before the early returns below: hooks can't be called conditionally,
   // and buildLineage works fine on an empty/loading `videos` list.
   const { openItem } = useOpenInEditor();
@@ -438,14 +440,37 @@ export function LibraryDetailPage(): React.JSX.Element {
             />
           </div>
           {master && (
-            <button
-              type="button"
-              className={styles.infoButton}
-              aria-label={t("originalInfo")}
-              title={t("originalInfo")}
+            <span
+              className={styles.infoWrap}
+              onMouseEnter={() => setInfoOpen(true)}
+              onMouseLeave={() => setInfoOpen(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && infoOpen) {
+                  event.stopPropagation();
+                  setInfoOpen(false);
+                }
+              }}
             >
-              <Info size={14} strokeWidth={1.8} />
-            </button>
+              <button
+                type="button"
+                className={styles.infoButton}
+                aria-label={t("originalInfo")}
+                aria-describedby="library-original-info"
+                onClick={() => setInfoOpen(true)}
+                onFocus={() => setInfoOpen(true)}
+                onBlur={() => setInfoOpen(false)}
+              >
+                <Info size={14} strokeWidth={1.8} />
+              </button>
+              <span
+                id="library-original-info"
+                role="tooltip"
+                className={styles.infoTip}
+                hidden={!infoOpen}
+              >
+                {t("originalInfo")}
+              </span>
+            </span>
           )}
           <div {...uiArea("libraryDetail.actions")} className={styles.actions}>
             {localId && isScreenshot && (
@@ -668,7 +693,7 @@ export function LibraryDetailPage(): React.JSX.Element {
                 role="tab"
                 id={`library-tab-${id}`}
                 aria-selected={tab === id}
-                aria-controls={`library-tabpanel-${id}`}
+                aria-controls={tab === id ? `library-tabpanel-${id}` : undefined}
                 tabIndex={tab === id ? 0 : -1}
                 className={styles.tabButton}
                 data-active={tab === id || undefined}

@@ -56,11 +56,16 @@
   cursor: pointer;
 }
 
-.item:hover,
+.item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .item:focus-visible {
   background: var(--bg-hover);
   color: var(--text-primary);
-  outline: none;
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
 }
 
 .item[data-danger] {
