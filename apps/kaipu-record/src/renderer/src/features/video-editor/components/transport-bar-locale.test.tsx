@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toLayout } from "../timeline";
 import { availableTracks } from "../tracks";
@@ -117,5 +117,41 @@ describe("TransportBar — the speed label follows the locale's number format", 
     const props = renderBar(1.5);
     fireEvent.click(screen.getByRole("button", { name: /^Velocidad de reproducción/ }));
     expect(props.onSpeedChange).toHaveBeenCalledExactlyOnceWith(2);
+  });
+});
+
+describe("TransportBar — the zoom readout follows the locale's number format", () => {
+  beforeEach(() => {
+    locale.current = "en";
+  });
+
+  it("writes the zoom with a dot in English: 1.0× at fit, 1.4× after one step", () => {
+    const props = renderBar(1);
+    const slider = screen.getByRole("slider", { name: "Timeline zoom" });
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1.0×");
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(props.timelineView.getState().zoom).toBeCloseTo(Math.SQRT2, 9);
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1.4×");
+  });
+
+  it("writes the zoom with a comma in Spanish: 1,0× at fit, 1,4× then 2,0× on the keyboard", () => {
+    locale.current = "es";
+    renderBar(1);
+    const slider = screen.getByRole("slider", { name: "Zoom de la línea de tiempo" });
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1,0×");
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 1,4×");
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(slider).toHaveAttribute("aria-valuetext", "Zoom 2,0×");
+  });
+
+  it("keeps one decimal even for a whole zoom: 4,0× not 4×", () => {
+    locale.current = "es";
+    const props = renderBar(1);
+    act(() => props.timelineView.zoomTo(4));
+    expect(screen.getByRole("slider", { name: "Zoom de la línea de tiempo" })).toHaveAttribute(
+      "aria-valuetext",
+      "Zoom 4,0×",
+    );
   });
 });

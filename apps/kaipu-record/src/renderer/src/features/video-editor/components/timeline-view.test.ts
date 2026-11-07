@@ -6,6 +6,7 @@ import {
   contentWidth,
   fitView,
   followPlayhead,
+  formatZoom,
   keepLeftEdge,
   maxZoom,
   panBy,
@@ -401,5 +402,24 @@ describe("keepLeftEdge", () => {
     const next = keepLeftEdge(zoomedIn, { ...zoomedIn });
     expect(next).toEqual(zoomedIn);
     expect(next.scroll).toBe(zoomedIn.scroll);
+  });
+});
+
+describe("formatZoom", () => {
+  it("writes one decimal with the locale's separator: 4.0 in English, 4,0 in Spanish", () => {
+    expect(formatZoom(4, "en")).toBe("4.0");
+    expect(formatZoom(4, "es")).toBe("4,0");
+    expect(formatZoom(1, "en")).toBe("1.0");
+    expect(formatZoom(1, "es")).toBe("1,0");
+  });
+
+  it("rounds to one decimal", () => {
+    expect(formatZoom(Math.SQRT2, "en")).toBe("1.4");
+    expect(formatZoom(Math.SQRT2, "es")).toBe("1,4");
+    expect(formatZoom(23.96, "en")).toBe("24.0");
+  });
+
+  it("gives the same text on a second call (the formatter is reused per locale)", () => {
+    expect(formatZoom(2.5, "es")).toBe(formatZoom(2.5, "es"));
   });
 });

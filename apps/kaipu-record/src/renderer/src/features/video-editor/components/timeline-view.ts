@@ -203,6 +203,21 @@ export function visibleRange(view: TimelineView): { start: number; end: number }
   };
 }
 
+const zoomFormats = new Map<string, Intl.NumberFormat>();
+
+/**
+ * A zoom factor as people read it in `locale`, always with one decimal: 4.0 in English, 4,0
+ * in Spanish. Display only (the slider's accessible value); the zoom itself stays the number.
+ */
+export function formatZoom(zoom: number, locale: string): string {
+  let format = zoomFormats.get(locale);
+  if (!format) {
+    format = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    zoomFormats.set(locale, format);
+  }
+  return format.format(zoom);
+}
+
 /** Zoom factor → slider position in `[0, 1]`, logarithmic: each step feels the same size.
  *  `max` is {@link maxZoom} for the lane; a lane that cannot zoom (max 1) pins it at 0. */
 export function zoomToSlider(zoom: number, max: number): number {

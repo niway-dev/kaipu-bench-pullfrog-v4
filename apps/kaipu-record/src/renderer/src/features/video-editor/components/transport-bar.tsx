@@ -21,7 +21,7 @@ import { skipTarget, type LayoutEntry } from "../timeline";
 import { visibleCount, type TrackKey } from "../tracks";
 import { useTimelineMaxZoom, useTimelineZoom, type TimelineViewStore } from "../use-timeline-view";
 import { editShortcuts, SPLIT_SHORTCUT } from "./editor-toolbar";
-import { sliderToZoom, zoomToSlider } from "./timeline-view";
+import { formatZoom, sliderToZoom, zoomToSlider } from "./timeline-view";
 import { TracksPopover } from "./tracks-popover";
 import styles from "./transport-bar.module.css";
 
@@ -87,6 +87,20 @@ function Count({ full, short }: { full: string; short: string }): React.JSX.Elem
   );
 }
 
+/** The arrow keys on the zoom slider: right and up zoom in, left and down zoom out. */
+function zoomKeyDirection(key: string): 1 | -1 | 0 {
+  switch (key) {
+    case "ArrowRight":
+    case "ArrowUp":
+      return 1;
+    case "ArrowLeft":
+    case "ArrowDown":
+      return -1;
+    default:
+      return 0;
+  }
+}
+
 /**
  * `−`, slider, FIT, `+` (NIW2-667). It subscribes to the zoom factor and the deepest zoom
  * only: a scroll, which fires every frame, never re-renders the bar. The slider is
@@ -94,6 +108,7 @@ function Count({ full, short }: { full: string; short: string }): React.JSX.Elem
  */
 function TimelineZoomControl({ store }: { store: TimelineViewStore }): React.JSX.Element {
   const t = useTranslations("videoEditor");
+  const locale = useLocale();
   const zoom = useTimelineZoom(store);
   const max = useTimelineMaxZoom(store);
   const canZoom = max > 1;
@@ -118,8 +133,19 @@ function TimelineZoomControl({ store }: { store: TimelineViewStore }): React.JSX
         value={zoomToSlider(zoom, max)}
         disabled={!canZoom}
         aria-label={t("timelineZoomSlider")}
-        aria-valuetext={t("timelineZoomValue", { zoom: zoom.toFixed(1) })}
+        aria-valuetext={t("timelineZoomValue", { zoom: formatZoom(zoom, locale) })}
         onChange={(event) => store.zoomTo(sliderToZoom(Number(event.target.value), max))}
+        // The native keyboard step is one thousandth of the range, and the range is
+        // logarithmic: a press would zoom by 0.3 % and the readout would not change for dozens
+        // of presses. The arrows step like the + and − buttons; Home, End and Page keys stay
+        // native. ⌘, Ctrl and Alt are left to the browser and the OS.
+        onKeyDown={(event) => {
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          const direction = zoomKeyDirection(event.key);
+          if (direction === 0) return;
+          event.preventDefault();
+          store.zoomStep(direction);
+        }}
       />
       <button
         type="button"

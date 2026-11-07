@@ -448,6 +448,56 @@ describe("TransportBar — timeline zoom", () => {
     expect(slider()).toHaveAttribute("aria-valuetext", `Zoom ${Math.sqrt(max).toFixed(1)}×`);
   });
 
+  // The slider's native keyboard step is one thousandth of its range: on a logarithmic range
+  // that is a factor of 1.003 per press, so the readout did not change for dozens of
+  // presses. The arrow keys step like the + and − buttons instead.
+  it.each([
+    ["ArrowRight", 1],
+    ["ArrowUp", 1],
+    ["ArrowLeft", -1],
+    ["ArrowDown", -1],
+  ])("%s on the slider steps the zoom like the buttons do", (key, direction) => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    act(() => timelineView.zoomTo(4));
+    const notPrevented = fireEvent.keyDown(slider(), { key });
+    expect(notPrevented).toBe(false); // the native one-thousandth step must not also run
+    expect(timelineView.getState().zoom).toBeCloseTo(4 * ZOOM_STEP ** direction, 9);
+  });
+
+  it("one arrow press changes the readout, from the first press on", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.0×");
+    fireEvent.keyDown(slider(), { key: "ArrowRight" });
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.4×");
+    fireEvent.keyDown(slider(), { key: "ArrowRight" });
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 2.0×");
+    fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.4×");
+  });
+
+  it("an arrow at the deepest zoom or at fit changes nothing", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+    expect(timelineView.getState().zoom).toBe(1);
+    act(() => timelineView.zoomTo(1e9));
+    const deepest = timelineView.getState().zoom;
+    fireEvent.keyDown(slider(), { key: "ArrowRight" });
+    expect(timelineView.getState().zoom).toBe(deepest);
+  });
+
+  it("leaves other keys and modified arrows alone (⌘ ← is the browser's, not a zoom)", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    expect(fireEvent.keyDown(slider(), { key: "a" })).toBe(true);
+    expect(fireEvent.keyDown(slider(), { key: "ArrowRight", metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(slider(), { key: "ArrowRight", ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(slider(), { key: "ArrowRight", altKey: true })).toBe(true);
+    expect(timelineView.getState().zoom).toBe(1);
+  });
+
   it("follows the store when something else zooms (the wheel): the slider and buttons catch up", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
