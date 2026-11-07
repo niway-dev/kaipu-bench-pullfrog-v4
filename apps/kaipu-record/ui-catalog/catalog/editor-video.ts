@@ -252,8 +252,10 @@ export const editorVideo = catalog(
     },
     "timeline-zoomed": {
       profile: "default",
-      how: "Open “Team notes” and press + in the transport bar three times: the lanes stretch to the deepest zoom this 9 s take allows (2.4×), the labels stay put and a scrollbar appears under the lanes.",
-      steps: [open(ASSETS.teamNotes), loaded, zoomIn, zoomIn, zoomIn],
+      how: "Open “Team notes” and press + in the transport bar twice: the lanes stretch to the deepest zoom a 9 s take allows in this window (about 1.7×), the labels stay put and a scrollbar appears under the lanes.",
+      // Two presses, not more: the second reaches the deepest zoom, and a third would be a
+      // click on a disabled button, which Playwright waits on until the step times out.
+      steps: [open(ASSETS.teamNotes), loaded, zoomIn, zoomIn],
       demonstrates: ["editorVideo.transport:zoomed", "editorVideo.timeline:zoomed"],
     },
     "mute-all": {
