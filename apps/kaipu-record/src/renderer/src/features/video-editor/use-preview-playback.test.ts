@@ -1,7 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
+import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrackItem } from "./scene";
-import { toLayout } from "./timeline";
+import { removeItem, splitClipAt, toLayout, trimClip } from "./timeline";
 import { usePreviewPlayback } from "./use-preview-playback";
 
 const clip = (id: string, sourceStart: number, sourceEnd: number): TrackItem => ({
@@ -1080,5 +1081,98 @@ describe("usePreviewPlayback — the native ended path", () => {
     expect(seeks).toEqual([0]);
     expect(result.current.playing).toBe(true);
     expect(result.current.timelineTime).toBe(0);
+  });
+});
+
+// Editing while playing: the layout prop changes under a running hook. A split gives both
+// halves NEW ids, so the remembered clip id no longer exists and the active clip has to be
+// found again by position; a trim moves the cut the next hand-off must use.
+function setupEditRig(items: TrackItem[], speed: number) {
+  const hook = renderHook(({ list }) => usePreviewPlayback(useMemo(() => toLayout(list), [list])), {
+    initialProps: { list: items },
+  });
+  const rig = makeSeekRecordingVideo();
+  hook.result.current.videoRef.current = rig.video;
+  act(() => hook.result.current.setSpeed(speed));
+  const edit = (list: TrackItem[]) => hook.rerender({ list });
+  return { ...hook, ...rig, edit };
+}
+
+describe.each([1, 2])("usePreviewPlayback — editing the layout while playing, at %sx", (speed) => {
+  const WHOLE_THEN_SLIDE = [clip("x", 0, 10), slide("s1", 3)];
+
+  it.each([4, 7])(
+    "a split with the playhead at source %s hands off at the right cut afterwards",
+    (at) => {
+      const { result, seeks, playTo, edit } = setupEditRig(WHOLE_THEN_SLIDE, speed);
+      act(() => result.current.play());
+      playTo(at);
+      frame();
+
+      const split = splitClipAt(WHOLE_THEN_SLIDE, 5);
+      expect(split.map((item) => item.id)).not.toContain("x"); // both halves got new ids
+      edit(split);
+      frame();
+
+      playFrames(playTo, speed, at + 0.1, 9.9); // on through the footage, over the split at 5 when before it
+      expect(seeks).toEqual([]);
+      expect(result.current.activeSlideId).toBeNull();
+      expect(result.current.playing).toBe(true);
+
+      playTo(10.2); // past the cut of the second half: the slide follows at timeline 10
+      frame();
+      expect(result.current.activeSlideId).toBe("s1");
+      expect(result.current.timelineTime).toBe(10);
+      expect(seeks).toEqual([]);
+    },
+  );
+
+  it("trimming the end below the playhead hands off at the new cut", () => {
+    const items = [clip("x", 0, 10), clip("y", 20, 25)];
+    const { result, seeks, playTo, edit } = setupEditRig(items, speed);
+    act(() => result.current.play());
+    playTo(7);
+    frame();
+    expect(seeks).toEqual([]);
+
+    edit(trimClip(items, "x", "end", 5)); // x now ends at 5; the video is already at 7
+    frame();
+
+    expect(seeks).toEqual([20]); // straight to y, which now starts at timeline 5
+    expect(result.current.timelineTime).toBe(5);
+    expect(result.current.playing).toBe(true);
+  });
+
+  it("trimming the end below the playhead enters a slide that follows the clip", () => {
+    const items = [clip("x", 0, 10), slide("s1", 3)];
+    const { result, seeks, playTo, edit } = setupEditRig(items, speed);
+    act(() => result.current.play());
+    playTo(7);
+    frame();
+
+    edit(trimClip(items, "x", "end", 5));
+    frame();
+
+    expect(result.current.activeSlideId).toBe("s1");
+    expect(result.current.timelineTime).toBe(5);
+    expect(seeks).toEqual([]);
+  });
+
+  it("deleting the active clip while playing snaps to the next kept clip", () => {
+    const items = [clip("a", 0, 5), clip("b", 5, 10), clip("c", 20, 25)];
+    const { result, seeks, playTo, edit } = setupEditRig(items, speed);
+    act(() => result.current.play());
+    playTo(7); // inside b
+    frame();
+
+    edit(removeItem(items, "b")); // the footage under the element is deleted now
+    frame();
+    expect(seeks).toEqual([]); // the frame loop holds the last time; it does not guess
+
+    act(() => result.current.onVideoTimeUpdate());
+
+    expect(seeks).toEqual([20]);
+    expect(result.current.timelineTime).toBe(5); // c starts right after a
+    expect(result.current.playing).toBe(true);
   });
 });
