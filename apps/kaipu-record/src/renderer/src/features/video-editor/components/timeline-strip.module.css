@@ -27,6 +27,10 @@
      padding is where that room used to come from; this takes it from there again with the
      negative margin below, so a timeline at fit is laid out exactly as before zoom existed. */
   --lane-end: 8px;
+  /* The strip under the last lane that the horizontal scrollbar gets (see padding-bottom
+     below). .playheadLayer stops above it, so the playhead and the hover line end at the
+     last lane instead of crossing the scrollbar. */
+  --lane-bottom: 8px;
   /* The lanes column is `--zoom` lane widths wide (set by TimelineStrip; 1 = fit, the
      whole recording in the visible width, which is what 1fr was). `100%` is this
      container's content box, so the same expression sizes the grid and .playheadLayer. */
@@ -56,8 +60,8 @@
   /* A scrollbar that overlays content (macOS with a trackpad) would sit on the last lane.
      This padding gives it a strip of its own, and the negative margin gives the height
      back, so a timeline at fit is exactly as tall as before zoom existed. */
-  padding-bottom: 8px;
-  margin-bottom: -8px;
+  padding-bottom: var(--lane-bottom);
+  margin-bottom: calc(-1 * var(--lane-bottom));
 }
 
 /* Sticky, not outside the scroller: the label rows must line up with the lane rows, and
@@ -121,7 +125,7 @@
 .playheadLayer {
   position: absolute;
   top: 0;
-  bottom: 0;
+  bottom: var(--lane-bottom);
   left: calc(var(--lane-label-w) + var(--lane-gap));
   width: calc((100% - var(--lane-label-w) - var(--lane-gap) - var(--lane-end)) * var(--zoom, 1));
   pointer-events: none;

@@ -311,11 +311,11 @@ describe("following the playhead", () => {
     expect(store.getState().scroll).toBeGreaterThan(100);
   });
 
-  it("a scroll the follow itself made is not the user taking over", () => {
+  it("a scroll that is not a pan does not take the view from the playhead", () => {
     const store = zoomed();
     store.follow(21);
     const after = store.getState().scroll;
-    store.scrollTo(after, "follow"); // the strip echoing its own scroll event
+    store.scrollTo(after, "follow"); // a scroll that is not a pan (production never sends "follow")
     store.follow(45);
     expect(store.getState().scroll).toBeGreaterThan(after);
   });
