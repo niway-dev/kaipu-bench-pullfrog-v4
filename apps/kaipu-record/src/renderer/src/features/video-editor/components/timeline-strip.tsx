@@ -136,6 +136,13 @@ export function TimelineStrip({
   const setEditDrag = useCallback((active: boolean) => {
     editDragRef.current = active;
   }, []);
+  // Backstop for the same flag: the handles end their own drag when they go away (see
+  // TrackBlock), but a flag that stuck would silently stop every paused seek from being
+  // revealed, so it also comes down whenever the selection changes. Nothing starts a handle
+  // drag without a selected clip, and no drag survives its selection.
+  useEffect(() => {
+    editDragRef.current = false;
+  }, [selectedItemId]);
   // The scroll position the strip itself last put on the element, so the scroll event it
   // causes is not mistaken for the user panning.
   const appliedScrollRef = useRef(0);
@@ -630,6 +637,36 @@ function TrackBlock({
     mapping: TimelineView | null;
     last: number;
   } | null>(null);
+
+  // The handles exist only while the block is selected, and a captured pointer is not
+  // released by their leaving: Esc (the page's clearSelection()), another selection or a
+  // deleted clip unmounts the handle mid-drag, the browser then sends `lostpointercapture` to
+  // the document instead of the gone element, and neither handler's finish() ever runs. This
+  // ends the drag by hand: the strip's drag flag comes down (or a paused seek would never
+  // scroll an off-screen playhead into view again) and the page gets its "end" (or the scene
+  // stays owned by a drag that no longer exists). The latest callbacks are read from a ref:
+  // the cleanup must not re-run, and so end the drag, whenever a parent re-renders.
+  const latest = useRef({ itemId: entry.itemId, onDragActive, onTrim, onSlideDuration });
+  latest.current = { itemId: entry.itemId, onDragActive, onTrim, onSlideDuration };
+  useEffect(() => {
+    if (!selected) return;
+    return () => {
+      const {
+        itemId,
+        onDragActive: setDragActive,
+        onTrim: trim,
+        onSlideDuration: slide,
+      } = latest.current;
+      const trimming = trimDrag.current;
+      const sliding = slideDrag.current;
+      if (!trimming && !sliding) return;
+      trimDrag.current = null;
+      slideDrag.current = null;
+      setDragActive(false);
+      if (trimming) trim?.(itemId, trimming.edge, trimming.last, "end");
+      if (sliding) slide?.(itemId, sliding.last, "end");
+    };
+  }, [selected]);
 
   const slideDurationHandlers = (): DragHandlers => {
     const finish = (): void => {

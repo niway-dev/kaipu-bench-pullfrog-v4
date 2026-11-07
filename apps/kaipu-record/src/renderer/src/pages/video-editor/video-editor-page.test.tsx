@@ -1806,6 +1806,50 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomAfter * LANE_WIDTH - LANE_WIDTH + 0.5);
   });
 
+  // Esc runs clearSelection(), which unmounts the trim handles. The handle held pointer
+  // capture, so the browser sends `lostpointercapture` to the document and the handle's own
+  // "drag ended" never fires (NIW2-667 review R2-1). Split and Delete are held back while a
+  // drag owns the scene, so a drag that never ends also leaves them dead.
+  const startTrimDragThenEscape = async (): Promise<HTMLElement> => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    zoomTo4x();
+    fireEvent.click(footer.querySelectorAll("button")[0]); // select the clip: its handles appear
+    const end = stubCapture(
+      await waitFor(() => {
+        const handle = document.querySelector<HTMLElement>('[data-trim-handle="end"]');
+        expect(handle).not.toBeNull();
+        return handle!;
+      }),
+    );
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 800 });
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(document.querySelector("[data-trim-handle]")).toBeNull());
+    return footer;
+  };
+
+  it("Escape in the middle of a trim drag ends the drag: Split here works again", async () => {
+    const footer = await startTrimDragThenEscape();
+    fireEvent.click(screen.getByRole("button", { name: "Forward" })); // 5 s: inside the clip
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Split here" }));
+    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+  });
+
+  it("Escape in the middle of a trim drag leaves a paused seek off screen revealed", async () => {
+    await startTrimDragThenEscape();
+    // The zoom buttons zoom around the centre: the lane shows 11.25..18.75 s of the 30.
+    for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await waitFor(() => expect(screen.getByText("0:25.0 / 0:30.0")).toBeInTheDocument());
+    // 25 s at 4x is 3333 px from the start of a 1000 px lane: unless the view scrolled to
+    // follow the seek, it sits 1833 px off the right edge.
+    await waitFor(() => {
+      const x = (25 * Number(scroller().dataset.zoom) * LANE_WIDTH) / 30 - scroller().scrollLeft;
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(LANE_WIDTH);
+    });
+  });
+
   it("starts at 1x again when the editor is reopened: the view is not saved", async () => {
     renderEditor();
     await waitForEditorLoaded();

@@ -933,6 +933,141 @@ describe("a layout that changes during a drag", () => {
 });
 
 /**
+ * A handle that goes away in the middle of its own drag (NIW2-667 review R2-1). The trim and
+ * slide handles render only while their clip is selected, and Esc runs the page's
+ * clearSelection() (unlike split and delete it is not held back while a drag owns the scene).
+ * The handle held pointer capture: when a captured element leaves the DOM the browser sends
+ * `lostpointercapture` to the document, so React's onLostPointerCapture never runs and the
+ * drag's own finish() is never called. Two things then stayed wrong for good: the strip's
+ * "a handle is being dragged" flag (a paused seek no longer scrolled an off-screen playhead
+ * into view) and the page's begin/endInteract pair (the scene stayed "owned by a drag").
+ */
+describe("a handle that goes away in the middle of its drag", () => {
+  const slides = toLayout([
+    {
+      id: "s1",
+      kind: "slide",
+      assetId: "x",
+      duration: 40,
+      naturalWidth: 1920,
+      naturalHeight: 1080,
+    },
+    { id: "b", kind: "clip", sourceStart: 0, sourceEnd: 60 },
+  ] as TrackItem[]);
+
+  interface Case {
+    name: string;
+    layout: LayoutEntry[];
+    selected: string;
+    handle: string;
+  }
+  const cases: Case[] = [
+    { name: "trim", layout: twoClips, selected: "a", handle: '[data-trim-handle="end"]' },
+    { name: "slide-duration", layout: slides, selected: "s1", handle: "[data-slide-handle]" },
+  ];
+
+  function setup(c: Case): {
+    store: TimelineViewStore;
+    container: HTMLElement;
+    onTrim: Mock;
+    onSlideDuration: Mock;
+    show: (selectedItemId: string | null, timelineTime?: number) => void;
+  } {
+    const onTrim = vi.fn();
+    const onSlideDuration = vi.fn();
+    const props = (selectedItemId: string | null, timelineTime: number): StripProps => ({
+      layout: c.layout,
+      selectedItemId,
+      onTrim,
+      onSlideDuration,
+      slideUrlFor: () => null,
+      playback: makePlayback({ timelineTime }),
+    });
+    // 100 s at 4x scrolled 1200: the lane shows 30..55 s; the playhead (5 s) is off to the left.
+    const r = renderZoomed(props(c.selected, 5));
+    return {
+      store: r.store,
+      container: r.container,
+      onTrim,
+      onSlideDuration,
+      show: (selectedItemId, timelineTime = 5) =>
+        r.rerender(strip(r.store, props(selectedItemId, timelineTime))),
+    };
+  }
+
+  const ends = (spy: Mock, phaseIndex: number): unknown[][] =>
+    spy.mock.calls.filter((call) => call[phaseIndex] === "end");
+
+  const inView = (store: TimelineViewStore, time: number): boolean => {
+    const x = xOf(store.getView(), time);
+    return x >= 0 && x <= LANE_WIDTH;
+  };
+
+  describe.each(cases)("a $name handle", (c) => {
+    it("is released when the clip is deselected mid-drag (Esc): the drag is reported as ended once", () => {
+      const { container, onTrim, onSlideDuration, show } = setup(c);
+      const handle = captureStubs(container.querySelector(c.handle) as HTMLElement);
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT + 400 });
+      expect(ends(onTrim, 3)).toHaveLength(0);
+      expect(ends(onSlideDuration, 2)).toHaveLength(0);
+
+      show(null); // Esc → clearSelection(): the handle unmounts under the pointer
+      expect(container.querySelector(c.handle)).toBeNull();
+      // The page maps "end" to endInteract(): without it the scene stays owned by the drag.
+      expect(ends(onTrim, 3)).toHaveLength(c.name === "trim" ? 1 : 0);
+      expect(ends(onSlideDuration, 2)).toHaveLength(c.name === "trim" ? 0 : 1);
+    });
+
+    it("lets a paused seek far off screen be revealed again after that", () => {
+      const { store, container, show } = setup(c);
+      const handle = captureStubs(container.querySelector(c.handle) as HTMLElement);
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT + 400 });
+      show(null);
+      const before = store.getState().scroll;
+      show(null, 90); // a keyboard or button seek to 90 s, nowhere near the lane
+      expect(inView(store, 90)).toBe(true);
+      expect(store.getState().scroll).not.toBe(before);
+    });
+
+    it("also lets go when another clip is selected instead", () => {
+      const { store, container, show } = setup(c);
+      const other = "b"; // a clip both layouts have
+      const handle = captureStubs(container.querySelector(c.handle) as HTMLElement);
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT + 400 });
+      show(other);
+      show(other, 90);
+      expect(inView(store, 90)).toBe(true);
+    });
+
+    it("an ordinary drag that ends with pointerup still ends exactly once, and deselecting afterwards adds nothing", () => {
+      const { store, container, onTrim, onSlideDuration, show } = setup(c);
+      const handle = captureStubs(container.querySelector(c.handle) as HTMLElement);
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT + 400 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: LANE_LEFT + 440 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: LANE_LEFT + 440 });
+      const trimEnds = ends(onTrim, 3).length;
+      const slideEnds = ends(onSlideDuration, 2).length;
+      expect(trimEnds + slideEnds).toBe(1);
+
+      show(null); // the drag is over: nothing is left to end
+      expect(ends(onTrim, 3)).toHaveLength(trimEnds);
+      expect(ends(onSlideDuration, 2)).toHaveLength(slideEnds);
+      show(null, 90);
+      expect(inView(store, 90)).toBe(true);
+    });
+
+    it("while the drag is live, a seek still does not move the view under it", () => {
+      const { store, container, show } = setup(c);
+      const handle = captureStubs(container.querySelector(c.handle) as HTMLElement);
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT + 400 });
+      const before = store.getState().scroll;
+      show(c.selected, 90);
+      expect(store.getState().scroll).toBe(before);
+    });
+  });
+});
+
+/**
  * Which ruler ticks keep their label. A labelled tick this close to the right END of the
  * content keeps its line but drops its text, which would hang past the end. The room is
  * measured in pixels against the content's right edge, not as a share of the whole
