@@ -1234,7 +1234,7 @@
     "playbackSpeedTitle": "Playback speed: click for {next}×",
     "timelineZoomOut": "Zoom out the timeline",
     "timelineZoomIn": "Zoom in the timeline",
-    "timelineZoomFit": "Fit",
+    "timelineZoomFit": "FIT",
     "timelineZoomFitTitle": "Fit the whole recording in the timeline",
     "timelineZoomSlider": "Timeline zoom",
     "timelineZoomValue": "Zoom {zoom}×",

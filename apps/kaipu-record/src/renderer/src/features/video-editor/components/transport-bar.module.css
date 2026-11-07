@@ -189,7 +189,6 @@
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
-  text-transform: uppercase;
   letter-spacing: 0.04em;
   cursor: pointer;
   transition:
@@ -292,6 +291,12 @@
   display: none;
 }
 
+/* The time's short form (the current time alone) is only for a bar too narrow for the full
+   label; see the container queries at the end of this file. */
+.timeShort {
+  display: none;
+}
+
 /* Measured at the editor's 1180 px floor (stage 827 px, side columns ~336 px): the
    Spanish sentences need ~344 px (more with 2-digit counts), so both counts were cut
    to "4 zooms detectad…". Below 880 px of bar the short form ("4 zooms") shows instead,
@@ -308,5 +313,48 @@
 
   .countShort {
     display: inline;
+  }
+}
+
+/*
+ * The right cluster (split, delete, mute, speed, the timeline zoom, fullscreen) and the time
+ * label share the right column: the label hangs off the centre column's right edge into it
+ * (see .timeDisplay), so the column must hold the label AND the cluster. Measured in the real
+ * app (NIW2-667; the 10:05 recording, so the widest label, both counts, English and Spanish):
+ * the bar is the window minus 388 px, each side column is (bar - 156) / 2, the label is
+ * 116 px (108 for under 10 minutes) and hangs 12 px off the centre, and the cluster is
+ * 176 px without the zoom control and, with it, 293 px (en) / 306 px (es) as `− FIT +`,
+ * 369 px (en) / 397 px (es) with the slider. So the cluster plus the full label (128 px) fits
+ * from a bar of 1230 px with the slider, 1050 px without it; the current time alone
+ * (about 56 px with its gap) fits `− FIT +` from 860 px; and at the editor's 1180 px floor
+ * (bar 792, side columns 318) only `− +` fits. Each query drops one thing, in the order
+ * that costs least: the slider (the wheel and the buttons do the same), the total (the
+ * ruler ends on it), then FIT (`−` steps back to it). Re-measure with
+ * `verify/timeline-zoom.verify.ts` whenever a control joins the right cluster or the label
+ * grows.
+ */
+@container transport (max-width: 1230px) {
+  .zoomSlider {
+    display: none;
+  }
+}
+
+@container transport (max-width: 1050px) {
+  .timeFull {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .timeShort {
+    display: inline;
+  }
+}
+
+@container transport (max-width: 860px) {
+  .fitButton {
+    display: none;
   }
 }

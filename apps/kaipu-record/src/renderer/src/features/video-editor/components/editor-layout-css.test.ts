@@ -65,3 +65,46 @@ describe("tool rail and picture", () => {
     expect(region).toMatch(/padding:\s*12px;/);
   });
 });
+
+describe("timeline zoom layout (NIW2-667)", () => {
+  const strip = css("timeline-strip.module.css");
+  const body = rule(strip, ".timelineBody");
+
+  it("scrolls horizontally in one container and sizes the lanes column by --zoom", () => {
+    expect(body).toMatch(/overflow-x:\s*auto;/);
+    expect(body).toMatch(
+      /grid-template-columns:\s*var\(--lane-label-col\) calc\(\(100% - var\(--lane-label-col\) - var\(--lane-inset\)\) \* var\(--zoom, 1\)\);/,
+    );
+  });
+
+  it("the playhead layer is as wide as the lanes column, so it cannot drift from the ruler", () => {
+    // The grid's `100%` is the content box (clientWidth minus the right padding, which is
+    // one inset); the layer's is the padding box (clientWidth). Taking the extra inset off
+    // the layer's side makes both the same width at every zoom.
+    expect(body).toMatch(/padding-right:\s*var\(--lane-inset\);/);
+    const layer = rule(strip, ".playheadLayer");
+    expect(layer).toMatch(
+      /width:\s*calc\(\(100% - var\(--lane-label-col\) - 2 \* var\(--lane-inset\)\) \* var\(--zoom, 1\)\);/,
+    );
+    expect(layer).toMatch(/left:\s*calc\(var\(--lane-label-col\) \+ var\(--lane-inset\)\);/);
+  });
+
+  it("the labels stay put and cover their whole row, including the 3px between rows", () => {
+    const label = rule(strip, ".laneLabel");
+    expect(label).toMatch(/position:\s*sticky;/);
+    expect(label).toMatch(/left:\s*0;/);
+    expect(label).toMatch(/align-self:\s*stretch;/);
+    expect(label).toMatch(/box-shadow:\s*0 3px 0 0 var\(--bg-panel\);/);
+    expect(label).toMatch(/background:\s*var\(--bg-panel\);/);
+  });
+
+  it("leaves room for the edge handles that sit half outside their block", () => {
+    expect(body).toMatch(/--lane-inset:\s*6px;/);
+    expect(body).toMatch(/column-gap:\s*var\(--lane-inset\);/);
+  });
+
+  it("gives a fit timeline its old height: the scrollbar's strip is taken back by a negative margin", () => {
+    expect(body).toMatch(/padding-bottom:\s*8px;/);
+    expect(body).toMatch(/margin-bottom:\s*-8px;/);
+  });
+});

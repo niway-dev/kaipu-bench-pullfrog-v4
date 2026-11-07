@@ -215,6 +215,29 @@ describe("the ruler and the track at 4x, scrolled", () => {
   });
 });
 
+describe("the inset the stylesheet leaves for edge handles", () => {
+  it("is part of the lane's geometry: the lane starts after the labels AND the inset, and ends before the right one", () => {
+    const playback = makePlayback();
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(100);
+    const { container } = render(strip(store, { playback }));
+    const body = container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement;
+    // What `.timelineBody` declares (jsdom loads no stylesheet, so say it inline).
+    body.style.setProperty("--lane-inset", "6px");
+    const ruler = captureStubs(container.querySelector('[data-testid="ruler"]') as HTMLElement);
+    // The lane is 1000 - 12 = 988 px wide and starts at 220 + 6: 10 s at fit is 98.8 px.
+    const seekedTo = (clientX: number): number => {
+      fireEvent.pointerDown(ruler, { pointerId: 1, clientX });
+      return (playback.seek as Mock).mock.lastCall![0] as number;
+    };
+    expect(seekedTo(226)).toBeCloseTo(0, 9);
+    expect(seekedTo(226 + 494)).toBeCloseTo(50, 9);
+    expect(seekedTo(226 + 988)).toBeCloseTo(100, 9);
+    expect(store.getState().laneWidth).toBe(988);
+  });
+});
+
 describe("trim and slide handles at 4x, scrolled", () => {
   it("a trim handle moves by the pointer distance over the 4x scale, not the 1x scale", () => {
     const onTrim = vi.fn();

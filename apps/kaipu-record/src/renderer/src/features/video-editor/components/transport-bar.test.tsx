@@ -473,3 +473,48 @@ describe("TransportBar — timeline zoom", () => {
     expect(fit()).toBeDisabled();
   });
 });
+
+describe("TransportBar — a narrow bar sheds the least valuable thing first (NIW2-667)", () => {
+  const css = (): string => readFileSync(resolve(__dirname, "transport-bar.module.css"), "utf8");
+  /** The declarations of the `@container transport (max-width: Npx)` block naming `selector`. */
+  const widthThatHides = (selector: string): number => {
+    const blocks = [
+      ...css().matchAll(/@container transport \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/g),
+    ];
+    const block = blocks.find(([, , body]) => body!.includes(selector));
+    if (!block) throw new Error(`no container query for ${selector}`);
+    return Number(block[1]);
+  };
+
+  it("keeps the full time for screen readers and gives the narrow form only the current time", () => {
+    renderBar({ timelineTime: 9, duration: 29 });
+    // The full label is the one a test (and a screen reader) finds by its text...
+    expect(screen.getByText("0:09.0 / 0:29.0")).toBeInTheDocument();
+    // ...and the short form is a hidden duplicate of the current time alone.
+    const short = screen.getByText("0:09.0");
+    expect(short).toHaveAttribute("aria-hidden", "true");
+    expect(short.className).toMatch(/timeShort/);
+  });
+
+  it("drops things in the order slider, then the total, then FIT", () => {
+    const slider = widthThatHides(".zoomSlider");
+    const total = widthThatHides(".timeShort");
+    const fit = widthThatHides(".fitButton");
+    expect(slider).toBeGreaterThan(total);
+    expect(total).toBeGreaterThan(fit);
+  });
+
+  it("the narrow form takes the full label out of the layout but not out of the accessibility tree", () => {
+    const block = css().match(
+      /@container transport \(max-width: \d+px\) \{\s*\.timeFull \{([^}]*)\}/,
+    )![1]!;
+    expect(block).toMatch(/position:\s*absolute/);
+    expect(block).toMatch(/clip:\s*rect\(0 0 0 0\)/);
+    expect(block).not.toMatch(/display:\s*none/);
+  });
+
+  it("the time label still hangs off the centre column so play stays centred", () => {
+    const rule = css().match(/\.timeDisplay\s*\{[^}]*\}/)![0];
+    expect(rule).toMatch(/position:\s*absolute/);
+  });
+});

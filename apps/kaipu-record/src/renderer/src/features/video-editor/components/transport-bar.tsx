@@ -259,8 +259,16 @@ export function TransportBar({
         >
           <SkipForward size={15} />
         </button>
+        {/* The full "0:09.0 / 0:29.0", or just the current time once the bar is too narrow
+            for the buttons AND the whole label (a container query in the CSS): the same
+            full-and-short pair the counts use, the full text staying for screen readers. */}
         <span className={styles.timeDisplay}>
-          {formatTime(timelineTime)} / {formatTime(duration)}
+          <span className={styles.timeFull}>
+            {formatTime(timelineTime)} / {formatTime(duration)}
+          </span>
+          <span className={styles.timeShort} aria-hidden="true">
+            {formatTime(timelineTime)}
+          </span>
         </span>
       </div>
       <div className={`${styles.side} ${styles.right}`}>

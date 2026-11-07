@@ -205,8 +205,11 @@ async function readNumbers(bar: Locator): Promise<string> {
     const t = time.getBoundingClientRect();
     const slider = el.querySelector<HTMLElement>("input[type='range']");
     const sliderBox = slider?.getBoundingClientRect();
+    const shown = (node: Element | null | undefined): boolean | null =>
+      node ? getComputedStyle(node).display !== "none" : null;
+    const buttons2 = Array.from(right.querySelectorAll("button")) as HTMLElement[];
+    const fitButton = buttons2.find((b) => /^(FIT|Fit|Ajustar)$/.test(b.textContent ?? ""));
     const leftBox = left.getBoundingClientRect();
-    const leftScroll = left.scrollWidth - left.clientWidth;
     return JSON.stringify({
       barWidth: Math.round(el.getBoundingClientRect().width),
       rightColumn: Math.round(rightBox.width),
@@ -215,11 +218,14 @@ async function readNumbers(bar: Locator): Promise<string> {
       // Negative = clear space between the label and the first right-hand button.
       overlap: Math.round(t.right - first.left),
       oneLine: Math.round(el.getBoundingClientRect().height),
-      sliderShown: slider ? getComputedStyle(slider).display !== "none" : null,
+      sliderShown: shown(slider),
       sliderWidth: sliderBox ? Math.round(sliderBox.width) : null,
+      fitShown: shown(fitButton),
+      totalShown: shown(time.firstElementChild)
+        ? getComputedStyle(time.firstElementChild!).position !== "absolute"
+        : null,
       leftColumn: Math.round(leftBox.width),
-      leftClipped: leftScroll,
-      timeText: time.textContent,
+      leftClipped: left.scrollWidth - left.clientWidth,
     });
   });
 }
@@ -227,7 +233,7 @@ async function readNumbers(bar: Locator): Promise<string> {
 const timeText = (page: Page): Promise<string> =>
   page.locator("[data-ui-area='editorVideo.transport']").evaluate((el) => {
     const time = (el.children[1] as HTMLElement).lastElementChild as HTMLElement;
-    return time.textContent ?? "";
+    return (time.firstElementChild ?? time).textContent ?? "";
   });
 
 function parseClock(text: string): { now: number; total: number } {
@@ -267,9 +273,9 @@ for (const locale of ["en", "es"] as const) {
 
       // 10:05 recording, both counts (2 zooms, 1 privacy region): the widest bar there is.
       await shot("default");
-      await shot("1440", [1440, 900]);
-      await shot("1180", [1180, 800]);
-      await shot("1280", [1280, 800]);
+      for (const width of [1440, 1180, 1280, 1366, 1536, 1600, 1920]) {
+        await shot(String(width), [width, 900]);
+      }
     } finally {
       try {
         await teardown();

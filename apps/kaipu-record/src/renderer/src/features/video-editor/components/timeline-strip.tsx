@@ -137,7 +137,8 @@ export function TimelineStrip({
   const view = useMemo(() => clampView({ ...viewState, duration }), [viewState, duration]);
 
   // The lane's place on screen, read live: the strip's left edge plus the (sticky) label
-  // column. Nothing is cached, so a window resize or a layout shift cannot leave a stale
+  // column and the inset the stylesheet leaves for edge handles (--lane-inset, on both
+  // sides). Nothing is cached, so a window resize or a layout shift cannot leave a stale
   // number behind a pointer conversion.
   const measureLane = useCallback((): { laneLeft: number; laneWidth: number } | null => {
     const body = bodyRef.current;
@@ -145,7 +146,11 @@ export function TimelineStrip({
     if (!body || !corner) return null;
     const bodyRect = body.getBoundingClientRect();
     const labels = corner.getBoundingClientRect().width;
-    return { laneLeft: bodyRect.left + labels, laneWidth: Math.max(0, bodyRect.width - labels) };
+    const inset = parseFloat(getComputedStyle(body).getPropertyValue("--lane-inset")) || 0;
+    return {
+      laneLeft: bodyRect.left + labels + inset,
+      laneWidth: Math.max(0, bodyRect.width - labels - 2 * inset),
+    };
   }, []);
 
   // The view as it is right now: the store's zoom, the DOM's scroll (the user's wheel can

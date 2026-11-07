@@ -23,12 +23,20 @@
      because a sticky label has to cover the gap too, or lanes would show through it. */
   --lane-label-w: 112px;
   --lane-label-col: calc(var(--lane-label-w) + var(--space-sm));
+  /* Room on both sides of the lanes for the trim and edge handles, which sit half outside
+     the block they belong to: without it the first clip's start handle would be half under
+     the sticky label and the last clip's end handle half cut off by the scroll container
+     (4 px left of an 8 px target). The gap column gives the left, .timelineBody's right
+     padding the right; TimelineStrip reads this variable to place its pixel conversions. */
+  --lane-inset: 6px;
   /* The lanes column is `--zoom` lane widths wide (set by TimelineStrip; 1 = fit, the
      whole recording in the visible width). `100%` is this container's content box, so the
      same expression sizes the grid and .playheadLayer. */
-  grid-template-columns: var(--lane-label-col) calc((100% - var(--lane-label-col)) * var(--zoom, 1));
+  grid-template-columns: var(--lane-label-col) calc(
+      (100% - var(--lane-label-col) - var(--lane-inset)) * var(--zoom, 1)
+    );
   align-items: center;
-  column-gap: 0;
+  column-gap: var(--lane-inset);
   /* 3 px between lanes (Kaipu Black, NIW2-619). */
   row-gap: 3px;
   flex: 1;
@@ -41,21 +49,26 @@
      back, so a timeline at fit is exactly as tall as before zoom existed. */
   padding-bottom: 8px;
   margin-bottom: -8px;
+  padding-right: var(--lane-inset);
 }
 
 /* Sticky, not outside the scroller: the label rows must line up with the lane rows, and
    one grid does that for free. The background is opaque so lanes (and the playhead) scroll
-   UNDER the labels instead of through them. */
+   UNDER the labels instead of through them: the label fills its whole row (stretch, its
+   text centred) and the shadow carries the fill across the 3 px between rows, or the lanes
+   would show through those bands. */
 .laneLabel {
   position: sticky;
   left: 0;
   z-index: 4;
+  align-self: stretch;
   display: flex;
   align-items: center;
   gap: 6px;
   /* Includes the 8 px gap to the lanes (see --lane-label-col). */
   padding-right: var(--space-sm);
   background: var(--bg-panel);
+  box-shadow: 0 3px 0 0 var(--bg-panel);
   white-space: nowrap;
   overflow: hidden;
   font-family: var(--font-family);
@@ -78,15 +91,15 @@
 
 /* Covers the lanes column across every row; the playhead's left % is relative to it,
    i.e. to the CONTENT's width (zoom included), exactly like each lane's own blocks, and it
-   scrolls with them. --lane-label-col is inherited from .timelineBody, so the 120 px lives
-   in exactly one place. Below the labels (z-index 4), so a playhead scrolled off the left
+   scrolls with them. --lane-label-col and --lane-inset are inherited from .timelineBody, so
+   they live in exactly one place. Below the labels (z-index 4), so a playhead scrolled off the left
    edge disappears under them instead of drawing over their text. */
 .playheadLayer {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: var(--lane-label-col);
-  width: calc((100% - var(--lane-label-col)) * var(--zoom, 1));
+  left: calc(var(--lane-label-col) + var(--lane-inset));
+  width: calc((100% - var(--lane-label-col) - 2 * var(--lane-inset)) * var(--zoom, 1));
   pointer-events: none;
   z-index: 3;
 }
