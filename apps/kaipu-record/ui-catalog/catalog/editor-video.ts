@@ -194,9 +194,14 @@ export const editorVideo = catalog(
             value,
           }),
         ),
+        saved,
       ],
       demonstrates: ["editorVideo.background:set"],
       ready: { video: true },
+      // The background saved into the vault (autosave, then a flush on unmount): without this the
+      // later states that open “Walkthrough 1” find the magenta frame, and the shot can race the
+      // “Saving…” chip.
+      after: [{ action: "restoreVault" }],
     },
     "tool-box": {
       profile: "default",
