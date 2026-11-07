@@ -536,28 +536,28 @@ describe("a cut while zoomed", () => {
     expect(body.scrollLeft).toBe(3000);
   });
 
-  it("drops the zoom to what the remaining footage allows and re-clamps the scroll", () => {
+  it("keeps 800% when the take gets shorter (the cap does not depend on the duration) and re-clamps the scroll", () => {
     stubGeometry();
     const store = createTimelineViewStore();
     store.setDuration(100);
     const utils = render(strip(store));
     act(() => {
-      store.zoomTo(20);
-      store.scrollTo(17_000, "user");
+      store.zoomTo(8);
+      store.scrollTo(7000, "user");
     });
     const body = utils.container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement;
-    expect(body.scrollLeft).toBe(17_000);
+    expect(body.scrollLeft).toBe(7000);
     const shorter = toLayout([
       { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 40 },
     ] as TrackItem[]);
     act(() => store.setDuration(40));
     utils.rerender(strip(store, { layout: shorter, playback: makePlayback({ duration: 40 }) }));
     const view = store.getView();
-    expect(view.zoom).toBeCloseTo(9.6, 6); // 240 px/s over 40 s in 1000 px
-    // The left edge was at 85 s (17 000 px at 200 px/s): past the 40 s that are left, so the
-    // scroll lands on the very end of the shorter content, 9.6 x 1000 - 1000 px.
+    expect(view.zoom).toBe(8);
+    // The left edge was at 87.5 s (7000 px at 80 px/s): past the 40 s that are left, so the
+    // scroll lands on the very end of the shorter content, 8 x 1000 - 1000 px.
     expect(view.scroll).toBeCloseTo(view.zoom * LANE_WIDTH - LANE_WIDTH, 6);
-    expect(body.scrollLeft).toBeCloseTo(8600, 6);
+    expect(body.scrollLeft).toBeCloseTo(7000, 6);
     expect(body.dataset.zoom).toBe(String(view.zoom));
   });
 });
@@ -664,10 +664,7 @@ describe("following the playhead", () => {
     const { store, tick } = playingStrip();
     tick(20); // x = 800 at 4x: at the mark, no page turn yet
     expect(store.getState().scroll).toBe(0);
-    act(() => {
-      store.zoomStep(1);
-      store.zoomStep(1);
-    }); // 8x around the centre: the playhead at 20 s is now off the right edge
+    act(() => store.zoomStep(1)); // 4x → 8x around the centre: the playhead at 20 s is now off the right edge
     tick(20);
     const x = xOf(store.getView(), 20);
     expect(x).toBeGreaterThanOrEqual(0);
@@ -1229,8 +1226,8 @@ describe("the scrolled marker on the scroll container", () => {
  * Which ruler ticks keep their label. A labelled tick this close to the right END of the
  * content keeps its line but drops its text, which would hang past the end. The room is
  * measured in pixels against the content's right edge, not as a share of the whole
- * timeline: at 16x the old "last 4 %" rule left the final 4 s of a 100 s take without any
- * label, which is about two thirds of the screenful at the end.
+ * timeline: at 800% the old "last 4 %" rule left the final 4 s of a 100 s take without any
+ * label, which is a third of the screenful at the end.
  */
 describe("ruler labels near the end of the content", () => {
   function rulerLabels(container: HTMLElement): string[] {
@@ -1281,10 +1278,10 @@ describe("ruler labels near the end of the content", () => {
     expect(rulerLabels(container)).toContain("1:45");
   });
 
-  it("at 16x the final viewport of a 100 s take is labelled, up to the last second but one", () => {
-    // 160 px/s, a label every second, scrolled to the end: the lane shows 93.75..100 s.
-    const labels = rulerLabels(renderAt(100, 16, 1e9));
-    for (const label of ["1:34", "1:35", "1:36", "1:37", "1:38", "1:39"]) {
+  it("at 800% the final viewport of a 100 s take is labelled, up to the last label before the end", () => {
+    // 80 px/s, a label every 2 s, scrolled to the end: the lane shows 87.5..100 s.
+    const labels = rulerLabels(renderAt(100, 8, 1e9));
+    for (const label of ["1:28", "1:30", "1:32", "1:34", "1:36", "1:38"]) {
       expect(labels).toContain(label);
     }
     // 1:40 sits ON the end: its text would hang past it, so only its line is drawn.
@@ -1301,30 +1298,30 @@ describe("ruler labels near the end of the content", () => {
       strip(store, { layout: clipOf(100), playback: makePlayback({ duration: 100 }) }),
     );
     act(() => {
-      store.zoomTo(16);
+      store.zoomTo(8);
       store.scrollTo(0, "user");
     });
     const atStart = rulerLabels(container);
-    expect(atStart).toContain("0:01");
-    expect(atStart).not.toContain("1:35");
+    expect(atStart).toContain("0:02");
+    expect(atStart).not.toContain("1:36");
 
     act(() => store.scrollTo(1e9, "user"));
     const atEnd = rulerLabels(container);
-    expect(atEnd).toContain("1:35");
-    expect(atEnd).not.toContain("0:01");
+    expect(atEnd).toContain("1:36");
+    expect(atEnd).not.toContain("0:02");
 
     act(() => store.scrollTo(0, "user"));
     expect(rulerLabels(container)).toEqual(atStart);
   });
 
-  it("at the deepest zoom of a 10-minute take (240 px/s) the last seconds are labelled too", () => {
-    // Half-second labels, 120 px apart, the lane shows 595.8..600 s. The old rule dropped
-    // every label from 576 s on, so this stretch of the ruler was blank.
+  it("at the deepest zoom of a 10-minute take (800%) the last labels are there too", () => {
+    // 13.3 px/s, a label every 10 s, 133 px apart; the lane shows 525..600 s. The old rule
+    // dropped every label from 576 s on, so this stretch of the ruler was blank.
     const labels = rulerLabels(renderAt(600, 1e9, 1e9));
-    for (const label of ["9:56.0", "9:57.0", "9:58.0", "9:59.0", "9:59.5"]) {
+    for (const label of ["9:20", "9:30", "9:40", "9:50"]) {
       expect(labels).toContain(label);
     }
-    expect(labels).not.toContain("10:00.0");
+    expect(labels).not.toContain("10:00");
   });
 });
 
@@ -1363,7 +1360,7 @@ describe("thumbnails at high zoom", () => {
       strip(store, { layout: long, playback: makePlayback({ duration: 240 }), thumbnails }),
     );
     act(() => {
-      store.zoomTo(16);
+      store.zoomTo(8);
       store.scrollTo(5000, "user");
     });
     const view = store.getView();
@@ -1405,7 +1402,7 @@ describe("thumbnails at high zoom", () => {
       strip(store, { layout: long, playback: makePlayback({ duration: 240 }), thumbnails }),
     );
     act(() => {
-      store.zoomTo(16);
+      store.zoomTo(8);
       store.scrollTo(0, "user");
     });
     const first = container.querySelectorAll("img").length;
@@ -1415,7 +1412,7 @@ describe("thumbnails at high zoom", () => {
     expect(second).toBeLessThan(30);
   });
 
-  it("the ruler is windowed too: a 4-minute take at 16x does not build every tick", () => {
+  it("the ruler is windowed too: a 4-minute take at 800% does not build every tick", () => {
     stubGeometry();
     const store = createTimelineViewStore();
     store.setDuration(240);
@@ -1423,7 +1420,7 @@ describe("thumbnails at high zoom", () => {
       strip(store, { layout: long, playback: makePlayback({ duration: 240 }), thumbnails }),
     );
     act(() => {
-      store.zoomTo(16);
+      store.zoomTo(8);
       store.scrollTo(5000, "user");
     });
     const ruler = container.querySelector('[data-testid="ruler"]') as HTMLElement;

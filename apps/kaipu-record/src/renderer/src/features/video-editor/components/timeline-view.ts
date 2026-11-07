@@ -25,11 +25,15 @@ export interface TimelineView {
   duration: number;
 }
 
-/** The deepest zoom: one second of timeline is this wide (a 30 fps frame is 8 px). */
-export const MAX_PX_PER_SECOND = 240;
+/**
+ * The deepest zoom, relative to fit: 8 reads as 800% in the UI (NIW2-675). A factor, not a
+ * pixel scale, so it is the same for a 10 s clip and a one-hour take; the owner judged 8x
+ * enough, and a take so long that 8x is still coarse is accepted.
+ */
+export const MAX_ZOOM = 8;
 
-/** `−` and `+` step the zoom by this factor (two steps double it). */
-export const ZOOM_STEP = Math.SQRT2;
+/** `−` and `+` move between these whole levels (100%, 200%, 400%, 800%). */
+export const ZOOM_STEPS: readonly number[] = [1, 2, 4, 8];
 
 /** While playing, the view scrolls once the playhead passes this share of the lane. */
 export const FOLLOW_EDGE = 0.8;
@@ -63,10 +67,29 @@ function fitScale(laneWidth: number, duration: number): number {
   return laneWidth > 0 && duration > 0 ? laneWidth / duration : 0;
 }
 
-/** The highest zoom for this lane and duration. At least 1: a short clip never zooms out. */
+/**
+ * The highest zoom: {@link MAX_ZOOM} for any measured lane and duration, 1 while either is
+ * unmeasured (an empty timeline has nothing to zoom into).
+ */
 export function maxZoom(laneWidth: number, duration: number): number {
-  const fit = fitScale(laneWidth, duration);
-  return fit > 0 ? Math.max(1, MAX_PX_PER_SECOND / fit) : 1;
+  return fitScale(laneWidth, duration) > 0 ? MAX_ZOOM : 1;
+}
+
+/**
+ * The level `+` (`direction` 1) or `−` (-1) goes to: the next whole step strictly above or
+ * below `zoom`, so from an in-between level (480% after a wheel zoom) `+` lands on 800% and
+ * `−` on 400%. Holds at the ends: `+` at `max` and `−` at 1 return the same level. `max` is
+ * {@link maxZoom} for the lane; the result is always within `[1, max]`.
+ */
+export function stepZoom(zoom: number, direction: 1 | -1, max: number): number {
+  const ceiling = Math.max(1, max);
+  const current = clamp(finiteOr(zoom, 1), 1, ceiling);
+  // Strict, with a margin for float error: 4 reached by a multiplication may be 3.9999999.
+  const steps = ZOOM_STEPS.filter((step) => step <= ceiling);
+  if (direction > 0) {
+    return steps.find((step) => step > current + EPSILON) ?? current;
+  }
+  return [...steps].reverse().find((step) => step < current - EPSILON) ?? current;
 }
 
 /** Pixels per timeline second right now. */
@@ -206,13 +229,14 @@ export function visibleRange(view: TimelineView): { start: number; end: number }
 const zoomFormats = new Map<string, Intl.NumberFormat>();
 
 /**
- * A zoom factor as people read it in `locale`, always with one decimal: 4.0 in English, 4,0
- * in Spanish. Display only (the slider's accessible value); the zoom itself stays the number.
+ * A zoom factor as the whole percent people read it in `locale`: `100%`, `480%` in English,
+ * `100 %` (a no-break space) in Spanish. Used for the visible level and for the slider's
+ * accessible value; the zoom itself stays the number.
  */
 export function formatZoom(zoom: number, locale: string): string {
   let format = zoomFormats.get(locale);
   if (!format) {
-    format = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    format = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
     zoomFormats.set(locale, format);
   }
   return format.format(zoom);

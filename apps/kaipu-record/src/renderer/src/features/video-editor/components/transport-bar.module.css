@@ -206,6 +206,21 @@
   cursor: default;
 }
 
+/* The zoom level ("100%", "480%", "480 %" in Spanish), always on screen (NIW2-675): no width
+   query below hides it. A fixed width for the widest value ("800%", "800 %"), so the
+   buttons beside it do not move while the level changes, and the numbers the container
+   queries at the end of this file rely on stay put. */
+.zoomLevel {
+  box-sizing: border-box;
+  min-width: 5ch;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 /* Added on top of .iconButton. */
 .skipButton {
   border-color: transparent;
@@ -256,12 +271,14 @@
 
 /* Out of flow, so it takes no layout width: it overlaps the right cluster once the
    right `1fr` falls under the label's width plus the cluster's. At the editor's 1180 px
-   floor the right column is ~318 px (bar 792 px) and at 1440 px ~448 px; the label is 108 px
-   ("0:09.0 / 0:29.0") or 116 px for 10+ minutes and hangs 12 px off the centre. What that
-   leaves for the cluster, and what the narrow bar therefore drops (the slider, the total,
-   FIT), is worked out at the end of this file. The speed button is a fixed 40 px so its
-   label ("1x" to "1.5x") never moves the numbers. A wider centre column (it narrows both
-   sides) or one more right-hand button must re-check them. */
+   floor the right column is 318 px (bar 792 px) and at 1440 px 448 px; the label is 108 px
+   ("0:09.0 / 0:29.0") or 116 px for 10+ minutes, and starts on the column's left edge (it
+   hangs off the centre column, one grid gap before the column begins). What that leaves for
+   the cluster, and what the narrow bar therefore drops (the slider, FIT, the total), is
+   worked out at the end of this file. The speed button is a fixed 40 px and the zoom level a
+   fixed 5ch, so their text ("1x" to "1.5x", "100%" to "800%") never moves the numbers. A
+   wider centre column (it narrows both sides) or one more right-hand control must re-check
+   them. */
 .timeDisplay {
   position: absolute;
   top: 50%;
@@ -316,33 +333,49 @@
 
 /*
  * The right cluster (split, delete, mute, speed, the timeline zoom, fullscreen) and the time
- * label share the right column: the label hangs off the centre column's right edge into it
- * (see .timeDisplay), so the column must hold the label AND the cluster. Measured in the
- * real app (NIW2-667, `verify/timeline-zoom.verify.ts`: the 10:05 recording, so the widest
- * label, both counts, English and Spanish). The bar is the window minus 388 px; a container
- * query reads its CONTENT box (the bar minus its 24 px of padding), and each side column is
- * (that - 132) / 2. The label is 116 px (108 under 10 minutes) and hangs 12 px off the centre
- * column, 128 px in all; its short form (the current time) is 43 px, 55 px with the gap. The
- * cluster is 176 px without the zoom control and, with it, 281 px (en) / 309 px (es) as
- * `− FIT +`, 355 px (en) / 383 px (es) with the 72 px slider, and 250 px as `− +`.
+ * label share the right column: the label starts at the column's left edge, so the column
+ * must hold the label AND the cluster. Measured in the real app (NIW2-675,
+ * `verify/timeline-zoom.verify.ts`: the 10:05 recording, so the widest label, both counts,
+ * English and Spanish). The bar is the window minus 388 px; a container query reads its
+ * CONTENT box (the bar minus its 24 px of padding), and each side column is (that - 132) / 2.
+ * The label is 116 px (108 under 10 minutes); its short form (the current time) is 43 px. The
+ * level readout is 33 px (5ch) plus its 2 px gap. The right cluster measures:
  *
- * So the cluster plus the full label fits from a content box of about 1006 px (Spanish, the
- * longer FIT), the slider as well from about 1154 px, `− FIT +` beside the short time from
- * about 860 px, and at the editor's 1180 px floor (content 768, side columns 318) only `− +`
- * does, with 25 px to spare. Clear space measured between the label and the first button:
- * 51 px (en) / 23 px (es) at 1440, 25 px at 1180, 43 / 15 px at 1280. Each query below drops one thing, cheapest first: the slider
- * (the wheel and the buttons do the same), the time's total (the ruler ends on it), then FIT
- * (`−` steps back to it). The thresholds sit 2 to 6 px over the measured need. Re-measure whenever a
- * control joins the right cluster or the label grows, and `bun run verify -- timeline-zoom`
- * on the Mac mini prints the numbers.
+ *   `− level +`                    285 px (en and es)
+ *   `− FIT level +`                316 px (en) / 345 px (es, "Ajustar")
+ *   `− slider FIT level +`         390 px (en) / 419 px (es)
+ *
+ * So, with the full label, the whole cluster fits from a content box of 1202 px (es; 1144 en),
+ * without the slider from 1054 px (es; 996 en), `− level +` alone from 934 px; with the short
+ * time `− level +` needs 285 + 43 = 328 px of column, which is a content box of 788 px, 20 px
+ * more than the editor's 1180 px floor gives (768). The last query (792) therefore tightens
+ * the cluster by 14 px (gap 6 → 4 between the buttons, 4 → 2 px of padding in the zoom
+ * group): at 1180 px the column is 318 px, the cluster 271 px and the label 43 px, 4 px clear.
+ * Clear space measured between the label and the first right-hand button: 4 px at 1180, 40 px
+ * at 1280, 10 px at 1366 (full label), 47 px at 1440, 36 px (es) at 1536.
+ *
+ * Each query below drops one thing, cheapest first (NIW2-675): the slider (the wheel and the
+ * buttons do the same), then FIT (`−` steps back to it, and the level shows where you are),
+ * then the time's total (the ruler ends on it). `−`, the level and `+` are never hidden. The
+ * thresholds sit 2 to 4 px over the measured need of the longer (Spanish) text. In windows
+ * that means the slider shows from about 1620 px, FIT from about 1470 px and the full time
+ * from about 1350 px; the 1440 px window keeps `− level +` and the full time. Re-measure
+ * whenever a control joins the right cluster or the label grows: `bun run verify --
+ * timeline-zoom` on the Mac mini prints the numbers.
  */
-@container transport (max-width: 1160px) {
+@container transport (max-width: 1206px) {
   .zoomSlider {
     display: none;
   }
 }
 
-@container transport (max-width: 1012px) {
+@container transport (max-width: 1056px) {
+  .fitButton {
+    display: none;
+  }
+}
+
+@container transport (max-width: 938px) {
   .timeFull {
     position: absolute;
     width: 1px;
@@ -356,8 +389,12 @@
   }
 }
 
-@container transport (max-width: 866px) {
-  .fitButton {
-    display: none;
+@container transport (max-width: 792px) {
+  .right {
+    gap: 4px;
+  }
+
+  .zoomGroup {
+    padding: 0 2px;
   }
 }
