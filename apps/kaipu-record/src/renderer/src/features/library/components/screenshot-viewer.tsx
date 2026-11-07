@@ -19,6 +19,7 @@ interface ScreenshotViewerProps {
  *  with zoom controls under it: `−`, Fit and `+`. */
 export function ScreenshotViewer({ src, onNaturalSize }: ScreenshotViewerProps): React.JSX.Element {
   const t = useTranslations("prepare");
+  const tLibrary = useTranslations("library");
   const [failed, setFailed] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(FIT_INDEX);
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
@@ -48,7 +49,7 @@ export function ScreenshotViewer({ src, onNaturalSize }: ScreenshotViewerProps):
         ) : (
           <div className={styles.unavailable}>
             <ImageOff size={28} strokeWidth={1.5} />
-            Image unavailable
+            {tLibrary("imageUnavailable")}
           </div>
         )}
       </div>

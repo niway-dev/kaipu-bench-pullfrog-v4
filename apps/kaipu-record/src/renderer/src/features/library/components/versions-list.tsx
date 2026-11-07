@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Film, ImagePlay, Info, Pencil } from "lucide-react";
+import { Film, GripVertical, ImagePlay, Info, Pencil } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { LibraryVideo } from "@renderer/features/library/types";
 import { formatDuration, formatSize, relativeDate } from "@renderer/features/library/format";
@@ -16,6 +16,7 @@ import { type DestinationId, destinationOfPreset } from "@renderer/features/prep
 import { DESTINATION_COPY } from "@renderer/features/prepare/destination-copy";
 import { DestinationLogo } from "@renderer/features/prepare/components/destination-logo";
 import type { runningCopyOf } from "@renderer/features/prepare/running-copy";
+import { markCopySeen } from "@renderer/features/video-editor/export/ready-copies";
 import styles from "./versions-list.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
@@ -27,6 +28,9 @@ interface VersionsListProps {
   running: ReturnType<typeof runningCopyOf>;
   /** The source as read from the file: a destination copy's picture size follows from it. */
   probe: SourceProbe | null;
+  /** The list the page walks with previous and next; a row's link carries it along, so opening
+   *  another version keeps the walk (and its counter) instead of resetting to the whole library. */
+  order?: string[];
   now?: () => number;
 }
 
@@ -40,6 +44,7 @@ export function VersionsList({
   lineage,
   running,
   probe,
+  order,
   now = Date.now,
 }: VersionsListProps): React.JSX.Element {
   const t = useTranslations("library");
@@ -118,6 +123,7 @@ export function VersionsList({
           <Row
             assetId={master.assetId}
             current={viewing(master.assetId)}
+            order={order}
             viewingLabel={tPrepare("versionsViewing")}
             icon={<Thumb video={master} />}
             name={master.title}
@@ -194,6 +200,12 @@ export function VersionsList({
               key={copy.assetId}
               assetId={copy.assetId}
               current={viewing(copy.assetId)}
+              order={order}
+              dragSource={
+                copy.id !== null ? { id: copy.id, assetId: copy.assetId, title: copy.title } : null
+              }
+              dragLabel={t("copyDragLabel", { name })}
+              dragText={t("copyDrag")}
               viewingLabel={tPrepare("versionsViewing")}
               icon={
                 copy.thumbnailUrl ? (
@@ -217,6 +229,10 @@ export function VersionsList({
 function Row({
   assetId,
   current,
+  order,
+  dragSource = null,
+  dragLabel,
+  dragText,
   viewingLabel,
   icon,
   name,
@@ -225,6 +241,11 @@ function Row({
 }: {
   assetId: string;
   current: boolean;
+  order?: string[];
+  /** A local exported copy: its file can be dragged into another app. */
+  dragSource?: { id: string; assetId: string; title: string } | null;
+  dragLabel?: string;
+  dragText?: string;
   viewingLabel: string;
   icon: ReactNode;
   name: string;
@@ -241,19 +262,46 @@ function Row({
       <span className={styles.meta}>{facts}</span>
     </>
   );
+  const drag = dragSource && (
+    <button
+      type="button"
+      draggable
+      // Drag only: Enter and Space cannot drag; the row's own link opens the copy.
+      tabIndex={-1}
+      className={styles.drag}
+      aria-label={dragLabel}
+      title={dragLabel}
+      onDragStart={(e) => {
+        // Main runs a native drag (a real file), so the browser's own never starts.
+        e.preventDefault();
+        // Dragging it out is acting on it, as from the export card.
+        markCopySeen(dragSource.assetId);
+        window.electronAPI.startFileDrag(dragSource.id, dragSource.title);
+      }}
+    >
+      <GripVertical size={12} strokeWidth={1.8} aria-hidden />
+      {dragText}
+    </button>
+  );
   if (current) {
     return (
       <li className={styles.row} data-state="viewing" aria-current="true">
         <div className={styles.inner}>{body}</div>
         <span className={styles.pill}>{viewingLabel}</span>
+        {drag}
       </li>
     );
   }
   return (
     <li className={styles.row} data-state="ready">
-      <Link to={`/library/${assetId}`} className={styles.link}>
+      <Link
+        to={`/library/${assetId}`}
+        state={order ? { order } : undefined}
+        className={styles.link}
+      >
         {body}
       </Link>
+      {drag}
     </li>
   );
 }

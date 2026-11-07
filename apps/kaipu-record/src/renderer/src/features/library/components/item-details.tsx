@@ -64,6 +64,13 @@ export function ItemDetails({
       "audio",
     ]);
   }
+  if (video.gif) {
+    rows.push([
+      t("detailsFrameRate"),
+      t("detailsFps", { fps: Math.round(video.gif.fps) }),
+      "frameRate",
+    ]);
+  }
   rows.push([t("detailsSize"), formatSize(video.fileSizeBytes), "size"]);
   rows.push([t("detailsCreated"), absoluteDate(video.createdAt, locale), "created"]);
   if (path) rows.push([t("detailsLocation"), path, "location"]);

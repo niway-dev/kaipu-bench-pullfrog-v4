@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, FolderInput, HardDriveDownload, MoreHorizontal, Trash2 } from "lucide-react";
+import { Copy, FolderInput, HardDriveDownload, MoreHorizontal, Trash2 } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { showToast } from "@renderer/ui/toast-store";
 import { useOptionalWorkspaces } from "@renderer/features/workspaces/workspaces-context";
@@ -18,7 +18,6 @@ import styles from "./item-actions-menu.module.css";
 export function ItemActionsMenu({
   assetId,
   isScreenshot,
-  copied,
   canRemoveLocalCopy,
   onCopyImage,
   onCopyPath,
@@ -27,7 +26,6 @@ export function ItemActionsMenu({
 }: {
   assetId: string;
   isScreenshot: boolean;
-  copied: boolean;
   canRemoveLocalCopy: boolean;
   onCopyImage(): void;
   onCopyPath(): void;
@@ -70,12 +68,13 @@ export function ItemActionsMenu({
   }, [open, view]);
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
-    if (event.key === "Escape") {
+    // Closed, Escape is not ours: it keeps travelling to whatever handles it (a dialog, the page).
+    if (event.key === "Escape" && open) {
       event.stopPropagation();
       close(true);
       return;
     }
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    if (!open || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
     const items = [
       ...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? []),
     ];
@@ -85,6 +84,12 @@ export function ItemActionsMenu({
     const next =
       event.key === "ArrowDown" ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
     items[next]?.focus();
+  };
+
+  // Tab out of the menu: focus lands on another control, so the menu has nothing left to do.
+  const onBlur = (event: React.FocusEvent): void => {
+    const next = event.relatedTarget as Node | null;
+    if (open && next && !root.current?.contains(next)) close(false);
   };
 
   const run = (action: () => void): void => {
@@ -105,7 +110,7 @@ export function ItemActionsMenu({
   };
 
   return (
-    <div ref={root} className={styles.anchor} onKeyDown={onKeyDown}>
+    <div ref={root} className={styles.anchor} onKeyDown={onKeyDown} onBlur={onBlur}>
       <button
         ref={trigger}
         type="button"
@@ -136,12 +141,8 @@ export function ItemActionsMenu({
                   className={styles.item}
                   onClick={() => run(onCopyImage)}
                 >
-                  {copied ? (
-                    <Check size={14} strokeWidth={1.8} />
-                  ) : (
-                    <Copy size={14} strokeWidth={1.8} />
-                  )}
-                  {copied ? t("copied") : t("copyImage")}
+                  <Copy size={14} strokeWidth={1.8} />
+                  {t("copyImage")}
                 </button>
               )}
               <button

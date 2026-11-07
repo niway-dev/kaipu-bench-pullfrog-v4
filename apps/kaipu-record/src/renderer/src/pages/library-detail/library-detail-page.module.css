@@ -210,6 +210,8 @@
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 354px;
+  /* One row that takes exactly the body's height: its content can never stretch it. */
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--space-lg);
 }
 
@@ -237,20 +239,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .player {
   width: min(100cqw, calc(100cqh * 16 / 9));
 }
 
+/* The image and GIF viewers fill the stage's box exactly; inside, the frame flexes and the
+   picture scales to it (screenshot-viewer.module.css). */
 div.stage > div:not(.player) {
   width: 100%;
+  height: 100%;
   min-height: 0;
-  max-height: 100cqh;
-}
-
-.stage img {
-  max-height: 100cqh;
 }
 
 .fileName {
@@ -384,6 +385,7 @@ div.stage > div:not(.player) {
 
 /* "119 MB is heavy to send…": teal, because what it offers is the saving. */
 .heavyBanner {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: var(--space-md);
@@ -431,4 +433,11 @@ div.stage > div:not(.player) {
 .heavyAction:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* The editing state under the metadata: "Download to edit", "Project files are missing"… */
+.editingLine {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }

@@ -175,3 +175,29 @@
   line-height: 1.45;
   color: var(--text-muted);
 }
+
+/* Drag handle of a local exported copy: a native file drag, outside the row's link. */
+.drag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  cursor: grab;
+}
+
+.drag:hover {
+  background: var(--bg-card-hover);
+}
+
+.drag:active {
+  cursor: grabbing;
+}

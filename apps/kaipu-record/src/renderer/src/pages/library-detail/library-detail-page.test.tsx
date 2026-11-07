@@ -1346,6 +1346,175 @@ describe("LibraryDetailPage — header, menu, navigation and tabs (NIW2-669)", (
     await waitFor(() => expect(router.state.location.pathname).toBe("/library"));
   });
 
+  describe("per-item state, menu feedback and the editing line (review fixes)", () => {
+    const shot = (assetId: string): LibraryItem => ({
+      ...screenshotItem,
+      assetId,
+      title: assetId,
+      local: {
+        ...screenshotItem.local!,
+        id: assetId,
+        assetId,
+        title: assetId,
+        thumbnailUrl: `kaipu-media://screenshot/${assetId}`,
+      },
+    });
+
+    it("moving to another screenshot starts it at Fit, with its image available again", async () => {
+      list(shot("shot-a"), shot("shot-b"));
+      renderWithState("/library/shot-a", { order: ["shot-a", "shot-b"] });
+      await waitForLoaded();
+      fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+      expect(document.querySelector("img")!.style.width).toBe("150%");
+      fireEvent.click(screen.getByRole("button", { name: "Next item" }));
+      await waitFor(() =>
+        expect(screen.getByTestId("position-counter")).toHaveTextContent("2 of 2"),
+      );
+      expect(document.querySelector("img")!.style.width).toBe("");
+
+      fireEvent.error(document.querySelector("img")!);
+      expect(screen.getByText("Image unavailable")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Previous item" }));
+      await waitFor(() =>
+        expect(screen.getByTestId("position-counter")).toHaveTextContent("1 of 2"),
+      );
+      expect(screen.queryByText("Image unavailable")).toBeNull();
+      expect(document.querySelector("img")).not.toBeNull();
+    });
+
+    it("Copy image confirms with a toast that outlives the menu", async () => {
+      list(screenshotItem);
+      window.electronAPI.copyScreenshotById = vi.fn(async () => {});
+      renderWithState("/library/shot-1");
+      await waitForLoaded();
+      openMenu();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("menuitem", { name: "Copy image" }));
+      });
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(getToasts()).toContainEqual(expect.objectContaining({ message: "Image copied" }));
+    });
+
+    it("a version row keeps the walk: its link carries the passed order", async () => {
+      const copy: LibraryItem = {
+        ...exportedOnlyItem,
+        assetId: "asset-copy",
+        title: "Copy file",
+        derivedFromAssetId: "asset-b",
+        local: {
+          ...exportedOnlyItem.local!,
+          id: "local-copy",
+          assetId: "asset-copy",
+          title: "Copy file",
+          derivedFromAssetId: "asset-b",
+        },
+        cloud: null,
+        availability: "local",
+      };
+      list(exportedOnlyItem, copy);
+      const order = ["asset-copy", "asset-b"];
+      const router = renderWithState("/library/asset-b", { order });
+      await waitForLoaded();
+      fireEvent.click(
+        within(screen.getByRole("region", { name: "Versions" })).getByRole("link", {
+          name: /Copy file/,
+        }),
+      );
+      await waitFor(() => expect(router.state.location.pathname).toBe("/library/asset-copy"));
+      expect(router.state.location.state).toEqual({ order });
+    });
+
+    it("a version row's drag handle starts a native file drag of that copy", async () => {
+      const copy: LibraryItem = {
+        ...exportedOnlyItem,
+        assetId: "asset-copy",
+        title: "Copy file",
+        derivedFromAssetId: "asset-b",
+        local: {
+          ...exportedOnlyItem.local!,
+          id: "local-copy",
+          assetId: "asset-copy",
+          title: "Copy file",
+          derivedFromAssetId: "asset-b",
+        },
+        cloud: null,
+        availability: "local",
+      };
+      list(exportedOnlyItem, copy);
+      window.electronAPI.startFileDrag = vi.fn();
+      renderWithState("/library/asset-b");
+      await waitForLoaded();
+      fireEvent.dragStart(screen.getByRole("button", { name: "Drag Copy file into another app" }));
+      expect(window.electronAPI.startFileDrag).toHaveBeenCalledWith("local-copy", "Copy file");
+    });
+
+    it("says what a recording needs when it cannot be edited here, and nothing for project-available", async () => {
+      list(
+        { ...exportedOnlyItem, assetId: "asset-ns", editing: "needs-source" },
+        projectAvailableItem,
+      );
+      renderDetail("asset-ns");
+      await waitForLoaded();
+      expect(screen.getByText("Download to edit")).toBeVisible();
+      cleanup();
+      renderDetail("asset-c");
+      await waitForLoaded();
+      expect(screen.queryByText("Editing project available on this device")).toBeNull();
+      expect(screen.queryByText("Download to edit")).toBeNull();
+    });
+
+    it("a GIF's Details tab lists its frame rate", async () => {
+      list({
+        ...gifItem,
+        local: { ...gifItem.local!, gif: { width: 480, height: 270, fps: 12 } },
+      });
+      renderWithState("/library/gif-1");
+      await waitForLoaded();
+      openTab("Details");
+      expect(screen.getByText("Frame rate")).toBeVisible();
+      expect(screen.getByText("12 fps")).toBeVisible();
+    });
+
+    it("another item opens on its own default tab, with the menu closed", async () => {
+      list(exportedOnlyItem, screenshotItem);
+      const router = renderWithState("/library/asset-b");
+      await waitForLoaded();
+      openTab("Details");
+      openMenu();
+      expect(screen.getByRole("menu")).toBeVisible();
+      await act(async () => {
+        await router.navigate("/library/shot-1");
+      });
+      expect(screen.getByRole("tab", { name: "Versions" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("Escape is left alone while the menu is closed, and Tab out closes it", async () => {
+      list(exportedOnlyItem);
+      renderDetail("asset-b");
+      await waitForLoaded();
+      const seen = vi.fn();
+      document.addEventListener("keydown", seen);
+      try {
+        fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Escape" });
+        expect(seen).toHaveBeenCalledTimes(1);
+        openMenu();
+        fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+        expect(seen).toHaveBeenCalledTimes(1);
+      } finally {
+        document.removeEventListener("keydown", seen);
+      }
+      openMenu();
+      fireEvent.blur(screen.getAllByRole("menuitem")[0]!, {
+        relatedTarget: screen.getByRole("button", { name: "Open" }),
+      });
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+  });
+
   describe("previous and next", () => {
     const three = (): LibraryItem[] =>
       ["asset-a", "asset-b", "asset-c"].map((assetId) => ({

@@ -18,7 +18,6 @@ import {
   X,
 } from "lucide-react";
 import { canOpenInEditor, useOpenInEditor } from "@renderer/features/editor/open-in-editor";
-import { useTransientValue } from "@renderer/ui/use-transient-value";
 import { useLocalLibrary } from "@renderer/features/library/hooks/use-local-library";
 import { useMissingRecordingRecovery } from "@renderer/features/library/hooks/use-missing-recording-recovery";
 import { reportError } from "@renderer/features/analytics";
@@ -52,7 +51,7 @@ import { TagEditor } from "@renderer/features/library/components/tag-editor";
 import { resolveTags, useTags } from "@renderer/features/library/hooks/use-tags";
 import { absoluteDate, formatDuration, formatSize } from "@renderer/features/library/format";
 import { buildLineage, editBadge, isMaster } from "@renderer/features/library/lineage";
-import type { RemoveLocalCopyResult } from "@shared/types/library-item";
+import type { EditingState, RemoveLocalCopyResult } from "@shared/types/library-item";
 import { Button } from "@kaipu/ui";
 import { Badge } from "@kaipu/ui";
 import { useLocale, useTranslations, type Messages } from "@kaipu/i18n";
@@ -63,6 +62,14 @@ import { uiArea } from "@renderer/lib/ui-area";
 type LibraryMessageKey = keyof Messages["library"];
 
 type PanelTab = "versions" | "details" | "destinations";
+
+/** The editing-state line under the metadata. "project-available" has no line on purpose:
+ *  the owner asked for it to go; the other states say something the user has to act on. */
+const EDITING_LABEL_KEYS: Partial<Record<EditingState, LibraryMessageKey>> = {
+  "needs-source": "editingNeedsSource",
+  "missing-dependencies": "editingMissingDependencies",
+  "exported-only": "editingExportedOnly",
+};
 
 /** Maps a blocked `removeLocalCopy` result to its toast copy. `hash-unknown` and
  *  `not-found` are edge cases outside this action's guarded conditions (see
@@ -113,7 +120,6 @@ export function LibraryDetailPage(): React.JSX.Element {
   });
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [copied, showCopied] = useTransientValue<true>(2200);
   // Computed before the early returns below: hooks can't be called conditionally,
   // and buildLineage works fine on an empty/loading `videos` list.
   const { openItem } = useOpenInEditor();
@@ -207,8 +213,11 @@ export function LibraryDetailPage(): React.JSX.Element {
   // The panel's tabs. Until the user picks one, "Where is it going?" leads while the
   // original has no copy yet (Export v3, section 1); "Versions" otherwise. Moving to another
   // item starts over.
-  const [pickedTab, setPickedTab] = useState<PanelTab | null>(null);
-  useEffect(() => setPickedTab(null), [assetId]);
+  // The pick is stored with the item it was made on, so another item ignores it at once
+  // (an effect that cleared it would paint the old tab for one frame).
+  const [picked, setPicked] = useState<{ assetId: string | undefined; tab: PanelTab } | null>(null);
+  const pickedTab = picked && picked.assetId === assetId ? picked.tab : null;
+  const setPickedTab = (next: PanelTab): void => setPicked({ assetId, tab: next });
   const tabRefs = useRef<Partial<Record<PanelTab, HTMLButtonElement | null>>>({});
 
   const back = (): void => {
@@ -314,7 +323,7 @@ export function LibraryDetailPage(): React.JSX.Element {
     if (!localId) return;
     try {
       await window.electronAPI.copyScreenshotById(localId);
-      showCopied(true);
+      showToast({ message: t("copyImageDone") });
     } catch (error) {
       reportError(t("copyError"), error, {
         context: { id: localId, phase: "copy-by-id" },
@@ -477,9 +486,9 @@ export function LibraryDetailPage(): React.JSX.Element {
                   <span className={styles.btnLabel}>{t("openFile")}</span>
                 </Button>
                 <ItemActionsMenu
+                  key={video.assetId}
                   assetId={video.assetId}
                   isScreenshot={isScreenshot}
-                  copied={Boolean(copied)}
                   canRemoveLocalCopy={canRemoveLocalCopy}
                   onCopyImage={() => void copyScreenshot()}
                   onCopyPath={() => void copyPath()}
@@ -546,6 +555,9 @@ export function LibraryDetailPage(): React.JSX.Element {
             </button>
           )}
           {badge === "edited" && <p className={styles.note}>{t("edited")}</p>}
+          {!isScreenshot && !isGif && badge === null && EDITING_LABEL_KEYS[video.editing] && (
+            <p className={styles.editingLine}>{t(EDITING_LABEL_KEYS[video.editing]!)}</p>
+          )}
           {/* Row 4: tags. */}
           {localId && (
             <TagEditor
@@ -604,17 +616,19 @@ export function LibraryDetailPage(): React.JSX.Element {
           <div className={styles.stage}>
             {isScreenshot ? (
               <ScreenshotViewer
+                key={video.assetId}
                 src={video.thumbnailUrl}
                 onNaturalSize={(width, height) =>
                   setShotSize({ assetId: video.assetId, width, height })
                 }
               />
             ) : isGif ? (
-              localId && <GifViewer id={localId} />
+              localId && <GifViewer key={video.assetId} id={localId} />
             ) : (
               localId && (
                 <div {...uiArea("libraryDetail.preview")} className={styles.player}>
                   <RecordingPlayer
+                    key={video.assetId}
                     id={localId}
                     poster={video.thumbnailUrl}
                     webcam={video.webcam}
@@ -685,7 +699,13 @@ export function LibraryDetailPage(): React.JSX.Element {
                 path={path}
               />
             ) : (
-              <VersionsList item={video} lineage={lineage} running={running} probe={probe} />
+              <VersionsList
+                item={video}
+                lineage={lineage}
+                running={running}
+                probe={probe}
+                order={order}
+              />
             )}
           </div>
         </aside>

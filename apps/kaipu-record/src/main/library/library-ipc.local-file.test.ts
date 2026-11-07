@@ -60,6 +60,8 @@ describe("library IPC — openLocalRecording and localRecordingPath (NIW2-669)",
     vault = join(state.dir, "vault");
     await mkdir(vault, { recursive: true });
     await writeFile(join(vault, "item-1.mp4"), "video");
+    await writeFile(join(vault, "shot-1.png"), "png");
+    await writeFile(join(vault, "gif-1.gif"), "gif");
     registerLibraryVaultHandlers({
       auth: { getCurrentAccount: () => null, onAccountChanged: () => () => {} } as never,
       serverUrl: "http://localhost",
@@ -100,6 +102,19 @@ describe("library IPC — openLocalRecording and localRecordingPath (NIW2-669)",
     await expect(handler(IPC_CHANNELS.localRecordingPath)(EVENT, STAMP, "item-1")).resolves.toBe(
       join(vault, "item-1.mp4"),
     );
+  });
+
+  it("localRecordingPath and openLocalRecording pick the right extension for a screenshot and a GIF", async () => {
+    await expect(handler(IPC_CHANNELS.localRecordingPath)(EVENT, STAMP, "shot-1")).resolves.toBe(
+      join(vault, "shot-1.png"),
+    );
+    await expect(handler(IPC_CHANNELS.localRecordingPath)(EVENT, STAMP, "gif-1")).resolves.toBe(
+      join(vault, "gif-1.gif"),
+    );
+    await handler(IPC_CHANNELS.openLocalRecording)(EVENT, STAMP, "shot-1");
+    expect(shell.openPath).toHaveBeenLastCalledWith(join(vault, "shot-1.png"));
+    await handler(IPC_CHANNELS.openLocalRecording)(EVENT, STAMP, "gif-1");
+    expect(shell.openPath).toHaveBeenLastCalledWith(join(vault, "gif-1.gif"));
   });
 
   it("localRecordingPath returns null for an unknown id", async () => {
