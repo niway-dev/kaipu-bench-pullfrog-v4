@@ -183,20 +183,18 @@ describe("VersionsList", () => {
   it("a broken link higher up shows the source as deleted from every member", () => {
     const b = video({ id: "b", assetId: "b", title: "Copy B", derivedFromAssetId: "gone" });
     const c = video({ id: "c", assetId: "c", title: "Copy C", derivedFromAssetId: "b" });
-    const texts: string[][] = [];
     for (const opened of [c, b]) {
       const region = renderList(opened, [b, c]);
-      expect(within(region).getByText("Source recording was deleted")).toBeTruthy();
       expect(within(region).queryByText("Original")).toBeNull();
-      texts.push(
-        within(region)
-          .getAllByRole("listitem")
-          .map((r) => (r.textContent ?? "").split("Exported")[0]!),
-      );
+      // The same family, in the same order, whichever member is open. Only the Viewing row
+      // moves, so rows are compared by what they name, not by their state.
+      const rows = within(region).getAllByRole("listitem");
+      expect(rows).toHaveLength(3);
+      expect(within(rows[0]!).getByText("Source recording was deleted")).toBeTruthy();
+      expect(within(rows[1]!).getByText("Copy B")).toBeTruthy();
+      expect(within(rows[2]!).getByText("Copy C")).toBeTruthy();
       cleanup();
     }
-    expect(texts[0]).toEqual(texts[1]);
-    expect(texts[0]).toHaveLength(3);
   });
 
   it("computes copy dimensions from the master's probe only, not from a copy's", () => {

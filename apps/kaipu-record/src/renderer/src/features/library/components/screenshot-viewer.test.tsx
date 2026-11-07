@@ -76,6 +76,27 @@ describe("ScreenshotViewer", () => {
     }
   });
 
+  it("zoomed out, a tall screenshot stays inside its Fit box", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ width: 800, height: 500 } as DOMRect);
+    try {
+      const { container } = render(<ScreenshotViewer src="kaipu-media://screenshot/a" />);
+      const img = container.querySelector("img")!;
+      // 1000 × 3000 in an 800 × 500 frame: Fit is height-bound, about 167 × 500.
+      loadImage(img, 1000, 3000);
+      const zoomOut = screen.getByRole("button", { name: "Zoom out" });
+      fireEvent.click(zoomOut);
+      fireEvent.click(zoomOut);
+      const width = Number.parseFloat(img.style.width);
+      expect(width).toBeCloseTo(83.33, 1);
+      // Its height at that width is 250 px: half the frame, never past it.
+      expect((width * 3000) / 1000).toBeLessThanOrEqual(500);
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
   it("stops at the ends of the zoom range", () => {
     render(<ScreenshotViewer src="kaipu-media://screenshot/a" />);
     const zoomIn = screen.getByRole("button", { name: "Zoom in" }) as HTMLButtonElement;
