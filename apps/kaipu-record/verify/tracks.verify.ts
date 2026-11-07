@@ -36,7 +36,7 @@ test("tracks popover: editor at the default size, 1440 and 1180", async () => {
     await page.getByRole("button", { name: "Edit video" }).click();
     await page.waitForFunction(() => location.hash.startsWith("#/editor/video/"));
     await page.waitForSelector("video");
-    await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
 
     // A manual zoom, so the Zooms lane has something a hidden lane must keep.
     await page.getByRole("button", { name: "Zoom", exact: true }).click();

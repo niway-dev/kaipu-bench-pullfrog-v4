@@ -35,13 +35,13 @@ test("transport bar: editor at the default size, 1440 and 1180", async () => {
     await page.getByRole("button", { name: "Edit video" }).click();
     await page.waitForFunction(() => location.hash.startsWith("#/editor/video/"));
     await page.waitForSelector("video");
-    await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
 
     const shot = async (name: string, size?: [number, number]): Promise<void> => {
       if (size) await sizeWindow(app, page, size);
       await page.waitForTimeout(700);
       await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`) });
-      const box = await page.getByRole("button", { name: "Play" }).boundingBox();
+      const box = await page.getByRole("button", { name: "Play", exact: true }).boundingBox();
       const viewport = await page.evaluate(() => window.innerWidth);
       // The play button's centre against the window's centre: 0 means optically centred.
       console.log(
