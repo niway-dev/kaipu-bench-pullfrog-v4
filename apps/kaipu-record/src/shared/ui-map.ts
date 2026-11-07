@@ -496,6 +496,7 @@ export const UI_MAP = {
     kind: "chrome",
     areas: {
       titleBar: { states: ["default", "withSwitcher"] },
+      historyArrows: { states: ["atStart", "canGoBack"] },
       workspaceSwitcher: { states: ["closed", "hint", "notConnected", "locked"] },
       workspaceMenu: { states: ["open"] },
       sidebar: { states: ["rest", "exportBadge"] },

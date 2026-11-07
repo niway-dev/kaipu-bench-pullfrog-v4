@@ -81,6 +81,8 @@
     "relocateWorkspaceButton": "Use this folder"
   },
   "nav": {
+    "back": "Back",
+    "forward": "Forward",
     "record": "Record",
     "screenshots": "Screenshot",
     "library": "Library",
