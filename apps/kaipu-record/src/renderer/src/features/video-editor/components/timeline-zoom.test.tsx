@@ -1068,6 +1068,73 @@ describe("a handle that goes away in the middle of its drag", () => {
 });
 
 /**
+ * `data-scrolled` on the scroll container (NIW2-667 review R2-2). The sticky label column
+ * fills the gap to the lane with a shadow so scrolled content cannot show through it; that fill
+ * must exist only while the content IS scrolled, or it covers what sits in the gap at scroll 0
+ * (the start handle of a clip at t=0, the playhead's head at t=0). The stylesheet hangs those
+ * fills on this attribute; editor-layout-css.test.ts pins the stylesheet side.
+ */
+describe("the scrolled marker on the scroll container", () => {
+  const scrolled = (body: HTMLElement): string | undefined => body.dataset.scrolled;
+
+  function renderAtFit(): Rendered {
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(100);
+    const utils = render(strip(store));
+    return {
+      store,
+      container: utils.container,
+      body: utils.container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement,
+      rerender: utils.rerender,
+    };
+  }
+
+  it("is false at fit, where there is nothing to scroll", () => {
+    const { body } = renderAtFit();
+    expect(scrolled(body)).toBe("false");
+  });
+
+  it("is false when zoomed but still at the start, true once scrolled, false again back at 0", () => {
+    const { store, body } = renderAtFit();
+    act(() => store.zoomTo(ZOOM)); // around the centre of the lane: scrolls to 1500 px
+    expect(store.getState().scroll).toBeGreaterThan(0);
+    expect(scrolled(body)).toBe("true");
+    act(() => store.scrollTo(0, "user"));
+    expect(scrolled(body)).toBe("false");
+    act(() => store.scrollTo(300, "user"));
+    expect(scrolled(body)).toBe("true");
+    act(() => store.scrollTo(0, "user"));
+    expect(scrolled(body)).toBe("false");
+  });
+
+  it("follows a pan by the user (a scroll event) and FIT", () => {
+    const { store, body } = renderZoomed();
+    expect(scrolled(body)).toBe("true");
+    act(() => {
+      body.scrollLeft = 0;
+      fireEvent.scroll(body);
+    });
+    expect(store.getState().scroll).toBe(0);
+    expect(scrolled(body)).toBe("false");
+    act(() => {
+      body.scrollLeft = 300;
+      fireEvent.scroll(body);
+    });
+    expect(scrolled(body)).toBe("true");
+    act(() => store.fit());
+    expect(scrolled(body)).toBe("false");
+  });
+
+  it("is true for any scroll above 0, however small", () => {
+    const { store, body } = renderAtFit();
+    act(() => store.zoomTo(ZOOM));
+    act(() => store.scrollTo(0.25, "user"));
+    expect(scrolled(body)).toBe("true");
+  });
+});
+
+/**
  * Which ruler ticks keep their label. A labelled tick this close to the right END of the
  * content keeps its line but drops its text, which would hang past the end. The room is
  * measured in pixels against the content's right edge, not as a share of the whole

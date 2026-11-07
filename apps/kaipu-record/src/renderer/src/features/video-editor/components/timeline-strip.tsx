@@ -378,6 +378,7 @@ export function TimelineStrip({
             ref={bodyRef}
             data-testid="timeline-scroller"
             data-zoom={view.zoom}
+            data-scrolled={view.scroll > 0 ? "true" : "false"}
             className={styles.timelineBody}
             style={{ "--zoom": view.zoom } as CSSProperties}
             onScroll={onScroll}

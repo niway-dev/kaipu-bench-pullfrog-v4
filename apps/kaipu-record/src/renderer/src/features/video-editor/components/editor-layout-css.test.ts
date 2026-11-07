@@ -12,7 +12,8 @@ const css = (file: string): string => readFileSync(path.join(dir, file), "utf8")
 
 /** Declarations of one top-level rule, comments stripped (they quote old values). */
 function rule(source: string, selector: string): string {
-  const match = source.match(new RegExp(`(?:^|\\n)\\${selector}\\s*\\{([^}]*)\\}`));
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^}]*)\\}`));
   if (!match) throw new Error(`no rule for ${selector}`);
   return match[1]!.replace(/\/\*[\s\S]*?\*\//g, "");
 }
@@ -32,24 +33,41 @@ describe("timeline lanes (15% lower than NIW2-611)", () => {
   });
 });
 
-describe("the sticky lane label at scroll > 0 (NIW2-667)", () => {
+describe("the sticky lane label's fills (NIW2-667)", () => {
   // The label is sticky: once the timeline scrolls, lanes slide under it. Its box covers
   // only the label column, so what sits BETWEEN the label and the lane (the column gap, and
   // the corner where that gap meets the 3px row gap) has to be filled by its shadow, or the
   // content scrolled past the lane's left edge (blocks, thumbnails, the playhead) shows
   // through there. A shadow, not padding or a pseudo-element: the label clips its own text
   // with overflow:hidden, which would clip both of those but not its own shadow.
-  const shadow = (): string => {
-    const declarations = rule(css("timeline-strip.module.css"), ".laneLabel");
+  //
+  // Only while the content IS scrolled (R2-2). At scroll 0 the gap holds things that belong
+  // there: the start handle of a clip at t=0 sits 4 px into it and the playhead's head at t=0
+  // 5 px, and a shadow painted over the gap (the label is above both) cut them in half.
+  // TimelineStrip sets data-scrolled on the scroll container; the fills hang on it.
+  const SCROLLED = '.timelineBody[data-scrolled="true"] .laneLabel';
+  const shadow = (selector: string): string => {
+    const declarations = rule(css("timeline-strip.module.css"), selector);
     return declarations.match(/box-shadow:([^;]*);/)![1]!;
   };
 
-  it("fills the column gap to the lane, in the panel colour", () => {
-    expect(shadow()).toMatch(/(?:^|,)\s*var\(--lane-gap\)\s+0\s+0\s+0\s+var\(--bg-panel\)/);
+  it("fills the column gap to the lane, in the panel colour, once the content is scrolled", () => {
+    expect(shadow(SCROLLED)).toMatch(/(?:^|,)\s*var\(--lane-gap\)\s+0\s+0\s+0\s+var\(--bg-panel\)/);
   });
 
-  it("fills the corner where the column gap meets the row gap", () => {
-    expect(shadow()).toMatch(/(?:^|,)\s*var\(--lane-gap\)\s+3px\s+0\s+0\s+var\(--bg-panel\)/);
+  it("fills the corner where the column gap meets the row gap, once the content is scrolled", () => {
+    expect(shadow(SCROLLED)).toMatch(
+      /(?:^|,)\s*var\(--lane-gap\)\s+3px\s+0\s+0\s+var\(--bg-panel\)/,
+    );
+  });
+
+  it("keeps the row-gap fill in the scrolled rule too: its list replaces the base one whole", () => {
+    expect(shadow(SCROLLED)).toMatch(/(?:^|,)\s*0\s+3px\s+0\s+0\s+var\(--bg-panel\)/);
+  });
+
+  it("paints nothing over the gap at scroll 0: the base rule fills only the row gap under the label", () => {
+    expect(shadow(".laneLabel").trim()).toBe("0 3px 0 0 var(--bg-panel)");
+    expect(shadow(".laneLabel")).not.toMatch(/--lane-gap/);
   });
 
   it("is opaque and above the lanes and the playhead layer", () => {
