@@ -1,4 +1,12 @@
-import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BACKGROUND_IDS } from "@renderer/features/screenshots/beautify/backgrounds";
 import type { VideoBackground } from "../../background";
@@ -91,7 +99,9 @@ describe("BackgroundPanel", () => {
     expect(e.choose).toHaveBeenCalledWith("ocean");
   });
 
-  it("sends a keyboard step to commit and a drag to begin / live / end", () => {
+  // The slider coalesces live updates to one per animation frame (NIW2-662), so a drag's value
+  // reaches `live` on the next frame, not inside the change event.
+  it("sends a keyboard step to commit and a drag to begin / live / end", async () => {
     const e = edits(MAGENTA);
     render(<BackgroundPanel edits={e} />);
     const padding = screen.getByRole("slider", { name: "Padding" });
@@ -100,9 +110,26 @@ describe("BackgroundPanel", () => {
     fireEvent.pointerDown(padding, { pointerId: 1 });
     expect(e.begin).toHaveBeenCalled();
     fireEvent.change(padding, { target: { value: "60" } });
-    expect(e.live).toHaveBeenCalledWith({ padding: 60 });
+    await waitFor(() => expect(e.live).toHaveBeenCalledWith({ padding: 60 }));
     fireEvent.pointerUp(padding, { pointerId: 1 });
     expect(e.end).toHaveBeenCalled();
+  });
+
+  it("releasing before the frame still delivers the last value to live, before end", () => {
+    const e = edits(MAGENTA);
+    render(<BackgroundPanel edits={e} />);
+    const padding = screen.getByRole("slider", { name: "Padding" });
+    fireEvent.pointerDown(padding, { pointerId: 1 });
+    fireEvent.change(padding, { target: { value: "70" } });
+    fireEvent.pointerUp(padding, { pointerId: 1 });
+    expect(e.live).toHaveBeenLastCalledWith({ padding: 70 });
+    expect(e.end).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(e.begin).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(e.live).mock.invocationCallOrder[0],
+    );
+    expect(vi.mocked(e.live).mock.invocationCallOrder.at(-1)!).toBeLessThan(
+      vi.mocked(e.end).mock.invocationCallOrder[0],
+    );
   });
 
   it("declares the UI area the catalog crops (ADR 0046)", () => {
