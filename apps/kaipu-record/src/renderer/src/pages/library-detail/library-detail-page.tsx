@@ -531,7 +531,7 @@ export function LibraryDetailPage(): React.JSX.Element {
         </div>
 
         <div {...uiArea("libraryDetail.details")} className={styles.details}>
-          {/* Row 3: one metadata line. */}
+          {/* One metadata line, then the edit badge and the tags on the same row. */}
           <div className={styles.meta}>
             <span className={styles.metaItem}>
               <KindIcon size={13} strokeWidth={1.8} aria-hidden />
@@ -588,14 +588,16 @@ export function LibraryDetailPage(): React.JSX.Element {
           {!isScreenshot && !isGif && badge === null && EDITING_LABEL_KEYS[video.editing] && (
             <p className={styles.editingLine}>{t(EDITING_LABEL_KEYS[video.editing]!)}</p>
           )}
-          {/* Row 4: tags. */}
+          {/* Tags, on the same row as the metadata. */}
           {localId && (
-            <TagEditor
-              assigned={resolveTags(video.tagIds, tagApi.byId)}
-              all={tagApi.tags}
-              onAssign={(next) => setTags(localId, next)}
-              onCreate={tagApi.create}
-            />
+            <div className={styles.tags}>
+              <TagEditor
+                assigned={resolveTags(video.tagIds, tagApi.byId)}
+                all={tagApi.tags}
+                onAssign={(next) => setTags(localId, next)}
+                onCreate={tagApi.create}
+              />
+            </div>
           )}
         </div>
       </div>

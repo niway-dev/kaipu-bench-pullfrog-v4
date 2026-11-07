@@ -185,11 +185,28 @@
 
 /* ── Metadata, tags ───────────────────── */
 
+/* Metadata, the edit badge and the tags share one wrapping row (owner QA on NIW2-669: two
+   extra rows here pushed the media down and left the area empty). Notes about the file take a
+   full row of their own, after it. */
 .details {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.details > .note,
+.details > .editingLine {
+  order: 1;
+  flex-basis: 100%;
+}
+
+.tags {
+  min-width: 0;
+}
+
+.tags > * {
+  margin-top: 0;
 }
 
 .meta {
