@@ -518,15 +518,21 @@ describe("zoom and pan", () => {
 describe("a cut while zoomed", () => {
   it("keeps the scroll inside the shorter content and the apparent zoom where it still fits", () => {
     const { store, body, rerender } = renderZoomed();
-    act(() => store.scrollTo(3000, "user")); // the very end of the 4x content
-    // Delete 40 s: 60 s left, which can still zoom 14x, so the zoom stays at 4x.
+    // 2400 px at 40 px/s is 60 s: the left edge of the lane sits at 60 s.
+    act(() => store.scrollTo(2400, "user"));
+    expect(body.scrollLeft).toBe(2400);
+    // Delete 40 s: 60 s left, which can still zoom 14x, so the zoom stays at 4x. The scale
+    // becomes 4000 px / 60 s = 66.7 px/s, so keeping the left edge at 60 s asks for 4000 px,
+    // which the 3000 px maximum clamps. Carrying the pixels over would stay at 2400, so
+    // this tells the two behaviours apart (a scroll that was already at the maximum would not).
     const shorter = toLayout([
       { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 60 },
     ] as TrackItem[]);
     act(() => store.setDuration(60));
     rerender(strip(store, { layout: shorter, playback: makePlayback({ duration: 60 }) }));
     expect(store.getView().zoom).toBe(ZOOM);
-    expect(body.scrollLeft).toBeLessThanOrEqual(ZOOM * LANE_WIDTH - LANE_WIDTH);
+    expect(store.getState().scroll).toBe(3000);
+    expect(body.scrollLeft).toBe(3000);
   });
 
   it("drops the zoom to what the remaining footage allows and re-clamps the scroll", () => {
@@ -547,7 +553,10 @@ describe("a cut while zoomed", () => {
     utils.rerender(strip(store, { layout: shorter, playback: makePlayback({ duration: 40 }) }));
     const view = store.getView();
     expect(view.zoom).toBeCloseTo(9.6, 6); // 240 px/s over 40 s in 1000 px
-    expect(body.scrollLeft).toBeLessThanOrEqual(view.zoom * LANE_WIDTH - LANE_WIDTH);
+    // The left edge was at 85 s (17 000 px at 200 px/s): past the 40 s that are left, so the
+    // scroll lands on the very end of the shorter content, 9.6 x 1000 - 1000 px.
+    expect(view.scroll).toBeCloseTo(view.zoom * LANE_WIDTH - LANE_WIDTH, 6);
+    expect(body.scrollLeft).toBeCloseTo(8600, 6);
     expect(body.dataset.zoom).toBe(String(view.zoom));
   });
 });
