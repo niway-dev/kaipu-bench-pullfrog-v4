@@ -246,3 +246,13 @@ describe("LibraryPage grid tags", () => {
     expect(card("Master")).not.toHaveTextContent(/For /);
   });
 });
+
+describe("LibraryPage opens an item with its list (NIW2-669)", () => {
+  it("passes the displayed asset ids to the detail page, for its previous and next arrows", () => {
+    const router = renderLibrary();
+    fireEvent.click(card("Master"));
+    expect(router.state.location.pathname).toBe("/library/asset-master");
+    const order = (router.state.location.state as { order: string[] }).order;
+    expect([...order].sort()).toEqual(["asset-copy", "asset-gh", "asset-master"]);
+  });
+});

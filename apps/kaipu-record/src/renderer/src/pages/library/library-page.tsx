@@ -182,6 +182,18 @@ export function LibraryPage(): React.JSX.Element {
     });
   }, [readyCopies, visibleItems, selection.active]);
   const leadingIds = new Set(leading.map(({ video }) => video.assetId));
+  // The detail page's "N of M" and previous/next walk the list as displayed: the ready
+  // cards first in the grid, then the rest, in the active filter and sort.
+  const displayedIds =
+    view === "grid"
+      ? [
+          ...leading.map(({ video }) => video.assetId),
+          ...visibleItems.filter((v) => !leadingIds.has(v.assetId)).map((v) => v.assetId),
+        ]
+      : visibleItems.map((v) => v.assetId);
+  const openDetail = (assetId: string): void => {
+    void navigate(`/library/${assetId}`, { state: { order: displayedIds } });
+  };
   const leadingKey = leading.map(({ video }) => video.assetId).join("\n");
   useEffect(() => {
     if (view === "grid" && leadingKey) noteReadyCardsShown(leadingKey.split("\n"));
@@ -476,7 +488,7 @@ export function LibraryPage(): React.JSX.Element {
               destination={copyDestinationOf(video, copy.destination)}
               onOpen={() => {
                 markCopySeen(video.assetId);
-                navigate(`/library/${video.assetId}`);
+                openDetail(video.assetId);
               }}
               onDismiss={() => dismissReadyCard(video.assetId)}
               onActed={() => noteCopyActedOn(video.assetId)}
@@ -491,7 +503,7 @@ export function LibraryPage(): React.JSX.Element {
                 video={video}
                 destination={copyDestinationOf(video, readyInfo.get(video.assetId)?.destination)}
                 badge={editBadge(video, lineage)}
-                onNavigate={() => navigate(`/library/${video.assetId}`)}
+                onNavigate={() => openDetail(video.assetId)}
                 onEdit={canOpenInEditor(video) ? () => openItem(video) : undefined}
                 onPrepare={
                   asPreparable(video) ? () => navigate(preparePath(video.assetId)) : undefined
@@ -519,7 +531,7 @@ export function LibraryPage(): React.JSX.Element {
                 video={video}
                 isLast={i === visibleItems.length - 1}
                 badge={editBadge(video, lineage)}
-                onNavigate={() => navigate(`/library/${video.assetId}`)}
+                onNavigate={() => openDetail(video.assetId)}
                 onEdit={canOpenInEditor(video) ? () => openItem(video) : undefined}
                 onPrepare={
                   asPreparable(video) ? () => navigate(preparePath(video.assetId)) : undefined

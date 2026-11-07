@@ -11,13 +11,14 @@
  * delete preserve it; there is no reorder UI). If reordering ever ships, select the
  * handle blocks by sourceStart/sourceEnd instead of by position.
  */
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { Lock } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { sourceRangeToTimelineBlocks, sourceTimeAtTimeline } from "../source-time";
-import { type LayoutEntry, layoutDuration, sourceToTimeline } from "../timeline";
+import { type LayoutEntry, layoutDuration } from "../timeline";
 import type { ActivityMark } from "../zoom/detect-zoom-segments";
 import type { ZoomSegment } from "../zoom/zoom-model";
+import { ActivityMarks } from "./activity-marks";
 import { fractionToTime, timeToFraction } from "./timeline-geometry";
 import styles from "./zoom-lane.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
@@ -46,54 +47,7 @@ export interface ZoomLaneProps {
   showMarks?: boolean;
 }
 
-// Pointer-pause bars grow with how long the pause lasted.
-const DWELL_MIN_PX = 3;
-const DWELL_MAX_PX = 8;
-
-/** The marks layer: read-only, behind the blocks, never takes a pointer event. */
-function ActivityMarks({
-  marks,
-  layout,
-  duration,
-}: {
-  marks: ActivityMark[];
-  layout: LayoutEntry[];
-  duration: number;
-}): React.JSX.Element {
-  return (
-    <div className={styles.marks} data-activity-marks aria-hidden="true">
-      {marks.flatMap((mark, i) => {
-        if (mark.kind === "click") {
-          const at = sourceToTimeline(layout, mark.t);
-          if (at === null) return [];
-          return [
-            <span
-              key={`c${i}`}
-              className={styles.click}
-              data-activity-mark="click"
-              style={{ left: `${timeToFraction(at, duration) * 100}%` }}
-            />,
-          ];
-        }
-        const height = DWELL_MIN_PX + (DWELL_MAX_PX - DWELL_MIN_PX) * mark.strength;
-        return sourceRangeToTimelineBlocks(layout, mark.start, mark.end).map((block, j) => (
-          <span
-            key={`d${i}-${j}`}
-            className={styles.dwell}
-            data-activity-mark="dwell"
-            style={{
-              left: `${timeToFraction(block.timelineStart, duration) * 100}%`,
-              width: `${timeToFraction(block.timelineEnd - block.timelineStart, duration) * 100}%`,
-              height: `${height}px`,
-            }}
-          />
-        ));
-      })}
-    </div>
-  );
-}
-
-export function ZoomLane({
+export const ZoomLane = memo(function ZoomLane({
   segments,
   layout,
   selectedId,
@@ -209,4 +163,4 @@ export function ZoomLane({
       })}
     </div>
   );
-}
+});

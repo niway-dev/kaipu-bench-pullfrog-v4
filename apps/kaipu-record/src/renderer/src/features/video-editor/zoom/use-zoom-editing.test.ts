@@ -46,12 +46,17 @@ describe("useZoomEditing", () => {
     expect(result.current.controller.scene.zoomSegments).toEqual([]);
   });
 
-  it("a sensitivity drag is one undo step", () => {
+  it("a sensitivity preview leaves the scene alone and the release is one undo step", () => {
     const { result } = setup();
-    act(() => result.current.zooms.begin());
-    act(() => result.current.zooms.sensitivityLive(60));
-    act(() => result.current.zooms.sensitivityLive(70));
-    act(() => result.current.zooms.end());
+    const before = result.current.controller.scene;
+    let preview: ReturnType<typeof result.current.zooms.sensitivityPreview> | undefined;
+    act(() => {
+      preview = result.current.zooms.sensitivityPreview(70);
+    });
+    expect(preview?.count).toBe(1);
+    expect(result.current.controller.scene).toBe(before);
+    expect(result.current.controller.canUndo).toBe(false);
+    act(() => result.current.zooms.sensitivityCommit(70));
     expect(result.current.controller.scene.zoomSensitivity).toBe(70);
     expect(result.current.controller.scene.zoomSegments).toHaveLength(1);
     act(() => result.current.controller.undo());

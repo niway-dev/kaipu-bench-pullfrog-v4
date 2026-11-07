@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ReactElement } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, type ReactElement } from "react";
 import { Film, ImagePlus, PenLine, type LucideIcon } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import type { PreviewPlayback } from "../use-preview-playback";
@@ -41,7 +41,7 @@ export interface ExtraLane {
   node: ReactElement;
 }
 
-export function TimelineStrip({
+export const TimelineStrip = memo(function TimelineStrip({
   layout,
   playback,
   thumbnails,
@@ -92,6 +92,38 @@ export function TimelineStrip({
   const hoverRef = useRef<HTMLDivElement | null>(null);
   const hoverLabelRef = useRef<HTMLSpanElement | null>(null);
   const duration = layoutDuration(layout);
+  // Without the callback the guard `?.` would need an inline arrow, and a new function on every
+  // render defeats the memoised OverlayLane.
+  const handleWindowChange = useCallback(
+    (id: string, start: number, end: number, phase: WindowChangePhase) =>
+      onWindowChange?.(id, start, end, phase),
+    [onWindowChange],
+  );
+
+  // The ruler only depends on the duration; rebuilding its ticks on every re-render of a long
+  // recording (hundreds of spans) is wasted work while a slider elsewhere is dragged.
+  const rulerMarks = useMemo(
+    () => (
+      <>
+        {rulerMinorTicks(duration).map((time) => (
+          <span
+            key={time}
+            className={styles.minorTick}
+            style={{ left: `${timeToFraction(time, duration) * 100}%` }}
+          />
+        ))}
+        {rulerTicks(duration).map((tick) => {
+          const fraction = timeToFraction(tick.time, duration);
+          return (
+            <span key={tick.time} className={styles.tick} style={{ left: `${fraction * 100}%` }}>
+              {fraction < LAST_LABEL_FRACTION && tick.label}
+            </span>
+          );
+        })}
+      </>
+    ),
+    [duration],
+  );
 
   // Playhead follows playback at rAF frequency via direct style mutation —
   // re-rendering the strip 60×/s would drop frames during playback.
@@ -207,21 +239,7 @@ export function TimelineStrip({
           onPointerMove={onRulerPointerMove}
           onPointerLeave={hideHover}
         >
-          {rulerMinorTicks(duration).map((time) => (
-            <span
-              key={time}
-              className={styles.minorTick}
-              style={{ left: `${timeToFraction(time, duration) * 100}%` }}
-            />
-          ))}
-          {rulerTicks(duration).map((tick) => {
-            const fraction = timeToFraction(tick.time, duration);
-            return (
-              <span key={tick.time} className={styles.tick} style={{ left: `${fraction * 100}%` }}>
-                {fraction < LAST_LABEL_FRACTION && tick.label}
-              </span>
-            );
-          })}
+          {rulerMarks}
         </div>
         {/* Clips lead: the recording is what every other lane edits. */}
         <LaneLabel icon={Film} label={t("laneClips")} />
@@ -238,7 +256,7 @@ export function TimelineStrip({
               duration={duration}
               thumbnails={thumbnails}
               selected={entry.itemId === selectedItemId}
-              onSelect={() => onSelectItem(entry.itemId)}
+              onSelect={onSelectItem}
               secondsPerPixel={secondsPerPixel}
               onTrim={onTrim}
               slideUrlFor={slideUrlFor}
@@ -255,7 +273,7 @@ export function TimelineStrip({
               duration={duration}
               selectedOverlayId={selectedOverlayId}
               onSelectOverlay={onSelectOverlay}
-              onWindowChange={(id, start, end, phase) => onWindowChange?.(id, start, end, phase)}
+              onWindowChange={handleWindowChange}
             />
           </LaneRow>
         )}
@@ -275,7 +293,7 @@ export function TimelineStrip({
       </div>
     </div>
   );
-}
+});
 
 function LaneLabel({ icon: Icon, label }: { icon: LucideIcon; label: string }): React.JSX.Element {
   return (
@@ -325,7 +343,7 @@ function TrackBlock({
   duration: number;
   thumbnails: SourceThumbnail[];
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (itemId: string) => void;
   secondsPerPixel: () => number;
   onTrim?: (
     itemId: string,
@@ -467,7 +485,7 @@ function TrackBlock({
         }}
         onClick={(event) => {
           event.stopPropagation(); // a block click selects; it must not also scrub
-          onSelect();
+          onSelect(entry.itemId);
         }}
       >
         {isSlide ? (

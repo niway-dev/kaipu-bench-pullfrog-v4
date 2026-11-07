@@ -44,6 +44,43 @@
   margin: 0 4px;
 }
 
+/* Back and Forward through the in-app history (history-arrows.tsx): two ghost icon
+   buttons after the logo, as a browser or Finder places them. They never collapse. */
+.history {
+  gap: 2px;
+  margin-left: -4px;
+}
+
+.historyButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.historyButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-primary);
+}
+
+.historyButton:active:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
+}
+
+.historyButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* Without this the OS takes the click and drags the window instead. */
 .interactive {
   display: flex;

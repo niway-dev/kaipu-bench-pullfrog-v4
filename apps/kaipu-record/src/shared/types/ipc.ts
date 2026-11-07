@@ -468,6 +468,10 @@ export const IPC_CHANNELS = {
   backfillLocalRecordingMeta: "library:backfill-meta",
   deleteLocalRecording: "library:delete-local",
   revealLocalRecording: "library:reveal-local",
+  /** NIW2-669: open a local recording in its default application. */
+  openLocalRecording: "library:open-local",
+  /** NIW2-669: absolute path of a local recording, or null when its file is gone. */
+  localRecordingPath: "library:local-path",
   /** NIW2-217: save an exported animated GIF into the vault (atomic, validated). */
   gifSave: "library:gif-save",
   /** NIW2-217: native drag-out of a vault file (e.g. a GIF into Slack or GitHub). */
