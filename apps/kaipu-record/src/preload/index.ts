@@ -164,6 +164,8 @@ const kaipuApi: KaipuElectronAPI = {
     scopedInvoke(IPC_CHANNELS.backfillLocalRecordingMeta, id, meta),
   deleteLocalRecording: (id) => scopedInvoke(IPC_CHANNELS.deleteLocalRecording, id),
   revealLocalRecording: (id) => scopedInvoke(IPC_CHANNELS.revealLocalRecording, id),
+  openLocalRecording: (id) => scopedInvoke(IPC_CHANNELS.openLocalRecording, id),
+  localRecordingPath: (id) => scopedInvoke(IPC_CHANNELS.localRecordingPath, id),
   gifSave: (bytes, meta) => scopedInvoke(IPC_CHANNELS.gifSave, bytes, meta),
   startFileDrag: (id, name) => {
     if (guard.switching || !guard.stamp) return;
