@@ -310,9 +310,12 @@ take with a cursor track). Open question: none; it is a count.
 
 ### 3.2 Persistence
 
-`editor.hiddenTracks: TrackKey[]` in the app settings store (where `exportQuality` lives), read
-through the existing settings hook, written on every toggle. Per user, not per recording
-(NIW2-612 and open question 4). The session is untouched.
+`AppSettings.editor.hiddenTracks: TrackKey[]` in the app settings store. `mergeSettings`
+(`apps/kaipu-record/src/main/services/settings.service.ts`) rebuilds settings field by field and
+drops unknown keys, so it needs an `editor` field and a sanitizer that runs `parseHiddenTracks`.
+It is read through the settings hook and written on every toggle. Per user, not per recording and
+not per workspace: the key is not in `OVERRIDABLE_KEYS`
+(`apps/kaipu-record/src/shared/settings-scope.ts`) (NIW2-612 and open question 4). The session is untouched.
 
 ### 3.3 Behaviour
 
