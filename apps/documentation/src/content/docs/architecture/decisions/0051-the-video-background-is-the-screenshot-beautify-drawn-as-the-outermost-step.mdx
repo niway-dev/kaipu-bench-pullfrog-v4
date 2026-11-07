@@ -7,12 +7,12 @@ description: A recording gets a background (the screenshot editor's presets), pa
 
 ## Status
 
-| Field         | Value                                                                                                                                                                                                                                                                                                                                                   |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed — owner decisions 2026-11-06, nothing implemented. [NIW2-663](https://linear.app/niway/issue/NIW2-663/video-editor-transport-bar-with-cutdeletemutespeed-tracks-popover). Spec: [editor transport bar, Tracks popover, speed, timeline zoom and backgrounds](/specs/2026-11-06-editor-transport-tracks-backgrounds-design/), PR 5 of the stack |
-| Date          | 2026-11-06                                                                                                                                                                                                                                                                                                                                              |
-| Relates to    | [0038](/architecture/decisions/0038-webcam-is-a-viewport-layer-composed-after-the-zoom-crop/) (the webcam stays inside the picture), [0003](/architecture/decisions/0003-export-never-replaces-the-original/) (a background is an edit; the export is a new file), [0001](/architecture/decisions/0001-mediabunny-over-ffmpeg/) (drawn in the composer) |
-| Superseded by | —                                                                                                                                                                                                                                                                                                                                                       |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Accepted, 2026-11-07 — built by [NIW2-668](https://linear.app/niway/issue/NIW2-668/editor-stack-55-backgrounds-padding-radius-shadow-in-preview-mp4-and), PR 5 of the stack (on its branch; not on main until the stack merges). Owner decisions 2026-11-06. Spec: [editor transport bar, Tracks popover, speed, timeline zoom and backgrounds](/specs/2026-11-06-editor-transport-tracks-backgrounds-design/) |
+| Date          | 2026-11-06                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Relates to    | [0038](/architecture/decisions/0038-webcam-is-a-viewport-layer-composed-after-the-zoom-crop/) (the webcam stays inside the picture), [0003](/architecture/decisions/0003-export-never-replaces-the-original/) (a background is an edit; the export is a new file), [0001](/architecture/decisions/0001-mediabunny-over-ffmpeg/) (drawn in the composer)                                                        |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## Context
 
@@ -46,11 +46,25 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
    clipped to the radius, with the shadow. The preset's output size is unchanged; the picture
    shrinks. For fixed-canvas presets the background replaces the letterbox when `bg ≠ none`.
    The webcam is composed before this step, so it stays inside the picture.
+
+   _Built as:_ for a fixed-canvas preset the picture is the framed recording, not the whole
+   target canvas. The view is framed Fit or Fill into the box the padding leaves, onto a card
+   canvas of that size, and the card gets the radius and the shadow; the cursor and the webcam are
+   drawn on the card. Rounding the whole target would round a transparent letterbox and leave a
+   Fit picture with square corners.
+
 4. **One geometry for preview and export.** `backgroundFrame(background, w, h)` returns the
    picture rectangle, the scaled radius and shadow; the preview applies them as CSS on the stage
    at its displayed size, the composer as canvas calls at the output size. The three numbers are
    expressed at a 1080 px-high reference and scaled by `h / 1080`, so every preset shows the
    same proportions.
+
+   _Built as:_ it returns `{ box, picture, radius, shadow }`. The padding insets `box` on every
+   side and the picture keeps the output's aspect inside it, so the margin is `padding` on the
+   shorter axis and wider on the other: a uniform inset would squash a 16:9 picture by about 4 %
+   at padding 48. The shadow is `{ offsetY, blur, alpha }`: its offset and blur scale with the
+   output, its darkness does not.
+
 5. **Export reuse.** `BACKGROUND_COMPOSE_REVISION = "bg1"` is added to the edit fingerprint only
    when `bg ≠ none`. With `none`, padding, radius and shadow are stored but not drawn and the
    sliders are disabled, so a plain scene's fingerprint does not change and its old exports
