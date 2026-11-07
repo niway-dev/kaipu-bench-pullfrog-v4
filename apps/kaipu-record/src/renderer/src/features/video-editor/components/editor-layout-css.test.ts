@@ -172,7 +172,15 @@ describe("timeline zoom layout (NIW2-667)", () => {
   });
 
   it("gives a fit timeline its old height: the scrollbar's strip is taken back by a negative margin", () => {
-    expect(body).toMatch(/padding-bottom: 8px;/);
-    expect(body).toMatch(/margin-bottom: -8px;/);
+    expect(body).toMatch(/--lane-bottom: 8px;/);
+    expect(body).toMatch(/padding-bottom: var\(--lane-bottom\);/);
+    expect(body).toMatch(/margin-bottom: calc\(-1 \* var\(--lane-bottom\)\);/);
+  });
+
+  it("stops the playhead at the last lane: it does not cross the scrollbar's strip", () => {
+    // `.playheadLayer` is positioned against the padding box, so `bottom: 0` would run it
+    // through the strip reserved for the scrollbar. The same variable that makes the strip
+    // pulls the layer's bottom edge up by exactly that much.
+    expect(flat(rule(strip, ".playheadLayer"))).toMatch(/bottom: var\(--lane-bottom\);/);
   });
 });
