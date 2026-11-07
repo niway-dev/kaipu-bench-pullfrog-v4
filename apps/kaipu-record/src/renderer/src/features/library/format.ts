@@ -38,3 +38,19 @@ export function relativeDate(epochMs: number): string {
   if (days < 7) return `${days}d ago`;
   return new Date(epochMs).toLocaleDateString();
 }
+
+/** "Nov 5, 2026 · 17:49" in the app's locale — the detail page's absolute date. */
+export function absoluteDate(epochMs: number, locale: string): string {
+  const date = new Date(epochMs);
+  const day = new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+  return `${day} · ${time}`;
+}

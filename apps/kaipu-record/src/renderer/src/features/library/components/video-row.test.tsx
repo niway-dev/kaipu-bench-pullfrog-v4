@@ -63,10 +63,10 @@ describe("VideoRow", () => {
     expect(screen.getByText("Recording")).toBeInTheDocument();
   });
 
-  it("Send to… opens Prepare without opening the row (NIW2-585)", () => {
+  it("Export a copy opens Export without opening the row (NIW2-585)", () => {
     const onPrepare = vi.fn();
     const { onNavigate } = renderRow({ onPrepare });
-    fireEvent.click(screen.getByRole("button", { name: "Send to…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export a copy" }));
     expect(onPrepare).toHaveBeenCalledOnce();
     expect(onNavigate).not.toHaveBeenCalled();
   });
