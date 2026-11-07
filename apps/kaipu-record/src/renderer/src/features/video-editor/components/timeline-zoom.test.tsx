@@ -35,7 +35,7 @@ import { AudioLane } from "./audio-lane";
 import { PrivacyLane } from "./privacy-lane";
 import { TimelineStrip, type ExtraLane } from "./timeline-strip";
 import { rulerTicks, thumbnailTiles, timeToFraction } from "./timeline-geometry";
-import { xOf } from "./timeline-view";
+import { timeAt, xOf } from "./timeline-view";
 import { WebcamLane } from "./webcam-lane";
 import { ZoomLane } from "./zoom-lane";
 import { ZoomIn } from "lucide-react";
@@ -552,6 +552,20 @@ describe("a cut while zoomed", () => {
   });
 });
 
+describe("a cut while zoomed keeps the window on screen", () => {
+  it("the lane still starts at the same time after the take is shortened, in the DOM too", () => {
+    const { store, body, rerender } = renderZoomed(); // 100 s at 4x, scroll 1200: from 30 s
+    expect(timeAt(store.getView(), LANE_LEFT, LANE_LEFT)).toBeCloseTo(30, 9);
+    const shorter = toLayout([
+      { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 60 },
+    ] as TrackItem[]);
+    act(() => store.setDuration(60)); // 66.7 px/s now
+    rerender(strip(store, { layout: shorter, playback: makePlayback({ duration: 60 }) }));
+    expect(timeAt(store.getView(), LANE_LEFT, LANE_LEFT)).toBeCloseTo(30, 9);
+    expect(body.scrollLeft).toBeCloseTo(2000, 6); // 30 s x 66.7 px/s, in the DOM
+  });
+});
+
 describe("a cut while zoomed, with the playhead where it was", () => {
   it("a new duration alone never reveals the playhead: only a playhead that moves does", () => {
     // 100 s at 4x (40 px/s), scrolled to the start: the lane shows 0..25 s and the paused
@@ -854,9 +868,9 @@ describe("a layout that changes during a drag", () => {
       expect(reported).toBeCloseTo(30 + dx / scale, 9);
     }
     expect(reveal).not.toHaveBeenCalled();
-    // Nowhere near the ~1200 px jump that revealing a playhead at 5 s would be.
-    expect(Math.abs(store.getState().scroll - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
-    expect(Math.abs(body.scrollLeft - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
+    // The window the user was looking at is still the one on screen: it began at 18 s.
+    expect(timeAt(store.getView(), LANE_LEFT, LANE_LEFT)).toBeCloseTo(18, 6);
+    expect(Math.abs(body.scrollLeft - store.getState().scroll)).toBeLessThanOrEqual(1);
   });
 
   it("a slide-duration drag does not move the view either", () => {
@@ -879,8 +893,8 @@ describe("a layout that changes during a drag", () => {
       expect(reported).toBeCloseTo(40 + dx / scale, 9);
     }
     expect(reveal).not.toHaveBeenCalled();
-    expect(Math.abs(store.getState().scroll - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
-    expect(Math.abs(body.scrollLeft - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
+    expect(timeAt(store.getView(), LANE_LEFT, LANE_LEFT)).toBeCloseTo(30, 6); // began at 30 s
+    expect(Math.abs(body.scrollLeft - store.getState().scroll)).toBeLessThanOrEqual(1);
   });
 
   it("a paused playhead that really moves (a seek) off screen is still revealed", () => {

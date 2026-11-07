@@ -19,6 +19,7 @@ import {
   ZOOM_STEP,
   clampView,
   followPlayhead,
+  keepLeftEdge,
   maxZoom,
   revealTime,
   zoomAt,
@@ -112,13 +113,21 @@ export function createTimelineViewStore(): TimelineViewStore {
     },
     setDuration(next) {
       const before = limit();
+      const from = view();
       duration = next;
+      // The scroll is in pixels and the scale follows the duration: keep the TIME at the
+      // left edge, so a cut or a stretched slide does not move the window the user is
+      // looking at (a trim drag changes the duration on every move).
       // A cut can lower the deepest zoom without touching the state (it was far from it):
       // the zoom control still has to redraw its slider.
-      if (!commit(view()) && limit() !== before) notify();
+      if (!commit(keepLeftEdge(from, { ...from, duration: next })) && limit() !== before) {
+        notify();
+      }
     },
     setLaneWidth(px) {
-      commit(clampView({ ...view(), laneWidth: px }));
+      // Same reason: a resize changes the scale, so the window is kept by its left-edge time.
+      const from = view();
+      commit(keepLeftEdge(from, { ...from, laneWidth: px }));
     },
     fit() {
       commit({ ...view(), zoom: 1, scroll: 0 });

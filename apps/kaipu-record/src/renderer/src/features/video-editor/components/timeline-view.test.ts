@@ -6,6 +6,7 @@ import {
   contentWidth,
   fitView,
   followPlayhead,
+  keepLeftEdge,
   maxZoom,
   panBy,
   revealTime,
@@ -355,5 +356,50 @@ describe("wheelZoomFactor", () => {
   it("reads line-mode deltas (a mouse wheel on some platforms) as lines, not pixels", () => {
     expect(wheelZoomFactor(-1, 1)).toBe(wheelZoomFactor(-16, 0));
     expect(wheelZoomFactor(-1, 1)).not.toBe(wheelZoomFactor(-1, 0));
+  });
+});
+
+describe("keepLeftEdge", () => {
+  const zoomedIn = viewAt(4, 1200); // 40 px/s, the lane starts at 30 s
+
+  it("keeps the time at the left edge when the duration changes", () => {
+    const next = keepLeftEdge(zoomedIn, { ...zoomedIn, duration: 60 });
+    expect(next.scroll / scaleOf(next)).toBeCloseTo(30, 9);
+    expect(next.zoom).toBe(4);
+  });
+
+  it("keeps it when the lane width changes", () => {
+    const next = keepLeftEdge(zoomedIn, { ...zoomedIn, laneWidth: 500 });
+    expect(next.scroll / scaleOf(next)).toBeCloseTo(30, 9);
+    expect(next.scroll).toBeCloseTo(600, 9);
+  });
+
+  it("clamps the zoom first, then sets the scroll for the clamped zoom's scale", () => {
+    // 20x in 100 s; the cut to 40 s allows 9.6x at most (240 px/s). 50 s is the left edge,
+    // which is past the end of 40 s, so the scroll ends up clamped to the content.
+    const deep = viewAt(20, 10_000);
+    const next = keepLeftEdge(deep, { ...deep, duration: 40 });
+    expect(next.zoom).toBeCloseTo(9.6, 9);
+    expect(next.scroll).toBeCloseTo(contentWidth(next) - next.laneWidth, 9);
+  });
+
+  it("clamps the scroll to the new content, never past its end", () => {
+    const end = viewAt(4, 3000); // the last lane of 100 s
+    const next = keepLeftEdge(end, { ...end, duration: 60 });
+    expect(next.scroll).toBeLessThanOrEqual(contentWidth(next) - next.laneWidth);
+    expect(next.scroll).toBeGreaterThanOrEqual(0);
+  });
+
+  it("only clamps when either side has no scale yet (nothing to keep)", () => {
+    const unmeasured = fitView(0, 100);
+    expect(keepLeftEdge(unmeasured, { ...unmeasured, laneWidth: 1000 })).toEqual(fit);
+    const empty = fitView(1000, 0);
+    expect(keepLeftEdge(empty, { ...empty, duration: 100 })).toEqual(fit);
+  });
+
+  it("leaves the scroll bit-for-bit alone when the scale did not change (no float error invents a move)", () => {
+    const next = keepLeftEdge(zoomedIn, { ...zoomedIn });
+    expect(next).toEqual(zoomedIn);
+    expect(next.scroll).toBe(zoomedIn.scroll);
   });
 });

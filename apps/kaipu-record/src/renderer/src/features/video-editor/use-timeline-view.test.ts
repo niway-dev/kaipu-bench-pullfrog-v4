@@ -132,6 +132,121 @@ describe("the timeline view store", () => {
   });
 });
 
+/**
+ * The time at the lane's LEFT edge is what the user is looking at, so a resize or a cut must
+ * not change it. The scroll is in pixels and the scale (pixels per second) moves with the
+ * lane width and with the duration, so keeping the pixels would move the window: 60 s at 4x
+ * in a 1200 px lane shows from 30 s at scroll 2400, and the same 2400 px in a 900 px lane
+ * would show from 40 s.
+ */
+describe("the time at the left edge survives a resize and a cut", () => {
+  const leftEdge = (store: ReturnType<typeof makeStore>): number => timeAt(store.getView(), 0, 0);
+
+  function zoomedAt30s() {
+    const store = makeStore(1200, 60);
+    store.zoomTo(4); // 80 px/s
+    store.scrollTo(2400, "user"); // the lane shows 30..45 s
+    return store;
+  }
+
+  it("a narrower lane rescales the scroll (1200 → 900 px)", () => {
+    const store = zoomedAt30s();
+    expect(leftEdge(store)).toBeCloseTo(30, 9);
+    store.setLaneWidth(900);
+    expect(leftEdge(store)).toBeCloseTo(30, 9); // not 40 s
+    expect(store.getState().scroll).toBeCloseTo(1800, 9); // 2400 x 900 / 1200
+  });
+
+  it("a wider lane rescales it too (1200 → 1600 px)", () => {
+    const store = zoomedAt30s();
+    store.setLaneWidth(1600);
+    expect(leftEdge(store)).toBeCloseTo(30, 9);
+    expect(store.getState().scroll).toBeCloseTo(3200, 9);
+  });
+
+  it("keeps the left edge when the resize also lowers the deepest zoom", () => {
+    // 100 s in 1000 px zooms at most 24x; in 2000 px, 12x, so the 20x the user had is
+    // clamped to 12x. Scaling the scroll by the lane ratio alone (20000 px) would put the
+    // window at 83 s; the time at the left edge is 50 s.
+    const store = makeStore(1000, 100);
+    store.zoomTo(20);
+    store.scrollTo(10_000, "user");
+    expect(leftEdge(store)).toBeCloseTo(50, 9);
+    store.setLaneWidth(2000);
+    expect(store.getState().zoom).toBeCloseTo(12, 9);
+    expect(leftEdge(store)).toBeCloseTo(50, 9);
+  });
+
+  it("a cut keeps the time at the left edge (100 s → 60 s at 4x)", () => {
+    const store = makeStore(1000, 100);
+    store.zoomTo(4); // 40 px/s
+    store.scrollTo(1200, "user"); // the lane shows 30..55 s
+    expect(leftEdge(store)).toBeCloseTo(30, 9);
+    store.setDuration(60); // 66.7 px/s now
+    expect(leftEdge(store)).toBeCloseTo(30, 9);
+    expect(store.getState().scroll).toBeCloseTo(2000, 9);
+  });
+
+  it("a longer take (a slide stretched) keeps it too", () => {
+    const store = makeStore(1000, 100);
+    store.zoomTo(4);
+    store.scrollTo(1200, "user");
+    store.setDuration(120);
+    expect(leftEdge(store)).toBeCloseTo(30, 9);
+  });
+
+  it("a cut that ends before the old left edge clamps to the end of the shorter take", () => {
+    // Scrolled to the very end of 100 s (left edge 75 s), then cut to 60 s: 75 s is gone,
+    // so the view lands on the last lane of what is left, not past it.
+    const store = makeStore(1000, 100);
+    store.zoomTo(4);
+    store.scrollTo(99_999, "user");
+    expect(leftEdge(store)).toBeCloseTo(75, 9);
+    store.setDuration(60);
+    const view = store.getView();
+    expect(view.zoom).toBe(4);
+    expect(store.getState().scroll).toBeCloseTo(contentWidth(view) - 1000, 9);
+    expect(leftEdge(store)).toBeCloseTo(45, 9);
+  });
+
+  it("a cut that also lowers the deepest zoom keeps the left edge until the end clamps it", () => {
+    const store = makeStore(1000, 100);
+    store.zoomTo(20); // 200 px/s
+    store.scrollTo(10_000, "user"); // left edge 50 s
+    store.setDuration(40); // deepest zoom 9.6x: 240 px/s
+    const view = store.getView();
+    expect(view.zoom).toBeCloseTo(9.6, 9);
+    // 50 s is past the end of a 40 s take: the window ends at the end.
+    expect(store.getState().scroll).toBeCloseTo(contentWidth(view) - 1000, 9);
+  });
+
+  it("a trim drag (the duration moving every frame) does not drift the window", () => {
+    const store = makeStore(1000, 60);
+    store.zoomTo(4);
+    store.scrollTo(1200, "user"); // left edge 18 s
+    for (let i = 1; i <= 120; i++) store.setDuration(60 - i * 0.05);
+    expect(leftEdge(store)).toBeCloseTo(18, 6);
+  });
+
+  it("changes nothing, and tells nobody, when the duration or the lane stays the same", () => {
+    const store = zoomedAt30s();
+    const before = store.getState();
+    const listener = vi.fn();
+    store.subscribe(listener);
+    store.setDuration(60);
+    store.setLaneWidth(1200);
+    expect(listener).not.toHaveBeenCalled();
+    expect(store.getState()).toBe(before);
+  });
+
+  it("an unmeasured lane has no window to keep: the first width leaves the scroll alone", () => {
+    const store = createTimelineViewStore();
+    store.setDuration(100);
+    store.setLaneWidth(1000);
+    expect(store.getState()).toEqual({ zoom: 1, scroll: 0, laneWidth: 1000 });
+  });
+});
+
 describe("following the playhead", () => {
   function zoomed() {
     const store = makeStore();

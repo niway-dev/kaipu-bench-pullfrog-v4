@@ -89,6 +89,25 @@ export function clampView(view: TimelineView): TimelineView {
 }
 
 /**
+ * Move from view `from` to view `to` (a resized lane, a cut or a stretched take) keeping the
+ * TIME at the lane's left edge: the scroll is in pixels and the scale (pixels per second)
+ * follows the lane width and the duration, so carrying the pixels over would move the window
+ * the user is looking at. `to`'s zoom is clamped first, because a different lane or duration
+ * has a different deepest zoom, and the scroll is then set for that zoom's scale and clamped
+ * to the new content (a cut that removed the old left edge lands on the end of what is
+ * left). When either side has no scale yet (an unmeasured lane, an empty timeline) there is
+ * no window to keep and the scroll is only clamped; when the scale did not change the view is
+ * returned as it is, so no float error invents a change.
+ */
+export function keepLeftEdge(from: TimelineView, to: TimelineView): TimelineView {
+  const before = scaleOf(from);
+  const zoom = clamp(finiteOr(to.zoom, 1), 1, maxZoom(to.laneWidth, to.duration));
+  const after = scaleOf({ ...to, zoom });
+  if (before <= 0 || after <= 0 || after === before) return clampView(to);
+  return clampView({ ...to, zoom, scroll: (from.scroll / before) * after });
+}
+
+/**
  * The timeline time under a pointer. `laneLeft` is the screen x of the lane's left edge
  * (the viewport's, which does not move when the content scrolls). Clamped to the
  * timeline by default; a drag that moves an EDGE by a pointer delta passes `clampToTimeline = false`
