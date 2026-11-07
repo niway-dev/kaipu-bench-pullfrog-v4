@@ -27,6 +27,7 @@ import { RecordingPlayer } from "@renderer/features/library/components/recording
 import { ScreenshotViewer } from "@renderer/features/library/components/screenshot-viewer";
 import { GifViewer } from "@renderer/features/library/components/gif-viewer";
 import { ItemActionsMenu } from "@renderer/features/library/components/item-actions-menu";
+import { notMovableReason } from "@renderer/features/workspaces/move/move-flow";
 import { ItemDetails } from "@renderer/features/library/components/item-details";
 import { VersionsList } from "@renderer/features/library/components/versions-list";
 import {
@@ -518,6 +519,7 @@ export function LibraryDetailPage(): React.JSX.Element {
                   assetId={video.assetId}
                   isScreenshot={isScreenshot}
                   canRemoveLocalCopy={canRemoveLocalCopy}
+                  movable={notMovableReason(video) === null}
                   onCopyImage={() => void copyScreenshot()}
                   onCopyPath={() => void copyPath()}
                   onRemoveLocalCopy={() => void doRemoveLocalCopy()}

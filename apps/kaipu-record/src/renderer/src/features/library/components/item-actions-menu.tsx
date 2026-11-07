@@ -19,6 +19,7 @@ export function ItemActionsMenu({
   assetId,
   isScreenshot,
   canRemoveLocalCopy,
+  movable,
   onCopyImage,
   onCopyPath,
   onRemoveLocalCopy,
@@ -27,6 +28,8 @@ export function ItemActionsMenu({
   assetId: string;
   isScreenshot: boolean;
   canRemoveLocalCopy: boolean;
+  /** The item can be moved (see `notMovableReason`); a broken record is not offered. */
+  movable: boolean;
   onCopyImage(): void;
   onCopyPath(): void;
   onRemoveLocalCopy(): void;
@@ -43,7 +46,7 @@ export function ItemActionsMenu({
   const workspaces = useOptionalWorkspaces();
   const move = useMoveItems();
   const lock = useMoveLock(workspaces?.state ?? null);
-  const canMove = Boolean(workspaces?.state && workspaces.active);
+  const canMove = movable && Boolean(workspaces?.state && workspaces.active);
 
   const close = (refocus: boolean): void => {
     setOpen(false);
