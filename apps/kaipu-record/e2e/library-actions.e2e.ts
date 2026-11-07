@@ -62,11 +62,12 @@ test("delete removes the vault file and navigates back to the list", async () =>
       location.hash = `#/library/${assetId}`;
     }, RECORDING_ASSET_ID);
 
-    // The action-bar Delete button opens the in-renderer confirm dialog (no native dialog).
-    await page.getByRole("button", { name: "Delete" }).click();
+    // Delete lives in the item page's "More actions" (•••) menu (NIW2-669), as "Delete…". It
+    // opens the in-renderer confirm dialog (no native dialog).
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Delete…" }).click();
 
-    // Confirm inside the alertdialog — scoping to it disambiguates from the action-bar Delete,
-    // which is still mounted while the dialog is open (both are named "Delete").
+    // Confirm inside the alertdialog, the only place a plain "Delete" button exists now.
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 
     // doDelete() navigates back to the list after removing the file.
