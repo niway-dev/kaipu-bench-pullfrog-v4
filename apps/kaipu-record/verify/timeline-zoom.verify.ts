@@ -200,7 +200,6 @@ async function openEditor(page: Page): Promise<void> {
 }
 
 const ZOOM_IN = /Zoom in the timeline|Acercar la línea de tiempo/;
-const ZOOM_OUT = /Zoom out the timeline|Alejar la línea de tiempo/;
 const FIT = /Fit the whole recording|Ajustar toda la grabación/;
 
 async function readNumbers(bar: Locator): Promise<string> {
@@ -527,7 +526,6 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     // Back to 1x: the editor must look as it did before.
     await page.getByRole("button", { name: FIT }).click();
     await shoot("fit-again");
-    void ZOOM_OUT;
   } finally {
     try {
       await teardown();
