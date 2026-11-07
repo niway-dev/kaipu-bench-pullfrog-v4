@@ -23,6 +23,7 @@ export const shell = catalog(
       how: "Open the app: the one-time workspaces hint is still up.",
       demonstrates: [
         "shell.titleBar:withSwitcher",
+        "shell.historyArrows:atStart",
         "shell.workspaceSwitcher:hint",
         "shell.sidebar:rest",
         "shell.statusBar:default",
@@ -57,6 +58,12 @@ export const shell = catalog(
       ],
       demonstrates: ["shell.workspaceDialog:edit"],
       after: [{ press: "Escape", on: "main" }],
+    },
+    // A real router navigation (a sidebar click, not a hash change) lights up Back.
+    "history-back": {
+      profile: "default",
+      steps: [{ click: { area: "shell.sidebar", part: { role: "link", name: "Library" } } }],
+      demonstrates: ["shell.historyArrows:canGoBack"],
     },
     "settings-nav": {
       profile: "default",

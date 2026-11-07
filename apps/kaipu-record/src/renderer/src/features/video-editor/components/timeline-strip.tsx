@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -71,7 +72,7 @@ export interface ExtraLane {
   node: ReactElement;
 }
 
-export function TimelineStrip({
+export const TimelineStrip = memo(function TimelineStrip({
   layout,
   playback,
   thumbnails,
@@ -147,6 +148,13 @@ export function TimelineStrip({
   // causes is not mistaken for the user panning.
   const appliedScrollRef = useRef(0);
   const duration = layoutDuration(layout);
+  // Without the callback the guard `?.` would need an inline arrow, and a new function on every
+  // render defeats the memoised OverlayLane.
+  const handleWindowChange = useCallback(
+    (id: string, start: number, end: number, phase: WindowChangePhase) =>
+      onWindowChange?.(id, start, end, phase),
+    [onWindowChange],
+  );
 
   const ownStore = useTimelineViewStore(duration);
   const store = timelineView ?? ownStore;
@@ -377,6 +385,41 @@ export function TimelineStrip({
   const scale = scaleOf(view);
   const shown = scale > 0 ? visibleRange(view) : { start: 0, end: duration };
   const tickWindow = view.zoom > 1 ? shown : undefined;
+  const tickStart = tickWindow?.start;
+  const tickEnd = tickWindow?.end;
+
+  // The ruler depends on the duration, the zoom and, once zoomed, the window on screen. At fit
+  // there is no window, so a re-render of a long recording (a slider dragged elsewhere) reuses
+  // the hundreds of tick spans instead of rebuilding them (NIW2-662); zoomed, they follow the
+  // scroll, as the windowing above requires. Primitives in the dependencies: `shown` is a new
+  // object on every render.
+  const rulerMarks = useMemo(() => {
+    const visible =
+      tickStart === undefined || tickEnd === undefined
+        ? undefined
+        : { start: tickStart, end: tickEnd };
+    return (
+      <>
+        {rulerMinorTicks(duration, view.zoom, visible).map((time) => (
+          <span
+            key={time}
+            className={styles.minorTick}
+            style={{ left: `${timeToFraction(time, duration) * 100}%` }}
+          />
+        ))}
+        {rulerTicks(duration, view.zoom, visible).map((tick) => {
+          const fraction = timeToFraction(tick.time, duration);
+          // The room as a share of the content: the same pixels, over a wider whole.
+          const labelFits = fraction < 1 - LAST_LABEL_ROOM / view.zoom;
+          return (
+            <span key={tick.time} className={styles.tick} style={{ left: `${fraction * 100}%` }}>
+              {labelFits && tick.label}
+            </span>
+          );
+        })}
+      </>
+    );
+  }, [duration, view.zoom, tickStart, tickEnd]);
 
   return (
     <div className={styles.strip}>
@@ -407,27 +450,7 @@ export function TimelineStrip({
               onLostPointerCapture={endScrub}
               onPointerLeave={hideHover}
             >
-              {rulerMinorTicks(duration, view.zoom, tickWindow).map((time) => (
-                <span
-                  key={time}
-                  className={styles.minorTick}
-                  style={{ left: `${timeToFraction(time, duration) * 100}%` }}
-                />
-              ))}
-              {rulerTicks(duration, view.zoom, tickWindow).map((tick) => {
-                const fraction = timeToFraction(tick.time, duration);
-                // The room as a share of the content: the same pixels, over a wider whole.
-                const labelFits = fraction < 1 - LAST_LABEL_ROOM / view.zoom;
-                return (
-                  <span
-                    key={tick.time}
-                    className={styles.tick}
-                    style={{ left: `${fraction * 100}%` }}
-                  >
-                    {labelFits && tick.label}
-                  </span>
-                );
-              })}
+              {rulerMarks}
             </div>
             {/* Clips lead: the recording is what every other lane edits. */}
             <LaneLabel icon={Film} label={t("laneClips")} />
@@ -448,7 +471,7 @@ export function TimelineStrip({
                   scale={scale}
                   shown={shown}
                   selected={entry.itemId === selectedItemId}
-                  onSelect={() => onSelectItem(entry.itemId)}
+                  onSelect={onSelectItem}
                   freezeMapping={freezeMapping}
                   onDragActive={setEditDrag}
                   onTrim={onTrim}
@@ -466,9 +489,7 @@ export function TimelineStrip({
                   duration={duration}
                   selectedOverlayId={selectedOverlayId}
                   onSelectOverlay={onSelectOverlay}
-                  onWindowChange={(id, start, end, phase) =>
-                    onWindowChange?.(id, start, end, phase)
-                  }
+                  onWindowChange={handleWindowChange}
                 />
               </LaneRow>
             )}
@@ -490,7 +511,7 @@ export function TimelineStrip({
       </TimelinePointerContext.Provider>
     </div>
   );
-}
+});
 
 function LaneLabel({ icon: Icon, label }: { icon: LucideIcon; label: string }): React.JSX.Element {
   return (
@@ -547,7 +568,7 @@ function TrackBlock({
   scale: number;
   shown: { start: number; end: number };
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (itemId: string) => void;
   /** The pixel-to-time mapping as it is right now, to freeze on pointerdown. */
   freezeMapping: () => TimelineView | null;
   /** True from the pointerdown on a trim or slide handle until its drag ends. */
@@ -734,7 +755,7 @@ function TrackBlock({
         }}
         onClick={(event) => {
           event.stopPropagation(); // a block click selects; it must not also scrub
-          onSelect();
+          onSelect(entry.itemId);
         }}
       >
         {isSlide ? (

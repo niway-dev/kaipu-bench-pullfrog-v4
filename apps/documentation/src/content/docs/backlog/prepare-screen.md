@@ -85,7 +85,8 @@ GIFs are not preparable.
   `showRecordingSavedCard`, its NIW2-218 name). It replaces the "Recording saved" card and the
   inline panel NIW2-578 first shipped. It lives in the app, not in a floating window, because
   main already shows and focuses the app window when a recording stops.
-- **The recording page** (reworked in NIW2-585, then laid out after Claude Design
+- **The recording page** — superseded by NIW2-669: see
+  [Library item detail](./library-item-detail). The history below is how it got there. (Reworked in NIW2-585, then laid out after Claude Design
   `Kaipu Export v3.dc.html`, sections 1 and 2, on `feature/recording-detail-title-and-copies` —
   no Linear ticket, the workspace hit its issue limit): the recording is the **master**.
   - **Title row.** The top row is "← Library", the title (rename pencil, the full width the row

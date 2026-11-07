@@ -1291,6 +1291,32 @@ describe("ruler labels near the end of the content", () => {
     expect(labels).not.toContain("1:40");
   });
 
+  it("scrolling at a fixed zoom moves the labelled window: the memoised ruler marks follow the scroll", () => {
+    // The strip memoises the ruler's spans (NIW2-662) on the duration, the zoom and the window on
+    // screen. A scroll alone changes only the window, so it must still rebuild them.
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(100);
+    const { container } = render(
+      strip(store, { layout: clipOf(100), playback: makePlayback({ duration: 100 }) }),
+    );
+    act(() => {
+      store.zoomTo(16);
+      store.scrollTo(0, "user");
+    });
+    const atStart = rulerLabels(container);
+    expect(atStart).toContain("0:01");
+    expect(atStart).not.toContain("1:35");
+
+    act(() => store.scrollTo(1e9, "user"));
+    const atEnd = rulerLabels(container);
+    expect(atEnd).toContain("1:35");
+    expect(atEnd).not.toContain("0:01");
+
+    act(() => store.scrollTo(0, "user"));
+    expect(rulerLabels(container)).toEqual(atStart);
+  });
+
   it("at the deepest zoom of a 10-minute take (240 px/s) the last seconds are labelled too", () => {
     // Half-second labels, 120 px apart, the lane shows 595.8..600 s. The old rule dropped
     // every label from 576 s on, so this stretch of the ruler was blank.

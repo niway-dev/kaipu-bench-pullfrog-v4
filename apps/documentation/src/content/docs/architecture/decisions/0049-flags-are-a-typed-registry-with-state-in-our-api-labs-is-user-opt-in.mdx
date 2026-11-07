@@ -1,0 +1,74 @@
+---
+title: "ADR 0049: Flags are a typed registry in code with state in our API; Labs is user opt-in, release flags are owner-only"
+description: "The flag registry lives in code (packages/domain, pinned in src/shared/analytics.ts); the state (on, off, targeted, granted, opt-in) lives in Kaipu's API through admin-kit's features add-on; the desktop reads one endpoint with its session, drops unknown keys and uses defaults offline; a Labs page in Settings, visible only signed in, lists labs keys the owner made available and lets the user opt in; release flags (NIW2-603) never appear there. PostHog keeps analytics."
+---
+
+# ADR 0049: Flags are a typed registry in code with state in our API; Labs is user opt-in, release flags are owner-only
+
+## Status
+
+Proposed — design PR pending review (2026-11-05).
+[NIW2-657](https://linear.app/niway/issue/NIW2-657/console-on-admin-kit-and-labs-typed-flags-labs-opt-in-in-settings).
+Spec: [Console on admin-kit and Labs — design](/specs/2026-11-05-console-on-admin-kit-and-labs-design/).
+Companion: [0048](/architecture/decisions/0048-console-is-the-admin-kit-panel-authorized-by-its-policies/).
+Amends the premise of NIW2-603 ("flags are PostHog feature flags") for user-facing flags; release
+flags stay on PostHog until a later amendment. Follows the idiom of `FLAG_NAMES`/`FLAG_DEFAULTS`
+(`src/shared/analytics.ts`) and `KAIPU_FLAG_OVERRIDES` (`src/shared/flag-overrides.ts`).
+
+## Context
+
+The desktop app evaluates two PostHog flags with offline defaults and a dev-only override parser
+that drops unknown keys ([analytics-and-flags](https://github.com/csdev19/general-knowledge/blob/main/desktop/analytics-and-flags.md)).
+PostHog knows devices, not Kaipu users; the Console cannot flip a flag; a user cannot opt into an
+experiment. The owner wants a Labs section like T3 Code's, controlled from the Console, evaluated for
+the signed-in user, and asked first that "code cannot be injected and the user is authorized from the
+backend" (2026-11-05). NIW2-603 (deploy vs release) fixed that new features merge dark behind a flag
+only the owner flips; Labs must not turn those into user toggles.
+
+admin-kit's features add-on (ADRs 0701 and 0702) defines the mechanism: registry in the host's code,
+state per known key, effective value = mode, then grant, then opt-in, then default.
+
+## Decision
+
+1. The registry is code: `FLAG_REGISTRY` in `packages/domain` (typed keys, default, `labs: true` for
+   experiments). `src/shared/analytics.ts` keeps `FLAG_NAMES`/`FLAG_DEFAULTS` as literals, pinned by
+   a test, because `src/shared/**` takes no value import from a workspace package (preload rule).
+2. The state lives in Kaipu's API through the kit's `features` add-on. The desktop reads
+   `GET /api/v1/me/flags` with its bearer session on launch and on sign-in, caches the last map, drops
+   keys it does not know, and uses the registry default offline. The server sends booleans only.
+3. Labs is a Settings child, visible only when signed in. It lists registry keys with `labs: true`
+   whose remote availability (`optInAllowed`) is on; a toggle writes the user's opt-in. A flag
+   without `labs` never appears: release flags remain owner-only, as NIW2-603 requires.
+4. The owner controls availability, grants and kill switches from the Console's Features section.
+5. PostHog keeps analytics and exception capture. `useFlag` reads the new map. The release-flag
+   workflow of NIW2-603 migrates to this mechanism in a later amendment, after Labs has proven it.
+
+## Alternatives rejected
+
+- **PostHog for Labs, flipping per-user flags from the Console through PostHog's API.** Identity is
+  per device; the Console becomes a wrapper; opt-in needs the user to be known to PostHog.
+- **Labs toggles stored only locally in `AppSettings`.** No owner control over availability; a
+  half-finished experiment cannot be withdrawn.
+- **Reusing the dev-only Developer page.** It ships simulators that must not reach production; one
+  mistake leaks them.
+- **Rules or payloads evaluated client-side.** The injection surface the owner refuses.
+
+## Consequences
+
+- A new flag is a code change (registry plus every reader), then state in the Console. Dead flags
+  cannot be created from the panel; cleanup stays a code change (NIW2-603's one-cleanup-issue rule).
+- Labs requires sign-in; the rest of Settings does not.
+- The map is fetched at most twice per session (launch, sign-in); a flag flipped in the Console
+  reaches a running app on the next launch, which is acceptable for experiments and kill switches of
+  this app's kind.
+- Two flag sources coexist until the NIW2-603 amendment: PostHog for release flags, the API for
+  user-facing ones. The registry marks which is which.
+
+## Non-goals
+
+- Percentage rollouts, A/B tests, remote configuration values, streaming updates, an MCP server.
+
+## What would reopen this
+
+- A flag needs a non-boolean value, or release flags need per-user targeting the API already has;
+  then NIW2-603 is amended and PostHog flags are retired.
