@@ -32,6 +32,35 @@ describe("timeline lanes (15% lower than NIW2-611)", () => {
   });
 });
 
+describe("the sticky lane label at scroll > 0 (NIW2-667)", () => {
+  // The label is sticky: once the timeline scrolls, lanes slide under it. Its box covers
+  // only the label column, so what sits BETWEEN the label and the lane (the column gap, and
+  // the corner where that gap meets the 3px row gap) has to be filled by its shadow, or the
+  // content scrolled past the lane's left edge (blocks, thumbnails, the playhead) shows
+  // through there. A shadow, not padding or a pseudo-element: the label clips its own text
+  // with overflow:hidden, which would clip both of those but not its own shadow.
+  const shadow = (): string => {
+    const declarations = rule(css("timeline-strip.module.css"), ".laneLabel");
+    return declarations.match(/box-shadow:([^;]*);/)![1]!;
+  };
+
+  it("fills the column gap to the lane, in the panel colour", () => {
+    expect(shadow()).toMatch(/(?:^|,)\s*var\(--lane-gap\)\s+0\s+0\s+0\s+var\(--bg-panel\)/);
+  });
+
+  it("fills the corner where the column gap meets the row gap", () => {
+    expect(shadow()).toMatch(/(?:^|,)\s*var\(--lane-gap\)\s+3px\s+0\s+0\s+var\(--bg-panel\)/);
+  });
+
+  it("is opaque and above the lanes and the playhead layer", () => {
+    const declarations = rule(css("timeline-strip.module.css"), ".laneLabel");
+    expect(declarations).toMatch(/background:\s*var\(--bg-panel\)/);
+    const z = (selector: string): number =>
+      Number(rule(css("timeline-strip.module.css"), selector).match(/z-index:\s*(\d+)/)![1]);
+    expect(z(".laneLabel")).toBeGreaterThan(z(".playheadLayer"));
+  });
+});
+
 describe("tool rail and picture", () => {
   it("the rail is 44px wide", () => {
     expect(rule(css("editor-toolbar.module.css"), ".rail")).toMatch(/(?:^|\s)width:\s*44px;/);
@@ -103,7 +132,7 @@ describe("timeline zoom layout (NIW2-667)", () => {
     expect(label).toMatch(/position: sticky;/);
     expect(label).toMatch(/left: 0;/);
     expect(label).toMatch(/align-self: stretch;/);
-    expect(label).toMatch(/box-shadow: 0 3px 0 0 var\(--bg-panel\);/);
+    expect(label).toMatch(/box-shadow: 0 3px 0 0 var\(--bg-panel\)[,;]/); // first of the fills
     expect(label).toMatch(/background: var\(--bg-panel\);/);
   });
 
