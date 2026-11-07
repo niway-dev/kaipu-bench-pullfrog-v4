@@ -172,10 +172,19 @@ test("background: the editor, the MP4 (Balanced and Vertical) and the GIF", asyn
     await page.evaluate((h) => (location.hash = h), `#/library/${ASSET_ID}`);
     await page.getByRole("button", { name: "Edit video" }).click();
     await page.waitForFunction(() => location.hash.startsWith("#/editor/video/"));
+    // The editor's own preview, not the recording page's <video> that is on screen until the
+    // route changes.
+    await page.locator("[data-ui-area='editorVideo.transport']").waitFor({ state: "visible" });
     await expect
-      .poll(() => page.evaluate(() => document.querySelector("video")?.videoWidth ?? 0), {
-        timeout: 20_000,
-      })
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              document.querySelector<HTMLVideoElement>("[data-ui-area='editorVideo.preview'] video")
+                ?.videoWidth ?? 0,
+          ),
+        { timeout: 20_000 },
+      )
       .toBeGreaterThan(0);
     log(`window ${await page.evaluate(() => `${innerWidth}x${innerHeight}`)}`);
     await shot("editor-plain");
