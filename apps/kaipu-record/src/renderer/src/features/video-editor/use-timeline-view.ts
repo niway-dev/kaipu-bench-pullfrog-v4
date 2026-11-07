@@ -53,8 +53,11 @@ export interface TimelineViewStore {
   zoomAtPointer(factor: number, clientX: number, laneLeft: number): void;
   /**
    * Set the scroll. `"user"` is a pan by hand (the scrollbar, a trackpad swipe) and takes
-   * the view out of the playhead's hands until the next play; `"follow"` is the strip
-   * reporting a scroll the store itself caused, which must not count as taking over.
+   * the view out of the playhead's hands until the next play; `"follow"` is a scroll that
+   * is not a pan: the view moves and keeps following. Production never sends it (the strip
+   * only calls `scrollTo(body.scrollLeft, "user")`, and drops the scroll event its own
+   * `scrollLeft` write causes by comparing with `appliedScrollRef`); it exists for callers
+   * that need to place the view without taking it from the playhead, as the tests do.
    */
   scrollTo(px: number, by: "user" | "follow"): void;
   /** While PLAYING: turn the page when the playhead passes 80% of the lane. */
