@@ -817,3 +817,127 @@ describe("usePreviewPlayback — cut detection across seeks, pauses and timeupda
     expect(result.current.timelineTime).toBe(13);
   });
 });
+
+// A plain split leaves two clips that are contiguous in source: X [0..5], Y [5..10]. The
+// <video> is already playing the right footage past that cut, so the hand-off must move
+// the bookkeeping on WITHOUT seeking the element — a forced seek at every split would
+// stall the video and drop the audio for a few milliseconds on each pass.
+const SPLIT = [clip("x", 0, 5), clip("y", 5, 10)];
+const SPLIT_THEN_SLIDE = [clip("x", 0, 5), clip("y", 5, 10), slide("s1", 3)];
+// Y starts 10 ms after X ends: inside END_EPSILON, so still "the same footage".
+const SPLIT_WITHIN_EPSILON = [clip("x", 0, 5), clip("y", 5.01, 10)];
+
+/** Play the fake element across `[from, to)` one animation frame at a time (a frame is
+ *  17 ms of wall time, `speed` times that much footage), recording every emitted time. */
+function playFrames(playTo: (t: number) => void, speed: number, from: number, to: number): void {
+  const step = speed * 0.017;
+  for (let position = from; position < to; position += step) {
+    playTo(position);
+    frame();
+  }
+}
+
+describe.each([0.5, 1, 1.5, 2])(
+  "usePreviewPlayback — contiguous clips play through their cut without a seek, at %sx",
+  (speed) => {
+    it("crosses a plain split with no seek, no pause, and a monotonic playhead", () => {
+      const { result, video, seeks, playTo } = setupCutRig(SPLIT, speed);
+      const times: number[] = [];
+      result.current.subscribeTime((t) => times.push(t));
+      act(() => result.current.play());
+
+      playFrames(playTo, speed, 4.8, 5.3); // frames step through, over and past the cut
+
+      expect(seeks).toEqual([]);
+      expect(video.pause).not.toHaveBeenCalled();
+      expect(result.current.playing).toBe(true);
+      expect(times.length).toBeGreaterThan(5);
+      for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+      expect(times.at(-1)).toBeGreaterThan(5); // the playhead moved on into Y
+    });
+
+    it("a frame inside the 20 ms window before the cut does not seek", () => {
+      const { result, video, seeks, playTo } = setupCutRig(SPLIT, speed);
+      const times: number[] = [];
+      result.current.subscribeTime((t) => times.push(t));
+      act(() => result.current.play());
+      playTo(4.99); // inside [cut - 0.02, cut]: the old hand-off fired a seek right here
+      frame();
+
+      expect(seeks).toEqual([]);
+      expect(video.pause).not.toHaveBeenCalled();
+      expect(result.current.timelineTime).toBeCloseTo(4.99, 5); // where the video is, not snapped
+
+      playTo(5.01);
+      frame();
+      frame();
+      expect(seeks).toEqual([]);
+      expect(times.at(-1)).toBeCloseTo(5.01, 5);
+    });
+
+    it("moves on to the next clip: its own cut is the next hand-off (a slide after Y)", () => {
+      const { result, seeks, playTo } = setupCutRig(SPLIT_THEN_SLIDE, speed);
+      act(() => result.current.play());
+      playFrames(playTo, speed, 4.8, 5.3);
+      expect(result.current.activeSlideId).toBeNull();
+
+      playTo(9.5);
+      frame();
+      expect(result.current.activeSlideId).toBeNull();
+      playTo(10.2); // past Y's cut: the slide follows at timeline 10
+
+      frame();
+      expect(result.current.activeSlideId).toBe("s1");
+      expect(result.current.timelineTime).toBe(10);
+      expect(seeks).toEqual([]);
+    });
+
+    it("a split whose second half starts 10 ms later behaves the same", () => {
+      const { result, video, seeks, playTo } = setupCutRig(SPLIT_WITHIN_EPSILON, speed);
+      const times: number[] = [];
+      result.current.subscribeTime((t) => times.push(t));
+      act(() => result.current.play());
+
+      playFrames(playTo, speed, 4.8, 5.4);
+
+      expect(seeks).toEqual([]);
+      expect(video.pause).not.toHaveBeenCalled();
+      expect(result.current.playing).toBe(true);
+      for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+    });
+
+    it("the timeupdate fallback crosses the split without a seek too", () => {
+      const { result, seeks, playTo } = setupCutRig(SPLIT, speed);
+      act(() => result.current.play());
+      playTo(4.99);
+      act(() => result.current.onVideoTimeUpdate());
+      expect(seeks).toEqual([]);
+
+      playTo(5.3); // the next timeupdate, 250 ms later
+      act(() => result.current.onVideoTimeUpdate());
+      playTo(5.55);
+      act(() => result.current.onVideoTimeUpdate());
+
+      expect(seeks).toEqual([]);
+      expect(result.current.timelineTime).toBeCloseTo(5.55, 5);
+    });
+
+    it("a real gap in source still seeks, once", () => {
+      const { result, seeks, playTo } = setupCutRig(GAP_NO_SLIDE, speed);
+      act(() => result.current.play());
+
+      // Play up to the cut; the first frame at the cut seeks over the deleted footage.
+      const step = speed * 0.017;
+      for (let position = 4.8; seeks.length === 0 && position < 5.5; position += step) {
+        playTo(position);
+        frame();
+      }
+      expect(seeks).toEqual([20]);
+      expect(result.current.timelineTime).toBeCloseTo(5, 1);
+
+      // The element now plays clip b; further frames must not seek again.
+      playFrames(playTo, speed, 20.02, 20.3);
+      expect(seeks).toEqual([20]);
+    });
+  },
+);

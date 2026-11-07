@@ -243,10 +243,16 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
    * about every 250 ms, so playback ran past a cut by that long (500 ms at 2x): deleted
    * footage played, and a slide or a short gap could be jumped over entirely.
    *
+   * A next clip that continues the same footage (a plain split: X [0..5], Y [5..10]) needs
+   * no seek — the element is already playing Y's first frame. Seeking there would stall
+   * the video and drop the audio for a few milliseconds at every split, so the hand-off
+   * only moves the bookkeeping on. A gap in source (deleted footage between) or a slide
+   * still goes through `advanceFrom`.
+   *
    * Idempotent: the hand-off moves the ref on (next clip, or null for a slide / the end),
    * and it only fires while playing, so a second caller for the same cut finds nothing
    * left to do. Returns true when it advanced; the caller must then leave the playhead
-   * to `advanceFrom`.
+   * to this function (it has already reported the new time).
    */
   const handOffAtCut = useCallback(
     (video: HTMLVideoElement): boolean => {
@@ -254,10 +260,32 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
       if (!entry || !playingRef.current || video.currentTime < entry.sourceEnd - END_EPSILON) {
         return false;
       }
+      const layoutNow = layoutRef.current;
+      const next = layoutNow[layoutNow.findIndex((e) => e.itemId === entry.itemId) + 1];
+      if (
+        next &&
+        next.kind === "clip" &&
+        Math.abs(next.sourceStart - entry.sourceEnd) < END_EPSILON
+      ) {
+        activeClipIdRef.current = next.itemId;
+        // Where the element is inside the next clip, never behind what was last reported
+        // (a clip starting a few ms after the cut would otherwise step the playhead back).
+        const t = Math.min(
+          next.timelineEnd,
+          Math.max(
+            lastValidTimeRef.current,
+            next.timelineStart + (video.currentTime - next.sourceStart),
+          ),
+        );
+        lastValidTimeRef.current = t;
+        setTimelineTime(t);
+        emitTime(t);
+        return true;
+      }
       advanceFrom(entry.timelineEnd);
       return true;
     },
-    [resolveActiveClip, advanceFrom],
+    [resolveActiveClip, advanceFrom, emitTime],
   );
 
   // rAF loop feeds high-frequency listeners (playhead) without re-rendering React. On a
@@ -282,8 +310,8 @@ export function usePreviewPlayback(layout: LayoutEntry[], audio?: AudioEdits): P
           applyMute(video, mutedRef.current);
           applyRate(video);
         }
-        // A frame that finds the clip at its cut hands off right here (advanceFrom moves
-        // the playhead); otherwise it just reports where the video is.
+        // A frame that finds the clip at its cut hands off right here (the hand-off reports
+        // the new playhead itself); otherwise it just reports where the video is.
         if (!(video && handOffAtCut(video))) {
           const mapped = video ? sourceToTimeline(layoutRef.current, video.currentTime) : null;
           if (mapped !== null) lastValidTimeRef.current = mapped;
