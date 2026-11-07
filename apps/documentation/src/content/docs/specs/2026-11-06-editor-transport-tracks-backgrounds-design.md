@@ -48,7 +48,7 @@ in the session, and part of the export fingerprint.
 | 5   | **"Cursor activity" is a child of Zooms** and means the activity marks. Unchecking it hides the marks; unchecking Zooms hides both. The Activity lane row disappears: the marks draw inside the Zooms lane, under the blocks.                                                                                                                                                                                                                                                      | Owner gap 4 ("supongo") and the mock. The marks explain where auto-zooms come from and mean nothing without the zooms. Folding the row in is the one thing taken from timeline v2's decision 9, because the mock already shows it.                       | 0050        |
 | 6   | **A lane a user turns on stays on, even when empty.** The trigger's `n/m` counts visible lanes over the lanes this recording has (Webcam only with a camera, Zooms always, Activity only with a cursor track).                                                                                                                                                                                                                                                                     | Owner gap 5. View state has no reason to second-guess the user; the count is honest about what can be shown.                                                                                                                                             | 0050        |
 | 7   | **Playback speed is preview-only**: 0.5×, 1×, 1.5×, 2× on a cycling button next to mute, applied as `video.playbackRate` and as a multiplier on the slide clock. Not saved in the session; resets to 1× on open.                                                                                                                                                                                                                                                                   | Owner: "un botón de velocidad para tener un x2 … para que pase rápido o más lento el video con el timeline". The export has no speed; the file plays at 1× and nothing in the request says otherwise. A saved speed would surprise the next open.        | —           |
-| 8   | **Timeline zoom is a zoom factor relative to fit plus a scroll offset**, kept in one `TimelineView` every lane reads. 1× = fit; the deepest zoom makes 1 s ≥ 240 px wide (never below 1×). `−`, slider, `FIT`, `+` on the transport bar; ⌘/Ctrl + scroll zooms around the pointer; plain horizontal scroll pans; playback follows. A factor, not a pixel scale: it survives a cut (deleting a clip at 4× leaves 4× and re-fits what is left).                                      | NIW2-610 verbatim. One conversion in one place is what keeps a drag at 4× landing on the time under the pointer; every lane already receives a shared `layout`, so a shared view is the same shape.                                                      | —           |
+| 8   | **Timeline zoom is a zoom factor relative to fit plus a scroll offset**, kept in one `TimelineView` every lane reads. 1× = fit; the deepest is 8× (800 %), any duration. `−`/`+` step 100/200/400/800 %; slider, `FIT` and a level always shown on the bar; ⌘/Ctrl + scroll zooms around the pointer; plain horizontal scroll pans; playback follows. A factor, not a pixel scale: it survives a cut (deleting a clip at 4× leaves 4× and re-fits what is left).                   | NIW2-610 verbatim. One conversion in one place is what keeps a drag at 4× landing on the time under the pointer; every lane already receives a shared `layout`, so a shared view is the same shape.                                                      | —           |
 | 9   | **The background is a scene field** `scene.background: VideoBackground` with the screenshot editor's `BackgroundId`, `padding`, `radius` and `shadow`, default `none / 0 / 0 / 0` (today's picture). Saved in the session additively (version 1 stays).                                                                                                                                                                                                                            | Owner gap 6: "que sean los mismos para hacerlo bonito". It is content, not view: the export draws it, so it is part of the edit like a zoom. Additive like `webcam` and `cursor`.                                                                        | 0051 (new)  |
 | 10  | **The background is drawn as the outermost step**: `frame → redactions → annotations → zoom crop → framing → webcam → background`. The composed picture is inset by the padding, clipped to the radius, given the shadow, and the background fills the rest of the output canvas.                                                                                                                                                                                                  | Owner gap 7: the order stays. Everything the editor already draws is a picture; the background is a frame around that picture, as the screenshot compositor does it (`bg + padding + shot`). Putting it anywhere earlier would zoom or crop the padding. | 0051        |
 | 11  | **The padding keeps the output size and shrinks the picture.** A 1920×1080 preset stays 1920×1080; with padding the picture inside is smaller. Fixed-canvas presets (Vertical, Square) apply the background on their target canvas, replacing the black or blurred letterbox when `bg ≠ none`.                                                                                                                                                                                     | The output size is the preset's promise (YouTube 1440p, Square). Growing the canvas would break every preset's size and the size meter. The letterbox is already a background; the user's choice wins over the default one.                              | 0051        |
@@ -74,8 +74,9 @@ Defaulted on 2026-11-06; each stands unless its "revisit if" triggers.
 4. **Persistence key for hidden tracks.** Default: per user, in the settings store, like
    NIW2-612 asked. Revisit if the owner wants it per recording; then it goes to the session as
    view state the parser ignores on export.
-5. **Timeline zoom maximum.** Default: 240 px per second (a 30 fps frame is 8 px). Revisit after
-   trying it on a 10-minute recording; the maximum is a constant.
+5. **Timeline zoom maximum.** Decided (NIW2-675, after the owner tried PR 4): 8× (800 %) relative
+   to fit, for any duration; the maximum is the constant `MAX_ZOOM`. A recording so long that 8× is
+   still coarse is accepted. Revisit if the owner asks for more depth on long takes.
 6. **Rewind/forward buttons.** Default: skip 5 s, and ⇧ skips to the previous/next cut. Revisit if
    the owner prefers frame stepping on the buttons (the keyboard keeps ←/→ for frames).
 
@@ -181,7 +182,8 @@ PR 3 — speed:
 
 PR 4 — timeline zoom:
 
-- [ ] `−`, slider, `FIT`, `+` on the transport bar; `FIT` returns to 1× and scroll 0.
+- [ ] `−`, slider, `FIT`, the level and `+` on the transport bar; `FIT` returns to 100 % and scroll 0;
+      the level (`100 %` … `800 %`) is visible at every width.
 - [ ] At 4× every lane is 4× wider, scrolls together, labels stay fixed; ⌘ + scroll zooms around
       the pointer; horizontal scroll pans; while playing, the view follows the playhead.
 - [ ] A trim at 4× lands on the time under the pointer; the thumbnail strip has no blank gaps.
@@ -286,19 +288,17 @@ handlers only change the button they hang from. `uiArea("editorVideo.transport")
 component's root. The header keeps `editorVideo.toolbar` with undo/redo, Add image, status and
 Export.
 
-Width, measured in the real app with PR 4 (the 10:05 recording, both counts, English and
-Spanish; the numbers and the queries are in `transport-bar.module.css`): the zoom control does
-**not** fit in full at the editor's 1180 px floor. The time label hangs off the centre column into
-the right column, so that column (318 px at 1180, 448 px at 1440) must hold the label (128 px with
-its gap) and the cluster (176 px, 281 px with `− FIT +`, 355 px with the slider). The bar therefore
-drops things in order as it narrows, using container queries on the bar's own width: the slider
-first (below a ~1160 px content box, a window under about 1570 px), then the time's total (the
-label shows the current time alone, from ~1010 px, a window under about 1420 px), then `FIT` (from
-~865 px, a window under about 1280 px); at the 1180 px floor only `−` and `+` remain. This is a
-change from the earlier text of this section, which expected `useCompactRow` to hide the slider
-alone; the arithmetic above is why that was not enough. Follow-up if the owner wants `FIT` at the
-floor: it needs a layout decision (the time label's place, or counts moved out of the left
-column), not a tweak.
+Width, measured in the real app (the 10:05 recording, both counts, English and Spanish; the numbers
+and the queries are in `transport-bar.module.css`; the zoom level was added in NIW2-675): the zoom
+control does **not** fit in full at the editor's 1180 px floor. The time label hangs off the centre
+column into the right column, so that column (318 px at 1180, 448 px at 1440) must hold the label
+(116 px for 10+ minutes, 43 px for its short form) and the cluster (176 px without the zoom control;
+285 px with `− level +`, 316 px (en) / 345 px (es) adding `FIT`, 390 / 419 px adding the slider). The
+bar therefore drops things in order as it narrows, using container queries on the bar's own width:
+the slider first (a window under about 1620 px), then `FIT` (under about 1470 px), then the time's
+total (the label shows the current time alone, under about 1350 px); `−`, the level and `+` are
+never hidden, and a last tier (under about 1200 px) tightens the cluster by 14 px so they fit with
+the short time at the 1180 px floor, 4 px clear. See section 5.2 for the controls.
 
 ## 3. Tracks popover (PR 2)
 
@@ -376,7 +376,10 @@ export interface TimelineView {
   laneWidth: number;
   duration: number;
 }
-export const MAX_PX_PER_SECOND = 240;
+export const MAX_ZOOM = 8; // 800 %, for any measured lane and duration
+export const ZOOM_STEPS: readonly number[]; // [1, 2, 4, 8]: what + and − move between
+export function stepZoom(zoom: number, direction: 1 | -1, max: number): number;
+export function formatZoom(zoom: number, locale: string): string; // "480%", Spanish "480 %"
 export function fitView(laneWidth: number, duration: number): TimelineView;
 export function scaleOf(view: TimelineView): number; // px per timeline second
 export function timeAt(view: TimelineView, clientX: number, laneLeft: number, clampToTimeline?: boolean): number;
@@ -393,8 +396,8 @@ What differs from the first draft of this section, and why:
 
 - **`zoom` is a factor, not a pixel `scale`.** With a pixel scale a cut would either jump the
   apparent zoom or leave a scroll past the end; with a factor the content stays N lanes wide,
-  what is left re-fits, and `clampView` re-clamps the scroll (and the zoom, when the remaining
-  footage cannot zoom that deep).
+  what is left re-fits, and `clampView` re-clamps the scroll. The zoom cap is the same 8× for any
+  duration, so a cut never lowers the zoom.
 - **`timeAt` clamps to the timeline by default; `clampToTimeline = false` and `timeDelta` do not.**
   A trimmed clip's end handle must be able to travel past the end of the visible timeline to win
   footage back, as it can at 1×; clamping would stick it.
@@ -415,8 +418,14 @@ What differs from the first draft of this section, and why:
 
 ### 5.2 Controls
 
-`−` / `+` step the zoom by √2 around the centre of the visible window; the slider maps
-`[1, maxZoom]` logarithmically; `FIT` resets. ⌘/Ctrl + wheel (and a trackpad pinch, which Chromium
+`−` / `+` move between whole steps (`ZOOM_STEPS`: 100 %, 200 %, 400 %, 800 %) around the centre of
+the visible window: `+` goes to the next step strictly above the current level and `−` to the next
+strictly below, so from 480 % after a ⌘-wheel zoom `+` lands on 800 % and `−` on 400 %; `+` at
+800 % and `−` at 100 % do nothing. The slider maps `[1, 8]` logarithmically; `FIT` returns to
+100 % and scroll 0. The level is read as an integer percent (`Intl.NumberFormat`, so Spanish writes
+`480 %`) between `−` and `+` at every width, and is the slider's accessible value too. A narrow bar
+drops the slider, then `FIT`, then the time's total (container queries, thresholds in
+`transport-bar.module.css`); `−`, the level and `+` stay. ⌘/Ctrl + wheel (and a trackpad pinch, which Chromium
 delivers as a wheel with `ctrlKey`) calls `zoomAt` around the pointer, one event moving the zoom by
 at most e^0.4. A plain horizontal swipe pans the scroll container natively. While playing,
 `followPlayhead` turns the page when the playhead passes 80 % of the visible width, putting it back
