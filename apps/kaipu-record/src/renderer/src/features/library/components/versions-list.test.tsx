@@ -199,6 +199,17 @@ describe("VersionsList", () => {
     expect(texts[0]).toHaveLength(3);
   });
 
+  it("computes copy dimensions from the master's probe only, not from a copy's", () => {
+    const dims = /\d+ × \d+/;
+    const fromCopy = renderList(gh, [master, yt, gh]);
+    const ytRow = within(fromCopy).getByText("YouTube 1440p").closest("li")!;
+    expect(ytRow.textContent).not.toMatch(dims);
+    cleanup();
+    const fromMaster = renderList(master, [master, yt, gh]);
+    const ytRow2 = within(fromMaster).getByText("YouTube 1440p").closest("li")!;
+    expect(ytRow2.textContent).toMatch(dims);
+  });
+
   it("does not loop on a cyclic lineage", () => {
     const x = video({ id: "x", assetId: "x", title: "X", derivedFromAssetId: "y" });
     const y = video({ id: "y", assetId: "y", title: "Y", derivedFromAssetId: "x" });

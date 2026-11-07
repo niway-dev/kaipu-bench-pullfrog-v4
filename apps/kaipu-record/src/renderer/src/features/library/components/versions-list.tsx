@@ -26,7 +26,8 @@ interface VersionsListProps {
   lineage: ReturnType<typeof buildLineage>;
   /** The background export of the original, while it runs. */
   running: ReturnType<typeof runningCopyOf>;
-  /** The source as read from the file: a destination copy's picture size follows from it. */
+  /** The viewed item's file as probed. A destination copy's picture size is computed from it only
+   *  when the viewed item is the master; on a copy it is ignored. */
   probe: SourceProbe | null;
   /** The list the page walks with previous and next; a row's link carries it along, so opening
    *  another version keeps the walk (and its counter) instead of resetting to the whole library. */
@@ -57,6 +58,8 @@ export function VersionsList({
 
   const { master, copies } = familyOf(item, lineage);
   const sourceDeleted = master === null;
+  // The probe is the viewed item's file; only the master's file sizes every copy's picture.
+  const masterProbe = master !== null && master.assetId === item.assetId ? probe : null;
 
   const hasEdit = master !== null && master.kind === "recording" && master.editSavedAt !== null;
   const count = (master || sourceDeleted ? 1 : 0) + (hasEdit ? 1 : 0) + copies.length;
@@ -87,8 +90,8 @@ export function VersionsList({
     const parts: string[] = [];
     const dims = copy.gif
       ? { width: copy.gif.width, height: copy.gif.height }
-      : preset && probe
-        ? resolveExportTarget(preset, probe, probe.durationSec)
+      : preset && masterProbe
+        ? resolveExportTarget(preset, masterProbe, masterProbe.durationSec)
         : null;
     if (dims) parts.push(t("metaDimensions", { width: dims.width, height: dims.height }));
     parts.push(formatSize(copy.fileSizeBytes));
