@@ -6,10 +6,10 @@ import { toLayout } from "../timeline";
 import { availableTracks, type TrackKey } from "../tracks";
 import type { TrackItem } from "../scene";
 import { createTimelineViewStore, type TimelineViewStore } from "../use-timeline-view";
-import { MAX_PX_PER_SECOND, ZOOM_STEP, maxZoom, sliderToZoom } from "./timeline-view";
+import { maxZoom, sliderToZoom } from "./timeline-view";
 import { TransportBar, type TransportBarProps } from "./transport-bar";
 
-/** A 100 s timeline in a 1000 px lane: it can zoom up to 24x. */
+/** A 100 s timeline in a 1000 px lane: it can zoom up to 8x (800%). */
 function zoomStore(laneWidth = 1000, duration = 100): TimelineViewStore {
   const store = createTimelineViewStore();
   store.setDuration(duration);
@@ -384,108 +384,159 @@ describe("TransportBar — timeline zoom", () => {
   const fit = (): HTMLElement =>
     screen.getByRole("button", { name: "Fit the whole recording in the timeline" });
   const slider = (): HTMLInputElement => screen.getByRole("slider", { name: "Timeline zoom" });
+  /** The always-visible level ("100%", "480%"): found by its tooltip, not by the slider. */
+  const level = (): HTMLElement => screen.getByTitle("Timeline zoom level");
 
-  it("sits in the right cluster, after speed and before fullscreen: − slider FIT +", () => {
+  it("sits in the right cluster, after speed and before fullscreen: − slider FIT level +", () => {
     renderBar();
     const speed = screen.getByRole("button", { name: /^Playback speed/ });
     const fullscreen = screen.getByRole("button", { name: "Fullscreen" });
     const group = zoomOut().parentElement!;
     expect(group).toContainElement(slider());
     expect(group).toContainElement(fit());
+    expect(group).toContainElement(level());
     expect(group).toContainElement(zoomIn());
     expect(speed.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(
       group.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    // Visual order inside the group.
+    // Visual order inside the group: the level sits right before `+`.
     const order = Array.from(group.children);
     expect(order.indexOf(zoomOut())).toBeLessThan(order.indexOf(slider()));
     expect(order.indexOf(slider())).toBeLessThan(order.indexOf(fit()));
-    expect(order.indexOf(fit())).toBeLessThan(order.indexOf(zoomIn()));
+    expect(order.indexOf(fit())).toBeLessThan(order.indexOf(level()));
+    expect(order.indexOf(level())).toBeLessThan(order.indexOf(zoomIn()));
   });
 
-  it("opens at 1x: nothing to zoom out of or fit, the slider at its start", () => {
+  it("opens at 100%: nothing to zoom out of or fit, the slider at its start", () => {
     renderBar();
     expect(zoomOut()).toBeDisabled();
     expect(fit()).toBeDisabled();
     expect(zoomIn()).toBeEnabled();
     expect(slider()).toHaveValue("0");
-    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.0×");
+    expect(level()).toHaveTextContent("100%");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 100%");
   });
 
-  it("+ steps the zoom by the square root of two, and − steps back", () => {
+  it("+ goes up whole steps 100% → 200% → 400% → 800%, and − comes back down", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
-    fireEvent.click(zoomIn());
-    expect(timelineView.getState().zoom).toBeCloseTo(ZOOM_STEP, 9);
+    const seen: string[] = [];
+    for (const expected of [2, 4, 8]) {
+      fireEvent.click(zoomIn());
+      expect(timelineView.getState().zoom).toBeCloseTo(expected, 9);
+      seen.push(level().textContent ?? "");
+    }
+    expect(seen).toEqual(["200%", "400%", "800%"]);
     expect(zoomOut()).toBeEnabled();
     expect(fit()).toBeEnabled();
-    fireEvent.click(zoomOut());
-    expect(timelineView.getState().zoom).toBe(1);
+    for (const expected of [4, 2, 1]) {
+      fireEvent.click(zoomOut());
+      expect(timelineView.getState().zoom).toBeCloseTo(expected, 9);
+    }
+    expect(level()).toHaveTextContent("100%");
     expect(zoomOut()).toBeDisabled();
   });
 
-  it("FIT returns to 1x and scroll 0", () => {
+  it("from 480% (a ⌘-wheel zoom) + goes to 800% and − to 400%", () => {
+    const up = zoomStore();
+    const { unmount } = render(<TransportBar {...barProps({ timelineView: up })} />);
+    act(() => up.zoomAtPointer(4.8, 500, 0));
+    expect(level()).toHaveTextContent("480%");
+    fireEvent.click(zoomIn());
+    expect(level()).toHaveTextContent("800%");
+    unmount();
+
+    const down = zoomStore();
+    render(<TransportBar {...barProps({ timelineView: down })} />);
+    act(() => down.zoomAtPointer(4.8, 500, 0));
+    expect(level()).toHaveTextContent("480%");
+    fireEvent.click(zoomOut());
+    expect(level()).toHaveTextContent("400%");
+  });
+
+  it("FIT returns to 100% and scroll 0", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     act(() => {
       timelineView.zoomTo(6);
       timelineView.scrollTo(2000, "user");
     });
+    expect(level()).toHaveTextContent("600%");
     fireEvent.click(fit());
     expect(timelineView.getState()).toMatchObject({ zoom: 1, scroll: 0 });
     expect(slider()).toHaveValue("0");
+    expect(level()).toHaveTextContent("100%");
   });
 
-  it("the slider is logarithmic and drives the same zoom: the middle is the geometric mean", () => {
+  it("the slider is logarithmic over [1, 8] and drives the same zoom: the middle is the geometric mean", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     const max = maxZoom(1000, 100);
-    expect(max).toBeCloseTo(MAX_PX_PER_SECOND / 10, 9);
+    expect(max).toBe(8);
     fireEvent.change(slider(), { target: { value: "0.5" } });
     expect(timelineView.getState().zoom).toBeCloseTo(sliderToZoom(0.5, max), 6);
-    expect(timelineView.getState().zoom).toBeCloseTo(Math.sqrt(max), 6);
-    expect(slider()).toHaveAttribute("aria-valuetext", `Zoom ${Math.sqrt(max).toFixed(1)}×`);
+    expect(timelineView.getState().zoom).toBeCloseTo(Math.sqrt(8), 6);
+    expect(level()).toHaveTextContent("283%");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 283%");
+    fireEvent.change(slider(), { target: { value: "1" } });
+    expect(level()).toHaveTextContent("800%");
   });
 
   // The slider's native keyboard step is one thousandth of its range: on a logarithmic range
   // that is a factor of 1.003 per press, so the readout did not change for dozens of
-  // presses. The arrow keys step like the + and − buttons instead.
+  // presses. The arrow keys step like the + and − buttons instead (whole steps now).
   it.each([
-    ["ArrowRight", 1],
-    ["ArrowUp", 1],
-    ["ArrowLeft", -1],
-    ["ArrowDown", -1],
-  ])("%s on the slider steps the zoom like the buttons do", (key, direction) => {
+    ["ArrowRight", 1, 8],
+    ["ArrowUp", 1, 8],
+    ["ArrowLeft", -1, 2],
+    ["ArrowDown", -1, 2],
+  ])("%s on the slider steps the zoom like the buttons do", (key, _direction, expected) => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     act(() => timelineView.zoomTo(4));
     const notPrevented = fireEvent.keyDown(slider(), { key });
     expect(notPrevented).toBe(false); // the native one-thousandth step must not also run
-    expect(timelineView.getState().zoom).toBeCloseTo(4 * ZOOM_STEP ** direction, 9);
+    expect(timelineView.getState().zoom).toBeCloseTo(expected, 9);
   });
 
   it("one arrow press changes the readout, from the first press on", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
-    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.0×");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 100%");
     fireEvent.keyDown(slider(), { key: "ArrowRight" });
-    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.4×");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 200%");
+    expect(level()).toHaveTextContent("200%");
     fireEvent.keyDown(slider(), { key: "ArrowRight" });
-    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 2.0×");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 400%");
     fireEvent.keyDown(slider(), { key: "ArrowLeft" });
-    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.4×");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 200%");
   });
 
-  it("an arrow at the deepest zoom or at fit changes nothing", () => {
+  it("Home, End and the Page keys are left to the native slider (no preventDefault)", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    for (const key of ["Home", "End", "PageUp", "PageDown"]) {
+      expect(fireEvent.keyDown(slider(), { key })).toBe(true);
+    }
+    expect(timelineView.getState().zoom).toBe(1);
+    // What the native slider does with them: a change event to the ends of [0, 1]. The
+    // component turns that position into the zoom through the log scale.
+    fireEvent.change(slider(), { target: { value: "1" } }); // End
+    expect(timelineView.getState().zoom).toBeCloseTo(8, 6);
+    fireEvent.change(slider(), { target: { value: "0" } }); // Home
+    expect(timelineView.getState().zoom).toBe(1);
+  });
+
+  it("an arrow at 800% or at 100% changes nothing", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     fireEvent.keyDown(slider(), { key: "ArrowLeft" });
     expect(timelineView.getState().zoom).toBe(1);
     act(() => timelineView.zoomTo(1e9));
-    const deepest = timelineView.getState().zoom;
+    expect(timelineView.getState().zoom).toBe(8);
     fireEvent.keyDown(slider(), { key: "ArrowRight" });
-    expect(timelineView.getState().zoom).toBe(deepest);
+    expect(timelineView.getState().zoom).toBe(8);
   });
 
   it("leaves other keys and modified arrows alone (⌘ ← is the browser's, not a zoom)", () => {
@@ -498,29 +549,43 @@ describe("TransportBar — timeline zoom", () => {
     expect(timelineView.getState().zoom).toBe(1);
   });
 
-  it("follows the store when something else zooms (the wheel): the slider and buttons catch up", () => {
+  it("follows the store when something else zooms (the wheel): the level, slider and buttons catch up", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     act(() => timelineView.zoomTo(4));
     expect(Number(slider().value)).toBeGreaterThan(0.4);
     expect(zoomOut()).toBeEnabled();
-    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 4.0×");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 400%");
+    expect(level()).toHaveTextContent("400%");
   });
 
-  it("+ is disabled at the deepest zoom", () => {
+  it("a wheel zoom past the limit clamps at 800% and + is disabled there", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
-    act(() => timelineView.zoomTo(1e9));
+    act(() => timelineView.zoomAtPointer(1e6, 300, 0));
+    expect(level()).toHaveTextContent("800%");
     expect(zoomIn()).toBeDisabled();
     expect(slider()).toHaveValue("1");
   });
 
-  it("a recording too short to zoom (already past the maximum at fit) disables the whole control", () => {
-    renderBar({ timelineView: zoomStore(1000, 2) });
+  it("a short recording zooms the same 100% to 800% (the cap no longer depends on the duration)", () => {
+    const timelineView = zoomStore(1000, 2);
+    renderBar({ timelineView });
+    expect(slider()).toBeEnabled();
+    fireEvent.click(zoomIn());
+    fireEvent.click(zoomIn());
+    fireEvent.click(zoomIn());
+    expect(level()).toHaveTextContent("800%");
+    expect(zoomIn()).toBeDisabled();
+  });
+
+  it("an empty timeline (nothing to zoom into) disables the whole control and still reads 100%", () => {
+    renderBar({ timelineView: zoomStore(1000, 0) });
     expect(slider()).toBeDisabled();
     expect(zoomIn()).toBeDisabled();
     expect(zoomOut()).toBeDisabled();
     expect(fit()).toBeDisabled();
+    expect(level()).toHaveTextContent("100%");
   });
 });
 
@@ -546,12 +611,55 @@ describe("TransportBar — a narrow bar sheds the least valuable thing first (NI
     expect(short.className).toMatch(/timeShort/);
   });
 
-  it("drops things in the order slider, then the total, then FIT", () => {
+  it("drops things in the order slider, then FIT, then the total of the time", () => {
     const slider = widthThatHides(".zoomSlider");
-    const total = widthThatHides(".timeShort");
     const fit = widthThatHides(".fitButton");
-    expect(slider).toBeGreaterThan(total);
-    expect(total).toBeGreaterThan(fit);
+    const total = widthThatHides(".timeShort");
+    expect(slider).toBeGreaterThan(fit);
+    expect(fit).toBeGreaterThan(total);
+  });
+
+  it("at the editor's 1180 px floor (a 768 px content box) only −, the level and + remain, tightened", () => {
+    // 1180 px window - 388 px of columns - 24 px of bar padding. Measured in the real app: the
+    // right column is 318 px, `− level +` with the short time needs 271 px of cluster tightened
+    // plus 43 px of label (it needs 328 px without the tightening).
+    const floor = 1180 - 388 - 24;
+    expect(widthThatHides(".zoomSlider")).toBeGreaterThanOrEqual(floor);
+    expect(widthThatHides(".fitButton")).toBeGreaterThanOrEqual(floor);
+    expect(widthThatHides(".timeShort")).toBeGreaterThanOrEqual(floor);
+    expect(widthThatHides(".zoomGroup")).toBeGreaterThanOrEqual(floor);
+    // ...and the tightening does not apply once the bar is wide again.
+    expect(widthThatHides(".zoomGroup")).toBeLessThan(widthThatHides(".timeShort"));
+  });
+
+  it("never hides −, + or the zoom level at any width: they are the last to go (NIW2-675)", () => {
+    const blocks = [
+      ...css().matchAll(/@container transport \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/g),
+    ];
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const [, , body] of blocks) {
+      // Every rule inside a width query that takes something off the screen (display: none, or
+      // the visually-hidden clip used for the full label) must not name the level, the group
+      // or the icon buttons that `−` and `+` are.
+      for (const [, selector, declarations] of body!.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        if (/display:\s*none|clip:\s*rect/.test(declarations!)) {
+          expect(selector).not.toMatch(/\.zoomLevel|\.iconButton|\.zoomGroup/);
+        }
+      }
+    }
+  });
+
+  it("the level is plain text in the zoom group, outside every part a narrow bar shortens", () => {
+    renderBar();
+    const group = screen.getByRole("button", { name: "Zoom out the timeline" }).parentElement!;
+    const level = screen.getByTitle("Timeline zoom level");
+    expect(level.parentElement).toBe(group);
+    expect(level).not.toHaveAttribute("aria-hidden");
+    expect(level.className).toMatch(/zoomLevel/);
+    expect(level.className).not.toMatch(/zoomSlider|fitButton|timeShort|timeFull/);
+    // It is a sibling of the slider, not inside it: dropping the slider (display: none)
+    // leaves it on screen.
+    expect(level).not.toContainElement(screen.getByRole("slider", { name: "Timeline zoom" }));
   });
 
   it("the narrow form takes the full label out of the layout but not out of the accessibility tree", () => {
