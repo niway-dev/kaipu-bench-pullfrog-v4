@@ -1116,6 +1116,46 @@ describe("a lane that measures 0 px", () => {
     expect(store.getState().zoom).toBe(ZOOM);
     expect(leftEdge()).toBeCloseTo(30, 6);
   });
+
+  it("puts the DOM scroll back when the lane returns at the SAME width after the browser reset it", () => {
+    const callbacks: Array<() => void> = [];
+    class FakeResizeObserver {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    const resized = (): void => act(() => callbacks.forEach((callback) => callback()));
+
+    const { store, body } = renderZoomed();
+    expect(body.scrollLeft).toBe(SCROLL);
+
+    // Hidden (display: none): the lane measures 0 and the browser may drop scrollLeft to 0.
+    // The store ignores the 0 and keeps its scroll, so nothing in it changes to re-run the
+    // strip's layout effect.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => rectOf(0, 0));
+    resized();
+    body.scrollLeft = 0;
+    expect(store.getState().scroll).toBe(SCROLL);
+
+    // Shown again at exactly the width it had: setLaneWidth commits nothing, so only the
+    // strip's own measure callback can put the element back where the store says it is.
+    stubGeometry();
+    const scrollTo = vi.spyOn(store, "scrollTo");
+    resized();
+    expect(store.getState().scroll).toBe(SCROLL);
+    expect(body.scrollLeft).toBe(SCROLL);
+
+    // The scroll event that write causes is the strip's own echo, not the user panning.
+    act(() => {
+      fireEvent.scroll(body);
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(store.getState().scroll).toBe(SCROLL);
+  });
 });
 
 /**

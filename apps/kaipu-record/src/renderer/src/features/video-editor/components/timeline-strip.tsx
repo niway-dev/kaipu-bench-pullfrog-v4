@@ -206,9 +206,22 @@ export function TimelineStrip({
   // Lane width: measured before the first paint, then on every resize.
   useLayoutEffect(() => {
     const body = bodyRef.current;
+    // The last width this effect measured. 0 means the strip was hidden: the store ignores a
+    // 0 px lane (it keeps the zoom and the scroll), so when the lane comes back at the SAME
+    // width nothing in the store changes and the layout effect below does not run, while the
+    // browser may have dropped `scrollLeft` while the strip was `display: none`.
+    let previousWidth: number | null = null;
     const sync = (): void => {
       const lane = measureLane();
-      if (lane) store.setLaneWidth(lane.laneWidth);
+      if (!lane) return;
+      store.setLaneWidth(lane.laneWidth);
+      if (previousWidth === 0 && lane.laneWidth > 0 && body) {
+        // Put the element back where the store says it is, and note it as ours so the scroll
+        // event this write causes is not read as the user panning.
+        body.scrollLeft = store.getView().scroll;
+        appliedScrollRef.current = body.scrollLeft;
+      }
+      previousWidth = lane.laneWidth;
     };
     sync();
     if (!body || typeof ResizeObserver === "undefined") return;
