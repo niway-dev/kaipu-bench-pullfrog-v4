@@ -28,7 +28,8 @@ import { uiArea } from "@renderer/lib/ui-area";
  * screen); the bar still draws, so the window keeps a handle to drag it by. Onboarding sits
  * below the bar and hides the switcher too: its menu would open under the takeover. The
  * history arrows follow the same rule: nothing to go back to on sign-in, and a page change
- * under the takeover would be invisible.
+ * under the takeover would be invisible. They stay mounted while hidden, so the history
+ * position they track sees every navigation.
  */
 export function TitleBar({ workspace = true }: { workspace?: boolean }): React.JSX.Element {
   const workspaces = useOptionalWorkspaces();
@@ -38,7 +39,7 @@ export function TitleBar({ workspace = true }: { workspace?: boolean }): React.J
   return (
     <header {...uiArea("shell.titleBar")} className={styles.bar} data-platform={hostPlatform()}>
       <KaipuLogo use="product" size={28} />
-      {showHistory && <HistoryArrows />}
+      <HistoryArrows hidden={!showHistory} />
       <span className={styles.name}>Kaipu Record</span>
       {showSwitcher && (
         <>

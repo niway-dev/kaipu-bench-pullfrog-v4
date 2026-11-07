@@ -127,7 +127,64 @@ describe("TitleBar history arrows", () => {
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
     // The hook only knows what the router pushed; a hand-pushed entry carries idx itself.
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(back).toBeEnabled();
+    await act(async () => {
+      const popped = new Promise<void>((resolve) =>
+        window.addEventListener("popstate", () => resolve(), { once: true }),
+      );
+      back.click();
+      await popped;
+    });
+    expect(window.location.hash).toBe("#/");
+    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Forward" })).toBeEnabled();
+  });
+
+  // Wachiman on PR #545: a page pushed on sign-in (the arrows hidden) drops the browser's
+  // forward entries; the tracking must see it, or Forward comes back lit with nothing ahead.
+  it("keep tracking while hidden, so Forward is honest after a sign-in round trip", async () => {
+    let onSignIn = false;
+    function Bar(): React.JSX.Element {
+      return <TitleBar workspace={!onSignIn} />;
+    }
+    const router = createHashRouter([
+      { path: "/", element: <Bar /> },
+      { path: "/a", element: <Bar /> },
+      { path: "/b", element: <Bar /> },
+      { path: "/sign-in", element: <Bar /> },
+    ]);
+    render(<RouterProvider router={router} />);
+    const back = async (): Promise<void> => {
+      await act(async () => {
+        const popped = new Promise<void>((resolve) =>
+          window.addEventListener("popstate", () => resolve(), { once: true }),
+        );
+        await router.navigate(-1);
+        await popped;
+      });
+    };
+    // "/" → "/a" → "/b", then back to "/": two entries ahead.
+    await act(async () => {
+      await router.navigate("/a");
+      await router.navigate("/b");
+    });
+    await back();
+    await back();
+    expect(screen.getByRole("button", { name: "Forward" })).toBeEnabled();
+    // Sign in from "/": the push drops "/a" and "/b" while the arrows are hidden; the page
+    // then replaces itself with where the user came from.
+    onSignIn = true;
+    await act(async () => {
+      await router.navigate("/sign-in");
+    });
+    expect(screen.queryByRole("button", { name: "Forward" })).toBeNull();
+    onSignIn = false;
+    await act(async () => {
+      await router.navigate("/a", { replace: true });
+    });
     expect(screen.getByRole("button", { name: "Back" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Forward" })).toBeDisabled();
   });
 
   it("stay out of the sign-in and error bars", () => {
