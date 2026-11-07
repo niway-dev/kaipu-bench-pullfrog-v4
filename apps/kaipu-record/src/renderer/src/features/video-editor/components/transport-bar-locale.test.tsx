@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toLayout } from "../timeline";
 import { availableTracks } from "../tracks";
+import { createTimelineViewStore } from "../use-timeline-view";
 import { TransportBar, type TransportBarProps } from "./transport-bar";
 
 // The shared test setup pins the i18n hooks to English. The speed label is a number the
@@ -28,6 +29,14 @@ vi.mock("@kaipu/i18n", async (importOriginal) => {
   };
 });
 
+/** A 100 s timeline in a 1000 px lane: the zoom control needs a view store to render. */
+function zoomStore() {
+  const store = createTimelineViewStore();
+  store.setDuration(100);
+  store.setLaneWidth(1000);
+  return store;
+}
+
 function renderBar(speed: number): TransportBarProps {
   const props: TransportBarProps = {
     layout: toLayout([{ id: "a", kind: "clip", sourceStart: 0, sourceEnd: 10 }]),
@@ -53,6 +62,7 @@ function renderBar(speed: number): TransportBarProps {
     onDeleteSelected: vi.fn(),
     deleteDisabled: false,
     onToggleFullscreen: vi.fn(),
+    timelineView: zoomStore(),
   };
   render(<TransportBar {...props} />);
   return props;
