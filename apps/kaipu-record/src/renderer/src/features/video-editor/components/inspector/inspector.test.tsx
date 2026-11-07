@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TrackItem } from "../../scene";
 import { toLayout } from "../../timeline";
 import type { ZoomEditing } from "../../zoom/use-zoom-editing";
@@ -42,6 +42,10 @@ function zooms(partial: Partial<ZoomEditing> = {}): ZoomEditing {
 }
 
 describe("DetectionPanel", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
   it("shows the summary and re-analyses", () => {
     const z = zooms();
     render(<DetectionPanel zooms={z} sensitivity={55} clicksAvailable />);
@@ -82,8 +86,6 @@ describe("DetectionPanel", () => {
     expect(z.sensitivityCommit).toHaveBeenCalledTimes(1);
     expect(z.sensitivityCommit).toHaveBeenCalledWith(80);
     expect(screen.getByText("1 zoom · 59% of clip")).toBeInTheDocument();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
   it("explains the missing cursor data instead of showing dead controls", () => {
     render(
