@@ -125,6 +125,13 @@ export function TimelineStrip({
   // True while a pointer is scrubbing the ruler or the track: the view must not turn a
   // page under the pointer that is dragging the playhead.
   const scrubbingRef = useRef(false);
+  // True while a trim or slide-duration handle is being dragged. Such a drag rewrites the cut
+  // layout on every move, so the timeline's duration (and the pixel scale) changes under the
+  // pointer; nothing may scroll the view then (a boolean, not a count: one drag at a time).
+  const editDragRef = useRef(false);
+  const setEditDrag = useCallback((active: boolean) => {
+    editDragRef.current = active;
+  }, []);
   // The scroll position the strip itself last put on the element, so the scroll event it
   // causes is not mistaken for the user panning.
   const appliedScrollRef = useRef(0);
@@ -255,18 +262,25 @@ export function TimelineStrip({
     });
   }, [playback, duration, store]);
 
-  // Also position on low-frequency updates (paused seeks don't run the rAF loop). A seek
-  // by keyboard or button can land off screen: bring it into view, but never move the
-  // view under a pointer that is scrubbing or for a playhead that is already visible.
-  // Keyed on the TIME, not on `playing`: pausing must not snap the view back to a
-  // playhead the user had panned away from.
+  // Also position on low-frequency updates (paused seeks don't run the rAF loop). The line
+  // is a share of the content, so a new duration moves it too.
   useEffect(() => {
     const el = playheadRef.current;
     if (el) el.style.left = `${timeToFraction(playback.timelineTime, duration) * 100}%`;
-    if (scrubbingRef.current) return;
+  }, [playback.timelineTime, duration]);
+
+  // A seek by keyboard or button can land off screen: bring it into view, but never move
+  // the view under a pointer that is scrubbing or dragging a handle, or for a playhead that
+  // is already visible. Keyed on the TIME alone, deliberately: a trim or a slide-duration
+  // drag changes `duration` on every move while the playhead stays on the same time, and
+  // an effect that also depended on `duration` would "reveal" that unmoved playhead each
+  // frame and carry the view away from the handle under the pointer. Nor on `playing`:
+  // pausing must not snap the view back to a playhead the user had panned away from.
+  useEffect(() => {
+    if (scrubbingRef.current || editDragRef.current) return;
     if (playingRef.current) store.follow(playback.timelineTime);
     else store.reveal(playback.timelineTime);
-  }, [playback.timelineTime, duration, store]);
+  }, [playback.timelineTime, store]);
 
   // The ruler is the dedicated scrub surface. It sits in its own row ABOVE all clip
   // blocks, so it is always reachable no matter how the clips are laid out. Blocks
@@ -409,6 +423,7 @@ export function TimelineStrip({
                   selected={entry.itemId === selectedItemId}
                   onSelect={() => onSelectItem(entry.itemId)}
                   freezeMapping={freezeMapping}
+                  onDragActive={setEditDrag}
                   onTrim={onTrim}
                   slideUrlFor={slideUrlFor}
                   onSlideDuration={onSlideDuration}
@@ -492,6 +507,7 @@ function TrackBlock({
   selected,
   onSelect,
   freezeMapping,
+  onDragActive,
   onTrim,
   slideUrlFor,
   onSlideDuration,
@@ -507,6 +523,8 @@ function TrackBlock({
   onSelect: () => void;
   /** The pixel-to-time mapping as it is right now, to freeze on pointerdown. */
   freezeMapping: () => TimelineView | null;
+  /** True from the pointerdown on a trim or slide handle until its drag ends. */
+  onDragActive: (active: boolean) => void;
   onTrim?: (
     itemId: string,
     edge: "start" | "end",
@@ -560,6 +578,7 @@ function TrackBlock({
       const drag = trimDrag.current;
       if (!drag) return;
       trimDrag.current = null;
+      onDragActive(false);
       onTrim?.(entry.itemId, drag.edge, drag.last, "end");
     };
     return {
@@ -575,6 +594,7 @@ function TrackBlock({
           mapping: freezeMapping(),
           last: orig,
         };
+        onDragActive(true);
         onTrim?.(entry.itemId, edge, orig, "start");
       },
       onPointerMove: (event) => {
@@ -610,6 +630,7 @@ function TrackBlock({
       const drag = slideDrag.current;
       if (!drag) return;
       slideDrag.current = null;
+      onDragActive(false);
       onSlideDuration?.(entry.itemId, drag.last, "end");
     };
     return {
@@ -618,6 +639,7 @@ function TrackBlock({
         event.currentTarget.setPointerCapture(event.pointerId);
         const orig = entry.timelineEnd - entry.timelineStart;
         slideDrag.current = { orig, x0: event.clientX, mapping: freezeMapping(), last: orig };
+        onDragActive(true);
         onSlideDuration?.(entry.itemId, orig, "start");
       },
       onPointerMove: (event) => {

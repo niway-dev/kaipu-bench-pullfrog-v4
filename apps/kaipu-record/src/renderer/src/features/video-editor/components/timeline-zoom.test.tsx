@@ -11,12 +11,23 @@
  * shows 30 s..55 s, so a pointer at clientX 720 (500 px into the lane) is at
  * (500 + 1200) / 40 = 42.5 s. At 1x the same pixel would be 28.5 s.
  */
+import { useState } from "react";
 import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import type { TrackItem, VideoOverlay } from "../scene";
-import { toLayout, type LayoutEntry } from "../timeline";
+import {
+  layoutDuration,
+  setSlideDuration,
+  toLayout,
+  trimClip,
+  type LayoutEntry,
+} from "../timeline";
 import type { PreviewPlayback } from "../use-preview-playback";
-import { createTimelineViewStore, type TimelineViewStore } from "../use-timeline-view";
+import {
+  createTimelineViewStore,
+  useTimelineViewStore,
+  type TimelineViewStore,
+} from "../use-timeline-view";
 import type { BlurRedaction } from "../privacy/redaction";
 import type { ZoomSegment } from "../zoom/zoom-model";
 import type { WebcamSegment } from "../webcam/webcam-model";
@@ -24,6 +35,7 @@ import { AudioLane } from "./audio-lane";
 import { PrivacyLane } from "./privacy-lane";
 import { TimelineStrip, type ExtraLane } from "./timeline-strip";
 import { thumbnailTiles } from "./timeline-geometry";
+import { xOf } from "./timeline-view";
 import { WebcamLane } from "./webcam-lane";
 import { ZoomLane } from "./zoom-lane";
 import { ZoomIn } from "lucide-react";
@@ -540,6 +552,25 @@ describe("a cut while zoomed", () => {
   });
 });
 
+describe("a cut while zoomed, with the playhead where it was", () => {
+  it("a new duration alone never reveals the playhead: only a playhead that moves does", () => {
+    // 100 s at 4x (40 px/s), scrolled to the start: the lane shows 0..25 s and the paused
+    // playhead sits at 50 s, off screen to the right, where the user left it.
+    const playback = makePlayback({ timelineTime: 50 });
+    const { store, rerender } = renderZoomed({ playback });
+    act(() => store.scrollTo(0, "user"));
+    // A cut shortens the take to 55 s. The playhead is still at 50 s, still off screen.
+    const shorter = toLayout([
+      { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 55 },
+    ] as TrackItem[]);
+    act(() => store.setDuration(55));
+    rerender(
+      strip(store, { layout: shorter, playback: makePlayback({ duration: 55, timelineTime: 50 }) }),
+    );
+    expect(store.getState().scroll).toBe(0);
+  });
+});
+
 describe("following the playhead", () => {
   function playingStrip(): Rendered & { tick: (t: number) => void } {
     let listener: ((t: number) => void) | null = null;
@@ -633,6 +664,233 @@ describe("following the playhead", () => {
     fireEvent.pointerUp(ruler, { pointerId: 1, clientX: LANE_LEFT + 900 });
     tick(21);
     expect(store.getState().scroll).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A layout that CHANGES while the user drags (NIW2-667 review). A trim or a slide-duration
+ * drag rewrites the cut layout on every pointermove, so the timeline's duration (and with
+ * it the pixel scale) moves under the pointer. The tests above pass a spy as `onTrim`, so
+ * their layout never changes and could not see what a changing one does to the view; this
+ * harness wires the strip the way the editor page does: the drag edits real items, the
+ * duration feeds `useTimelineViewStore`, and the playhead stays where the page left it
+ * (a trim never seeks).
+ */
+describe("a layout that changes during a drag", () => {
+  const SOURCE = 60;
+  const sixtySeconds: TrackItem[] = [
+    { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 30 },
+    { id: "b", kind: "clip", sourceStart: 30, sourceEnd: 60 },
+  ];
+  const slideThenClip: TrackItem[] = [
+    {
+      id: "s1",
+      kind: "slide",
+      assetId: "x",
+      duration: 40,
+      naturalWidth: 1920,
+      naturalHeight: 1080,
+    },
+    { id: "b", kind: "clip", sourceStart: 0, sourceEnd: 60 },
+  ];
+
+  interface Spies {
+    onTrim: Mock;
+    onSlideDuration: Mock;
+  }
+
+  function EditableStrip({
+    initial,
+    timelineTime,
+    selectedItemId,
+    storeRef,
+    spies,
+  }: {
+    initial: TrackItem[];
+    timelineTime: number;
+    selectedItemId: string;
+    storeRef: { current: TimelineViewStore | null };
+    spies: Spies;
+  }): React.JSX.Element {
+    const [items, setItems] = useState(initial);
+    const layout = toLayout(items);
+    const duration = layoutDuration(layout);
+    const store = useTimelineViewStore(duration);
+    storeRef.current = store;
+    return (
+      <TimelineStrip
+        layout={layout}
+        playback={makePlayback({ duration, timelineTime })}
+        thumbnails={[]}
+        selectedItemId={selectedItemId}
+        onSelectItem={vi.fn()}
+        onTrim={(id, edge, sourceTime, phase) => {
+          spies.onTrim(id, edge, sourceTime, phase);
+          if (phase === "move") setItems((cur) => trimClip(cur, id, edge, sourceTime, SOURCE));
+        }}
+        slideUrlFor={() => null}
+        onSlideDuration={(id, next, phase) => {
+          spies.onSlideDuration(id, next, phase);
+          if (phase === "move") setItems((cur) => setSlideDuration(cur, id, next));
+        }}
+        overlays={[]}
+        selectedOverlayId={null}
+        onSelectOverlay={vi.fn()}
+        timelineView={store}
+      />
+    );
+  }
+
+  function renderEditable(options: {
+    items: TrackItem[];
+    selectedItemId: string;
+    timelineTime: number;
+    scroll: number;
+  }): {
+    store: TimelineViewStore;
+    spies: Spies;
+    body: HTMLElement;
+    container: HTMLElement;
+    seekTo: (timelineTime: number) => void;
+  } {
+    stubGeometry();
+    const storeRef: { current: TimelineViewStore | null } = { current: null };
+    const spies: Spies = { onTrim: vi.fn(), onSlideDuration: vi.fn() };
+    const element = (timelineTime: number): React.ReactElement => (
+      <EditableStrip
+        initial={options.items}
+        timelineTime={timelineTime}
+        selectedItemId={options.selectedItemId}
+        storeRef={storeRef}
+        spies={spies}
+      />
+    );
+    const utils = render(element(options.timelineTime));
+    const store = storeRef.current!;
+    act(() => {
+      store.zoomTo(ZOOM);
+      store.scrollTo(options.scroll, "user");
+    });
+    return {
+      store,
+      spies,
+      container: utils.container,
+      body: utils.container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement,
+      seekTo: (timelineTime) => utils.rerender(element(timelineTime)),
+    };
+  }
+
+  it("a start trim drag never moves the view toward a playhead that is far off screen", () => {
+    // 60 s at 4x in a 1000 px lane: 66.67 px/s, the lane shows 0..15 s, the playhead is at
+    // 50 s (3333 px, 2300 px off the right). Each pointermove shortens the take by a
+    // little and changes the scale; none of that may reveal the playhead.
+    const { store, spies, body, container } = renderEditable({
+      items: sixtySeconds,
+      selectedItemId: "a",
+      timelineTime: 50,
+      scroll: 0,
+    });
+    const handle = captureStubs(
+      container.querySelector('[data-trim-handle="start"]') as HTMLElement,
+    );
+    const scale = (ZOOM * LANE_WIDTH) / 60;
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT });
+    for (const dx of [80, 160, 240, 320]) {
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: LANE_LEFT + dx });
+      // The trim lands on the time under the pointer, by the scale the drag began with.
+      expect(spies.onTrim).toHaveBeenLastCalledWith("a", "start", expect.any(Number), "move");
+      const reported = (spies.onTrim.mock.lastCall as [string, string, number])[2];
+      expect(reported).toBeCloseTo(dx / scale, 9);
+      expect(store.getState().scroll).toBe(0);
+      expect(body.scrollLeft).toBe(0);
+    }
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: LANE_LEFT + 320 });
+    expect(store.getState().scroll).toBe(0);
+  });
+
+  it("the same drag scrolled into the middle of the take leaves the view where it was", () => {
+    // Clip b starts at 30 s; at scroll 1200 the lane shows 18..33 s, so its start handle
+    // is on screen and the playhead (5 s, left of the view) is not.
+    const { store, spies, body, container } = renderEditable({
+      items: sixtySeconds,
+      selectedItemId: "b",
+      timelineTime: 5,
+      scroll: SCROLL,
+    });
+    const reveal = vi.spyOn(store, "reveal");
+    const handle = captureStubs(
+      container.querySelector('[data-trim-handle="start"]') as HTMLElement,
+    );
+    const scale = (ZOOM * LANE_WIDTH) / 60;
+    const x0 = LANE_LEFT + 30 * scale - SCROLL; // where the handle is
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: x0 });
+    for (const dx of [60, 120, 180]) {
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: x0 + dx });
+      const reported = (spies.onTrim.mock.lastCall as [string, string, number])[2];
+      expect(reported).toBeCloseTo(30 + dx / scale, 9);
+    }
+    expect(reveal).not.toHaveBeenCalled();
+    // Nowhere near the ~1200 px jump that revealing a playhead at 5 s would be.
+    expect(Math.abs(store.getState().scroll - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
+    expect(Math.abs(body.scrollLeft - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
+  });
+
+  it("a slide-duration drag does not move the view either", () => {
+    // 100 s at 4x: 40 px/s. Scrolled to 1200 px the lane shows 30..55 s, so the slide's
+    // right handle (40 s) is on screen; the playhead at 90 s is not.
+    const { store, spies, body, container } = renderEditable({
+      items: slideThenClip,
+      selectedItemId: "s1",
+      timelineTime: 90,
+      scroll: SCROLL,
+    });
+    const reveal = vi.spyOn(store, "reveal");
+    const handle = captureStubs(container.querySelector("[data-slide-handle]") as HTMLElement);
+    const scale = (ZOOM * LANE_WIDTH) / 100;
+    const x0 = LANE_LEFT + 40 * scale - SCROLL;
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: x0 });
+    for (const dx of [40, 80, 120]) {
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: x0 + dx });
+      const reported = (spies.onSlideDuration.mock.lastCall as [string, number])[1];
+      expect(reported).toBeCloseTo(40 + dx / scale, 9);
+    }
+    expect(reveal).not.toHaveBeenCalled();
+    expect(Math.abs(store.getState().scroll - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
+    expect(Math.abs(body.scrollLeft - SCROLL)).toBeLessThan(LANE_WIDTH / 10);
+  });
+
+  it("a paused playhead that really moves (a seek) off screen is still revealed", () => {
+    const { store, seekTo } = renderEditable({
+      items: sixtySeconds,
+      selectedItemId: "a",
+      timelineTime: 5,
+      scroll: SCROLL,
+    });
+    seekTo(50); // a keyboard or button seek far to the right
+    const view = store.getView();
+    const x = xOf(view, 50);
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThanOrEqual(view.laneWidth);
+  });
+
+  it("a seek that lands while a trim drag is in progress does not move the view under it", () => {
+    const { store, seekTo, container } = renderEditable({
+      items: sixtySeconds,
+      selectedItemId: "a",
+      timelineTime: 5,
+      scroll: SCROLL,
+    });
+    const handle = captureStubs(
+      container.querySelector('[data-trim-handle="start"]') as HTMLElement,
+    );
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: LANE_LEFT });
+    const before = store.getState().scroll;
+    seekTo(50); // the playhead moves for some other reason mid-drag
+    expect(store.getState().scroll).toBe(before);
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: LANE_LEFT });
+    seekTo(55); // once the drag is over, an off-screen seek is revealed again
+    expect(xOf(store.getView(), 55)).toBeGreaterThanOrEqual(0);
+    expect(xOf(store.getView(), 55)).toBeLessThanOrEqual(LANE_WIDTH);
   });
 });
 
