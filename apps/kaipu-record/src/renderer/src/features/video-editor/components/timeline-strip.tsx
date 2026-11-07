@@ -49,9 +49,13 @@ import styles from "./timeline-strip.module.css";
 // past the end of the ruler and get clipped at the window edge.
 const HOVER_FLIP_FRACTION = 0.9;
 
-// A labelled tick this close to the right edge keeps its line but drops its label, which
-// would otherwise hang past the end of the ruler.
-const LAST_LABEL_FRACTION = 0.96;
+// A labelled tick this close to the right END of the content keeps its line but drops its
+// label, which would otherwise hang past the end of the ruler. The room is a share of the
+// VISIBLE lane (4 %: about 40 px in a 1000 px lane), i.e. a fixed number of pixels measured
+// against the content's right edge, so it does not grow with the zoom: as a share of the
+// whole timeline it would blank the last 4 s of a 100 s take at 16x. At 1x the lane IS the
+// content, so this is exactly the old "last 4 % of the ruler" rule.
+const LAST_LABEL_ROOM = 0.04;
 
 /** A lane stacked under the main track (Zooms, Webcam, Privacy, Audio — video-editor v2). */
 export interface ExtraLane {
@@ -391,13 +395,15 @@ export function TimelineStrip({
               ))}
               {rulerTicks(duration, view.zoom, tickWindow).map((tick) => {
                 const fraction = timeToFraction(tick.time, duration);
+                // The room as a share of the content: the same pixels, over a wider whole.
+                const labelFits = fraction < 1 - LAST_LABEL_ROOM / view.zoom;
                 return (
                   <span
                     key={tick.time}
                     className={styles.tick}
                     style={{ left: `${fraction * 100}%` }}
                   >
-                    {fraction < LAST_LABEL_FRACTION && tick.label}
+                    {labelFits && tick.label}
                   </span>
                 );
               })}

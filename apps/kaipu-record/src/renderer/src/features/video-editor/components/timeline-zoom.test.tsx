@@ -34,7 +34,7 @@ import type { WebcamSegment } from "../webcam/webcam-model";
 import { AudioLane } from "./audio-lane";
 import { PrivacyLane } from "./privacy-lane";
 import { TimelineStrip, type ExtraLane } from "./timeline-strip";
-import { thumbnailTiles } from "./timeline-geometry";
+import { rulerTicks, thumbnailTiles, timeToFraction } from "./timeline-geometry";
 import { xOf } from "./timeline-view";
 import { WebcamLane } from "./webcam-lane";
 import { ZoomLane } from "./zoom-lane";
@@ -915,6 +915,83 @@ describe("a layout that changes during a drag", () => {
     seekTo(55); // once the drag is over, an off-screen seek is revealed again
     expect(xOf(store.getView(), 55)).toBeGreaterThanOrEqual(0);
     expect(xOf(store.getView(), 55)).toBeLessThanOrEqual(LANE_WIDTH);
+  });
+});
+
+/**
+ * Which ruler ticks keep their label. A labelled tick this close to the right END of the
+ * content keeps its line but drops its text, which would hang past the end. The room is
+ * measured in pixels against the content's right edge, not as a share of the whole
+ * timeline: at 16x the old "last 4 %" rule left the final 4 s of a 100 s take without any
+ * label, which is about two thirds of the screenful at the end.
+ */
+describe("ruler labels near the end of the content", () => {
+  function rulerLabels(container: HTMLElement): string[] {
+    const ruler = container.querySelector('[data-testid="ruler"]') as HTMLElement;
+    return Array.from(ruler.querySelectorAll("span"))
+      .map((el) => el.textContent ?? "")
+      .filter(Boolean);
+  }
+
+  function clipOf(duration: number): LayoutEntry[] {
+    return toLayout([
+      { id: "a", kind: "clip", sourceStart: 0, sourceEnd: duration },
+    ] as TrackItem[]);
+  }
+
+  /** The rule as it was at 1x (before zoom): drop a label from 96 % of the ruler on. */
+  function labelsAtFit(duration: number): string[] {
+    return rulerTicks(duration)
+      .filter((tick) => timeToFraction(tick.time, duration) < 0.96)
+      .map((tick) => tick.label);
+  }
+
+  function renderAt(duration: number, zoom: number, scroll: number): HTMLElement {
+    stubGeometry();
+    const store = createTimelineViewStore();
+    store.setDuration(duration);
+    const { container } = render(
+      strip(store, { layout: clipOf(duration), playback: makePlayback({ duration }) }),
+    );
+    act(() => {
+      store.zoomTo(zoom);
+      store.scrollTo(scroll, "user");
+    });
+    return container;
+  }
+
+  it.each([100, 125, 140, 59, 600, 3600])(
+    "at 1x the labels are exactly the ones the old rule kept (%s s)",
+    (duration) => {
+      const container = renderAt(duration, 1, 0);
+      expect(rulerLabels(container)).toEqual(labelsAtFit(duration));
+    },
+  );
+
+  it("at 1x a tick exactly at 96 % is dropped, as before (120 s of 125 s)", () => {
+    const container = renderAt(125, 1, 0);
+    expect(rulerLabels(container)).not.toContain("2:00");
+    expect(rulerLabels(container)).toContain("1:45");
+  });
+
+  it("at 16x the final viewport of a 100 s take is labelled, up to the last second but one", () => {
+    // 160 px/s, a label every second, scrolled to the end: the lane shows 93.75..100 s.
+    const labels = rulerLabels(renderAt(100, 16, 1e9));
+    for (const label of ["1:34", "1:35", "1:36", "1:37", "1:38", "1:39"]) {
+      expect(labels).toContain(label);
+    }
+    // 1:40 sits ON the end: its text would hang past it, so only its line is drawn.
+    expect(labels).not.toContain("1:40");
+  });
+
+  it("at the deepest zoom of a 10-minute take (240 px/s) the last seconds are labelled too", () => {
+    // Half-second labels, 120 px apart, the lane shows 595.8..600 s. The old rule dropped
+    // every label from 576 s on, so this stretch of the ruler was blank.
+    const labels = rulerLabels(renderAt(600, 1e9, 1e9));
+    for (const label of ["9:56.0", "9:57.0", "9:58.0", "9:59.0", "9:59.5"]) {
+      expect(labels).toContain(label);
+    }
+    expect(labels).not.toContain("10:00.0");
   });
 });
 
