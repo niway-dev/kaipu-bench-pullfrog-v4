@@ -110,7 +110,12 @@ export const editorVideo = catalog(
       steps: [
         open(ASSETS.walkthrough),
         loaded,
-        { click: { area: "editorVideo.transport", part: { role: "button", name: "Play" } } },
+        {
+          click: {
+            area: "editorVideo.transport",
+            part: { role: "button", name: "Play", exact: true },
+          },
+        },
         { waitMs: 400 },
       ],
       demonstrates: ["editorVideo.transport:playing"],

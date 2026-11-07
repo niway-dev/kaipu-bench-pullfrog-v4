@@ -584,7 +584,9 @@ describe("the static background layer is built once, not once per frame (review 
   // software canvas. They are rendered once per (output size, background, picture rect) onto a
   // cached canvas that each frame blits. A new composer — a changed size or background — has a
   // new cache by construction.
-  const FRAMES = 30;
+  // Enough frames to tell "once" from "once per frame". Each frame is a full software-canvas
+  // composite, so 30 frames took ~21 s on a CI runner and hit the 20 s test timeout.
+  const FRAMES = 4;
   // A failed assertion must not leave a spy behind to inflate the next test's counts.
   afterEach(() => vi.restoreAllMocks());
 
