@@ -281,9 +281,10 @@ describe("trim and slide handles at 4x, scrolled", () => {
     expect(onTrim).toHaveBeenLastCalledWith("b", "start", 52, "move");
   });
 
-  it("a trim handle can still be dragged past the visible end to win footage back", () => {
-    // Clip a's source runs to 100 but it is trimmed to 50: dragging the handle right of the
-    // last pixel must keep extending it, not stick where the visible timeline ends.
+  it("the end handle of clip b is not clamped at the visible edge of the strip when dragged past it", () => {
+    // Clip b (source 50-100) ends at the last second of the timeline, so its end handle sits
+    // at the strip's right edge. Dragging it far to the right of the last pixel (+4000 px,
+    // +100 s at 40 px/s) must keep reporting the pointer's time, not stick where the strip ends.
     const onTrim = vi.fn();
     const { container } = renderZoomed({ layout: twoClips, selectedItemId: "b", onTrim });
     const end = captureStubs(container.querySelector('[data-trim-handle="end"]') as HTMLElement);
