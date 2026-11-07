@@ -1238,13 +1238,31 @@ describe("LibraryDetailPage — header, menu, navigation and tabs (NIW2-669)", (
     return router;
   }
 
-  it("Open hands the file to the default app; a failure is reported", async () => {
+  it("Open hands the file to the default app", async () => {
     list(exportedOnlyItem);
     window.electronAPI.openLocalRecording = vi.fn(async () => {});
     renderDetail("asset-b");
     await waitForLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(window.electronAPI.openLocalRecording).toHaveBeenCalledWith("local-b");
+  });
+
+  it("Open reports a failure with a toast that can retry", async () => {
+    list(exportedOnlyItem);
+    window.electronAPI.openLocalRecording = vi.fn(async () => {
+      throw new Error("no application knows how to open this file");
+    });
+    renderDetail("asset-b");
+    await waitForLoaded();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    });
+    expect(getToasts()).toContainEqual(
+      expect.objectContaining({
+        message: "Couldn't open the file.",
+        action: expect.objectContaining({ onClick: expect.any(Function) }),
+      }),
+    );
   });
 
   it("Reveal in Finder reveals the file", async () => {

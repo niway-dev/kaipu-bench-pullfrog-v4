@@ -1,9 +1,15 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LibraryVideo } from "@renderer/features/library/types";
 import { buildLineage } from "@renderer/features/library/lineage";
 import type { RunningCopy } from "@renderer/features/prepare/running-copy";
+import {
+  __resetReadyCopiesForTests,
+  getReadyCopies,
+  noteFinishedCopy,
+  unseenCopyIds,
+} from "@renderer/features/video-editor/export/ready-copies";
 import { VersionsList } from "./versions-list";
 
 const video = (overrides: Partial<LibraryVideo>): LibraryVideo => ({
@@ -71,7 +77,10 @@ function renderList(
   return screen.getByRole("region", { name: "Versions" });
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  __resetReadyCopiesForTests();
+});
 
 describe("VersionsList", () => {
   it("lists the master and its copies, with Viewing on the master", () => {
@@ -176,5 +185,72 @@ describe("VersionsList", () => {
     const y = video({ id: "y", assetId: "y", title: "Y", derivedFromAssetId: "x" });
     const region = renderList(x, [x, y]);
     expect(within(region).getAllByRole("listitem").length).toBeGreaterThan(0);
+  });
+
+  it("shows the time left on a running export", () => {
+    // 38% after 70 s: about 114 s left, rounded to 2 min.
+    const region = renderList(master, [master], {
+      presetId: "youtube-4k",
+      wholeRecording: true,
+      fraction: 0.38,
+      attemptStartedAt: 30_000,
+    });
+    expect(within(region).getByText("Exporting · 38% · 2 min left")).toBeVisible();
+  });
+
+  it("dragging a copy hands the real file to main and marks it as seen", () => {
+    const startFileDrag = vi.fn();
+    window.electronAPI = { ...window.electronAPI, startFileDrag } as typeof window.electronAPI;
+    noteFinishedCopy("yt");
+    expect(unseenCopyIds(getReadyCopies()).has("yt")).toBe(true);
+    const region = renderList(master, [master, yt]);
+    const drag = within(region).getByRole("button", { name: /^Drag YouTube 1440p/ });
+    expect(drag).toHaveAttribute("draggable", "true");
+    fireEvent.dragStart(drag);
+    expect(startFileDrag).toHaveBeenCalledWith("yt", "yt file");
+    expect(unseenCopyIds(getReadyCopies()).has("yt")).toBe(false);
+  });
+
+  it("names an Email copy by its stored destination, not by its Balanced preset", () => {
+    const email = video({
+      id: "em",
+      assetId: "em",
+      title: "em file",
+      derivedFromAssetId: "master",
+      export: { preset: "balanced", fingerprint: "whole", destination: "email" },
+    });
+    const region = renderList(master, [master, email]);
+    expect(within(region).getByText("Email · anywhere")).toBeVisible();
+    expect(within(region).queryByText(/Slack/)).toBeNull();
+  });
+
+  it("a GIF or an editor export falls back to its own title", () => {
+    const gif = video({
+      id: "g",
+      assetId: "g",
+      kind: "gif",
+      title: "Take (GIF)",
+      derivedFromAssetId: "master",
+      export: null,
+      gif: { width: 800, height: 450, fps: 12 },
+    });
+    const edited = video({
+      id: "ed",
+      assetId: "ed",
+      title: "Take (edited)",
+      derivedFromAssetId: "master",
+      export: { preset: "balanced", fingerprint: "abc" },
+    });
+    const region = renderList(master, [master, gif, edited]);
+    expect(within(region).getByText("Take (GIF)")).toBeVisible();
+    expect(within(region).getByText(/800 × 450/)).toBeVisible();
+    expect(within(region).getByText("Take (edited)")).toBeVisible();
+    expect(within(region).queryByText(/Slack/)).toBeNull();
+  });
+
+  it("a copy with no local file has no drag handle", () => {
+    const cloudOnly = video({ id: null, assetId: "co", derivedFromAssetId: "master" } as never);
+    const region = renderList(master, [master, cloudOnly]);
+    expect(within(region).queryByRole("button", { name: /^Drag/ })).toBeNull();
   });
 });
