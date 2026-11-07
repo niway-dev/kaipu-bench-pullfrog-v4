@@ -1910,7 +1910,7 @@ describe("VideoEditorPage — background (NIW2-668)", () => {
   });
 
   const picture = (): HTMLElement => screen.getByTestId("preview-picture");
-  const swatch = (name: string): HTMLElement => screen.getByRole("button", { name, exact: true });
+  const swatch = (name: string): HTMLElement => screen.getByRole("button", { name });
   const slider = (name: string): HTMLInputElement =>
     screen.getByRole("slider", { name }) as HTMLInputElement;
   const exportedArgs = async (): Promise<{
