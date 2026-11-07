@@ -1552,12 +1552,20 @@ describe("LibraryDetailPage — header, menu, navigation and tabs (NIW2-669)", (
       expect(screen.getByRole("button", { name: "Previous item" })).toBeDisabled();
     });
 
-    it("hides the counter when the item is not in the passed order", async () => {
+    it("falls back to the whole library when the item is not in the passed order", async () => {
       list(...three());
       renderWithState("/library/asset-a", { order: ["asset-b", "asset-c"] });
       await waitForLoaded();
-      expect(screen.queryByTestId("position-counter")).toBeNull();
-      expect(screen.queryByRole("button", { name: "Next item" })).toBeNull();
+      expect(screen.getByTestId("position-counter")).toHaveTextContent("1 of 3");
+      expect(screen.getByRole("button", { name: "Next item" })).toBeEnabled();
+    });
+
+    it("drops ids that are no longer in the library from the passed order", async () => {
+      list(...three());
+      renderWithState("/library/asset-b", { order: ["asset-c", "asset-gone", "asset-b"] });
+      await waitForLoaded();
+      expect(screen.getByTestId("position-counter")).toHaveTextContent("2 of 2");
+      expect(screen.getByRole("button", { name: "Next item" })).toBeDisabled();
     });
   });
 

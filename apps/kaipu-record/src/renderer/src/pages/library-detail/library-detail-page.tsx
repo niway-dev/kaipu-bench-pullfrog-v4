@@ -125,11 +125,16 @@ export function LibraryDetailPage(): React.JSX.Element {
   const lineage = useMemo(() => buildLineage(videos), [videos]);
 
   // The Library passes the list as it shows it (filter and sort applied); opened from
-  // anywhere else, the whole library in its own order is the list.
-  const order = useMemo(
-    () => navState?.order ?? videos.map((v) => v.assetId),
-    [navState?.order, videos],
-  );
+  // anywhere else, the whole library in its own order is the list. Ids that left the library
+  // since the snapshot are dropped, and an item outside the passed list (a link to its source or
+  // a copy the filter hides) falls back to the whole library, so the pager stays available.
+  const order = useMemo(() => {
+    const whole = videos.map((v) => v.assetId);
+    if (!navState?.order) return whole;
+    const present = new Set(whole);
+    const passed = navState.order.filter((id) => present.has(id));
+    return assetId && !passed.includes(assetId) ? whole : passed;
+  }, [navState?.order, videos, assetId]);
   const position = assetId ? order.indexOf(assetId) : -1;
 
   // NIW2-578: Prepare — the core action — opens from "Export a copy", the "Where is it
