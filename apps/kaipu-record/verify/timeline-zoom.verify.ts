@@ -7,10 +7,12 @@ import { test, expect, type ElectronApplication, type Locator, type Page } from 
 import { launchApp } from "../e2e/helpers/launch";
 
 /*
- * Timeline zoom (NIW2-667), in the real app: a long recording at 1x, at 4x and at 16x, the
- * transport bar at the editor's 1180 px floor and at 1440 px in English and Spanish, and the
+ * Timeline zoom (NIW2-667, NIW2-675), in the real app: a long recording at 100%, 400% and 800%
+ * (the deepest zoom), the transport bar at 1180, 1280, 1440 and 1570 px (and the wider ones) in
+ * English and Spanish with the zoom level always on screen, the whole steps of + and −, and the
  * proof the maths agrees with the real layout (a click lands the playhead under the pointer, a
- * trim moves by the 4x amount, the wheel zooms around the pointer, playback follows).
+ * trim moves by the 400% amount, the wheel zooms around the pointer and clamps at 800%,
+ * playback follows).
  *
  * Self-contained and tolerant of a tree from before the change (no zoom control there): the
  * same file shoots "before" and "after". The recording is generated with ffmpeg (a test card
@@ -200,7 +202,9 @@ async function openEditor(page: Page): Promise<void> {
 }
 
 const ZOOM_IN = /Zoom in the timeline|Acercar la línea de tiempo/;
+const ZOOM_OUT = /Zoom out the timeline|Alejar la línea de tiempo/;
 const FIT = /Fit the whole recording|Ajustar toda la grabación/;
+const LEVEL_TITLE = /^(Timeline zoom level|Nivel de zoom de la línea de tiempo)$/;
 
 async function readNumbers(bar: Locator): Promise<string> {
   return bar.evaluate((el) => {
@@ -217,6 +221,18 @@ async function readNumbers(bar: Locator): Promise<string> {
     const buttons2 = Array.from(right.querySelectorAll("button")) as HTMLElement[];
     const fitButton = buttons2.find((b) => /^(FIT|Fit|Ajustar)$/.test(b.textContent ?? ""));
     const leftBox = left.getBoundingClientRect();
+    const level = right.querySelector<HTMLElement>(
+      "[title='Timeline zoom level'], [title='Nivel de zoom de la línea de tiempo']",
+    );
+    const levelBox = level?.getBoundingClientRect();
+    const minus = right.querySelector<HTMLElement>(
+      "button[aria-label='Zoom out the timeline'], button[aria-label='Alejar la línea de tiempo']",
+    );
+    const plus = right.querySelector<HTMLElement>(
+      "button[aria-label='Zoom in the timeline'], button[aria-label='Acercar la línea de tiempo']",
+    );
+    const visible = (node: HTMLElement | null | undefined): boolean =>
+      !!node && getComputedStyle(node).display !== "none" && node.getBoundingClientRect().width > 0;
     return JSON.stringify({
       barWidth: Math.round(el.getBoundingClientRect().width),
       rightColumn: Math.round(rightBox.width),
@@ -233,6 +249,12 @@ async function readNumbers(bar: Locator): Promise<string> {
         : null,
       leftColumn: Math.round(leftBox.width),
       leftClipped: left.scrollWidth - left.clientWidth,
+      // NIW2-675: the level, − and + are on screen at every width.
+      levelText: level?.textContent ?? null,
+      levelWidth: levelBox ? Math.round(levelBox.width) : null,
+      levelShown: visible(level),
+      minusShown: visible(minus),
+      plusShown: visible(plus),
     });
   });
 }
@@ -266,6 +288,8 @@ for (const locale of ["en", "es"] as const) {
       const bar = page.locator("[data-ui-area='editorVideo.transport']");
       const footer = page.locator("[data-ui-area='editorVideo.timeline']");
       const hasZoom = (await page.getByRole("button", { name: ZOOM_IN }).count()) > 0;
+      // The "before" tree has a zoom control but no level readout (NIW2-675 adds it).
+      const hasLevel = (await page.getByTitle(LEVEL_TITLE).count()) > 0;
 
       const shot = async (name: string, size?: [number, number]): Promise<void> => {
         if (size) await sizeWindow(app, page, size);
@@ -273,14 +297,31 @@ for (const locale of ["en", "es"] as const) {
         await page.screenshot({ path: path.join(OUT_DIR, `${locale}-${name}-window.png`) });
         await bar.screenshot({ path: path.join(OUT_DIR, `${locale}-${name}-bar.png`) });
         await footer.screenshot({ path: path.join(OUT_DIR, `${locale}-${name}-timeline.png`) });
-        console.log(
-          `[verify] ${NAME}: ${locale} ${name} ${await readNumbers(bar)} zoom=${hasZoom}`,
+        const numbers = await readNumbers(bar);
+        console.log(`[verify] ${NAME}: ${locale} ${name} ${numbers} zoom=${hasZoom}`);
+        if (!hasZoom) return;
+        // The hard constraints at every width (NIW2-675): one line, the time label clear of the
+        // right cluster, and the level with − and + on screen.
+        const n = JSON.parse(numbers) as {
+          oneLine: number;
+          overlap: number;
+          levelText: string | null;
+          levelShown: boolean;
+          minusShown: boolean;
+          plusShown: boolean;
+        };
+        expect(n.oneLine, `${locale} ${name}: the bar is one line`).toBeLessThanOrEqual(40);
+        expect(n.overlap, `${locale} ${name}: the time label clears the cluster`).toBeLessThan(0);
+        if (!hasLevel) return;
+        expect(n.levelShown && n.minusShown && n.plusShown, `${locale} ${name}`).toBe(true);
+        expect(n.levelText, `${locale} ${name}: the level reads as a percent`).toMatch(
+          /^\d+[\s\u00a0]?%$/,
         );
       };
 
       // 10:05 recording, both counts (2 zooms, 1 privacy region): the widest bar there is.
       await shot("default");
-      for (const width of [1440, 1180, 1280, 1366, 1536, 1600, 1920]) {
+      for (const width of [1440, 1180, 1280, 1366, 1536, 1570, 1600, 1920]) {
         await shot(String(width), [width, 900]);
       }
     } finally {
@@ -380,8 +421,37 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
         return head.getBoundingClientRect().left + 1; // the 2 px line's centre
       });
 
-    // --- 4x ---------------------------------------------------------------------------
-    for (let i = 0; i < 4; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
+    // --- whole steps: + goes 100% → 200% → 400% → 800%, − comes back (NIW2-675) -------------
+    const level = page.getByTitle(LEVEL_TITLE);
+    // Back to 100% at any width: FIT when the bar still shows it, `−` until it stops otherwise.
+    const toFit = async (): Promise<void> => {
+      const fit = page.getByRole("button", { name: FIT });
+      if (await fit.isVisible()) {
+        await fit.click();
+        return;
+      }
+      const out = page.getByRole("button", { name: ZOOM_OUT });
+      for (let i = 0; i < 4 && (await out.isEnabled()); i++) await out.click();
+    };
+    const readLevel = async (): Promise<string> =>
+      ((await level.textContent()) ?? "").replace(/\s|\u00a0/g, "");
+    const steps: string[] = [await readLevel()];
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: ZOOM_IN }).click();
+      steps.push(await readLevel());
+    }
+    const plusDisabledAtCap = await page.getByRole("button", { name: ZOOM_IN }).isDisabled();
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: ZOOM_OUT }).click();
+      steps.push(await readLevel());
+    }
+    console.log(`[verify] ${NAME}: walk steps ${JSON.stringify({ steps, plusDisabledAtCap })}`);
+    expect(steps).toEqual(["100%", "200%", "400%", "800%", "400%", "200%", "100%"]);
+    expect(plusDisabledAtCap).toBe(true);
+    expect((await geometry()).zoom).toBe(1);
+
+    // --- 400% -------------------------------------------------------------------------
+    for (let i = 0; i < 2; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
     await shoot("4x");
     const g4 = await geometry();
     console.log(`[verify] ${NAME}: walk 4x geometry ${JSON.stringify(g4)}`);
@@ -462,7 +532,7 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     await page.keyboard.press("Meta+z").catch(() => {});
 
     // --- the wheel zooms around the pointer ------------------------------------------------
-    await page.getByRole("button", { name: FIT }).click();
+    await toFit();
     await page.getByRole("button", { name: ZOOM_IN }).click();
     const wx = bodyBox.x + 500;
     const gw0 = await geometry();
@@ -486,8 +556,8 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     expect(Math.abs(t1 - t0)).toBeLessThanOrEqual(0.3);
 
     // --- follow while playing ----------------------------------------------------------------
-    await page.getByRole("button", { name: FIT }).click();
-    for (let i = 0; i < 4; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
+    await toFit();
+    for (let i = 0; i < 2; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
     await scroller.evaluate((el) => (el.scrollLeft = 0));
     await page.waitForTimeout(250);
     const g5 = await geometry();
@@ -514,17 +584,69 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     expect(headNow).toBeLessThanOrEqual(g6.laneLeft + g6.laneWidth + 2);
     await shoot("4x-following");
 
-    // --- 16x ---------------------------------------------------------------------------------
-    await page.getByRole("button", { name: FIT }).click();
-    for (let i = 0; i < 8; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
+    // --- 800%: the deepest zoom --------------------------------------------------------------
+    await toFit();
+    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
     await scroller.evaluate((el) => (el.scrollLeft = el.scrollWidth * 0.4));
-    await shoot("16x");
+    await shoot("800");
     const tiles = await footer.locator("img").count();
+    const deepest = await geometry();
     console.log(
-      `[verify] ${NAME}: walk 16x ${JSON.stringify({ zoom: (await geometry()).zoom, tiles })}`,
+      `[verify] ${NAME}: walk 800% ${JSON.stringify({ zoom: deepest.zoom, level: await readLevel(), tiles })}`,
     );
-    // Back to 1x: the editor must look as it did before.
+    expect(deepest.zoom).toBe(8);
+    expect(await readLevel()).toBe("800%");
+
+    // A ⌘-wheel past the maximum clamps at 800%.
+    await page.mouse.move(bodyBox.x + 500, y);
+    await page.keyboard.down("Meta");
+    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -40);
+    await page.keyboard.up("Meta");
+    await page.waitForTimeout(300);
+    expect((await geometry()).zoom).toBe(8);
+
+    // An in-between level from the wheel (e.g. 480%): + goes to 800%, − to 400%.
+    await toFit();
+    await page.mouse.move(bodyBox.x + 500, y);
+    await page.keyboard.down("Meta");
+    for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -40);
+    await page.keyboard.up("Meta");
+    await page.waitForTimeout(300);
+    const between = await readLevel();
+    await page.getByRole("button", { name: ZOOM_IN }).click();
+    const afterPlus = await readLevel();
+    // Back to the same in-between level to test − as well.
+    await toFit();
+    await page.mouse.move(bodyBox.x + 500, y); // the toolbar click moved the pointer away
+    await page.keyboard.down("Meta");
+    for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -40);
+    await page.keyboard.up("Meta");
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: ZOOM_OUT }).click();
+    const afterMinus = await readLevel();
+    console.log(
+      `[verify] ${NAME}: walk in-between ${JSON.stringify({ between, afterPlus, afterMinus })}`,
+    );
+    // Four wheel events of e^0.4 each from 100% land near 495%: between 400% and 800%.
+    expect(Number.parseInt(between, 10)).toBeGreaterThan(400);
+    expect(Number.parseInt(between, 10)).toBeLessThan(800);
+    expect(afterPlus).toBe("800%");
+    expect(afterMinus).toBe("400%");
+    // FIT returns to 100% and scroll 0. At 1440 px the bar has already dropped FIT (see
+    // transport-bar.module.css), so this runs in a window wide enough to show it.
+    await page.getByRole("button", { name: ZOOM_IN }).click();
+    await sizeWindow(app, page, [1600, 900]);
     await page.getByRole("button", { name: FIT }).click();
+    await page.waitForTimeout(300);
+    const afterFit = await geometry();
+    console.log(
+      `[verify] ${NAME}: walk fit ${JSON.stringify({ zoom: afterFit.zoom, scroll: afterFit.scroll, level: await readLevel() })}`,
+    );
+    expect(afterFit.zoom).toBe(1);
+    expect(afterFit.scroll).toBe(0);
+    expect(await readLevel()).toBe("100%");
+    await sizeWindow(app, page, [1440, 900]);
+    // Back to 1x: the editor must look as it did before.
     await shoot("fit-again");
   } finally {
     try {
