@@ -1,0 +1,76 @@
+---
+title: "ADR 0048: The Console is admin-kit's panel, authorized by the kit's access policies"
+description: "apps/console mounts @niway/admin-kit's AdminPanel; the kit's add-ons install in infra-auth as Better Auth plugins so admin logic lives in the API; who is an admin is the kit's policy chain (adminSince by default, the user-id allowlist as a transition policy); the Console's own auth proxy allowlist, session check and access code are deleted. Supersedes the Console spec's 'no new admin REST API on server-hono'."
+---
+
+# ADR 0048: The Console is admin-kit's panel, authorized by the kit's access policies
+
+## Status
+
+Proposed — design PR pending review (2026-11-05).
+[NIW2-657](https://linear.app/niway/issue/NIW2-657/console-on-admin-kit-and-labs-typed-flags-labs-opt-in-in-settings).
+Spec: [Console on admin-kit and Labs — design](/specs/2026-11-05-console-on-admin-kit-and-labs-design/).
+Companion: [0049](/architecture/decisions/0049-flags-are-a-typed-registry-with-state-in-our-api-labs-is-user-opt-in/).
+Supersedes the "no new admin REST API on server-hono" line of the
+[Console spec](/specs/2026-09-15-kaipu-console/) (a spec decision, not an ADR).
+
+## Context
+
+The Console ([spec](/specs/2026-09-15-kaipu-console/)) is a separate TanStack Start Worker with a
+hand-written users table over Drizzle, an auth proxy that allows three Better Auth paths, and an
+allowlist of user ids in an environment variable. It never ran until 2026-11-05 (the API's trusted
+origins did not include it, and the allowlist was empty). None of it is reusable.
+
+The owner's admin product is [`@niway/admin-kit`](https://github.com/niway-dev/admin-kit): Better
+Auth plugins (waitlist, early access, and now features and access policies) plus a static panel that
+renders what the backend declares. Its spec AK-06 (NIW2-251) already planned to dogfood the kit in
+Kaipu. The owner said the Console's learnings must live in the kit and the kit must be "plug and
+play, customizable" (2026-11-05).
+
+Two auth models were weighed: Cloudflare Access replacing Better Auth (one admin, MFA at the edge,
+no password form), and the kit's model (Better Auth session plus a server-side policy chain). The kit
+needs a host user for `requireAdmin`, so Access alone would require a new identity adapter first.
+
+## Decision
+
+1. `apps/console` stays its own Worker and mounts the kit's `AdminPanel`. The hand-written users
+   table remains until the kit ships a users section, behind the kit's 403.
+2. The kit's add-ons install in `packages/infra-auth` as Better Auth plugins. The admin endpoints are
+   therefore part of the API (`/api/auth/*`), which supersedes the Console spec's "no new admin REST
+   API on server-hono".
+3. Admin authorization is the kit's policy chain (admin-kit ADR 0601): `adminSince()` on the owner's
+   user row by default, plus `users(CONSOLE_ADMIN_USER_IDS)` while the transition lasts. The
+   Console's `requireConsoleAdmin`, `access.ts` and the three-path proxy allowlist are deleted; the
+   proxy forwards the kit's path prefixes.
+4. Cloudflare Access is added in front of `console.kaipu.app` when the Console is deployed, as an
+   outer door (policy: the owner's email; the Worker verifies the JWT audience). It is not part of
+   local development and does not replace the kit's session.
+
+## Alternatives rejected
+
+- **Cloudflare Access replaces Better Auth now.** Simplest for one admin, but the kit's
+  authorization needs a host user, and an Access identity adapter is a later admin-kit ticket
+  (NIW2-655). Access stays as the outer door.
+- **Keep the hand-written Console and deploy it.** Delivers nothing reusable; the owner's goal is the
+  kit.
+- **Mount the panel inside `web-hono` at `/admin`.** Puts the operator surface on the public site's
+  origin and Worker; a separate Worker keeps the blast radius and the Access policy separate.
+
+## Consequences
+
+- The Console loses most of its code and gains a dependency on a public npm package the owner also
+  maintains; every friction point becomes an admin-kit ticket (as AK-06 intended).
+- `infra-auth` grows plugins and the database gains the kit's tables (`db:push` on a known database
+  only).
+- Better Auth's `admin()` plugin is not required: `adminSince` is the kit's own fact.
+- The Console spec's local-run section stays valid; its deployment section gains the Access step.
+
+## Non-goals
+
+- Deploying the Console in this decision; operator actions (plan 04) beyond what the kit's panel
+  renders; roles finer than admin.
+
+## What would reopen this
+
+- The kit gets an Access identity adapter and the owner wants no Better Auth session in the Console
+  at all; or a second operator with a different role appears.

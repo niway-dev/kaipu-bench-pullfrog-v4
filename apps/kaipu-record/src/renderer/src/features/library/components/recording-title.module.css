@@ -14,6 +14,26 @@
   text-overflow: ellipsis;
 }
 
+.titleButton {
+  max-width: 100%;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0;
+  cursor: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--transition);
+}
+
+.titleButton:hover {
+  color: var(--accent-primary);
+}
+
 .titleInput {
   font-family: var(--font-family);
   font-size: var(--font-size-lg);

@@ -4,6 +4,7 @@
  * may overlap each other.
  */
 import { useCallback, useMemo } from "react";
+import { useLatest } from "../use-latest";
 import { dragRangeEdge, isSourceRangeVisible, sourceTimeAtTimeline } from "../source-time";
 import type { LayoutEntry } from "../timeline";
 import type { VideoSceneController } from "../use-video-scene";
@@ -100,6 +101,7 @@ export function useRedactionEditing({
     [controller],
   );
 
+  const controllerRef = useLatest(controller);
   const edgeDrag = useCallback(
     (
       id: string,
@@ -107,9 +109,9 @@ export function useRedactionEditing({
       sourceTime: number | null,
       phase: "start" | "move" | "end",
     ) => {
-      if (phase === "start") controller.beginInteract();
+      if (phase === "start") controllerRef.current.beginInteract();
       if (phase === "move" && sourceTime !== null) {
-        const self = controller.scene.redactions.find((r) => r.id === id);
+        const self = controllerRef.current.scene.redactions.find((r) => r.id === id);
         if (self) {
           // Regions may overlap: the only sibling that constrains the drag is itself.
           const range = dragRangeEdge(
@@ -120,12 +122,12 @@ export function useRedactionEditing({
             sourceDuration,
             REDACTION.minSeconds,
           );
-          controller.updateLive(updateRedaction(controller.scene, id, range));
+          controllerRef.current.updateLive(updateRedaction(controllerRef.current.scene, id, range));
         }
       }
-      if (phase === "end") controller.endInteract();
+      if (phase === "end") controllerRef.current.endInteract();
     },
-    [controller, sourceDuration],
+    [controllerRef, sourceDuration],
   );
 
   return {

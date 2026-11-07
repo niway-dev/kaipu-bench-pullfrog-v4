@@ -403,6 +403,16 @@ export interface KaipuElectronAPI {
   /** Reveal a local recording in the OS file manager. */
   revealLocalRecording(id: string): Promise<void>;
   /**
+   * NIW2-669: open a local recording in the OS default application. Rejects with the
+   * OS error message when the file cannot be opened.
+   */
+  openLocalRecording(id: string): Promise<void>;
+  /**
+   * NIW2-669: absolute path of a local recording's file, or null when the id is unknown
+   * or its file is gone.
+   */
+  localRecordingPath(id: string): Promise<string | null>;
+  /**
    * NIW2-217: write an exported GIF into the vault as `<id>.gif` (+ sidecar and
    * thumbnail). Main validates the bytes (GIF89a, ≤ 64 MB) and picks the path.
    */
