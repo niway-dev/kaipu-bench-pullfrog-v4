@@ -29,28 +29,27 @@ export function buildLineage(videos: readonly LibraryVideo[]): Lineage {
 
 /**
  * The family an item belongs to: its root original and every descendant (copies of copies
- * included), so the original and any copy show the same list. A copy whose direct source is
- * gone has no master (`master: null`) and heads its own list. A broken link higher up makes the
- * deepest ancestor that still exists the master. Cycles are cut at the first repeat.
+ * included), so the original and any copy show the same list. When the chain is broken anywhere
+ * (a link points at an asset that no longer exists) the family has no master (`master: null`)
+ * and its list is headed by the topmost surviving item, so every member shows the same rows
+ * ("source deleted" included). Cycles are cut at the first repeat.
  */
 export function familyOf(
   item: LibraryVideo,
   lineage: Lineage,
 ): { master: LibraryVideo | null; copies: LibraryVideo[] } {
   let root = item;
-  if (item.derivedFromAssetId !== null) {
-    const parent = lineage.byAssetId.get(item.derivedFromAssetId);
+  const seen = new Set([item.assetId]);
+  let cur: LibraryVideo = item;
+  while (cur.derivedFromAssetId !== null) {
+    const parent = lineage.byAssetId.get(cur.derivedFromAssetId);
     if (!parent) {
-      return { master: null, copies: [item, ...descendantsOf(item, lineage)] };
+      return { master: null, copies: [root, ...descendantsOf(root, lineage)] };
     }
-    const seen = new Set([item.assetId]);
-    let cur: LibraryVideo | undefined = parent;
-    while (cur && !seen.has(cur.assetId)) {
-      seen.add(cur.assetId);
-      root = cur;
-      cur =
-        cur.derivedFromAssetId !== null ? lineage.byAssetId.get(cur.derivedFromAssetId) : undefined;
-    }
+    if (seen.has(parent.assetId)) break;
+    seen.add(parent.assetId);
+    root = parent;
+    cur = parent;
   }
   return { master: root, copies: descendantsOf(root, lineage) };
 }

@@ -180,6 +180,25 @@ describe("VersionsList", () => {
     }
   });
 
+  it("a broken link higher up shows the source as deleted from every member", () => {
+    const b = video({ id: "b", assetId: "b", title: "Copy B", derivedFromAssetId: "gone" });
+    const c = video({ id: "c", assetId: "c", title: "Copy C", derivedFromAssetId: "b" });
+    const texts: string[][] = [];
+    for (const opened of [c, b]) {
+      const region = renderList(opened, [b, c]);
+      expect(within(region).getByText("Source recording was deleted")).toBeTruthy();
+      expect(within(region).queryByText("Original")).toBeNull();
+      texts.push(
+        within(region)
+          .getAllByRole("listitem")
+          .map((r) => (r.textContent ?? "").split("Exported")[0]!),
+      );
+      cleanup();
+    }
+    expect(texts[0]).toEqual(texts[1]);
+    expect(texts[0]).toHaveLength(3);
+  });
+
   it("does not loop on a cyclic lineage", () => {
     const x = video({ id: "x", assetId: "x", title: "X", derivedFromAssetId: "y" });
     const y = video({ id: "y", assetId: "y", title: "Y", derivedFromAssetId: "x" });
