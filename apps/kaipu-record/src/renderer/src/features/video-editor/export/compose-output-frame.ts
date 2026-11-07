@@ -19,7 +19,10 @@
  * (`backgroundFrame`). So the zoom, redactions, annotations, cursor and webcam all stay inside
  * the picture, the padding is never zoomed or cropped, and the output size never changes.
  * Without a background none of this runs: no picture canvas is allocated and the draw calls
- * are exactly the ones above.
+ * are exactly the ones above. The paint and the shadow are the same in every frame, so they are
+ * rendered ONCE into a cached backdrop canvas per (output size, background, picture rect) and
+ * each frame blits it (`createBackdrops`): measured without a GPU the per-frame fill and
+ * Gaussian blur cost 15 ms at 1080p and 27 ms at 1440p, over the 16.7 ms a 60 fps frame has.
  *
  * WORKER-BUNDLE INVARIANT: same as compose-frame.ts — no DOM, no React. OffscreenCanvas only.
  */
@@ -170,15 +173,15 @@ function paintBackground(
 }
 
 /**
- * The picture onto the output, over the background: the shadow, then the picture clipped to
- * its rounded rect. The shadow is the screenshot editor's (`shadowCss`'s formula, offset down
- * and blurred, no spread). A canvas shadow follows the clip, so it is drawn BEFORE the clip: the
- * caster is drawn one canvas-width off to the left with the shadow offset bringing the shadow
- * back, which leaves the shadow alone on the canvas and nothing painted under the picture.
+ * The part of the background that no frame changes: the output filled with the preset's paint
+ * and the picture's shadow on it. The shadow is the screenshot editor's (`shadowCss`'s formula,
+ * offset down and blurred, no spread). A canvas shadow follows the clip, so it is drawn BEFORE
+ * the clip: the caster is drawn one canvas-width off to the left with the shadow offset bringing
+ * the shadow back, which leaves the shadow alone on the canvas and nothing painted under the
+ * picture.
  */
-function drawPicture(
+function drawBackdrop(
   ctx: OffscreenCanvasRenderingContext2D,
-  source: CanvasImageSource,
   dest: Rect,
   frame: BackgroundFrame,
   paint: BackgroundPaint,
@@ -186,19 +189,29 @@ function drawPicture(
   height: number,
 ): void {
   paintBackground(ctx, paint, width, height);
-  if (frame.shadow) {
-    const reach = width * 2;
-    ctx.save();
-    ctx.shadowColor = `rgba(0, 0, 0, ${frame.shadow.alpha})`;
-    ctx.shadowBlur = frame.shadow.blur;
-    ctx.shadowOffsetX = reach;
-    ctx.shadowOffsetY = frame.shadow.offsetY;
-    ctx.fillStyle = "#000";
-    ctx.beginPath();
-    ctx.roundRect(dest.x - reach, dest.y, dest.width, dest.height, frame.radius);
-    ctx.fill();
-    ctx.restore();
-  }
+  if (!frame.shadow) return;
+  const reach = width * 2;
+  ctx.save();
+  ctx.shadowColor = `rgba(0, 0, 0, ${frame.shadow.alpha})`;
+  ctx.shadowBlur = frame.shadow.blur;
+  ctx.shadowOffsetX = reach;
+  ctx.shadowOffsetY = frame.shadow.offsetY;
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.roundRect(dest.x - reach, dest.y, dest.width, dest.height, frame.radius);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * The picture onto the output, over the backdrop: the picture clipped to its rounded rect.
+ */
+function drawPicture(
+  ctx: OffscreenCanvasRenderingContext2D,
+  source: CanvasImageSource,
+  dest: Rect,
+  frame: BackgroundFrame,
+): void {
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(dest.x, dest.y, dest.width, dest.height, frame.radius);
@@ -209,6 +222,46 @@ function drawPicture(
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(source, dest.x, dest.y, dest.width, dest.height);
   ctx.restore();
+}
+
+/**
+ * The cached backdrops of one composer, one per picture rect (a Fill clip and a Fit slide of a
+ * fixed-canvas preset have two). A backdrop is the output size, opaque, and exactly what
+ * `drawBackdrop` paints, so blitting it at 0,0 leaves the same pixels as painting afresh. The
+ * key carries everything it depends on — output size, preset, picture rect, radius, shadow — so
+ * a different size or background can never get another's layer; a composer's own inputs are
+ * fixed, so in practice a composer holds one or two. Built on first use: a plain scene, whose
+ * composer never asks, allocates none.
+ */
+function createBackdrops(
+  output: { width: number; height: number },
+  background: VideoBackground,
+  paint: BackgroundPaint,
+  frame: BackgroundFrame,
+): (dest: Rect) => OffscreenCanvas {
+  const layers = new Map<string, OffscreenCanvas>();
+  const { shadow } = frame;
+  return (dest) => {
+    const key = [
+      output.width,
+      output.height,
+      background.bg,
+      dest.x,
+      dest.y,
+      dest.width,
+      dest.height,
+      frame.radius,
+      shadow ? `${shadow.offsetY},${shadow.blur},${shadow.alpha}` : "no-shadow",
+    ].join("|");
+    const cached = layers.get(key);
+    if (cached) return cached;
+    // Bounded: a composer asks for at most Fit and Fill, but never keep a stale layer around.
+    if (layers.size >= 2) layers.clear();
+    const surface = createSurface(output.width, output.height);
+    drawBackdrop(surface.ctx, dest, frame, paint, output.width, output.height);
+    layers.set(key, surface.canvas);
+    return surface.canvas;
+  };
 }
 
 export function createOutputComposer(opts: OutputComposerOptions): OutputComposer {
@@ -226,6 +279,8 @@ export function createOutputComposer(opts: OutputComposerOptions): OutputCompose
   const background = opts.background && hasBackground(opts.background) ? opts.background : null;
   const frame = background ? backgroundFrame(background, output.width, output.height) : null;
   const paint = background ? backgroundPaint(background.bg) : null;
+  const backdropFor =
+    background && frame && paint ? createBackdrops(output, background, paint, frame) : null;
   // Output-sized presets: the picture is composed on its own canvas, then drawn inset.
   const picture = background && !framing ? createSurface(width, height) : null;
   // `ctx` is where the clip pipeline draws: the picture canvas under a background, the view
@@ -368,21 +423,13 @@ export function createOutputComposer(opts: OutputComposerOptions): OutputCompose
   // The last step (ADR 0051): the background fills the output and the finished picture goes on
   // it, inset. A plain scene has no `frame` and nothing happens.
   const placePicture = (mode: "fit" | "fill"): void => {
-    if (!frame || !paint) return;
-    if (picture) {
-      drawPicture(
-        output.ctx,
-        picture.canvas,
-        snapRect(frame.picture),
-        frame,
-        paint,
-        output.width,
-        output.height,
-      );
-      return;
-    }
-    const { surface, rect } = cardFor(mode);
-    drawPicture(output.ctx, surface.canvas, rect, frame, paint, output.width, output.height);
+    if (!frame || !backdropFor) return;
+    const source = picture ? picture.canvas : cardFor(mode).surface.canvas;
+    const dest = picture ? snapRect(frame.picture) : cardFor(mode).rect;
+    // The cached paint and shadow replace the output (they are opaque and output-sized), then
+    // the picture goes on them.
+    output.ctx.drawImage(backdropFor(dest), 0, 0);
+    drawPicture(output.ctx, source, dest, frame);
   };
 
   return {

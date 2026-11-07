@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { solidCanvas, SoftCanvas, type Rgba } from "../../../test/soft-canvas";
+import { solidCanvas, SoftCanvas, SoftContext, type Rgba } from "../../../test/soft-canvas";
 import { backgroundPaint } from "../../screenshots/beautify/backgrounds";
 import { backgroundFrame, type VideoBackground } from "../background";
 import type { Redaction } from "../privacy/redaction";
@@ -546,6 +546,145 @@ describe("a background on an extreme output keeps the picture on the canvas (rev
     expect(found.bottom).toBe(983);
     expect(found.left).toBeGreaterThanOrEqual(170);
     expect(found.left).toBeLessThanOrEqual(173);
+  });
+});
+
+describe("the static background layer is built once, not once per frame (review S2)", () => {
+  // The paint and the shadow are identical in every frame of an export, and a full-output
+  // gradient plus a full-picture Gaussian blur on every frame cost 15 ms per 1080p frame on a
+  // software canvas. They are rendered once per (output size, background, picture rect) onto a
+  // cached canvas that each frame blits. A new composer — a changed size or background — has a
+  // new cache by construction.
+  const FRAMES = 30;
+  // A failed assertion must not leave a spy behind to inflate the next test's counts.
+  afterEach(() => vi.restoreAllMocks());
+
+  interface Live {
+    compose: ReturnType<typeof createOutputComposer>;
+    output: SoftCanvas;
+  }
+  /** A composer that lives across frames, as it does in an export. */
+  function live(
+    out: { width: number; height: number },
+    background: VideoBackground | null,
+    framing?: { target: { width: number; height: number }; mode: "fit" | "fill" },
+  ): Live {
+    const output = new SoftCanvas(
+      framing ? framing.target.width : out.width,
+      framing ? framing.target.height : out.height,
+    );
+    const view = framing ? new SoftCanvas(out.width, out.height) : null;
+    const compose = createOutputComposer({
+      ctx: (view ?? output).getContext() as unknown as OffscreenCanvasRenderingContext2D,
+      width: out.width,
+      height: out.height,
+      camera: null,
+      redactions: [],
+      overlayWindows: [],
+      overlayBitmaps: new Map(),
+      framing: framing
+        ? {
+            view: view as unknown as OffscreenCanvas,
+            ctx: output.getContext() as unknown as OffscreenCanvasRenderingContext2D,
+            width: framing.target.width,
+            height: framing.target.height,
+            mode: framing.mode,
+            padding: "black",
+          }
+        : null,
+      background,
+    });
+    return { compose, output };
+  }
+  const clip = (l: Live, frame: SoftCanvas, i: number): void =>
+    l.compose.clip(frame as unknown as CanvasImageSource, i / 30, 1 / 30, i / 30, null);
+
+  it("fills the gradient and draws the shadow once over a whole run of frames", () => {
+    const gradient = vi.spyOn(SoftContext.prototype, "createLinearGradient");
+    const shadowCaster = vi.spyOn(SoftContext.prototype, "fill");
+    const l = live(SRC, MAGENTA);
+    const frame = solidCanvas(SRC.width, SRC.height, GREEN);
+    for (let i = 0; i < FRAMES; i++) clip(l, frame, i);
+    expect(gradient).toHaveBeenCalledTimes(1);
+    expect(shadowCaster).toHaveBeenCalledTimes(1);
+  });
+
+  it("allocates one more canvas for the layer, once, and none per frame", () => {
+    const plainRun = live(SRC, null);
+    const frame = solidCanvas(SRC.width, SRC.height, GREEN);
+    clip(plainRun, frame, 0);
+    const plain = made;
+    made = 0;
+    const l = live(SRC, MAGENTA);
+    clip(l, frame, 0);
+    const first = made;
+    for (let i = 1; i < FRAMES; i++) clip(l, frame, i);
+    expect(made).toBe(first);
+    // The picture canvas, the layer, and the output the test made itself.
+    expect(first).toBeGreaterThan(plain);
+  });
+
+  it("a plain scene never builds it, whatever the stored numbers", () => {
+    const gradient = vi.spyOn(SoftContext.prototype, "createLinearGradient");
+    const frame = solidCanvas(SRC.width, SRC.height, GREEN);
+    // What a composer with no background allocates at creation and per frame…
+    made = 0;
+    const plain = live(SRC, null);
+    clip(plain, frame, 0);
+    const plainTotal = made;
+    // …is exactly what one with `none` + stored numbers does, over any number of frames.
+    made = 0;
+    const l = live(SRC, { bg: "none", padding: 48, radius: 16, shadow: 24 });
+    for (let i = 0; i < 5; i++) clip(l, frame, i);
+    expect(made).toBe(plainTotal);
+    expect(gradient).not.toHaveBeenCalled();
+  });
+
+  it("every frame is byte-identical to the same frame from a fresh composer", () => {
+    const l = live(SRC, MAGENTA);
+    for (let i = 0; i < 8; i++) {
+      // A different picture each frame: a red square that moves, so a stale layer or a leaked
+      // pixel from the previous frame cannot hide.
+      const frame = solidCanvas(SRC.width, SRC.height, GREEN);
+      const fctx = frame.getContext();
+      fctx.fillStyle = "#ff0000";
+      fctx.fillRect(40 * i, 30 * i, 100, 100);
+      clip(l, frame, i);
+      const fresh = live(SRC, MAGENTA);
+      clip(fresh, frame, 0);
+      expect(Buffer.from(l.output.data).equals(Buffer.from(fresh.output.data)), `frame ${i}`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("keeps one layer per picture rect: Fit slides and Fill clips alternate without rebuilding", () => {
+    const gradient = vi.spyOn(SoftContext.prototype, "createLinearGradient");
+    const l = live(SRC, MAGENTA, { target: { width: 540, height: 540 }, mode: "fill" });
+    const frame = solidCanvas(SRC.width, SRC.height, GREEN);
+    for (let i = 0; i < 6; i++) {
+      clip(l, frame, i);
+      l.compose.slide(solidCanvas(960, 540, "#ffffff") as unknown as ImageBitmap, i / 30);
+    }
+    // One layer for the Fill card, one for the Fit card (slides are always Fit).
+    expect(gradient).toHaveBeenCalledTimes(2);
+  });
+
+  it("a new composer with another background paints it: nothing is shared between composers", () => {
+    const frame = solidCanvas(SRC.width, SRC.height, GREEN);
+    const a = live(SRC, MAGENTA);
+    clip(a, frame, 0);
+    const b = live(SRC, { ...MAGENTA, bg: "ocean" });
+    clip(b, frame, 0);
+    near(a.output.pixel(0, 0), [255, 45, 110, 255], 4);
+    near(b.output.pixel(0, 0), [37, 99, 235, 255], 4); // #2563eb
+    // A different padding moves the picture, so the shadow under it moves with it.
+    const c = live(SRC, { ...MAGENTA, padding: 96 });
+    clip(c, frame, 0);
+    const wide = backgroundFrame({ ...MAGENTA, padding: 96 }, SRC.width, SRC.height).picture;
+    expect(
+      c.output.pixel(Math.round(wide.x) - 1, Math.round(wide.y + wide.height / 2))[1],
+    ).toBeLessThan(120);
   });
 });
 

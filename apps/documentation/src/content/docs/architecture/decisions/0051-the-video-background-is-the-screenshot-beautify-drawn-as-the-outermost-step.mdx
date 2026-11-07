@@ -102,6 +102,10 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
   `backgroundFrame`; tests on the geometry at 1920×1080, 1080×1920 and 1080×1080.
 - `compose-output-frame.ts` gains `background?`; a picture canvas is allocated only when a
   background is set, so a plain scene costs nothing new. The GIF worker passes the same option.
+- The paint and the shadow are identical in every frame, so the composer renders them once into a
+  cached, output-sized canvas per (size, preset, picture rect) and each frame blits it: without a GPU
+  the per-frame fill and blur cost 15 ms at 1080p and 27 ms at 1440p, over a 60 fps frame's 16.7 ms;
+  cached, 7 and 13 ms, with identical pixels. A plain scene never builds it.
 - `compose-frame.ts`'s framer skips its black/blur padding when the background paints.
 - `preview-stage.tsx` wraps `.content` in a `.frame`; the ambient glow stays behind it.
 - `session.ts` parses the field; `export-reuse.ts` adds `bg1`; the inspector shows the

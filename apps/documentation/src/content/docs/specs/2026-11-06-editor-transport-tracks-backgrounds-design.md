@@ -497,6 +497,11 @@ above a 1 : 2.8 aspect, so no preset or source-shaped output changes.
    `shadowOffsetX` bringing the shadow back, which leaves the shadow alone on the canvas and
    nothing painted under the picture.
 
+Steps 2 and the shadow of 3 are the same in every frame, so they are rendered once into a cached
+backdrop canvas (output-sized, opaque) per (output size, preset, picture rect) and each frame blits it
+before drawing the clipped picture (section 6.5 has the numbers); a composer's inputs are fixed, so a
+changed size or background is a new composer with a new cache, and a plain scene never builds one.
+
 For framed presets the framer's `padding: "black" | "blur"` is skipped and the background paints
 the letterbox too (decision 11). The GIF worker passes the same option.
 
@@ -567,6 +572,34 @@ The composer was also run, as it is, on a real Chrome 156 `OffscreenCanvas` (the
 alone: 15 modules, 36 KB, no `react` in it): the same numbers, plus a 2× zoom that leaves all four
 corners identical. The unit tests run it on a small software canvas (`test/soft-canvas.ts`), which
 checks where and in what order things are drawn, not Skia's rendering.
+
+**Per-frame cost (review S2, 2026-11-07).** The composer was bundled alone and run in a Web Worker in
+headless Chrome 156 (Apple M5), 200 frames per cell after warm-up, each frame forced to finish with a
+1×1 readback (`new VideoFrame(canvas)` alone only times the recording of the draw calls: 0.1 ms). "Plain"
+is no background; the background is `magenta`, padding 96, radius 28, shadow 100. Median ms/frame (p95):
+
+| GPU (ANGLE Metal), no zoom |     Plain | Background, per-frame paint | Background, cached |
+| -------------------------- | --------: | --------------------------: | -----------------: |
+| 1280×720                   | 0.3 (1.0) |                   0.5 (1.2) |          0.4 (0.5) |
+| 1920×1080                  | 0.3 (0.4) |                   0.8 (0.9) |          0.6 (0.7) |
+| 2560×1440                  | 0.5 (0.6) |                   1.1 (1.3) |          1.0 (1.1) |
+
+| Software raster (`--disable-gpu`), no zoom |     Plain | Background, per-frame paint | Background, cached |
+| ------------------------------------------ | --------: | --------------------------: | -----------------: |
+| 1280×720                                   | 0.3 (0.4) |                   6.5 (6.8) |          3.2 (3.4) |
+| 1920×1080                                  | 0.6 (0.7) |                 15.0 (15.9) |          7.1 (7.6) |
+| 2560×1440                                  | 1.0 (1.1) |                 26.7 (39.0) |        12.6 (14.3) |
+
+With a GPU the per-frame fill and shadow were never a problem (at most 0.7 ms over plain; the timer
+is 0.1 ms). Without one they were: 15 ms at 1080p and 27 ms at 1440p, over the 16.7 ms a 60 fps
+frame has, so the fill and the shadow are cached; that roughly halves the frame time and leaves every
+size under the budget. What remains is the picture's high-quality downscale into the padding, which the design
+asks for. With a 2× zoom the picture goes through the work canvas and costs 21 ms plain at 1080p on
+software raster (37 ms at 1440p) before any background; the cache brings the background's share of
+that from +68 % to +32 %. The cached frames are byte-identical to the per-frame paint: 56 scenes (four
+backgrounds, direct and zoomed, plain output and Fit/Fill fixed-canvas, plus 128×2160, clips then a
+slide) compared 164 M pixels in a real canvas, on GPU and on software raster, and no channel
+differed. An end-to-end export time was not measured: the encoder is not in this harness.
 
 Two facts the build did not match the plan on. **The GIF cannot be exported from the product today:**
 `GIF_EXPORT_ENABLED` is `false` (owner, 2026-10-13), so the sheet has no format choice; the GIF row
