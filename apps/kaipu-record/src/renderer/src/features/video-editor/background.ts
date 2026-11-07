@@ -94,6 +94,18 @@ function shadowOf(value: number, scale: number): BackgroundShadow | null {
   };
 }
 
+/**
+ * The most padding one side may have, as a share of the output's SMALLER dimension. The
+ * padding is read at 1080 px high and scaled by `height / 1080`, so on a tall, narrow output
+ * (128×2160 scales it by 2) it can pass the output's own width, and the picture then leaves
+ * the canvas altogether. Capping each side at a quarter of the smaller dimension leaves the
+ * picture at least half of the output on each axis, at any size. The cap is a `min` of two
+ * continuous values, so the picture moves smoothly through it, and it never binds for an
+ * output no taller than 1 : 2.8 (9:16 is 1 : 1.78): every preset and source-shaped output
+ * keeps exactly the geometry it had before the cap.
+ */
+export const MAX_PADDING_SHARE = 0.25;
+
 export interface BackgroundFrame {
   /** The output inset by the padding on every side: where the picture may sit. */
   box: Rect;
@@ -113,7 +125,13 @@ export interface BackgroundFrame {
  * at the sides. Padding, radius and shadow are read at 1080 px high and scaled by
  * `height / 1080`, so every preset shows the same proportions.
  *
- * With `none` it is the whole output, no radius and no shadow: the caller needs no branch.
+ * Two caps keep an extreme output sane (review C1): each side's padding is at most
+ * `MAX_PADDING_SHARE` of the smaller output dimension, so the picture is always inside the
+ * canvas, centred and at least half of it on each axis; and the radius is at most half of the
+ * picture's smaller side. Neither moves a result at an ordinary size.
+ *
+ * With `none` (or an output with no size) it is the whole output, no radius and no shadow:
+ * the caller needs no branch.
  */
 export function backgroundFrame(
   background: VideoBackground,
@@ -121,16 +139,20 @@ export function backgroundFrame(
   height: number,
 ): BackgroundFrame {
   const whole: Rect = { x: 0, y: 0, width, height };
-  if (!hasBackground(background)) {
+  if (!hasBackground(background) || !(width > 0) || !(height > 0)) {
     return { box: whole, picture: whole, radius: 0, shadow: null };
   }
   const scale = height / BACKGROUND_REFERENCE_HEIGHT;
-  const padding = clampNumber(background.padding, PADDING_RANGE) * scale;
+  // Capped, `2 * padding <= width / 2` and `<= height / 2`: the box below is never empty.
+  const padding = Math.min(
+    clampNumber(background.padding, PADDING_RANGE) * scale,
+    MAX_PADDING_SHARE * Math.min(width, height),
+  );
   const box: Rect = {
     x: padding,
     y: padding,
-    width: Math.max(1, width - 2 * padding),
-    height: Math.max(1, height - 2 * padding),
+    width: width - 2 * padding,
+    height: height - 2 * padding,
   };
   const fit = Math.min(box.width / width, box.height / height);
   const picture: Rect = {
@@ -142,7 +164,10 @@ export function backgroundFrame(
   return {
     box,
     picture,
-    radius: clampNumber(background.radius, RADIUS_RANGE) * scale,
+    radius: Math.min(
+      clampNumber(background.radius, RADIUS_RANGE) * scale,
+      Math.min(picture.width, picture.height) / 2,
+    ),
     shadow: shadowOf(clampNumber(background.shadow, SHADOW_RANGE), scale),
   };
 }

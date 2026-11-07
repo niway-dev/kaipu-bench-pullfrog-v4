@@ -112,6 +112,18 @@ describe("previewBackgroundStyle", () => {
     expect(px(half.borderRadius) * 2).toBeCloseTo(px(big.borderRadius), 9);
   });
 
+  it("keeps the picture on a very tall, narrow stage too (review C1)", () => {
+    const { picture } = previewBackgroundStyle(
+      { bg: "magenta", padding: 96, radius: 28, shadow: 100 },
+      128,
+      2160,
+    );
+    expect(px(picture.left)).toBeGreaterThanOrEqual(0);
+    expect(px(picture.left) + px(picture.width)).toBeLessThanOrEqual(128);
+    expect(px(picture.width)).toBeGreaterThanOrEqual(64);
+    expect(px(picture.borderRadius)).toBeLessThanOrEqual(px(picture.width) / 2);
+  });
+
   it("omits the shadow at 0", () => {
     expect(previewBackgroundStyle({ ...MAGENTA, shadow: 0 }, 960, 540).picture.boxShadow).toBe(
       undefined,

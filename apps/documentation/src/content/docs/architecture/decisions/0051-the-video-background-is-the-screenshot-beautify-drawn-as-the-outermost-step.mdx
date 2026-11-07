@@ -65,6 +65,11 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
    at padding 48. The shadow is `{ offsetY, blur, alpha }`: its offset and blur scale with the
    output, its darkness does not.
 
+   Each side's padding is capped at 25 % of the output's smaller dimension and the radius at half of
+   the picture's smaller side, so a tall, narrow output (128×2160 scales the padding by 2) keeps its
+   picture inside the canvas and at least half of it; the cap binds only above a 1 : 2.8 aspect, so
+   no preset moves.
+
    The preview's frame paints the preset's **paint** (`previewFrameBackground`: a hex, or the
    same 135° gradient string), never the screenshot editor's `css`, whose Dark and Carbon are theme
    tokens: with the token the preview of a Dark background was near-white in the light theme while

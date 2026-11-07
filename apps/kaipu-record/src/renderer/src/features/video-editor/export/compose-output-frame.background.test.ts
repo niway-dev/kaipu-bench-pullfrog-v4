@@ -443,6 +443,112 @@ describe("a background on a fixed-canvas preset (Vertical, Square)", () => {
   });
 });
 
+describe("a background on an extreme output keeps the picture on the canvas (review C1)", () => {
+  const WORST: VideoBackground = { bg: "magenta", padding: 96, radius: 28, shadow: 100 };
+
+  /** Every pixel that is the source's flat green, and where the box of them lies. */
+  function greenBox(out: SoftCanvas): {
+    count: number;
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } {
+    let count = 0;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -1;
+    let bottom = -1;
+    for (let y = 0; y < out.height; y++) {
+      for (let x = 0; x < out.width; x++) {
+        const [r, g, b] = out.pixel(x, y);
+        if (r === 0 && g === 255 && b === 0) {
+          count++;
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+    }
+    return { count, left, top, right, bottom };
+  }
+
+  // 128×2160 is a valid recording (a tall, narrow capture). Scaled by height / 1080 the 96-px
+  // padding is 192 px on a 128-px-wide output: the picture used to land entirely outside it.
+  it.each([
+    [128, 2160],
+    [2160, 128],
+    [64, 64],
+  ])(
+    "%i×%i with padding 96 draws the source's colour at the centre and inside the canvas",
+    (width, height) => {
+      const out = run({ width, height }, { background: WORST });
+      expect(out.pixel(Math.floor(width / 2), Math.floor(height / 2))).toEqual([0, 255, 0, 255]);
+      const found = greenBox(out);
+      expect(found.count).toBeGreaterThan(0);
+      // The picture is at least half of the output on each axis and centred on it.
+      expect(found.right - found.left + 1).toBeGreaterThanOrEqual(width / 2 - 2);
+      expect(found.bottom - found.top + 1).toBeGreaterThanOrEqual(height / 2 - 2);
+      expect((found.left + found.right + 1) / 2).toBeCloseTo(width / 2, 0);
+      expect((found.top + found.bottom + 1) / 2).toBeCloseTo(height / 2, 0);
+      // And the padding is the background, not the picture.
+      near(out.pixel(0, 0), [255, 45, 110, 255], 4);
+    },
+  );
+
+  it("a 1×1 output keeps its single pixel as the picture", () => {
+    const out = run({ width: 1, height: 1 }, { background: WORST });
+    expect(out.pixel(0, 0)).toEqual([0, 255, 0, 255]);
+  });
+
+  it("a fixed-canvas preset onto 128×2160 keeps the framed picture on the canvas", () => {
+    const target = { width: 128, height: 2160 };
+    const output = new SoftCanvas(target.width, target.height);
+    const view = new SoftCanvas(SRC.width, SRC.height);
+    const compose = createOutputComposer({
+      ctx: view.getContext() as unknown as OffscreenCanvasRenderingContext2D,
+      width: SRC.width,
+      height: SRC.height,
+      camera: null,
+      redactions: [],
+      overlayWindows: [],
+      overlayBitmaps: new Map(),
+      framing: {
+        view: view as unknown as OffscreenCanvas,
+        ctx: output.getContext() as unknown as OffscreenCanvasRenderingContext2D,
+        width: target.width,
+        height: target.height,
+        mode: "fit",
+        padding: "black",
+      },
+      background: WORST,
+    });
+    compose.clip(
+      solidCanvas(SRC.width, SRC.height, GREEN) as unknown as CanvasImageSource,
+      0,
+      1 / 30,
+      0,
+      null,
+    );
+    expect(output.pixel(64, 1080)).toEqual([0, 255, 0, 255]);
+    expect(greenBox(output).count).toBeGreaterThan(0);
+  });
+
+  it("an ordinary size draws the very same picture as before the cap: 1920×1080 at padding 96", () => {
+    const out = run({ width: 1920, height: 1080 }, { background: { ...WORST, shadow: 0 } });
+    const found = greenBox(out);
+    // x 171–1748, y 96–983: backgroundFrame's frozen rect (170.67, 96, 1578.67 × 888) snapped.
+    expect([found.left, found.top, found.right, found.bottom].map((n) => Math.abs(n))).toEqual(
+      expect.arrayContaining([96]),
+    );
+    expect(found.top).toBe(96);
+    expect(found.bottom).toBe(983);
+    expect(found.left).toBeGreaterThanOrEqual(170);
+    expect(found.left).toBeLessThanOrEqual(173);
+  });
+});
+
 describe("the workers hand the plan's background to the composer", () => {
   const read = (file: string): string => readFileSync(path.join(__dirname, file), "utf8");
 

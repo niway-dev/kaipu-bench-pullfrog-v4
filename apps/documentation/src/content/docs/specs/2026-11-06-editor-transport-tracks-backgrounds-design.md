@@ -476,6 +476,12 @@ editors import it; the ids and paints do not change.
 `h / 1080` for any output, so a preset at 1440p shows the same proportions as the preview
 (decision 12).
 
+Two caps keep an extreme output sane: each side's padding is at most 25 % of the output's smaller
+dimension (so the picture is always inside the canvas, centred and at least half of it on each axis;
+a 128×2160 recording scales 96 px to 192 px and used to lose the whole picture), and the radius is at
+most half of the picture's smaller side; the cap is a `min`, so it is continuous, and it binds only
+above a 1 : 2.8 aspect, so no preset or source-shaped output changes.
+
 ### 6.2 Composer
 
 `createOutputComposer` gains `background?: VideoBackground`. When `hasBackground`:
