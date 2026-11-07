@@ -666,11 +666,17 @@ export function LibraryDetailPage(): React.JSX.Element {
                     webcam={video.webcam}
                     durationSeconds={video.durationSeconds}
                   />
+                  {/* Under the video, not at the column's foot: the pair is centered together. */}
+                  {fileName && (
+                    <p className={styles.fileName} title={path ?? undefined}>
+                      {fileName}
+                    </p>
+                  )}
                 </div>
               )
             )}
           </div>
-          {fileName && (
+          {fileName && (isScreenshot || isGif) && (
             <p className={styles.fileName} title={path ?? undefined}>
               {fileName}
             </p>

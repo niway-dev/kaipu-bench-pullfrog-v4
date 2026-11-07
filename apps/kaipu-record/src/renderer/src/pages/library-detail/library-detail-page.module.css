@@ -286,8 +286,12 @@
   overflow: hidden;
 }
 
+/* The video and its file name, centered together in the stage; the 26px is the name's line. */
 .player {
-  width: min(100cqw, calc(100cqh * 16 / 9));
+  width: min(100cqw, calc((100cqh - 26px) * 16 / 9));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
 }
 
 /* The image and GIF viewers fill the stage's box exactly; inside, the frame flexes and the
