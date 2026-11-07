@@ -161,8 +161,9 @@ PR 2 — Tracks popover:
       reads `5/5` and Cursor activity is absent.
 - [ ] Unchecking Zooms hides the lane and the marks; the preview still zooms; the export is
       byte-identical to the one with the lane shown.
-- [ ] The trigger reads `4/6` after hiding two lanes; closing and reopening the editor keeps
-      them hidden; a different recording shows the same choice.
+- [ ] The trigger reads `4/6` after hiding two lanes other than Zooms (hiding Zooms also hides
+      Cursor activity, so Zooms plus one other lane reads `3/6`); closing and reopening the
+      editor keeps them hidden; a different recording shows the same choice.
 - [ ] Clicking a zoom on the preview while Zooms is hidden shows the lane again, selected.
 - [ ] The Activity row is gone; its marks draw under the zoom blocks.
 
