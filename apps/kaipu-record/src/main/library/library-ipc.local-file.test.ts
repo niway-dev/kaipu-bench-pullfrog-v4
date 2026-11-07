@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shell } from "electron";
@@ -130,6 +130,29 @@ describe("library IPC — openLocalRecording and localRecordingPath (NIW2-669)",
     await expect(
       handler(IPC_CHANNELS.openLocalRecording)(EVENT, STAMP, "../item-1"),
     ).rejects.toThrow("no local recording");
+    expect(shell.openPath).not.toHaveBeenCalled();
+  });
+
+  it("refuses a symlink named like an item, so the app never opens its target", async () => {
+    await writeFile(join(state.dir, "outside.txt"), "secret");
+    await symlink(join(state.dir, "outside.txt"), join(vault, "linked.mp4"));
+    await expect(
+      handler(IPC_CHANNELS.localRecordingPath)(EVENT, STAMP, "linked"),
+    ).resolves.toBeNull();
+    await expect(handler(IPC_CHANNELS.openLocalRecording)(EVENT, STAMP, "linked")).rejects.toThrow(
+      "no local recording",
+    );
+    expect(shell.openPath).not.toHaveBeenCalled();
+  });
+
+  it("refuses a directory named like an item", async () => {
+    await mkdir(join(vault, "folder.mp4"));
+    await expect(
+      handler(IPC_CHANNELS.localRecordingPath)(EVENT, STAMP, "folder"),
+    ).resolves.toBeNull();
+    await expect(handler(IPC_CHANNELS.openLocalRecording)(EVENT, STAMP, "folder")).rejects.toThrow(
+      "no local recording",
+    );
     expect(shell.openPath).not.toHaveBeenCalled();
   });
 });

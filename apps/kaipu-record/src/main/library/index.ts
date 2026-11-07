@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { lstat } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import {
   app,
@@ -96,8 +96,10 @@ export function scopedAdmitted<A extends unknown[], R>(
 async function localRecordingFile(id: string): Promise<string | null> {
   if (!isPlainItemId(id)) return null;
   const file = await currentVault().filePath(id);
-  return stat(file).then(
-    () => file,
+  // lstat, not stat: a symlink named like an item must not hand its target to the OS, and a
+  // directory is not a recording.
+  return lstat(file).then(
+    (info) => (info.isFile() ? file : null),
     () => null,
   );
 }
