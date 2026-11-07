@@ -65,6 +65,11 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
    at padding 48. The shadow is `{ offsetY, blur, alpha }`: its offset and blur scale with the
    output, its darkness does not.
 
+   The preview's frame paints the preset's **paint** (`previewFrameBackground`: a hex, or the
+   same 135° gradient string), never the screenshot editor's `css`, whose Dark and Carbon are theme
+   tokens: with the token the preview of a Dark background was near-white in the light theme while
+   the file is near-black. The screenshot editor keeps its tokens; the video preview is literal.
+
 5. **Export reuse.** `BACKGROUND_COMPOSE_REVISION = "bg1"` is added to the edit fingerprint only
    when `bg ≠ none`. With `none`, padding, radius and shadow are stored but not drawn and the
    sliders are disabled, so a plain scene's fingerprint does not change and its old exports

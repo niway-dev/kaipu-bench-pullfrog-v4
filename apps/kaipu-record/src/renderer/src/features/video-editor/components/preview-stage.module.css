@@ -12,7 +12,7 @@
 }
 
 /* The FRAME (NIW2-668): the output, ratio-exact. With a background set it is painted with the
-   preset (`--frame-bg`, the screenshot editor's own CSS value) and the picture inside is
+   preset's paint (`--frame-bg`: a hex or the 135° gradient the export draws) and the picture inside is
    inset; with `none` the picture fills it and nothing differs from before the background.
 
    It takes over the sizing rules the content layer used to carry, word for word, because the

@@ -509,7 +509,9 @@ redactions, annotations and zoom all happen in step 1 and never see the padding 
 ### 6.3 Preview
 
 `PreviewStage` gets a `background` prop. The stage wraps the footage in a `.frame` element whose
-`background` is `BACKGROUNDS[bg].css`, and a `.picture` inside it gets `left`, `top`, `width`,
+`background` is the preset's **paint** (a hex, or `linear-gradient(135deg, from, to)`), not the
+screenshot editor's `css`: that one is a theme token for Dark and Carbon (`var(--bg-app)`), so it
+follows the app's theme while the MP4 and the GIF hold the fixed paint. And a `.picture` inside it gets `left`, `top`, `width`,
 `height`, `border-radius` and `box-shadow` from `backgroundFrame()` computed at the stage's displayed
 size — the same numbers the composer uses, in display px (`previewBackgroundStyle`, pure, tested
 against `backgroundFrame`). The ambient glow (NIW2-616) stays behind `.frame`, on the video region.
