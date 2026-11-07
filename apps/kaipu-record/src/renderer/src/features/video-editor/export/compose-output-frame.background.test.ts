@@ -190,6 +190,32 @@ describe("a background on an output that matches the source (Balanced, Light, Ma
     near(out.pixel(SRC.width - 1, SRC.height - 1), [163, 4, 74, 255], 4);
   });
 
+  // NIW2-676: every preset added to the table paints its own gradient, corner to corner.
+  it.each(["aurora", "iris", "coral", "lilac", "citrus", "ember", "sky", "dusk"] as const)(
+    "%s: the corners are its gradient, from the first colour to the second",
+    (id) => {
+      const out = run(SRC, { background: { ...MAGENTA, bg: id } });
+      for (const [x, y] of [
+        [0, 0],
+        [SRC.width - 1, 0],
+        [0, SRC.height - 1],
+        [SRC.width - 1, SRC.height - 1],
+      ] as const) {
+        near(out.pixel(x, y), gradientAt(id, SRC.width, SRC.height, x, y));
+      }
+      const paint = backgroundPaint(id);
+      if (paint.kind !== "gradient") throw new Error("gradient expected");
+      const rgb = (hex: string): Rgba => [
+        parseInt(hex.slice(1, 3), 16),
+        parseInt(hex.slice(3, 5), 16),
+        parseInt(hex.slice(5, 7), 16),
+        255,
+      ];
+      near(out.pixel(0, 0), rgb(paint.from), 4);
+      near(out.pixel(SRC.width - 1, SRC.height - 1), rgb(paint.to), 4);
+    },
+  );
+
   it("insets the picture: its centre is the plain composition, its box edge is where backgroundFrame says", () => {
     const out = run(SRC, { background: MAGENTA });
     const plain = run(SRC);

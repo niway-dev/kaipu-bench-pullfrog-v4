@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { backgroundCss, frameRadius, shadowCss } from "./backgrounds";
+import en from "@kaipu/i18n/messages/en";
+import es from "@kaipu/i18n/messages/es";
+import {
+  BACKGROUND_IDS,
+  BACKGROUNDS,
+  backgroundCss,
+  backgroundPaint,
+  frameRadius,
+  shadowCss,
+} from "./backgrounds";
 
 describe("beautify helpers", () => {
   it("shadowCss is 'none' at zero", () => {
@@ -23,5 +32,77 @@ describe("beautify helpers", () => {
   it("backgroundCss resolves a known id and falls back to the first", () => {
     expect(backgroundCss("magenta")).toContain("linear-gradient");
     expect(backgroundCss("dark")).toBe("var(--bg-app)");
+  });
+});
+
+describe("the background table (NIW2-676: seventeen presets)", () => {
+  const FIRST_NINE = [
+    "none",
+    "dark",
+    "carbon",
+    "magenta",
+    "purple",
+    "ocean",
+    "sunset",
+    "forest",
+    "graphite",
+  ];
+  const NEW_EIGHT = ["aurora", "iris", "coral", "lilac", "citrus", "ember", "sky", "dusk"] as const;
+
+  it("keeps the first nine in their order and appends the eight new ones after them", () => {
+    expect(BACKGROUND_IDS.slice(0, 9)).toEqual(FIRST_NINE);
+    expect(BACKGROUND_IDS.slice(9)).toEqual(NEW_EIGHT);
+    expect(BACKGROUND_IDS).toHaveLength(17);
+    expect(BACKGROUNDS.map((b) => b.id)).toEqual([...BACKGROUND_IDS]);
+  });
+
+  it("has unique ids and unique name keys", () => {
+    expect(new Set(BACKGROUND_IDS).size).toBe(BACKGROUND_IDS.length);
+    expect(new Set(BACKGROUNDS.map((b) => b.nameKey)).size).toBe(BACKGROUNDS.length);
+  });
+
+  it("leaves the first nine's values untouched", () => {
+    expect(backgroundPaint("magenta")).toEqual({
+      kind: "gradient",
+      from: "#ff2d6e",
+      to: "#a3044a",
+    });
+    expect(backgroundPaint("purple")).toEqual({ kind: "gradient", from: "#a855f7", to: "#6d28d9" });
+    expect(backgroundPaint("ocean")).toEqual({ kind: "gradient", from: "#2563eb", to: "#06b6d4" });
+    expect(backgroundPaint("sunset")).toEqual({ kind: "gradient", from: "#f59e0b", to: "#ef4444" });
+    expect(backgroundPaint("forest")).toEqual({ kind: "gradient", from: "#22c55e", to: "#0ea5e9" });
+    expect(backgroundPaint("graphite")).toEqual({
+      kind: "gradient",
+      from: "#3f3f46",
+      to: "#18181b",
+    });
+  });
+
+  it.each(NEW_EIGHT)(
+    "%s is a 135° gradient whose preview css is built from its own paint",
+    (id) => {
+      const paint = backgroundPaint(id);
+      if (paint.kind !== "gradient") throw new Error(`${id} must be a gradient`);
+      expect(paint.from).toMatch(/^#[0-9a-f]{6}$/);
+      expect(paint.to).toMatch(/^#[0-9a-f]{6}$/);
+      expect(paint.from).not.toBe(paint.to);
+      expect(backgroundCss(id)).toBe(`linear-gradient(135deg, ${paint.from}, ${paint.to})`);
+    },
+  );
+
+  it("gives every preset a css, a paint and a name in English and Spanish", () => {
+    for (const bg of BACKGROUNDS) {
+      expect(bg.css.length).toBeGreaterThan(0);
+      expect(bg.paint.kind).toBeTruthy();
+      expect(en.screenshots[bg.nameKey]).toEqual(expect.any(String));
+      expect(es.screenshots[bg.nameKey]).toEqual(expect.any(String));
+      expect(en.screenshots[bg.nameKey]).not.toBe("");
+      expect(es.screenshots[bg.nameKey]).not.toBe("");
+    }
+  });
+
+  it("uses no two presets with the same colour pair", () => {
+    const pairs = BACKGROUNDS.map((b) => JSON.stringify(b.paint));
+    expect(new Set(pairs).size).toBe(pairs.length);
   });
 });

@@ -126,6 +126,25 @@ describe("editFingerprint — background (NIW2-668)", () => {
     expect(editFingerprint(fixed(null))).not.toMatch(/bg1/);
   });
 
+  it("tags a scene with any of the eight NIW2-676 presets bg1 like every other", () => {
+    for (const bg of [
+      "aurora",
+      "iris",
+      "coral",
+      "lilac",
+      "citrus",
+      "ember",
+      "sky",
+      "dusk",
+    ] as const) {
+      const scene = { ...fixed(null), background: { ...MAGENTA, bg } };
+      expect(editFingerprint(scene)).toMatch(/^edit:bg1:[0-9a-z]+$/);
+      expect(editFingerprint(scene)).not.toBe(
+        editFingerprint({ ...fixed(null), background: MAGENTA }),
+      );
+    }
+  });
+
   it("changes with the preset and with each number once a background is set", () => {
     const base = { ...fixed(null), background: MAGENTA };
     const keys = new Set([

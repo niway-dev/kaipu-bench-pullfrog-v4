@@ -53,6 +53,23 @@ describe("parseBackground", () => {
     expect(parseBackground({ padding: 10 }).bg).toBe("none");
   });
 
+  it("accepts the eight presets added in NIW2-676 and still drops an unknown id", () => {
+    for (const bg of [
+      "aurora",
+      "iris",
+      "coral",
+      "lilac",
+      "citrus",
+      "ember",
+      "sky",
+      "dusk",
+    ] as const) {
+      expect(BACKGROUND_IDS).toContain(bg);
+      expect(parseBackground({ ...MAGENTA, bg }).bg).toBe(bg);
+    }
+    expect(parseBackground({ ...MAGENTA, bg: "aurora2" }).bg).toBe("none");
+  });
+
   it("clamps each number to the screenshot editor's range", () => {
     const high = parseBackground({ bg: "ocean", padding: 500, radius: 500, shadow: 500 });
     expect(high).toEqual({

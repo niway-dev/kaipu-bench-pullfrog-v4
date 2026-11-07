@@ -1,6 +1,6 @@
 /**
  * The inspector's Background section with nothing selected (NIW2-668, ADR 0051): the screenshot
- * editor's nine swatches and its padding, corners and shadow sliders, now around the video's
+ * editor's swatches and its padding, corners and shadow sliders, now around the video's
  * picture in the preview, the MP4 and the GIF. The swatches are the screenshot editor's own
  * component; the sliders are the video inspector's `HistorySlider`, so a drag is one undo step.
  * While the preset is `none` nothing is drawn around the picture, so the sliders are disabled

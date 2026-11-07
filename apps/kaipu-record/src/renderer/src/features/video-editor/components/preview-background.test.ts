@@ -30,6 +30,10 @@ describe("previewBackgroundStyle", () => {
   // NIW2-668 review S1: the screenshot editor's Dark and Carbon CSS are theme tokens
   // (`var(--bg-app)`, `var(--bg-card)`); the composer paints the fixed hex of `paint`. The
   // video preview must show what the file will hold, in either theme.
+  it("the table test below covers all seventeen presets", () => {
+    expect(BACKGROUND_IDS).toHaveLength(17);
+  });
+
   it.each(BACKGROUND_IDS.filter((id) => id !== "none"))(
     "the %s frame resolves to exactly the colours of its paint, not a theme token",
     (id) => {
