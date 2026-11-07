@@ -143,8 +143,9 @@ hasWebcam })`, tested for a take without camera and without cursor track.
 
 PR 1 — transport bar:
 
-- [ ] The transport bar shows, left to right: `Tracks n/m` (disabled, PR 2 enables it), rewind,
-      play/pause, forward, `0:09.0 / 0:29.0`, split, delete, mute, fullscreen.
+- [ ] The transport bar shows, left to right: `Tracks n/m` (disabled, PR 2 enables it), the zoom
+      and privacy counts when they exist, rewind, play/pause, forward, `0:09.0 / 0:29.0`, split,
+      delete, mute, fullscreen.
 - [ ] Split and delete are gone from the title bar; undo/redo, Add image and Export are still
       there; the tool rail is unchanged.
 - [ ] Split and delete keep their shortcuts, disabled states and `aria-label`s; the Delete-key
