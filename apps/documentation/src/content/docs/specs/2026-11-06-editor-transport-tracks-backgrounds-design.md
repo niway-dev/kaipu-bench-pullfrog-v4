@@ -7,7 +7,7 @@ description: The video editor's chrome is reorganised around the transport bar. 
 
 **Status: 🟡 In progress · 2026-11-07.** Owner decisions taken on 2026-11-06 over three mocks
 (below). The stack is built PR by PR: each of sections 2–6 says what its PR built and measured, and
-section 6 (backgrounds, PR 5) is built on its branch. Ticket:
+section 6 (backgrounds) was built by PR 5 of the stack. Ticket:
 [NIW2-663](https://linear.app/niway/issue/NIW2-663/video-editor-transport-bar-with-cutdeletemutespeed-tracks-popover),
 which absorbs [NIW2-610](https://linear.app/niway/issue/NIW2-610/video-editor-zoom-the-timeline-with-horizontal-scroll)
 (timeline zoom) and [NIW2-612](https://linear.app/niway/issue/NIW2-612/video-editor-choose-which-timeline-lanes-are-visible)

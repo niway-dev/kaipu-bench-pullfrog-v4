@@ -7,12 +7,12 @@ description: A recording gets a background (the screenshot editor's presets), pa
 
 ## Status
 
-| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Accepted, 2026-11-07 — built by [NIW2-668](https://linear.app/niway/issue/NIW2-668/editor-stack-55-backgrounds-padding-radius-shadow-in-preview-mp4-and), PR 5 of the stack (on its branch; not on main until the stack merges). Owner decisions 2026-11-06. Spec: [editor transport bar, Tracks popover, speed, timeline zoom and backgrounds](/specs/2026-11-06-editor-transport-tracks-backgrounds-design/) |
-| Date          | 2026-11-06                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Relates to    | [0038](/architecture/decisions/0038-webcam-is-a-viewport-layer-composed-after-the-zoom-crop/) (the webcam stays inside the picture), [0003](/architecture/decisions/0003-export-never-replaces-the-original/) (a background is an edit; the export is a new file), [0001](/architecture/decisions/0001-mediabunny-over-ffmpeg/) (drawn in the composer)                                                        |
-| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Accepted, 2026-11-07 — built by [NIW2-668](https://linear.app/niway/issue/NIW2-668/editor-stack-55-backgrounds-padding-radius-shadow-in-preview-mp4-and), PR 5 of the stack. Owner decisions 2026-11-06. Spec: [editor transport bar, Tracks popover, speed, timeline zoom and backgrounds](/specs/2026-11-06-editor-transport-tracks-backgrounds-design/) |
+| Date          | 2026-11-06                                                                                                                                                                                                                                                                                                                                                 |
+| Relates to    | [0038](/architecture/decisions/0038-webcam-is-a-viewport-layer-composed-after-the-zoom-crop/) (the webcam stays inside the picture), [0003](/architecture/decisions/0003-export-never-replaces-the-original/) (a background is an edit; the export is a new file), [0001](/architecture/decisions/0001-mediabunny-over-ffmpeg/) (drawn in the composer)    |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                          |
 
 ## Context
 
@@ -108,8 +108,9 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
   cached, 7 and 13 ms, with identical pixels. A plain scene never builds it.
 - `compose-frame.ts`'s framer skips its black/blur padding when the background paints.
 - `preview-stage.tsx` wraps `.content` in a `.frame`; the ambient glow stays behind it.
-- `session.ts` parses the field; `export-reuse.ts` adds `bg1`; the inspector shows the
-  screenshot editor's `BeautifyPanel` with a `VideoBackground` state when nothing is selected.
+- `session.ts` parses the field; `export-reuse.ts` adds `bg1`; the inspector reuses the
+  screenshot panel's shared swatch grid and the video inspector's `HistorySlider` for the three
+  sliders (`disabled` while `bg = none`) when nothing is selected.
 - `ui-map.ts` declares `editorVideo.background { default, set }`.
 - A quality test samples the padding pixels under a 2× zoom and on a Vertical export.
 
