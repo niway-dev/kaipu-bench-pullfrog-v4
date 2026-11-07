@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useLatest } from "./use-latest";
 
 import { addMuteAt, dragMuteEdge, removeMute, toggleMuteAll } from "./mute-edits";
 import type { MutedRange } from "./audio-edits";
@@ -67,6 +68,7 @@ export function useMuteEditing(
     controller.commit(toggleMuteAll(controller.scene));
   }, [controller]);
 
+  const controllerRef = useLatest(controller);
   const edgeDrag = useCallback(
     (
       id: string,
@@ -74,13 +76,15 @@ export function useMuteEditing(
       sourceTime: number | null,
       phase: "start" | "move" | "end",
     ) => {
-      if (phase === "start") controller.beginInteract();
+      if (phase === "start") controllerRef.current.beginInteract();
       if (phase === "move" && sourceTime !== null) {
-        controller.updateLive(dragMuteEdge(controller.scene, id, edge, sourceTime, sourceDuration));
+        controllerRef.current.updateLive(
+          dragMuteEdge(controllerRef.current.scene, id, edge, sourceTime, sourceDuration),
+        );
       }
-      if (phase === "end") controller.endInteract();
+      if (phase === "end") controllerRef.current.endInteract();
     },
-    [controller, sourceDuration],
+    [controllerRef, sourceDuration],
   );
 
   return {

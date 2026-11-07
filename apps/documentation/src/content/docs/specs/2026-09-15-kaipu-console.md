@@ -41,15 +41,28 @@ headers through the shared proxy utility. Data responses use `private, no-store`
 
 ## Configuration and local run
 
-1. Copy `apps/console/.env.example` to `.env` and set `DATABASE_URL` to the same
-   database as the connected API. Use a read-only database credential if available.
-2. Set `CONSOLE_ADMIN_USER_IDS` to the owner's existing Better Auth user ID.
-   Empty configuration denies all access. This is not email verification.
-3. Set `CONSOLE_API_URL` and an explicit `CONSOLE_ENVIRONMENT` label.
-4. Add `http://localhost:3002` to the API's `CORS_ORIGIN` list, which also supplies
-   Better Auth trusted origins. For deployment, use the actual Console origin.
-5. Run `bun run dev:server-hono` and `bun run dev:console` in separate terminals.
-   Open `http://localhost:3002` so browser secure-cookie localhost behavior applies.
+Every value comes from Infisical (`bun env:pull` generates the Console's local env
+file); nothing is copied by hand. Checked on 2026-11-05, the first time the Console
+ran locally:
+
+1. `DATABASE_URL` is the same database as the connected API. Use a read-only
+   credential if available.
+2. `CONSOLE_ADMIN_USER_IDS` is the owner's existing Better Auth user ID. An empty
+   value denies everyone before the session is even read, so the sign-in page shows
+   "Access is restricted" to every visitor. This is not email verification.
+3. `CONSOLE_API_URL` is `http://localhost:3000` locally; `CONSOLE_ENVIRONMENT` is a label.
+4. The API's `CORS_ORIGIN` (Infisical `/public`, consumer `server-hono`) must list both
+   `http://127.0.0.1:3002` and `http://localhost:3002`. It supplies Better Auth's
+   trusted origins, and a sign-in from an unlisted origin fails with `INVALID_ORIGIN`
+   (403). For deployment, use the actual Console origin.
+5. Start the API first, then the Console: `bun run dev:server-hono` and
+   `bun run dev:console` in separate terminals, and open `http://127.0.0.1:3002`.
+
+The Service Binding `API_SERVICE` is not optional in development. The Cloudflare Vite
+plugin always creates it and resolves it against the local `wrangler dev` session of
+`kaipu-api`; without the API running, every auth call answers 503 ("Couldn't find a
+local dev session"). The plain-`fetch` fallback in `createServiceFetch` never runs,
+because the binding object exists even when nothing is behind it.
 
 The dev server binds to loopback. In Cloudflare, `API_SERVICE` targets `kaipu-api`;
 HTTP fallback follows the shared template for environments without the binding.

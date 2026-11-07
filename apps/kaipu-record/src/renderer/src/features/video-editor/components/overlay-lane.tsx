@@ -5,7 +5,7 @@
  * window (preserving its length); the end handles resize it. Both interactions map
  * to the same begin/live/end history pattern the trim handles use, via onWindowChange.
  */
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { ArrowUpRight, Square, Type } from "lucide-react";
 import type { VideoOverlay } from "../scene";
 import { timeToFraction } from "./timeline-geometry";
@@ -35,7 +35,7 @@ export interface OverlayLaneProps {
   onWindowChange(id: string, start: number, end: number, phase: WindowChangePhase): void;
 }
 
-export function OverlayLane({
+export const OverlayLane = memo(function OverlayLane({
   overlays,
   duration,
   selectedOverlayId,
@@ -64,7 +64,7 @@ export function OverlayLane({
       ))}
     </div>
   );
-}
+});
 
 function Pill({
   overlay,

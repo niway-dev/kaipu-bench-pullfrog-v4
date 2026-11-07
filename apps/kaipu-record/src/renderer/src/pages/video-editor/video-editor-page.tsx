@@ -103,6 +103,7 @@ import {
   useCompanionThumbnails,
   useSourceThumbnails,
 } from "@renderer/features/video-editor/use-source-thumbnails";
+import { useLatest } from "@renderer/features/video-editor/use-latest";
 import { useVideoScene } from "@renderer/features/video-editor/use-video-scene";
 import { useVideoTools } from "@renderer/features/video-editor/annotations/video-tools";
 import { useVideoExport } from "@renderer/features/video-editor/export/use-video-export";
@@ -259,14 +260,37 @@ function sameGroup(a: EditorTool, b: EditorTool): boolean {
 
 /** Target is a text field or a dropdown — don't hijack its keys (Space, letters that pick
  *  an option) for play/pause or tool shortcuts. */
+/** Input types whose keys the page must leave alone: Backspace, Space and letters edit them. */
+const TEXT_INPUT_TYPES = new Set([
+  "text",
+  "search",
+  "email",
+  "number",
+  "password",
+  "tel",
+  "url",
+  "date",
+  "time",
+  "datetime-local",
+  "month",
+  "week",
+]);
+
+/** Space toggles a focused checkbox or radio; the page must not steal it for playback. */
+function ownsSpace(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement && (target.type === "checkbox" || target.type === "radio")
+  );
+}
+
+/** Whether `target` edits text, so the page's single-key shortcuts must leave it alone. */
 function isEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT" ||
-    target.isContentEditable
-  );
+  // A range, checkbox or color input edits no text, and selecting a zoom focuses the
+  // inspector's Level slider (focusInspectorFirstControl) — Delete from there must still
+  // remove the zoom, so only text-like inputs count as editing.
+  if (target instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(target.type);
+  return target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
 }
 
 /** Replace the overlay with the same id, or append it if none exists yet — used to
@@ -529,6 +553,11 @@ function VideoEditor({
     },
     [setPreviewSpeed],
   );
+  // Lane handlers read the current scene, layout and playback through these refs, so they keep
+  // one identity across slider moves and the memoised lanes below do not re-render (NIW2-662).
+  const controllerRef = useLatest(controller);
+  const layoutRef = useLatest(layout);
+  const playbackRef = useLatest(playback);
   const zooms = useZoomEditing({
     controller,
     layout,
@@ -1042,30 +1071,33 @@ function VideoEditor({
       phase: "start" | "move" | "end",
     ) => {
       if (phase === "start") {
-        dragOverlaysRef.current = controller.scene.overlays;
-        controller.beginInteract();
+        dragOverlaysRef.current = controllerRef.current.scene.overlays;
+        controllerRef.current.beginInteract();
       }
       if (phase === "move") {
         const items = trimClip(
-          controller.scene.items,
+          controllerRef.current.scene.items,
           itemId,
           edge,
           sourceTime,
           source.durationSeconds,
         );
         const duration = layoutDuration(toLayout(items));
-        controller.updateLive({
-          ...controller.scene,
+        controllerRef.current.updateLive({
+          ...controllerRef.current.scene,
           items,
-          overlays: clampOverlays(dragOverlaysRef.current ?? controller.scene.overlays, duration),
+          overlays: clampOverlays(
+            dragOverlaysRef.current ?? controllerRef.current.scene.overlays,
+            duration,
+          ),
         });
       }
       if (phase === "end") {
         dragOverlaysRef.current = null;
-        controller.endInteract();
+        controllerRef.current.endInteract();
       }
     },
-    [controller, source.durationSeconds],
+    [controllerRef, source.durationSeconds],
   );
 
   // A slide's right-edge duration drag. Same begin/live/end contract as handleTrim so a
@@ -1073,42 +1105,45 @@ function VideoEditor({
   const handleSlideDuration = useCallback(
     (itemId: string, nextDuration: number, phase: "start" | "move" | "end") => {
       if (phase === "start") {
-        dragOverlaysRef.current = controller.scene.overlays;
-        controller.beginInteract();
+        dragOverlaysRef.current = controllerRef.current.scene.overlays;
+        controllerRef.current.beginInteract();
       }
       if (phase === "move") {
-        const items = setSlideDuration(controller.scene.items, itemId, nextDuration);
+        const items = setSlideDuration(controllerRef.current.scene.items, itemId, nextDuration);
         const duration = layoutDuration(toLayout(items));
-        controller.updateLive({
-          ...controller.scene,
+        controllerRef.current.updateLive({
+          ...controllerRef.current.scene,
           items,
-          overlays: clampOverlays(dragOverlaysRef.current ?? controller.scene.overlays, duration),
+          overlays: clampOverlays(
+            dragOverlaysRef.current ?? controllerRef.current.scene.overlays,
+            duration,
+          ),
         });
       }
       if (phase === "end") {
         dragOverlaysRef.current = null;
-        controller.endInteract();
+        controllerRef.current.endInteract();
       }
     },
-    [controller],
+    [controllerRef],
   );
 
   // Same begin/live/end contract as handleTrim, driving the overlay lane's pill
   // body-drag (move) and end-handle (resize) interactions.
   const handleWindowChange = useCallback(
     (id: string, start: number, end: number, phase: "start" | "move" | "end") => {
-      if (phase === "start") controller.beginInteract();
+      if (phase === "start") controllerRef.current.beginInteract();
       if (phase === "move") {
-        controller.updateLive({
-          ...controller.scene,
-          overlays: controller.scene.overlays.map((o) =>
+        controllerRef.current.updateLive({
+          ...controllerRef.current.scene,
+          overlays: controllerRef.current.scene.overlays.map((o) =>
             o.id === id ? ({ ...o, start, end } as VideoOverlay) : o,
           ),
         });
       }
-      if (phase === "end") controller.endInteract();
+      if (phase === "end") controllerRef.current.endInteract();
     },
-    [controller],
+    [controllerRef],
   );
 
   // Selecting a zoom moves the playhead to the middle of its first visible piece (UI
@@ -1126,14 +1161,15 @@ function VideoEditor({
   const handleSelectZoom = useCallback(
     (id: string) => {
       selectKind("zoom", id);
-      const segment = controller.scene.zoomSegments.find((z) => z.id === id);
+      const segment = controllerRef.current.scene.zoomSegments.find((z) => z.id === id);
       if (segment) {
-        const target = seekTargetForSegment(layout, playback.timelineTime, segment);
-        if (target !== null) playback.seek(target);
+        const live = playbackRef.current;
+        const target = seekTargetForSegment(layoutRef.current, live.timelineTime, segment);
+        if (target !== null) live.seek(target);
       }
       requestAnimationFrame(() => focusInspectorFirstControl());
     },
-    [selectKind, controller, layout, playback],
+    [selectKind, controllerRef, layoutRef, playbackRef],
   );
 
   // Zoom tool (an action, not a mode): select the zoom under the playhead if there is
@@ -1269,12 +1305,12 @@ function VideoEditor({
   const handleSelectRedaction = useCallback(
     (id: string) => {
       selectKind("redaction", id);
-      const r = controller.scene.redactions.find((x) => x.id === id);
+      const r = controllerRef.current.scene.redactions.find((x) => x.id === id);
       if (!r) return;
-      const [first] = sourceRangeToTimelineBlocks(layout, r.start, r.end);
-      if (first) playback.seek((first.timelineStart + first.timelineEnd) / 2);
+      const [first] = sourceRangeToTimelineBlocks(layoutRef.current, r.start, r.end);
+      if (first) playbackRef.current.seek((first.timelineStart + first.timelineEnd) / 2);
     },
-    [selectKind, controller, layout, playback],
+    [selectKind, controllerRef, layoutRef, playbackRef],
   );
 
   const handleRemoveRedaction = useCallback(
@@ -1313,6 +1349,9 @@ function VideoEditor({
       // while open. A video export runs in the background and blocks nothing.
       if (blocker.state === "blocked" || gifExport.status !== "idle" || exportSheetOpen) return;
       if (e.key === " ") {
+        // A focused checkbox or radio (cursor and webcam inspectors) owns Space: it
+        // toggles the control, not playback. Other shortcuts still reach them.
+        if (ownsSpace(e.target)) return;
         e.preventDefault();
         playback.toggle();
         return;
@@ -1365,7 +1404,10 @@ function VideoEditor({
       // require !isMod so it doesn't also delete an overlay or a segment.
       if (!isMod && (e.key === "Delete" || e.key === "Backspace")) {
         if (selectedRedactionId) handleRemoveRedaction(selectedRedactionId);
-        else if (selectedZoomId) handleRemoveZoom(selectedZoomId);
+        else if (selectedMuteId) {
+          mutes.remove(selectedMuteId);
+          selectKind("mute", null);
+        } else if (selectedZoomId) handleRemoveZoom(selectedZoomId);
         else if (selectedWebcamId && selectedWebcamId !== WEBCAM_LAYER_SELECTION)
           handleRemoveWebcamSegment(selectedWebcamId);
         else if (selectedOverlayId) handleDeleteOverlay();
@@ -1388,6 +1430,9 @@ function VideoEditor({
     handleDeleteOverlay,
     clearSelection,
     selectedZoomId,
+    selectedMuteId,
+    mutes,
+    selectKind,
     selectedRedactionId,
     handleRemoveZoom,
     handleRemoveRedaction,
@@ -1398,6 +1443,123 @@ function VideoEditor({
     handleAddZoom,
     onSlide,
   ]);
+
+  // Lane inputs that used to be inline closures/literals: with stable identities the memoised
+  // lanes skip the re-render a slider drag would otherwise force on every one of them (NIW2-662).
+  const handleSelectWebcam = useCallback((id: string) => selectKind("webcam", id), [selectKind]);
+  const handleSelectMute = useCallback((id: string) => selectKind("mute", id), [selectKind]);
+  const slideUrlFor = useCallback(
+    (assetId: string) => assetStoreRef.current.get(assetId)?.url ?? null,
+    [assetStoreRef],
+  );
+  const ghostKind = draftRegion && privacyTool && drawWindow ? privacyTool : null;
+  const ghostStart = drawWindow?.start ?? 0;
+  const ghostEnd = drawWindow?.end ?? 0;
+  const privacyGhost = useMemo(
+    () => (ghostKind ? { kind: ghostKind, start: ghostStart, end: ghostEnd } : null),
+    [ghostKind, ghostStart, ghostEnd],
+  );
+  const webcamSelectedId = selectedWebcamId === WEBCAM_LAYER_SELECTION ? null : selectedWebcamId;
+  const extraLanes = useMemo(
+    () =>
+      [
+        {
+          key: "zooms",
+          label: t("laneZooms"),
+          icon: ZoomIn,
+          node: (
+            <ZoomLane
+              segments={zooms.visibleZooms}
+              layout={layout}
+              selectedId={selectedZoomId}
+              onSelect={handleSelectZoom}
+              onEdgeDrag={zooms.edgeDrag}
+              hasTrack={cursorTrack !== null}
+              marks={activity}
+              showMarks={cursorTrack !== null && !isTrackHidden("activity", hiddenTracks)}
+            />
+          ),
+        },
+        ...(hasWebcam
+          ? [
+              {
+                key: "webcam",
+                label: t("laneWebcam"),
+                icon: Webcam,
+                node: (
+                  <WebcamLane
+                    segments={webcamEdits.visibleSegments}
+                    layout={layout}
+                    thumbnails={webcamStrip.thumbnails}
+                    covered={webcamStrip.covered}
+                    selectedId={webcamSelectedId}
+                    onSelect={handleSelectWebcam}
+                    onEdgeDrag={webcamEdits.edgeDrag}
+                  />
+                ),
+              },
+            ]
+          : []),
+        {
+          key: "privacy",
+          label: t("lanePrivacy"),
+          icon: Shield,
+          node: (
+            <PrivacyLane
+              redactions={redactionEdits.visibleRedactions}
+              layout={layout}
+              selectedId={selectedRedactionId}
+              onSelect={handleSelectRedaction}
+              onEdgeDrag={redactionEdits.edgeDrag}
+              ghost={privacyGhost}
+            />
+          ),
+        },
+        {
+          key: "audio",
+          label: t("laneAudio"),
+          icon: AudioLines,
+          node: (
+            <AudioLane
+              ranges={mutes.mutedRanges}
+              layout={layout}
+              audioMuted={mutes.audioMuted}
+              selectedId={selectedMuteId}
+              onSelect={handleSelectMute}
+              onEdgeDrag={mutes.edgeDrag}
+            />
+          ),
+        },
+      ].filter((lane) => !isTrackHidden(lane.key as TrackKey, hiddenTracks)),
+    [
+      cursorTrack,
+      activity,
+      hiddenTracks,
+      layout,
+      t,
+      zooms.visibleZooms,
+      zooms.edgeDrag,
+      selectedZoomId,
+      handleSelectZoom,
+      hasWebcam,
+      webcamEdits.visibleSegments,
+      webcamEdits.edgeDrag,
+      webcamStrip.thumbnails,
+      webcamStrip.covered,
+      webcamSelectedId,
+      handleSelectWebcam,
+      redactionEdits.visibleRedactions,
+      redactionEdits.edgeDrag,
+      selectedRedactionId,
+      handleSelectRedaction,
+      privacyGhost,
+      mutes.mutedRanges,
+      mutes.audioMuted,
+      mutes.edgeDrag,
+      selectedMuteId,
+      handleSelectMute,
+    ],
+  );
 
   return (
     <div {...uiArea("editorVideo.page")} className={styles.page}>
@@ -1755,7 +1917,7 @@ function VideoEditor({
           selectedItemId={selectedItemId}
           onSelectItem={setSelectedItemId}
           onTrim={handleTrim}
-          slideUrlFor={(assetId) => assetStoreRef.current.get(assetId)?.url ?? null}
+          slideUrlFor={slideUrlFor}
           onSlideDuration={handleSlideDuration}
           overlays={scene.overlays}
           showOverlays={!isTrackHidden("annotations", hiddenTracks)}
@@ -1763,81 +1925,7 @@ function VideoEditor({
           onSelectOverlay={setSelectedOverlayId}
           onWindowChange={handleWindowChange}
           timelineView={timelineView}
-          extraLanes={[
-            {
-              key: "zooms",
-              label: t("laneZooms"),
-              icon: ZoomIn,
-              node: (
-                <ZoomLane
-                  segments={zooms.visibleZooms}
-                  layout={layout}
-                  selectedId={selectedZoomId}
-                  onSelect={handleSelectZoom}
-                  onEdgeDrag={zooms.edgeDrag}
-                  hasTrack={cursorTrack !== null}
-                  marks={activity}
-                  showMarks={cursorTrack !== null && !isTrackHidden("activity", hiddenTracks)}
-                />
-              ),
-            },
-            ...(hasWebcam
-              ? [
-                  {
-                    key: "webcam",
-                    label: t("laneWebcam"),
-                    icon: Webcam,
-                    node: (
-                      <WebcamLane
-                        segments={webcamEdits.visibleSegments}
-                        layout={layout}
-                        thumbnails={webcamStrip.thumbnails}
-                        covered={webcamStrip.covered}
-                        selectedId={
-                          selectedWebcamId === WEBCAM_LAYER_SELECTION ? null : selectedWebcamId
-                        }
-                        onSelect={(id) => selectKind("webcam", id)}
-                        onEdgeDrag={webcamEdits.edgeDrag}
-                      />
-                    ),
-                  },
-                ]
-              : []),
-            {
-              key: "privacy",
-              label: t("lanePrivacy"),
-              icon: Shield,
-              node: (
-                <PrivacyLane
-                  redactions={redactionEdits.visibleRedactions}
-                  layout={layout}
-                  selectedId={selectedRedactionId}
-                  onSelect={handleSelectRedaction}
-                  onEdgeDrag={redactionEdits.edgeDrag}
-                  ghost={
-                    draftRegion && privacyTool && drawWindow
-                      ? { kind: privacyTool, start: drawWindow.start, end: drawWindow.end }
-                      : null
-                  }
-                />
-              ),
-            },
-            {
-              key: "audio",
-              label: t("laneAudio"),
-              icon: AudioLines,
-              node: (
-                <AudioLane
-                  ranges={mutes.mutedRanges}
-                  layout={layout}
-                  audioMuted={mutes.audioMuted}
-                  selectedId={selectedMuteId}
-                  onSelect={(id) => selectKind("mute", id)}
-                  onEdgeDrag={mutes.edgeDrag}
-                />
-              ),
-            },
-          ].filter((lane) => !isTrackHidden(lane.key as TrackKey, hiddenTracks))}
+          extraLanes={extraLanes}
         />
       </footer>
       {blocker.state === "blocked" && (

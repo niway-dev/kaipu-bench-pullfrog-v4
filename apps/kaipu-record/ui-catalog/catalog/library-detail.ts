@@ -1,8 +1,16 @@
 import { ASSETS } from "../fixtures/seed-vault";
-import { catalog } from "../types";
+import { catalog, type Step } from "../types";
 import { nc } from "./not-capturable";
 
 const detail = (assetId: string) => ({ navigate: `/library/${assetId}` }) as const;
+/** Clicks a tab of the item panel by its English name ("Versions", "Details"). */
+const tab = (name: string): Step => ({
+  click: { area: "libraryDetail.tabs", part: { role: "tab", name } },
+});
+/** Opens the ••• menu in the header's actions. */
+const moreActions: Step = {
+  click: { area: "libraryDetail.actions", part: { role: "button", name: "More actions" } },
+};
 
 /** An item's page (`#/library/:assetId`), opened on the seeded items by their fixed ids. */
 export const libraryDetail = catalog(
@@ -10,22 +18,38 @@ export const libraryDetail = catalog(
   {
     recording: {
       profile: "default",
-      how: "Open “Walkthrough 1”, a recording with a GIF copy made from it.",
+      how: "Open “Walkthrough 1”, a recording with copies made from it: the Versions tab leads.",
       steps: [detail(ASSETS.walkthrough)],
       demonstrates: [
         "libraryDetail.page:recording",
+        "libraryDetail.header:recording",
         "libraryDetail.details:recording",
         "libraryDetail.preview:video",
         "libraryDetail.actions:recording",
-        "libraryDetail.copies:master",
+        "libraryDetail.tabs:versions",
+        "libraryDetail.versions:withCopies",
       ],
       ready: { video: "paused-at-start" },
     },
     "recording-no-copies": {
       profile: "default",
-      how: "Open “Onboarding flow”, a recording with no copies yet: the page asks where it is going.",
+      how: "Open “Onboarding flow”, a recording with no copies yet: “Where is it going?” leads.",
       steps: [detail(ASSETS.onboardingFlow)],
-      demonstrates: ["libraryDetail.destinations:ready"],
+      demonstrates: ["libraryDetail.tabs:destinations", "libraryDetail.destinations:ready"],
+      ready: { video: "paused-at-start" },
+    },
+    "versions-original": {
+      profile: "default",
+      how: "Open “Onboarding flow” and click the Versions tab: only the original, no copy yet.",
+      steps: [detail(ASSETS.onboardingFlow), tab("Versions")],
+      demonstrates: ["libraryDetail.tabs:versions", "libraryDetail.versions:original"],
+      ready: { video: "paused-at-start" },
+    },
+    "versions-edited": {
+      profile: "default",
+      how: "Open “Team notes” and click the Versions tab: the original and its saved edit session.",
+      steps: [detail(ASSETS.teamNotes), tab("Versions")],
+      demonstrates: ["libraryDetail.versions:edited"],
       ready: { video: "paused-at-start" },
     },
     edited: {
@@ -37,12 +61,20 @@ export const libraryDetail = catalog(
     },
     screenshot: {
       profile: "default",
+      how: "Open “Settings page”, a saved screenshot.",
       steps: [detail(ASSETS.settingsShot)],
       demonstrates: [
         "libraryDetail.page:screenshot",
+        "libraryDetail.header:screenshot",
         "libraryDetail.preview:image",
         "libraryDetail.actions:screenshot",
       ],
+    },
+    "details-screenshot": {
+      profile: "default",
+      how: "Open “Settings page” and click the Details tab.",
+      steps: [detail(ASSETS.settingsShot), tab("Details")],
+      demonstrates: ["libraryDetail.tabs:details", "libraryDetail.itemDetails:screenshot"],
     },
     gif: {
       profile: "default",
@@ -50,17 +82,39 @@ export const libraryDetail = catalog(
       steps: [detail(ASSETS.loopGif)],
       demonstrates: [
         "libraryDetail.page:gif",
+        "libraryDetail.header:gif",
         "libraryDetail.preview:gif",
         "libraryDetail.actions:gif",
         "libraryDetail.details:copy",
       ],
     },
+    "details-gif": {
+      profile: "default",
+      how: "Open “Loop preview” and click the Details tab.",
+      steps: [detail(ASSETS.loopGif), tab("Details")],
+      demonstrates: ["libraryDetail.itemDetails:gif"],
+    },
+    "details-recording": {
+      profile: "default",
+      how: "Open “Walkthrough 1” and click the Details tab: the file's facts.",
+      steps: [detail(ASSETS.walkthrough), tab("Details")],
+      demonstrates: ["libraryDetail.tabs:details", "libraryDetail.itemDetails:recording"],
+      ready: { video: "paused-at-start" },
+    },
     "light-copy": {
       profile: "default",
       how: "Open “Walkthrough 1 (light)”, a copy of “Walkthrough 1” that has a GIF made from it.",
       steps: [detail(ASSETS.lightCopy)],
-      demonstrates: ["libraryDetail.copies:copy"],
+      demonstrates: ["libraryDetail.versions:copy", "libraryDetail.tabs:versions"],
       ready: { video: "paused-at-start" },
+    },
+    "menu-open": {
+      profile: "default",
+      how: "Open “Walkthrough 1” and click the ••• button (More actions).",
+      steps: [detail(ASSETS.walkthrough), moreActions],
+      demonstrates: ["libraryDetail.itemMenu:open"],
+      ready: { area: "libraryDetail.itemMenu" },
+      after: [{ press: "Escape", on: "main" }],
     },
     "saved-notice": {
       profile: "recording",
@@ -92,11 +146,26 @@ export const libraryDetail = catalog(
         "needsApi",
         "needs a cloud-only item; the catalog runs offline",
       ),
+      "libraryDetail.header:cloudOnly": nc(
+        "needsApi",
+        "needs a cloud-only item; the catalog runs offline",
+      ),
       "libraryDetail.actions:cloudOnly": nc(
         "needsApi",
         "needs a cloud-only item; the catalog runs offline",
       ),
-      "libraryDetail.copies:running": nc("transient", "a transient state while a copy is exported"),
+      "libraryDetail.versions:running": nc(
+        "transient",
+        "a transient state while a copy is exported",
+      ),
+      "libraryDetail.versions:sourceDeleted": nc(
+        "needsSetup",
+        "needs a copy whose original was deleted; the seeded vault keeps every original",
+      ),
+      "libraryDetail.destinations:heavy": nc(
+        "needsSetup",
+        "needs a recording over 25 MB; the catalog's takes are seconds long",
+      ),
       "libraryDetail.postRecordingCard:fresh": nc(
         "needsSetup",
         "shown only after a take heavier than 10 MB; the catalog's takes are seconds long",
