@@ -136,6 +136,16 @@ describe("timeline zoom layout (NIW2-667)", () => {
     expect(label).toMatch(/background: var\(--bg-panel\);/);
   });
 
+  it("scrolls in x only: overflow-y is clipped, so no vertical scrollbar can take width from the lanes", () => {
+    // `overflow-x: auto` alone makes overflow-y compute to `auto`, and a classic vertical
+    // scrollbar (Windows, Linux, macOS set to "always show") would narrow the content box
+    // while the strip measures the lane from the border box: every pointer-to-time
+    // conversion would then be off by the scrollbar's width. The region is content-sized
+    // (see `.timeline` in the page), so there is never a vertical scroll to lose.
+    expect(body).toMatch(/overflow-x: auto;/);
+    expect(body).toMatch(/overflow-y: clip;/);
+  });
+
   it("leaves room after the last lane for the end handle, taken from the strip's own padding", () => {
     expect(body).toMatch(/--lane-end: 8px;/);
     expect(body).toMatch(/margin-right: calc\(-1 \* var\(--lane-end\)\);/);

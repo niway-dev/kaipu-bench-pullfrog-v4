@@ -40,6 +40,15 @@
   flex: 1;
   min-height: 0;
   overflow-x: auto;
+  /* Next to a scrolling x, `overflow-y` would compute to `auto` and a classic vertical
+     scrollbar (Windows, Linux, macOS set to "always show") would take width from the
+     content box while TimelineStrip measures the lane from the border box, so every pointer
+     conversion would be off by the scrollbar's width. With `clip` there is no scrollbar in
+     y (Chrome keeps it `clip` next to a scrolling x and the box takes no programmatic
+     scrollTop either; an engine that computes it to `hidden` still draws no scrollbar).
+     This region is as tall as its lanes (.timeline is content-sized), so there is no
+     vertical scroll to lose. */
+  overflow-y: clip;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
   padding-right: var(--lane-end);
