@@ -88,10 +88,9 @@ describe("ScreenshotViewer", () => {
       const zoomOut = screen.getByRole("button", { name: "Zoom out" });
       fireEvent.click(zoomOut);
       fireEvent.click(zoomOut);
-      const width = Number.parseFloat(img.style.width);
-      expect(width).toBeCloseTo(83.33, 1);
-      // Its height at that width is 250 px: half the frame, never past it.
-      expect((width * 3000) / 1000).toBeLessThanOrEqual(500);
+      // Half of the Fit width (about 167 px): 83 px wide, so 250 px tall, inside the frame. The
+      // old width-of-the-frame sizing gave 400 px here, 1200 px tall, cropped.
+      expect(Number.parseFloat(img.style.width)).toBeCloseTo(83.33, 1);
     } finally {
       rect.mockRestore();
     }
