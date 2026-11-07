@@ -275,4 +275,75 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     fireEvent.keyDown(window, { key: "z", metaKey: true });
     await waitFor(() => expect(screen.getByRole("slider", { name: "Level" })).not.toHaveValue("4"));
   }, 120_000);
+
+  it("a Sensitivity drag previews only the summary and rebuilds the zooms once, on release", async () => {
+    const router = createMemoryRouter(
+      [{ path: "/", element: <VideoEditorLoader source={SOURCE} /> }],
+      { initialEntries: ["/"] },
+    );
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(document.querySelector("footer")).not.toBeNull(), {
+      timeout: 20_000,
+    });
+    const footer = document.querySelector("footer")!;
+    await waitFor(
+      () => {
+        expect(
+          footer.querySelectorAll('[data-testid="activity-lane"] span').length,
+        ).toBeGreaterThan(1000);
+      },
+      { timeout: 20_000 },
+    );
+    const slider = screen.getByRole("slider", { name: "Sensitivity" });
+    const summary = (): string => document.querySelector("p[class*=summary]")?.textContent ?? "";
+    const before = summary();
+
+    const queued: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => queued.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const nextFrame = (): void => {
+      const [sliderFrame] = queued.splice(0);
+      act(() => sliderFrame?.(0));
+    };
+
+    for (const key of Object.keys(renders)) renders[key] = 0;
+    const moves = 60;
+    const start = performance.now();
+    fireEvent.pointerDown(slider);
+    for (let i = 0; i < moves; i++) {
+      queued.length = 0;
+      fireEvent.change(slider, {
+        target: { value: String(10 + Math.round((60 * (i + 1)) / moves)) },
+      });
+      nextFrame();
+    }
+    const dragMs = performance.now() - start;
+    const duringDrag = { zoom: renders["zoom"] ?? 0, strip: renders["strip"] ?? 0 };
+    const summaryDuringDrag = summary();
+    const releaseStart = performance.now();
+    fireEvent.pointerUp(slider);
+    const releaseMs = performance.now() - releaseStart;
+    if (process.env.RENDER_COUNT)
+      console.info(
+        `[render-count] sensitivity drag: zoom=${duringDrag.zoom} strip=${duringDrag.strip} ` +
+          `moves=${moves} dragMs=${dragMs.toFixed(0)} releaseMs=${releaseMs.toFixed(0)} ` +
+          `zoomAfterRelease=${renders["zoom"] ?? 0}`,
+      );
+    // While the pointer is down the scene is untouched: no lane re-renders at all.
+    expect(duringDrag.zoom).toBe(0);
+    expect(duringDrag.strip).toBe(0);
+    expect(renders["activity"] ?? 0).toBe(0);
+    // The summary still follows the drag, and the value shown is the last one.
+    expect(slider).toHaveValue("70");
+    expect(summaryDuringDrag).not.toBe("");
+    expect(before).not.toBe("");
+    // Release applies the new detection once (at least one zoom render, far below one per move).
+    expect(renders["zoom"] ?? 0).toBeGreaterThan(0);
+    expect(renders["zoom"] ?? 0).toBeLessThanOrEqual(3);
+    // The whole drag is one undo step.
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole("slider", { name: "Sensitivity" })).not.toHaveValue("70"),
+    );
+  }, 120_000);
 });

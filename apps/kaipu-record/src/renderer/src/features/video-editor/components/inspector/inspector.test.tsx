@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { TrackItem } from "../../scene";
 import { toLayout } from "../../timeline";
@@ -33,7 +33,7 @@ function zooms(partial: Partial<ZoomEditing> = {}): ZoomEditing {
     end: vi.fn(),
     edgeDrag: vi.fn(),
     liveLock: vi.fn(),
-    sensitivityLive: vi.fn(),
+    sensitivityPreview: vi.fn(() => ({ count: 7, coverage: 0.2 })),
     sensitivityCommit: vi.fn(),
     reanalyse: vi.fn(),
     canDetect: true,
@@ -48,6 +48,31 @@ describe("DetectionPanel", () => {
     expect(screen.getByText("1 zoom · 59% of clip")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Re-analyse/ }));
     expect(z.reanalyse).toHaveBeenCalled();
+  });
+  it("a Sensitivity drag only previews the summary and applies once on release", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) =>
+      setTimeout(() => cb(0), 0),
+    );
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+    const z = zooms();
+    render(<DetectionPanel zooms={z} sensitivity={55} clicksAvailable />);
+    const slider = screen.getByRole("slider");
+    fireEvent.pointerDown(slider);
+    fireEvent.change(slider, { target: { value: "70" } });
+    act(() => {
+      vi.advanceTimersByTime(20);
+    });
+    expect(z.sensitivityPreview).toHaveBeenCalledWith(70);
+    expect(screen.getByText("7 zooms · 20% of clip")).toBeInTheDocument();
+    fireEvent.change(slider, { target: { value: "80" } });
+    expect(z.sensitivityCommit).not.toHaveBeenCalled();
+    fireEvent.pointerUp(slider);
+    expect(z.sensitivityCommit).toHaveBeenCalledTimes(1);
+    expect(z.sensitivityCommit).toHaveBeenCalledWith(80);
+    expect(screen.getByText("1 zoom · 59% of clip")).toBeInTheDocument();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
   it("explains the missing cursor data instead of showing dead controls", () => {
     render(
