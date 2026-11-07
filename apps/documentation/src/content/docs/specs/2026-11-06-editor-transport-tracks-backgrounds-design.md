@@ -190,7 +190,7 @@ PR 4 — timeline zoom:
 
 PR 5 — backgrounds:
 
-- [ ] The inspector (nothing selected) shows the nine swatches and the padding, radius and
+- [ ] The inspector (nothing selected) shows the swatches (nine when this was written, seventeen since NIW2-676) and the padding, radius and
       shadow sliders of the screenshot editor; `none` with zeros is the default and looks like
       today.
 - [ ] Choosing `magenta`, padding 48, radius 16, shadow 24 shows the picture inset on a gradient
@@ -558,6 +558,14 @@ a `ResizeObserver` before paint. The `<video>` is never remounted when the backg
   a user never moves a slider and sees nothing change. Undo covers it: one history step per
   committed gesture, like the zoom inspector.
 - `ui-map.ts`: `editorVideo.background { default, set }`; catalog states for both.
+- **Starter look and seventeen presets (NIW2-676).** Owner feedback after testing PR 5: a pick on
+  a fresh scene was invisible, because padding, corners and shadow start at 0. Choosing a real
+  preset while all three are 0 now sets them to `BACKGROUND_STARTER_LOOK` (60, 10, 64) in the same
+  undo step (`chooseBackground`); with any of the three non-zero only the preset changes, and
+  `none` keeps the numbers so a later pick keeps the user's own. `DEFAULT_BACKGROUND` stays
+  `none / 0 / 0 / 0`: making a background the default of a new recording is a product decision
+  that is not taken here. The shared table also gained eight wallpaper-style gradients after the
+  nine (`aurora`, `iris`, `coral`, `lilac`, `citrus`, `ember`, `sky`, `dusk`).
 
 ### 6.5 What PR 5 built and measured
 

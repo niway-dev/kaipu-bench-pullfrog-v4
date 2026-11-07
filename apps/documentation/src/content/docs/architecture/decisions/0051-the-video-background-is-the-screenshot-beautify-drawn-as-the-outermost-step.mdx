@@ -41,6 +41,10 @@ radius; shadow }` uses the screenshot editor's `BackgroundId` and its slider con
 2. **It is part of the edit.** Stored additively in session version 1 (absent → the default,
    `none / 0 / 0 / 0`, which draws exactly today's picture); unknown ids fall back to `none`,
    numbers clamp. Undo covers it. The export draws it; the original on disk is untouched (0003).
+   Choosing a preset while padding, corners and shadow are all 0 brings the starter look
+   (60 / 10 / 64, `BACKGROUND_STARTER_LOOK`) in the same undo step, so the pick is visible at once;
+   the default of a plain scene stays `none / 0 / 0 / 0`. The shared table has seventeen presets
+   (the nine above plus eight wallpaper gradients added in NIW2-676).
 3. **Drawn last, inside a fixed output size.** The composer finishes the picture as today, then
    fills the output canvas with the background paint and draws the picture inset by the padding,
    clipped to the radius, with the shadow. The preset's output size is unchanged; the picture
