@@ -88,27 +88,31 @@ async function exported(vaultDir: string, extension: string): Promise<string[]> 
   return (await readdir(vaultDir)).filter((f) => f.endsWith(extension)).sort();
 }
 
-/** One pixel of a video frame (the 10th) as [r, g, b], through ffmpeg. */
-function pixelOf(file: string, x: number, y: number): number[] {
+/** The 0.3 s frame of a video as raw rgb24, through ffmpeg: `pixel(x, y)` samples it. */
+function frameOf(file: string, width: number, height: number): (x: number, y: number) => number[] {
   const run = spawnSync(
     "ffmpeg",
     [
       "-v",
       "error",
+      "-ss",
+      "0.3",
       "-i",
       file,
-      "-vf",
-      `select=eq(n\\,10),crop=1:1:${x}:${y},format=rgb24`,
       "-frames:v",
       "1",
       "-f",
       "rawvideo",
+      "-pix_fmt",
+      "rgb24",
       "-",
     ],
-    { encoding: "buffer" },
+    { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
   );
-  if (run.status !== 0 || run.stdout.length < 3) throw new Error(`ffmpeg failed: ${run.stderr}`);
-  return [...run.stdout.subarray(0, 3)];
+  if (run.status !== 0 || run.stdout.length < width * height * 3) {
+    throw new Error(`ffmpeg failed: ${run.stderr}`);
+  }
+  return (x, y) => [...run.stdout.subarray((y * width + x) * 3, (y * width + x) * 3 + 3)];
 }
 
 function sizeOf(file: string): [number, number] {
@@ -218,13 +222,14 @@ test("background gallery: the starter look and a new preset, picture and file", 
     await copyFile(path.join(vaultDir, made[0]!), out);
     const [w, h] = sizeOf(out);
     log(`aurora-balanced.mp4 ${w}x${h} (${(await stat(out)).size} bytes)`);
+    const pixel = frameOf(out, w, h);
     for (const [name, x, y] of [
       ["top-left", 0, 0],
       ["top-right", w - 1, 0],
       ["bottom-left", 0, h - 1],
       ["bottom-right", w - 1, h - 1],
     ] as const) {
-      log(`corner ${name} rgb ${JSON.stringify(pixelOf(out, x, y))}`);
+      log(`corner ${name} rgb ${JSON.stringify(pixel(x, y))}`);
     }
     log("paint aurora from #2de2e6 = [45,226,230], to #7b2ff7 = [123,47,247]");
     await page.waitForTimeout(1_500);
