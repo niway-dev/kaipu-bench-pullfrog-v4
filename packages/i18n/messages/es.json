@@ -81,6 +81,8 @@
     "relocateWorkspaceButton": "Usar esta carpeta"
   },
   "nav": {
+    "back": "Atrás",
+    "forward": "Adelante",
     "record": "Grabar",
     "screenshots": "Captura",
     "library": "Biblioteca",
