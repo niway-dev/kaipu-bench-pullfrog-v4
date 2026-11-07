@@ -1796,7 +1796,9 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
       scroller().scrollLeft = 99_999;
       fireEvent.scroll(scroller());
     });
-    expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomBefore * LANE_WIDTH - LANE_WIDTH);
+    // The scroll really sits on the 7.2x maximum (6200 px), far past the 200 px that the
+    // content left after the delete allows, so the re-clamp below has work to do.
+    expect(scroller().scrollLeft).toBeCloseTo(zoomBefore * LANE_WIDTH - LANE_WIDTH, 3);
     fireEvent.click(footer.querySelectorAll("button")[1]); // select the second clip (25 s)
     fireEvent.click(screen.getByRole("button", { name: "Delete segment" }));
     await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(1));
@@ -1804,6 +1806,7 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     const zoomAfter = Number(scroller().dataset.zoom);
     expect(zoomAfter).toBeLessThan(zoomBefore);
     expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomAfter * LANE_WIDTH - LANE_WIDTH + 0.5);
+    expect(scroller().scrollLeft).toBeLessThan(zoomBefore * LANE_WIDTH - LANE_WIDTH);
   });
 
   // Esc runs clearSelection(), which unmounts the trim handles. The handle held pointer
