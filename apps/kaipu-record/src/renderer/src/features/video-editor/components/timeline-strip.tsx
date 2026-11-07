@@ -133,10 +133,8 @@ export function TimelineStrip({
   const ownStore = useTimelineViewStore(duration);
   const store = timelineView ?? ownStore;
   const viewState = useTimelineViewState(store);
-  const view = useMemo(
-    () => clampView({ ...viewState, duration }),
-    [viewState.zoom, viewState.scroll, viewState.laneWidth, duration],
-  );
+  // `viewState` is a stable snapshot: a new object only when zoom, scroll or lane changed.
+  const view = useMemo(() => clampView({ ...viewState, duration }), [viewState, duration]);
 
   // The lane's place on screen, read live: the strip's left edge plus the (sticky) label
   // column. Nothing is cached, so a window resize or a layout shift cannot leave a stale

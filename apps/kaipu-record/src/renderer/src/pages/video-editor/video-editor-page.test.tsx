@@ -1666,3 +1666,175 @@ describe("VideoEditorPage — preview playback speed (NIW2-666)", () => {
     expect(JSON.stringify(at2x)).not.toMatch(/speed|playbackRate/i);
   });
 });
+
+describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
+  // jsdom lays nothing out: the lane sits at x = 220 and is 1000 px wide, so the 30 s
+  // recording is 33.3 px/s at fit and zooms up to 240 / 33.3 = 7.2x.
+  const LANE_LEFT = 220;
+  const LANE_WIDTH = 1000;
+
+  // These tests need ONE fresh clip. An earlier describe leaves a saved session on the shared
+  // fake IPC, which would open the editor already cut; start every test from no session.
+  let loadSession: typeof window.electronAPI.loadVideoEditSession;
+  beforeEach(() => {
+    loadSession = window.electronAPI.loadVideoEditSession;
+    window.electronAPI.loadVideoEditSession = async () => null;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const rect = (left: number, width: number): DOMRect =>
+          ({
+            left,
+            right: left + width,
+            width,
+            top: 0,
+            bottom: 20,
+            height: 20,
+            x: left,
+            y: 0,
+            toJSON: () => ({}),
+          }) as DOMRect;
+        const id = this.dataset.testid;
+        if (id === "timeline-scroller") return rect(100, 120 + LANE_WIDTH);
+        if (id === "lane-corner") return rect(100, 120);
+        return rect(0, 0);
+      },
+    );
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.electronAPI.loadVideoEditSession = loadSession;
+    stubDecodedVideoSize(0, 0);
+  });
+
+  const scroller = (): HTMLElement =>
+    document.querySelector('[data-testid="timeline-scroller"]') as HTMLElement;
+  const zoomIn = (): HTMLElement => screen.getByRole("button", { name: "Zoom in the timeline" });
+  const zoomOut = (): HTMLElement => screen.getByRole("button", { name: "Zoom out the timeline" });
+  const fit = (): HTMLElement =>
+    screen.getByRole("button", { name: "Fit the whole recording in the timeline" });
+  const zoomTo4x = (): void => {
+    for (let i = 0; i < 4; i++) fireEvent.click(zoomIn()); // (√2)^4
+    expect(Number(scroller().dataset.zoom)).toBeCloseTo(4, 6);
+  };
+  const stubCapture = (el: HTMLElement): HTMLElement => {
+    el.setPointerCapture = vi.fn();
+    el.hasPointerCapture = vi.fn(() => true);
+    el.releasePointerCapture = vi.fn();
+    return el;
+  };
+
+  it("opens at 1x, showing the whole recording as before: nothing to zoom out of or fit", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(scroller().dataset.zoom).toBe("1");
+    expect(scroller().scrollLeft).toBe(0);
+    expect(zoomOut()).toBeDisabled();
+    expect(fit()).toBeDisabled();
+  });
+
+  it("the transport bar's + and the strip are one view: + zooms the lanes, FIT brings them back", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(zoomIn());
+    fireEvent.click(zoomIn());
+    expect(Number(scroller().dataset.zoom)).toBeCloseTo(2, 6);
+    expect(fit()).toBeEnabled();
+    fireEvent.click(fit());
+    expect(scroller().dataset.zoom).toBe("1");
+    expect(scroller().scrollLeft).toBe(0);
+  });
+
+  it("a trim at 4x moves the edge by the time under the pointer, not the 1x amount", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    zoomTo4x();
+    fireEvent.click(footer.querySelectorAll("button")[0]); // select the clip: its handles appear
+    const end = stubCapture(
+      await waitFor(() => {
+        const handle = document.querySelector<HTMLElement>('[data-trim-handle="end"]');
+        expect(handle).not.toBeNull();
+        return handle!;
+      }),
+    );
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 800 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 600 }); // -200 px
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 600 });
+    // 200 px at 4x (133.3 px/s) is 1.5 s: 30 s becomes 28.5 s. At 1x it would be -6 s: 24 s.
+    await waitFor(() => expect(screen.getByText("0:00.0 / 0:28.5")).toBeInTheDocument());
+  });
+
+  it("a click on the ruler at 4x seeks to the time under the pointer", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    zoomTo4x();
+    const ruler = stubCapture(screen.getByTestId("ruler"));
+    // Off the centre: the + buttons zoom around the centre of the lane, so a click there
+    // would read the same at 1x and at 4x and prove nothing.
+    fireEvent.pointerDown(ruler, { pointerId: 1, clientX: LANE_LEFT + 800 });
+    const scale = (Number(scroller().dataset.zoom) * LANE_WIDTH) / 30;
+    const expected = (800 + scroller().scrollLeft) / scale;
+    const tenths = Math.floor(expected * 10 + 1e-6);
+    const label = `0:${String(Math.floor(tenths / 10)).padStart(2, "0")}.${tenths % 10} / 0:30.0`;
+    await waitFor(() => expect(screen.getByText(label)).toBeInTheDocument());
+    // The time the same pixel shows at 1x would be 24.0 s.
+    expect(label).not.toBe("0:24.0 / 0:30.0");
+    expect(screen.queryByText("0:24.0 / 0:30.0")).toBeNull();
+  });
+
+  it("deleting a clip while zoomed keeps the scroll inside the shorter content", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Forward" })); // 5 s
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Split here" }));
+    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+    for (let i = 0; i < 6; i++) fireEvent.click(zoomIn()); // 8x would pass the 7.2x maximum
+    const zoomBefore = Number(scroller().dataset.zoom);
+    expect(zoomBefore).toBeCloseTo(7.2, 6);
+    act(() => {
+      scroller().scrollLeft = 99_999;
+      fireEvent.scroll(scroller());
+    });
+    expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomBefore * LANE_WIDTH - LANE_WIDTH);
+    fireEvent.click(footer.querySelectorAll("button")[1]); // select the second clip (25 s)
+    fireEvent.click(screen.getByRole("button", { name: "Delete segment" }));
+    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(1));
+    // 5 s are left: it can only zoom 1.2x now, so the zoom and the scroll came down with it.
+    const zoomAfter = Number(scroller().dataset.zoom);
+    expect(zoomAfter).toBeLessThan(zoomBefore);
+    expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomAfter * LANE_WIDTH - LANE_WIDTH + 0.5);
+  });
+
+  it("starts at 1x again when the editor is reopened: the view is not saved", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    zoomTo4x();
+    cleanup();
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(scroller().dataset.zoom).toBe("1");
+  });
+
+  it("hands the export the same scene at 1x and at 4x", async () => {
+    stubDecodedVideoSize(1280, 720);
+    const exportedScene = async (zoom: boolean): Promise<unknown> => {
+      renderEditor();
+      await waitForEditorLoaded();
+      if (zoom) zoomTo4x();
+      startExport.mockClear();
+      clickExportVideo();
+      await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+      const handed = (startExport.mock.calls[0] as unknown[])[0] as { scene: unknown };
+      // A fresh open mints a fresh clip id; everything else must match.
+      const scene = JSON.parse(
+        JSON.stringify(handed.scene).replace(/"id":"[0-9a-f-]{36}"/g, '"id":"clip"'),
+      ) as unknown;
+      cleanup();
+      return scene;
+    };
+    const atFit = await exportedScene(false);
+    const zoomed = await exportedScene(true);
+    expect(zoomed).toEqual(atFit);
+  });
+});

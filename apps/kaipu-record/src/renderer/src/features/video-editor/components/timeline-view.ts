@@ -184,16 +184,15 @@ export function visibleRange(view: TimelineView): { start: number; end: number }
   };
 }
 
-/** Zoom factor → slider position in `[0, 1]`, logarithmic: each step feels the same size. */
-export function zoomToSlider(zoom: number, laneWidth: number, duration: number): number {
-  const max = maxZoom(laneWidth, duration);
+/** Zoom factor → slider position in `[0, 1]`, logarithmic: each step feels the same size.
+ *  `max` is {@link maxZoom} for the lane; a lane that cannot zoom (max 1) pins it at 0. */
+export function zoomToSlider(zoom: number, max: number): number {
   if (max <= 1) return 0;
   return clamp(Math.log(Math.max(1, zoom)) / Math.log(max), 0, 1);
 }
 
 /** The inverse of {@link zoomToSlider}. */
-export function sliderToZoom(position: number, laneWidth: number, duration: number): number {
-  const max = maxZoom(laneWidth, duration);
+export function sliderToZoom(position: number, max: number): number {
   if (max <= 1) return 1;
   return Math.exp(clamp(position, 0, 1) * Math.log(max));
 }

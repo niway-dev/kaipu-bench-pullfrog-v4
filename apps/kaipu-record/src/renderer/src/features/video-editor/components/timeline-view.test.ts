@@ -315,25 +315,26 @@ describe("resizing under a live view (a cut while zoomed)", () => {
 });
 
 describe("the zoom slider", () => {
+  const max = maxZoom(1000, 100);
+
   it("maps fit to 0 and the maximum to 1", () => {
-    expect(zoomToSlider(fit.zoom, 1000, 100)).toBe(0);
-    expect(zoomToSlider(maxZoom(1000, 100), 1000, 100)).toBeCloseTo(1, 9);
+    expect(zoomToSlider(fit.zoom, max)).toBe(0);
+    expect(zoomToSlider(max, max)).toBeCloseTo(1, 9);
   });
 
   it("is logarithmic: the midpoint is the geometric mean, not the average", () => {
-    const max = maxZoom(1000, 100);
-    expect(sliderToZoom(0.5, 1000, 100)).toBeCloseTo(Math.sqrt(max), 9);
+    expect(sliderToZoom(0.5, max)).toBeCloseTo(Math.sqrt(max), 9);
   });
 
   it("round-trips", () => {
     for (const v of [0, 0.1, 0.37, 0.8, 1]) {
-      expect(zoomToSlider(sliderToZoom(v, 1000, 100), 1000, 100)).toBeCloseTo(v, 9);
+      expect(zoomToSlider(sliderToZoom(v, max), max)).toBeCloseTo(v, 9);
     }
   });
 
   it("is pinned at 0 when the recording cannot zoom (already past the maximum at fit)", () => {
-    expect(zoomToSlider(1, 1000, 2)).toBe(0);
-    expect(sliderToZoom(0.7, 1000, 2)).toBe(1);
+    expect(zoomToSlider(1, maxZoom(1000, 2))).toBe(0);
+    expect(sliderToZoom(0.7, maxZoom(1000, 2))).toBe(1);
   });
 });
 

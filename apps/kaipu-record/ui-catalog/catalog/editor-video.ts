@@ -22,6 +22,13 @@ const settings = (patch: Record<string, string>): Step => ({
   call: "updateSettings",
   args: [patch],
 });
+/** The `+` of the timeline zoom, on the transport bar. */
+const zoomIn: Step = {
+  click: {
+    area: "editorVideo.transport",
+    part: { role: "button", name: "Zoom in the timeline", exact: true },
+  },
+};
 const exportSheet: Step = {
   click: { area: "editorVideo.toolbar", part: { role: "button", name: "Export", exact: true } },
 };
@@ -242,6 +249,12 @@ export const editorVideo = catalog(
         },
       ],
       demonstrates: ["editorVideo.transport:speedChanged"],
+    },
+    "timeline-zoomed": {
+      profile: "default",
+      how: "Open “Team notes” and press + in the transport bar three times: the lanes stretch to the deepest zoom this 9 s take allows (2.4×), the labels stay put and a scrollbar appears under the lanes.",
+      steps: [open(ASSETS.teamNotes), loaded, zoomIn, zoomIn, zoomIn],
+      demonstrates: ["editorVideo.transport:zoomed", "editorVideo.timeline:zoomed"],
     },
     "mute-all": {
       profile: "default",

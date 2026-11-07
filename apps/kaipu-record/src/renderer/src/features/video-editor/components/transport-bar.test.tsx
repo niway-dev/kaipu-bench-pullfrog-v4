@@ -1,11 +1,21 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { toLayout } from "../timeline";
 import { availableTracks, type TrackKey } from "../tracks";
 import type { TrackItem } from "../scene";
+import { createTimelineViewStore, type TimelineViewStore } from "../use-timeline-view";
+import { MAX_PX_PER_SECOND, ZOOM_STEP, maxZoom, sliderToZoom } from "./timeline-view";
 import { TransportBar, type TransportBarProps } from "./transport-bar";
+
+/** A 100 s timeline in a 1000 px lane: it can zoom up to 24x. */
+function zoomStore(laneWidth = 1000, duration = 100): TimelineViewStore {
+  const store = createTimelineViewStore();
+  store.setDuration(duration);
+  store.setLaneWidth(laneWidth);
+  return store;
+}
 
 // 0–10 s and 20–25 s of source, laid out as two entries: 0–10 and 10–15 (15 s total).
 const ITEMS: TrackItem[] = [
@@ -38,6 +48,7 @@ function barProps(overrides: Partial<TransportBarProps> = {}): TransportBarProps
     onDeleteSelected: vi.fn(),
     deleteDisabled: false,
     onToggleFullscreen: vi.fn(),
+    timelineView: zoomStore(),
     ...overrides,
   };
 }
@@ -54,7 +65,7 @@ function controlNames(): string[] {
 }
 
 describe("TransportBar — layout", () => {
-  it("lists the controls left to right: Tracks, rewind, play, forward, split, delete, mute, speed, fullscreen", () => {
+  it("lists the controls left to right: Tracks, rewind, play, forward, split, delete, mute, speed, zoom out, fit, zoom in, fullscreen", () => {
     renderBar();
     expect(controlNames()).toEqual([
       "Tracks, 6 of 6 shown",
@@ -65,6 +76,9 @@ describe("TransportBar — layout", () => {
       "Delete segment",
       "Mute",
       "Playback speed 1×",
+      "Zoom out the timeline",
+      "Fit the whole recording in the timeline",
+      "Zoom in the timeline",
       "Fullscreen",
     ]);
   });
@@ -361,5 +375,101 @@ describe("TransportBar — rewind and forward", () => {
     renderBar();
     expect(screen.getByRole("button", { name: "Rewind" }).getAttribute("title")).toMatch(/Shift/);
     expect(screen.getByRole("button", { name: "Forward" }).getAttribute("title")).toMatch(/Shift/);
+  });
+});
+
+describe("TransportBar — timeline zoom", () => {
+  const zoomOut = (): HTMLElement => screen.getByRole("button", { name: "Zoom out the timeline" });
+  const zoomIn = (): HTMLElement => screen.getByRole("button", { name: "Zoom in the timeline" });
+  const fit = (): HTMLElement =>
+    screen.getByRole("button", { name: "Fit the whole recording in the timeline" });
+  const slider = (): HTMLInputElement => screen.getByRole("slider", { name: "Timeline zoom" });
+
+  it("sits in the right cluster, after speed and before fullscreen: − slider FIT +", () => {
+    renderBar();
+    const speed = screen.getByRole("button", { name: /^Playback speed/ });
+    const fullscreen = screen.getByRole("button", { name: "Fullscreen" });
+    const group = zoomOut().parentElement!;
+    expect(group).toContainElement(slider());
+    expect(group).toContainElement(fit());
+    expect(group).toContainElement(zoomIn());
+    expect(speed.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      group.compareDocumentPosition(fullscreen) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Visual order inside the group.
+    const order = Array.from(group.children);
+    expect(order.indexOf(zoomOut())).toBeLessThan(order.indexOf(slider()));
+    expect(order.indexOf(slider())).toBeLessThan(order.indexOf(fit()));
+    expect(order.indexOf(fit())).toBeLessThan(order.indexOf(zoomIn()));
+  });
+
+  it("opens at 1x: nothing to zoom out of or fit, the slider at its start", () => {
+    renderBar();
+    expect(zoomOut()).toBeDisabled();
+    expect(fit()).toBeDisabled();
+    expect(zoomIn()).toBeEnabled();
+    expect(slider()).toHaveValue("0");
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 1.0×");
+  });
+
+  it("+ steps the zoom by the square root of two, and − steps back", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    fireEvent.click(zoomIn());
+    expect(timelineView.getState().zoom).toBeCloseTo(ZOOM_STEP, 9);
+    expect(zoomOut()).toBeEnabled();
+    expect(fit()).toBeEnabled();
+    fireEvent.click(zoomOut());
+    expect(timelineView.getState().zoom).toBe(1);
+    expect(zoomOut()).toBeDisabled();
+  });
+
+  it("FIT returns to 1x and scroll 0", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    act(() => {
+      timelineView.zoomTo(6);
+      timelineView.scrollTo(2000, "user");
+    });
+    fireEvent.click(fit());
+    expect(timelineView.getState()).toMatchObject({ zoom: 1, scroll: 0 });
+    expect(slider()).toHaveValue("0");
+  });
+
+  it("the slider is logarithmic and drives the same zoom: the middle is the geometric mean", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    const max = maxZoom(1000, 100);
+    expect(max).toBeCloseTo(MAX_PX_PER_SECOND / 10, 9);
+    fireEvent.change(slider(), { target: { value: "0.5" } });
+    expect(timelineView.getState().zoom).toBeCloseTo(sliderToZoom(0.5, max), 6);
+    expect(timelineView.getState().zoom).toBeCloseTo(Math.sqrt(max), 6);
+    expect(slider()).toHaveAttribute("aria-valuetext", `Zoom ${Math.sqrt(max).toFixed(1)}×`);
+  });
+
+  it("follows the store when something else zooms (the wheel): the slider and buttons catch up", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    act(() => timelineView.zoomTo(4));
+    expect(Number(slider().value)).toBeGreaterThan(0.4);
+    expect(zoomOut()).toBeEnabled();
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 4.0×");
+  });
+
+  it("+ is disabled at the deepest zoom", () => {
+    const timelineView = zoomStore();
+    renderBar({ timelineView });
+    act(() => timelineView.zoomTo(1e9));
+    expect(zoomIn()).toBeDisabled();
+    expect(slider()).toHaveValue("1");
+  });
+
+  it("a recording too short to zoom (already past the maximum at fit) disables the whole control", () => {
+    renderBar({ timelineView: zoomStore(1000, 2) });
+    expect(slider()).toBeDisabled();
+    expect(zoomIn()).toBeDisabled();
+    expect(zoomOut()).toBeDisabled();
+    expect(fit()).toBeDisabled();
   });
 });

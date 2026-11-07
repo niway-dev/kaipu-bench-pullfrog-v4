@@ -73,7 +73,8 @@ export function createTimelineViewStore(): TimelineViewStore {
   const view = (): TimelineView => clampView({ ...state, duration });
 
   const notify = (): void => {
-    for (const listener of [...listeners]) listener();
+    // A copy: a listener may unsubscribe while the others are being told.
+    for (const listener of Array.from(listeners)) listener();
   };
 
   const commit = (next: TimelineView): boolean => {

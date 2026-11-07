@@ -125,6 +125,88 @@
   color: var(--text-primary);
 }
 
+/* The timeline zoom (NIW2-667): `−`, slider, FIT, `+`, set off from the actions beside it
+   by a rule on each side (the mock's separators; borders, so they add no elements). */
+.zoomGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+/* Logarithmic, so every step feels the same size: a thin rule with an accent dot, like
+   the mock. Native range for keyboard, a11y and drag; only the paint is ours. */
+.zoomSlider {
+  appearance: none;
+  box-sizing: border-box;
+  width: 72px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.zoomSlider::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line-strong);
+}
+
+.zoomSlider::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-primary);
+}
+
+.zoomSlider:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.zoomSlider:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* FIT: text, not an icon, in the mono face of the other values (the speed button). */
+.fitButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.fitButton:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.fitButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* Added on top of .iconButton. */
 .skipButton {
   border-color: transparent;
