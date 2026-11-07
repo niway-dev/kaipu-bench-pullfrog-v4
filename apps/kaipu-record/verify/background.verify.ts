@@ -10,7 +10,9 @@ import { launchApp } from "../e2e/helpers/launch";
  * Backgrounds (NIW2-668), in the real app: the editor with `none` (today's picture), then with
  * `magenta`, padding 48, corners 16, shadow 24, and every export that carries it — the MP4 at
  * Balanced and at Vertical (Fit), and the GIF — written to
- * `test-results/verify/background/` so a script can sample the real pixels of the files.
+ * `test-results/verify/background/` so a script can sample the real pixels of the files. The GIF
+ * is skipped, with a log line, in a build whose export sheet does not offer it (GIF export is on
+ * hold in the product); a build that turns `GIF_EXPORT_ENABLED` on proves it too.
  *
  * The same file runs on a tree from before the change (`VERIFY_BACKGROUND=0`: no Background
  * section there, so it only exports the plain scene): the "before" a plain scene must still
@@ -125,7 +127,16 @@ test("background: the editor, the MP4 (Balanced and Vertical) and the GIF", asyn
     const before = await exported(vaultDir, ".gif");
     await page.getByRole("button", { name: "Export", exact: true }).click();
     const sheet = page.getByRole("alertdialog");
-    await sheet.getByRole("radio", { name: "GIF" }).click();
+    await expect(sheet).toBeVisible();
+    // GIF export is on hold in the product (`GIF_EXPORT_ENABLED`, owner 2026-10-13): the sheet
+    // offers no format choice then. A build that turns it on is the one that can prove the GIF.
+    const gif = sheet.getByRole("radio", { name: "GIF" });
+    if ((await gif.count()) === 0) {
+      log(`${label}.gif skipped: the export sheet offers no GIF in this build (export on hold)`);
+      await sheet.getByRole("button", { name: "Cancel" }).click();
+      return;
+    }
+    await gif.click();
     await sheet.getByRole("button", { name: "Export GIF" }).click();
     await expect
       .poll(async () => (await exported(vaultDir, ".gif")).length, { timeout: 120_000 })
