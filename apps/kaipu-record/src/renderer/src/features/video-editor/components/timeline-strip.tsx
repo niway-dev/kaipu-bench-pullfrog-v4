@@ -343,10 +343,10 @@ export function TimelineStrip({
   return (
     <div className={styles.strip}>
       {/* timelineBody is the ONE horizontal scroll container: a two-column grid, labels
-          (--lane-label-col, sticky, so they stay put) + the lanes, whose column is
-          `--zoom` lanes wide. Every lane sits in column 2, so all lanes share one extent and
-          scroll together. The playhead lives in its own layer spanning column 2 across
-          every row (see .playheadLayer) and scrolls with them. */}
+          (sticky, so they stay put) + the lanes, whose column is `--zoom` lanes wide. Every
+          lane sits in column 2, so all lanes share one extent and scroll together. The
+          playhead lives in its own layer spanning column 2 across every row (see
+          .playheadLayer) and scrolls with them. */}
       <TimelinePointerContext.Provider value={pointer}>
         <TimelineViewContext.Provider value={view}>
           <div
