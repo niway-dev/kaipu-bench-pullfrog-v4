@@ -14,7 +14,10 @@
  *     the page's navigation blocker reads it, so the discard dialog now means "a write
  *     is still pending or failed", not "you have edits";
  *   - `cancel()` drops the pending write — that is what the dialog's Discard button
- *     does, and it is what makes the dialog honest.
+ *     does, and it is what makes the dialog honest;
+ *   - the header chip says "Saving…" only while a write is in flight. Between an edit and
+ *     its write (a whole drag, then the debounce) it shows nothing: the owner read a chip
+ *     that lit up on the first pointer move as "every change is saved immediately".
  *
  * The scene the editor OPENED with is never written back: opening a recording and
  * leaving must not create a session file (and must not turn a pre-v2 recording into a
@@ -38,7 +41,7 @@ export interface SessionAutosave {
   flush(): Promise<void>;
   /** Drop the pending write (Discard, or an explicit save that supersedes it). */
   cancel(): void;
-  /** For the header chip: "saving" from the first edit until the write settles. */
+  /** For the header chip: "saving" while a write is in flight, "idle" while edits wait. */
   state: SaveState;
   /** Write now after a failure (the chip's click). No-op unless something is pending. */
   retry(): Promise<void>;
@@ -109,7 +112,9 @@ export function useSessionAutosave(
     // Set before the `interacting` early return so closing the window mid-drag still
     // flushes the live scene.
     pendingRef.current = true;
-    setState("saving");
+    // A stale "Saved" would lie about the edit in progress; "failed" stays until a write
+    // succeeds. React bails out of the update when the value is unchanged.
+    setState((current) => (current === "saved" ? "idle" : current));
     if (interacting) return;
     if (timerRef.current !== null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {

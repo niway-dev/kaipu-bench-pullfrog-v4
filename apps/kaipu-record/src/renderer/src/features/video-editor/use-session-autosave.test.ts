@@ -116,22 +116,50 @@ describe("useSessionAutosave", () => {
     expect(saved).toEqual([]);
   });
 
-  it("exposes saving → saved around a successful write", async () => {
-    const save = vi.fn(async (id: string, json: string) => {
-      saved.push({ id, json });
-    });
+  it("says saving only while the write is in flight, then saved", async () => {
+    let finish: () => void = () => {};
+    const save = vi.fn(
+      (id: string, json: string) =>
+        new Promise<void>((resolve) => {
+          saved.push({ id, json });
+          finish = resolve;
+        }),
+    );
     window.electronAPI.saveVideoEditSession =
       save as typeof window.electronAPI.saveVideoEditSession;
     const { result, rerender } = render();
     expect(result.current.state).toBe("idle");
     rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    // Edited, not written yet: nothing is being saved, so the chip says nothing.
+    expect(result.current.state).toBe("idle");
+    expect(result.current.pendingRef.current).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    expect(save).toHaveBeenCalledOnce();
     expect(result.current.state).toBe("saving");
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+  });
+
+  it("drops a stale saved while a drag edits, and stays silent until the write", async () => {
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      async () => {},
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
     await act(async () => {
       vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
       await Promise.resolve();
     });
-    expect(save).toHaveBeenCalledOnce();
     expect(result.current.state).toBe("saved");
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: true });
+    expect(result.current.state).toBe("idle");
+    rerender({ scene: { ...OPENED, zoomSensitivity: 75 }, interacting: true });
+    expect(result.current.state).toBe("idle");
   });
 
   it("exposes failed when the write rejects, and retry() writes again", async () => {

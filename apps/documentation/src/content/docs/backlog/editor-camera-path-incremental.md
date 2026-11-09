@@ -103,5 +103,7 @@ the bit-for-bit guarantee; not done.
   layout.
 - The whole editor page still re-renders once per drag frame (~1.1 ms); the zone split
   from NIW2-662 is the next step if frames still miss vsync.
-- The "Saving…" chip appears from the first move of a drag although nothing is written
-  until 800 ms after release. That reads as "saves on every change".
+- Done in the same PR: the "Saving…" chip appeared from the first move of a drag although
+  nothing is written until 800 ms after release, which read as "saves on every change". It
+  now shows only while a write is in flight (`use-session-autosave.ts`); the write timing
+  is unchanged.
