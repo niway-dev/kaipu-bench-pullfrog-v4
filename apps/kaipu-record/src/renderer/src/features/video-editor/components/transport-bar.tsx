@@ -250,6 +250,8 @@ export function TransportBar({
             className={styles.guideButton}
             title={t("guideOpen")}
             aria-label={t("guideOpen")}
+            // The guide is portaled to <body>, which fullscreen does not draw (as the Tracks panel).
+            disabled={isFullscreen}
             onClick={onOpenGuide}
           >
             <CircleHelp size={14} aria-hidden />

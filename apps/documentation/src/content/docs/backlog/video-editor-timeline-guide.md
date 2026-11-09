@@ -22,7 +22,8 @@ zoom next to the pink zoom blocks. Kaipu had no secondary color and no legend to
   dimmed), and the sections _What you see_, _Why it helps_ and _How to edit_, with Prev/Next.
   Esc closes it and focus returns to the control that opened it.
 - **Entry points.** The ⓘ on a lane label (opens that lane's tab), a `?` button next to Tracks,
-  and a Guide button in the header (opens the first tab).
+  a Guide button in the header (opens the first tab), and the **H** key (same). Fullscreen shows
+  only the stage, so the `?` button is disabled there and H does nothing.
 - **Objects.** The Annotations lane is now named **Objects** (label and copy only). Its guide
   covers boxes, arrows and text; images, GIFs and rows come later.
 

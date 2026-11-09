@@ -1373,7 +1373,8 @@ function VideoEditor({
       // The Timeline guide is a modal: its own Esc closes it, and nothing behind it reacts.
       if (guideTab !== null) return;
       if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "h") {
-        openGuideFirstTab();
+        // In fullscreen only the stage is drawn: a guide portaled to <body> would be invisible.
+        if (!document.fullscreenElement) openGuideFirstTab();
         return;
       }
       if (e.key === " ") {

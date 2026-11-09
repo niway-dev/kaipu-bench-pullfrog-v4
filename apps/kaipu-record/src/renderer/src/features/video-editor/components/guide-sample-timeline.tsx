@@ -91,7 +91,6 @@ export function GuideSampleTimeline({
         <button
           type="button"
           className={styles.sampleLabel}
-          aria-label={t("guideOpenLaneAria", { track: t(LANE_NAME[tab]) })}
           aria-current={lit ? "true" : undefined}
           onClick={() => onSelect(tab)}
         >

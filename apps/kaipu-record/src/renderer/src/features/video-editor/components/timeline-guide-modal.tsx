@@ -44,6 +44,47 @@ export function TimelineGuideModal({
     dialogRef.current?.focus();
   }, []);
 
+  // A walk button disables itself at either end: a focused control that turns disabled drops
+  // focus to <body>, where the dialog would never hear Escape again. Take focus back.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.contains(document.activeElement)) dialog.focus();
+  }, [tab]);
+
+  // Escape and Tab are heard on the window, not on the dialog: they must work wherever focus
+  // is, and Tab must not walk out to the editor behind the backdrop.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>("button:not(:disabled), [tabindex='0']"),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!dialog.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && (active === first || active === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
   return createPortal(
     <div className={styles.backdrop} onClick={onClose}>
       <div
@@ -55,12 +96,6 @@ export function TimelineGuideModal({
         tabIndex={-1}
         className={styles.dialog}
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.stopPropagation();
-            onClose();
-          }
-        }}
       >
         <header className={styles.header}>
           <h2 id="timeline-guide-title" className={styles.title}>
@@ -73,6 +108,8 @@ export function TimelineGuideModal({
                 key={key}
                 type="button"
                 role="tab"
+                id={`timeline-guide-tab-${key}`}
+                aria-controls="timeline-guide-panel"
                 aria-selected={key === tab}
                 className={`${styles.tab} ${key === tab ? styles.tabActive : ""}`}
                 onClick={() => onTabChange(key)}
@@ -94,7 +131,12 @@ export function TimelineGuideModal({
         <GuideSampleTimeline active={tab} onSelect={onTabChange} />
         <p className={styles.sampleNote}>{t("guideSample", { track: t(content.nameKey) })}</p>
 
-        <div className={styles.body} role="tabpanel">
+        <div
+          className={styles.body}
+          role="tabpanel"
+          id="timeline-guide-panel"
+          aria-labelledby={`timeline-guide-tab-${tab}`}
+        >
           <section className={styles.column}>
             <h3 className={styles.laneName}>{t(content.nameKey)}</h3>
             <p className={styles.intro}>{t(content.introKey)}</p>

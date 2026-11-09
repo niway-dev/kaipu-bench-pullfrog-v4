@@ -2147,11 +2147,15 @@ describe("VideoEditorPage — Timeline guide (NIW2-679)", () => {
     await waitForEditorLoaded();
     fireEvent.keyDown(window, { key: "h" });
     expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
-    // Space would toggle playback behind the modal; the guide swallows it.
-    const toggle = vi.spyOn(HTMLMediaElement.prototype, "play");
+    // Space would toggle playback behind the modal; the guide swallows it. The control: the
+    // same press, with the guide closed, does start playback.
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play");
     fireEvent.keyDown(window, { key: " " });
-    expect(toggle).not.toHaveBeenCalled();
-    toggle.mockRestore();
+    expect(play).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.keyDown(window, { key: " " });
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    play.mockRestore();
   });
 
   it("ignores H typed with a modifier", async () => {

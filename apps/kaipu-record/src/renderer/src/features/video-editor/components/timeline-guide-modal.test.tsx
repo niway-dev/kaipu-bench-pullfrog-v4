@@ -38,6 +38,24 @@ describe("TimelineGuideModal", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("closes with Escape even when focus fell to the page", () => {
+    const onClose = vi.fn();
+    render(<Harness start="zooms" onClose={onClose} />);
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Tab inside the dialog", () => {
+    render(<Harness start="clips" onClose={vi.fn()} />);
+    const buttons = within(screen.getByRole("dialog")).getAllByRole("button");
+    const last = buttons.filter((b) => !(b as HTMLButtonElement).disabled).at(-1)!;
+    last.focus();
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(last);
+  });
 });
 
 describe("track guide content", () => {
