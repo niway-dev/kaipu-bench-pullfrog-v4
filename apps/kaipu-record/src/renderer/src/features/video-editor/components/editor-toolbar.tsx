@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
+  BookOpen,
   Check,
   Download,
   Droplet,
@@ -290,6 +291,8 @@ export interface EditorToolbarProps {
    *  actions and Export. */
   children?: React.ReactNode;
   exportDisabled: boolean;
+  /** Opens the Timeline guide on its first tab (NIW2-679). */
+  onOpenGuide?: () => void;
 }
 
 /**
@@ -606,6 +609,7 @@ export function EditorToolbar({
   onExport,
   children,
   exportDisabled,
+  onOpenGuide,
 }: EditorToolbarProps): React.JSX.Element {
   const t = useTranslations("videoEditor");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -657,6 +661,17 @@ export function EditorToolbar({
         >
           <ImagePlus size={18} />
         </button>
+        {onOpenGuide && (
+          <button
+            type="button"
+            className={styles.iconBtn}
+            title={`${t("guideOpen")} (H)`}
+            aria-label={t("guideOpen")}
+            onClick={onOpenGuide}
+          >
+            <BookOpen size={18} />
+          </button>
+        )}
       </div>
       {children && <div className={styles.status}>{children}</div>}
       <button

@@ -263,6 +263,34 @@
   color: var(--accent-primary);
 }
 
+/* `?` beside Tracks: the Timeline guide (NIW2-679). Square, so it reads as help, not a mode. */
+.guideButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.guideButton:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* Fullscreen: the guide is portaled to <body>, which fullscreen does not draw (as Tracks). */
+.guideButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .tracksCount {
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);

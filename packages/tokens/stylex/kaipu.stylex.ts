@@ -45,6 +45,7 @@ export const tokens = stylex.defineVars({
   accentRedHover: "#dc2626",
   accentYellow: "#eab308",
   accentPurple: "#a855f7",
+  accentSecondary: "#f5884a",
   spaceXs: "4px",
   spaceSm: "8px",
   spaceMd: "12px",
@@ -117,4 +118,5 @@ export const lightTheme = stylex.createTheme(tokens, {
   accentRedHover: "#b91c1c",
   accentYellow: "#a16207",
   accentPurple: "#9333ea",
+  accentSecondary: "#c2570f",
 });

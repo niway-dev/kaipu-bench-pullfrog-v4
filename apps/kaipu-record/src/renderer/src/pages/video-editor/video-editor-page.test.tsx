@@ -139,6 +139,9 @@ afterEach(() => {
   headerActions.remove();
 });
 
+/** The timeline blocks: the lane labels are guide buttons too (NIW2-679), not segments. */
+const BLOCK_BUTTONS = 'button:not([class*="_laneGuide_"])';
+
 function renderEditor(source: VideoEditorSource = SOURCE) {
   const router = createMemoryRouter(
     [
@@ -189,7 +192,7 @@ async function makeDirty(footer: HTMLElement): Promise<void> {
   });
   fireEvent.change(input, { target: { files: [file] } });
   await waitFor(() => {
-    expect(footer.querySelectorAll("button")).toHaveLength(2);
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2);
   });
 }
 
@@ -438,7 +441,7 @@ describe("VideoEditorPage — transport bar", () => {
     renderEditor();
     const footer = await waitForEditorLoaded();
     // One clip covers the recording: one block on the timeline.
-    expect(footer.querySelectorAll("button")).toHaveLength(1);
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1);
 
     // Step off t=0 so the cut lands inside the clip (a cut on the boundary is a no-op).
     fireEvent.click(screen.getByRole("button", { name: "Forward" }));
@@ -447,7 +450,7 @@ describe("VideoEditorPage — transport bar", () => {
     expect(split).toBeEnabled();
     fireEvent.click(split);
 
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
   });
 
   it("Delete segment is disabled until a segment is selected, then removes it", async () => {
@@ -458,11 +461,11 @@ describe("VideoEditorPage — transport bar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Forward" }));
     await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Split here" }));
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
 
     expect(screen.getByRole("button", { name: "Delete segment" })).toBeDisabled();
 
-    fireEvent.click(footer.querySelectorAll("button")[0]);
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[0]);
     const remove = await waitFor(() => {
       const button = screen.getByRole("button", { name: "Delete segment" });
       expect(button).toBeEnabled();
@@ -470,7 +473,7 @@ describe("VideoEditorPage — transport bar", () => {
     });
     fireEvent.click(remove);
 
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(1));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1));
     expect(screen.getByRole("button", { name: "Delete segment" })).toBeDisabled();
   });
 
@@ -505,11 +508,11 @@ describe("VideoEditorPage — add-image wiring", () => {
     const footer = await waitForEditorLoaded();
 
     // Starting scene is a single clip covering the whole recording — one track block.
-    expect(footer.querySelectorAll("button")).toHaveLength(1);
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1);
 
     await makeDirty(footer);
 
-    const blocks = footer.querySelectorAll("button");
+    const blocks = footer.querySelectorAll(BLOCK_BUTTONS);
     // Playhead is at 0, so boundaryIndexAt lands the slide at index 0 — the first
     // block. Only a slide block renders an <img> (its picture) and the ImagePlus
     // badge icon; a plain clip block with no decoded thumbnails renders neither.
@@ -579,7 +582,7 @@ describe("VideoEditorPage — background export vs. useBlocker", () => {
     fireEvent.change(screen.getByTestId("slide-image-input"), {
       target: { files: [new File([new Uint8Array([0x89, 0x50])], "y.png", { type: "image/png" })] },
     });
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(3));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(3));
 
     await act(async () => {
       await pending!.onSaved({
@@ -757,7 +760,7 @@ describe("VideoEditorPage — add-image decode failure", () => {
       );
     });
     // No slide was inserted — still the single starting clip block.
-    expect(footer.querySelectorAll("button")).toHaveLength(1);
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1);
   });
 
   it("resets the file input's value so re-selecting the same (still-corrupt) file fires another change event", async () => {
@@ -1523,7 +1526,7 @@ describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
         select: (footer) => fireEvent.click(footer.querySelector('[data-mute-id="m1"]')!),
       },
       {
-        lane: "Annotations",
+        lane: "Objects",
         heading: "Text",
         // The annotation's pill in its lane: a button with an icon and no text.
         select: (footer) => fireEvent.pointerDown(footer.querySelector('button[class*="_pill_"]')!),
@@ -1812,7 +1815,7 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     renderEditor();
     const footer = await waitForEditorLoaded();
     zoomTo4x();
-    fireEvent.click(footer.querySelectorAll("button")[0]); // select the clip: its handles appear
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[0]); // select the clip: its handles appear
     const end = stubCapture(
       await waitFor(() => {
         const handle = document.querySelector<HTMLElement>('[data-trim-handle="end"]');
@@ -1851,7 +1854,7 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Forward" })); // 5 s
     await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Split here" }));
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
     for (let i = 0; i < 4; i++) fireEvent.click(zoomIn()); // the 4th press is already at 800%
     const zoomBefore = Number(scroller().dataset.zoom);
     expect(zoomBefore).toBe(8);
@@ -1862,9 +1865,9 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     // The scroll really sits on the 8x maximum (7000 px), where the left edge is at 26 s: past
     // the 5 s that are left after the delete, so the re-clamp below has work to do.
     expect(scroller().scrollLeft).toBeCloseTo(zoomBefore * LANE_WIDTH - LANE_WIDTH, 3);
-    fireEvent.click(footer.querySelectorAll("button")[1]); // select the second clip (25 s)
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[1]); // select the second clip (25 s)
     fireEvent.click(screen.getByRole("button", { name: "Delete segment" }));
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(1));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1));
     // 5 s are left. The zoom is a factor and its cap does not depend on the duration, so the
     // view stays at 800% (it re-fits what is left) and the scroll stays inside the content.
     const zoomAfter = Number(scroller().dataset.zoom);
@@ -1880,7 +1883,7 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     renderEditor();
     const footer = await waitForEditorLoaded();
     zoomTo4x();
-    fireEvent.click(footer.querySelectorAll("button")[0]); // select the clip: its handles appear
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[0]); // select the clip: its handles appear
     const end = stubCapture(
       await waitFor(() => {
         const handle = document.querySelector<HTMLElement>('[data-trim-handle="end"]');
@@ -1899,7 +1902,7 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Forward" })); // 5 s: inside the clip
     await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Split here" }));
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(2));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
   });
 
   it("Escape in the middle of a trim drag leaves a paused seek off screen revealed", async () => {
@@ -2125,5 +2128,42 @@ describe("VideoEditorPage — background (NIW2-668)", () => {
     expect(picture().contains(screen.getByTestId("preview-content"))).toBe(true);
     expect(screen.getByTestId("preview-frame").contains(picture())).toBe(true);
     // That the picture clips (`overflow: hidden`) is a stylesheet fact: preview-stage-sizing.test.ts.
+  });
+});
+
+describe("VideoEditorPage — Timeline guide (NIW2-679)", () => {
+  it("opens on the Clips tab from the header button, and Esc closes it", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    // Two buttons share the name (the header's and the transport bar's `?`): the header is first.
+    fireEvent.click(screen.getAllByRole("button", { name: "Timeline guide" })[0]);
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens on the Clips tab with H, and the shortcuts behind it stay quiet", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.keyDown(window, { key: "h" });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
+    // Space would toggle playback behind the modal; the guide swallows it. The control: the
+    // same press, with the guide closed, does start playback.
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockImplementation(() => Promise.resolve());
+    fireEvent.keyDown(window, { key: " " });
+    expect(play).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.keyDown(window, { key: " " });
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    play.mockRestore();
+  });
+
+  it("ignores H typed with a modifier", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.keyDown(window, { key: "h", metaKey: true });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

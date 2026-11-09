@@ -246,6 +246,8 @@ export const UI_MAP = {
       toolRail: { states: ["default", "annotate", "privacy"] },
       toolFlyout: { states: ["audio"] },
       tracksPopover: { states: ["open"] },
+      // The Timeline guide (NIW2-679): a dialog over the editor, one tab per lane.
+      trackGuide: { states: ["clips", "zooms", "webcam"] },
       toolbar: { states: ["default", "saving", "saved"] },
       inspector: { states: ["detection", "zoom", "mute", "webcam", "annotation", "privacy"] },
       // The Background section at the top of the inspector with nothing selected (ADR 0051):

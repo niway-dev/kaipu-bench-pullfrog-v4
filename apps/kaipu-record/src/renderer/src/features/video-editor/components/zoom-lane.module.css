@@ -7,7 +7,8 @@
 }
 
 /* Cursor activity (ADR 0050 decision 4): the evidence the zooms come from, behind the blocks.
-   Clicks are thin accent ticks over the lane's height; pointer pauses are short muted bars
+   Clicks are thin amber ticks (accent-secondary: what the user did while recording, never the
+   pink of what they edit) over the lane's height; pointer pauses are short muted bars
    on its floor (height = how long they lasted, set inline). Never takes a pointer event. */
 .marks {
   position: absolute;
@@ -24,7 +25,7 @@
   width: 2px;
   margin-left: -1px;
   border-radius: 1px;
-  background: color-mix(in srgb, var(--accent-primary) 70%, transparent);
+  background: var(--accent-secondary);
 }
 
 .dwell {

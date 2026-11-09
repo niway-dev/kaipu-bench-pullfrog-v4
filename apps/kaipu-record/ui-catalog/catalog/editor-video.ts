@@ -267,6 +267,44 @@ export const editorVideo = catalog(
       ],
       demonstrates: ["editorVideo.tracksPopover:open"],
     },
+    "track-guide-clips": {
+      profile: "default",
+      how: "Open “Team notes” and press Guide in the header: the Timeline guide opens on the Clips tab, with the sample timeline lit on Clips.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        {
+          click: { area: "editorVideo.toolbar", part: { role: "button", name: "Timeline guide" } },
+        },
+      ],
+      demonstrates: ["editorVideo.trackGuide:clips"],
+    },
+    "track-guide-zooms": {
+      profile: "default",
+      how: "Open “Team notes”, press Guide in the header, then the Zooms tab: the legend explains zoom blocks, amber click ticks and pauses.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        {
+          click: { area: "editorVideo.toolbar", part: { role: "button", name: "Timeline guide" } },
+        },
+        { click: { area: "editorVideo.trackGuide", part: { role: "tab", name: "Zooms" } } },
+      ],
+      demonstrates: ["editorVideo.trackGuide:zooms"],
+    },
+    "track-guide-webcam": {
+      profile: "default",
+      how: "Open “Team notes”, press Guide in the header, then the Webcam tab: the legend explains the frame strip, hidden and custom blocks.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        {
+          click: { area: "editorVideo.toolbar", part: { role: "button", name: "Timeline guide" } },
+        },
+        { click: { area: "editorVideo.trackGuide", part: { role: "tab", name: "Webcam" } } },
+      ],
+      demonstrates: ["editorVideo.trackGuide:webcam"],
+    },
     "playback-speed": {
       profile: "default",
       how: "Open “Team notes” and press the speed button next to mute twice: it reads 2× and the preview plays at double speed.",

@@ -116,6 +116,8 @@ import {
   useGifExport,
   type GifJobArgs,
 } from "@renderer/features/video-editor/export/use-gif-export";
+import { TimelineGuideModal } from "@renderer/features/video-editor/components/timeline-guide-modal";
+import { type GuideTab } from "@renderer/features/video-editor/track-guide";
 import {
   ExportSheet,
   type GifSettings,
@@ -928,6 +930,21 @@ function VideoEditor({
   // NIW2-217: "Export" opens the export sheet (format choice). The metadata guard runs
   // here too, so the sheet never offers a GIF of a 0×0 stream.
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
+  // NIW2-679: the Timeline guide. `tab` null = closed. Focus goes back to whatever opened it
+  // (a lane label, the Tracks `?`, the header button): the dialog cannot know which.
+  const [guideTab, setGuideTab] = useState<GuideTab | null>(null);
+  const guideOpenerRef = useRef<HTMLElement | null>(null);
+  const openGuide = useCallback((tab: GuideTab) => {
+    guideOpenerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setGuideTab(tab);
+  }, []);
+  const openGuideFirstTab = useCallback(() => openGuide("clips"), [openGuide]);
+  const closeGuide = useCallback(() => {
+    setGuideTab(null);
+    guideOpenerRef.current?.focus();
+    guideOpenerRef.current = null;
+  }, []);
   // NIW2-218 "already exported → reuse": this source's exports, re-read when the sheet opens.
   const sourceExports = useSourceExports(source.assetId, exportSheetOpen);
   const lastGifSettingsRef = useRef<GifSettings | null>(null);
@@ -1353,6 +1370,13 @@ function VideoEditor({
       // the GIF export dialog — they block the scene from being safely mutated or played
       // while open. A video export runs in the background and blocks nothing.
       if (blocker.state === "blocked" || gifExport.status !== "idle" || exportSheetOpen) return;
+      // The Timeline guide is a modal: its own Esc closes it, and nothing behind it reacts.
+      if (guideTab !== null) return;
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "h") {
+        // In fullscreen only the stage is drawn: a guide portaled to <body> would be invisible.
+        if (!document.fullscreenElement) openGuideFirstTab();
+        return;
+      }
       if (e.key === " ") {
         // A focused checkbox or radio (cursor and webcam inspectors) owns Space: it
         // toggles the control, not playback. Other shortcuts still reach them.
@@ -1447,6 +1471,8 @@ function VideoEditor({
     handleToolChange,
     handleAddZoom,
     onSlide,
+    guideTab,
+    openGuideFirstTab,
   ]);
 
   // Lane inputs that used to be inline closures/literals: with stable identities the memoised
@@ -1757,6 +1783,7 @@ function VideoEditor({
             deleteDisabled={deleteDisabled}
             onToggleFullscreen={handleFullscreen}
             timelineView={timelineView}
+            onOpenGuide={openGuideFirstTab}
           />
         </main>
         {/* NIW2-611: the video takes the left edge and the tools sit on its right, so the
@@ -1788,6 +1815,7 @@ function VideoEditor({
             onAddImage={handleAddImage}
             onExport={handleExport}
             exportDisabled={gifExport.status === "exporting" || scene.items.length === 0}
+            onOpenGuide={openGuideFirstTab}
           >
             {/* Not interactive — a reminder, not a control (plans/video-editor-v2/08 § PR 10
                 polish, W12's "ORIGINAL UNTOUCHED" pill). The original recording on disk and
@@ -1933,6 +1961,7 @@ function VideoEditor({
           onWindowChange={handleWindowChange}
           timelineView={timelineView}
           extraLanes={extraLanes}
+          onOpenGuide={openGuide}
         />
       </footer>
       {blocker.state === "blocked" && (
@@ -1960,6 +1989,9 @@ function VideoEditor({
             </ModalButton>
           </ModalActions>
         </ModalOverlay>
+      )}
+      {guideTab && (
+        <TimelineGuideModal tab={guideTab} onTabChange={setGuideTab} onClose={closeGuide} />
       )}
       {exportSheetOpen && (
         <ExportSheet
