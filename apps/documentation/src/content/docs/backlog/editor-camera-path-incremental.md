@@ -5,7 +5,7 @@ description: "Editing a zoom on a long take re-simulated the whole camera every 
 
 # Incremental camera path rebuild
 
-> **Status: 🟡 In progress.** No Linear ticket: the workspace free-issue limit blocked
+> **Status: 🟢 Ready to validate (prod review pending).** No Linear ticket: the workspace free-issue limit blocked
 > creating one (2026-11-09). Follows [Zoom block edge drag lags](./zoom-block-drag-lag/),
 > which coalesced edge moves to one update per frame but left the per-frame cost itself.
 
@@ -90,6 +90,25 @@ cursor track, edge drags on 7 zooms across the take, 60 steps each:
 | Incremental, 0.33 s per frame | 0.33 / 0.62 ms              |
 | Incremental, 6.5 s per frame  | 0.01 / 0.29 ms              |
 
+**Second version, real app on the Mac mini** (M4, 144 Hz display, so a vsync is 6.9 ms),
+the owner's real zoom layout, synthetic 54:00 video, webcam and cursor track; right-edge
+drag of 300 px over 2 s, clamped at the next zoom; before = bcc883cc, after = c4bf8330;
+interleaved, median of 3. Results and traces: `.evidence/editor-perf-real/final/`.
+
+| Timeline zoom, target | Edge moved | Frames missing a vsync | Main busy per frame p50 / p95 | Camera path per drag |
+| --------------------- | ---------- | ---------------------- | ----------------------------- | -------------------- |
+| 100%, 25% of the take | 164.7 s    | 5 → 1                  | 0.46 / 6.97 → 0.47 / 5.35 ms  | 173 → 23 ms          |
+| 100%, 50%             | 38.6 s     | 3 → 0                  | 0.32 / 1.42 → 0.31 / 1.25 ms  | 54 → 5 ms            |
+| 100%, 75%             | 7.1 s      | 1 → 0                  | 0.34 / 1.07 → 0.32 / 0.99 ms  | 17 → 4 ms            |
+| 2000%, 25%            | 39.5 s     | 10 → 0                 | 6.71 / 7.74 → 2.20 / 6.71 ms  | 872 → 46 ms          |
+| 2000%, 50%            | 38.6 s     | 11 → 0                 | 6.71 / 7.98 → 2.16 / 6.72 ms  | 892 → 34 ms          |
+| 2000%, 75%            | 7.1 s      | 3 → 1                  | 0.38 / 6.85 → 0.48 / 5.15 ms  | 150 → 12 ms          |
+
+Camera path times come from one profiled run per cell (indicative). After the change the
+top entries are native `(program)` time and GC; the camera path is no longer the
+bottleneck. One playing run (100%, 50%) had 2 missed vsyncs in both builds and a 27.9 ms
+max frame after vs 20.8 ms before; one run, so not called either way.
+
 **Worst case left:** a cluster of zooms with gaps too short for the camera to return to
 rest. The tail can only be spliced at a rest run, so the rebuild re-simulates through the
 whole cluster after the dragged block. On the Mac mini scenario (63 zooms packed 3.5 s
@@ -99,8 +118,9 @@ the bit-for-bit guarantee; not done.
 
 ## Open
 
-- Re-measure the second version in the real app on the Mac mini with a realistic zoom
-  layout.
+- The owner's own M5 and display were not measured; the Mac mini is the real-app proxy.
+- What the remaining native time and GC are (per-frame allocation is the guess: the path
+  arrays and checkpoints are reallocated every rebuild) is unmeasured.
 - The whole editor page still re-renders once per drag frame (~1.1 ms); the zone split
   from NIW2-662 is the next step if frames still miss vsync.
 - Done in the same PR: the "Saving…" chip appeared from the first move of a drag although
