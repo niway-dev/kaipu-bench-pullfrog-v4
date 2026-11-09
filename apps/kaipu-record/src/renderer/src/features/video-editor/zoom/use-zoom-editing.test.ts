@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import type { CursorTrack } from "@shared/cursor-track";
 import { withInitialZooms } from "../initial-zooms";
@@ -75,6 +75,30 @@ describe("useZoomEditing", () => {
     act(() => result.current.zooms.edgeDrag(id, "end", 4.2, "move"));
     act(() => result.current.zooms.edgeDrag(id, "end", null, "end"));
     expect(result.current.controller.scene.zoomSegments[0]).toMatchObject({ start: 4, end: 5 });
+  });
+
+  it("a release that lands back on the range the drag started from still applies, even when the render behind the last frame has not happened yet", () => {
+    const queued: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => queued.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    try {
+      const { result } = setup();
+      act(() => {
+        result.current.zooms.addAtPlayhead(4);
+      });
+      const { id, end: startEnd } = result.current.controller.scene.zoomSegments[0];
+      // Everything inside ONE act: no render runs between the frame's live update and the release.
+      act(() => {
+        result.current.zooms.edgeDrag(id, "end", null, "start");
+        result.current.zooms.edgeDrag(id, "end", startEnd + 3, "move");
+        queued.splice(0).forEach((cb) => cb(0)); // frame: applies the longer range
+        result.current.zooms.edgeDrag(id, "end", startEnd, "move"); // back where it started
+        result.current.zooms.edgeDrag(id, "end", null, "end");
+      });
+      expect(result.current.controller.scene.zoomSegments[0].end).toBe(startEnd);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("re-analysing an unchanged scene adds no history entry", () => {
