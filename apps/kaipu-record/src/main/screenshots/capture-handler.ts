@@ -92,6 +92,13 @@ interface CaptureHandlerDeps {
    * so a handler built without recording support simply ignores the answer.
    */
   onRecordTarget?(target: RecordTarget): void;
+  /**
+   * True while a take is active or pending AND screenshots during a take are allowed
+   * (`capture-while-recording`, NIW2-688). Read ONCE as the capture starts. Such a capture
+   * never opens the editor: the shot lands in the vault, the copy setting still applies, and
+   * the toast shows a "Screenshot taken" notice. Absent: never (today's behaviour).
+   */
+  duringTake?(): boolean;
 }
 
 /** A recording target chosen on the overlay: display-relative DIP, `null` for all of it. */
@@ -160,6 +167,7 @@ export function createCaptureHandler(
     clearLastQuietCapture();
     const workspace = readWorkspace(deps);
     const policy = readPolicy(deps, workspace);
+    const duringTake = readDuringTake(deps);
     let result: ProviderResult = { kind: "cancelled" };
     let answer: CaptureResult = { kind: "cancelled" };
     let failed = false;
@@ -173,7 +181,7 @@ export function createCaptureHandler(
         // Before the policy: a quiet save that fails and falls back to the editor still
         // remembers the mode the user captured in.
         remember(deps, result.mode);
-        answer = await finish(deps, result, workspace, policy);
+        answer = await finish(deps, result, workspace, policy, duringTake);
       } else if (result.kind === "record") {
         // A recording target, not a screenshot: no save, no mode memory, no analytics here.
         const { displayId, rect, start, ratio } = result;
@@ -210,6 +218,15 @@ export function createCaptureHandler(
     );
     return answer;
   };
+}
+
+function readDuringTake(deps: CaptureHandlerDeps): boolean {
+  try {
+    return deps.duringTake?.() ?? false;
+  } catch (error) {
+    console.error("screenshot capture: take state unknown", error);
+    return false;
+  }
 }
 
 function readWorkspace(deps: CaptureHandlerDeps): CaptureWorkspace | null {
@@ -262,6 +279,7 @@ async function finish(
   shot: Captured,
   workspace: CaptureWorkspace | null,
   policy: CapturePolicy | null,
+  duringTake: boolean,
 ): Promise<CaptureResult> {
   const { png } = shot;
   const { width, height } = deps.measure(png);
@@ -286,16 +304,58 @@ async function finish(
     policy,
   });
   // The in-memory editor runs its own auto actions, so main copies nothing for it.
+  // During a take the editor never opens (its window is hidden and would reappear inside the
+  // recording): a shot that could not be saved or copied stays in the toast, whose Save retries.
   const toEditor = (): CaptureResult => answer("editor", null, false);
+  const fallback = (): CaptureResult => (duringTake ? holdForToast() : toEditor());
+  const holdForToast = (): CaptureResult => {
+    if (!policy) return answer("quiet", null, false);
+    keepLastQuietCapture({
+      png,
+      width,
+      height,
+      mode: shot.mode,
+      workspaceId: workspace?.id ?? null,
+      policy,
+    });
+    notifyQuiet(null, false);
+    return answer("quiet", null, false);
+  };
+  const notifyQuiet = (saved: SavedScreenshotRef | null, copied: boolean): void => {
+    try {
+      const confirmation = shot.action === "copy" && copied && saved !== null;
+      deps.onQuietCapture?.({
+        // During a take the notice wins: it tells the user the shot was taken.
+        ...(duringTake
+          ? { presentation: "taken" as const }
+          : confirmation
+            ? { presentation: "copied" as const }
+            : {}),
+        thumbnail: deps.thumbnail(png),
+        width,
+        height,
+        mode: shot.mode,
+        saved,
+        copied,
+        workspace,
+        policy,
+      });
+    } catch (error) {
+      // A broken toast must never turn a finished capture into an error.
+      console.error("screenshot capture toast failed", error);
+    }
+  };
 
   // No policy (the settings could not be read when the capture started): the editor opens, and
   // copies nothing on its own.
-  if (!policy) return toEditor();
-  const decision = decideAfterCapture(
+  if (!policy) return fallback();
+  const decided = decideAfterCapture(
     shot.action,
     policy.screenshotCopy,
     policy.screenshotAfterCapture,
   );
+  // The copy setting still applies during a take; only the editor is ruled out.
+  const decision = duringTake ? { ...decided, open: "quiet" as const } : decided;
 
   let saved: SavedScreenshotRef | null = null;
   try {
@@ -304,7 +364,7 @@ async function finish(
     console.error("screenshot save failed", error);
   }
   // The editor opens the bytes in memory instead, where Save can retry.
-  if (decision.open === "editor" && !saved) return toEditor();
+  if (decision.open === "editor" && !saved) return fallback();
 
   let copied = false;
   if (decision.copy) {
@@ -318,7 +378,7 @@ async function finish(
   if (decision.open === "editor") return answer("editor", saved, copied);
 
   // Nothing landed anywhere: opening the editor is better than losing the shot.
-  if (!saved && !copied) return toEditor();
+  if (!saved && !copied) return fallback();
 
   // Copy-only (the save failed): Annotate has no vault item to open, so main keeps the bytes.
   if (!saved) {
@@ -331,22 +391,6 @@ async function finish(
       policy,
     });
   }
-  try {
-    const confirmation = shot.action === "copy" && copied && saved !== null;
-    deps.onQuietCapture?.({
-      ...(confirmation ? { presentation: "copied" as const } : {}),
-      thumbnail: deps.thumbnail(png),
-      width,
-      height,
-      mode: shot.mode,
-      saved,
-      copied,
-      workspace,
-      policy,
-    });
-  } catch (error) {
-    // A broken toast must never turn a finished capture into an error.
-    console.error("screenshot capture toast failed", error);
-  }
+  notifyQuiet(saved, copied);
   return answer("quiet", saved, copied);
 }

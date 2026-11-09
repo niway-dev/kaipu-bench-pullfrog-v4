@@ -103,6 +103,13 @@ export interface RecordingHubHandle {
    * the camera device. No-ops if the bubble isn't currently shown.
    */
   hideCameraBubbleForCapture(): void;
+  /**
+   * A screenshot overlay opens during a take (`capture-while-recording`): let go of the global
+   * Esc the countdown holds, so Esc reaches the overlay and cancels only the selection.
+   */
+  suspendEscapeForCapture(): void;
+  /** The overlay closed: take the countdown's Esc back, if the countdown still wants it. */
+  resumeEscapeAfterCapture(): void;
   /** Restore the bubble after a capture, but only if it was actually hidden
    *  for it AND the camera toggle is still on (it may have been turned off
    *  mid-capture). */
@@ -929,13 +936,19 @@ export function registerRecordingHub(
   } | null = null;
   let countdownRegionTimer: ReturnType<typeof setTimeout> | null = null;
   let escapeHeld = false;
+  // The countdown wants Esc (`escapeWanted`), but a capture overlay opened over it needs the
+  // key for itself (`escapeSuspended`): Esc there cancels the selection, never the take.
+  let escapeWanted = false;
+  let escapeSuspended = false;
   const releaseEscape = (): void => {
+    escapeWanted = false;
     if (!escapeHeld) return;
     escapeHeld = false;
     releaseTemporaryShortcut("Escape");
   };
   const holdEscape = (): void => {
-    if (escapeHeld) return;
+    escapeWanted = true;
+    if (escapeHeld || escapeSuspended) return;
     escapeHeld = holdTemporaryShortcut("Escape", () => {
       markRecordTiming("Esc pressed: stop sent to the recorder");
       getMainWindow()?.webContents.send(IPC_CHANNELS.recordingCommand, "stop");
@@ -1235,6 +1248,16 @@ export function registerRecordingHub(
     lastTakeDisplayId: () => lastTakeDisplayId,
     hasOpenWrites: () => writer.ids().length > 0,
     toggleRecordingSetting: (key) => applySettingsPatch({ [key]: !settings[key] }),
+    suspendEscapeForCapture: () => {
+      escapeSuspended = true;
+      if (!escapeHeld) return;
+      escapeHeld = false;
+      releaseTemporaryShortcut("Escape");
+    },
+    resumeEscapeAfterCapture: () => {
+      escapeSuspended = false;
+      if (escapeWanted) holdEscape();
+    },
     hideCameraBubbleForCapture: () => {
       if (!cameraBubble.isVisible()) return;
       cameraBubbleHiddenForCapture = true;

@@ -10,7 +10,11 @@ import { inferRecordingRatio, recordingCaptureMode } from "./recording-capture";
 import type { RecordingRatio } from "./types/screenshot-capture";
 
 /** Feature flags the app reads. Names must match the PostHog dashboard exactly. */
-export const FLAG_NAMES = ["bypass-login", "native-cursor-capture"] as const;
+export const FLAG_NAMES = [
+  "bypass-login",
+  "native-cursor-capture",
+  "capture-while-recording",
+] as const;
 export type FlagName = (typeof FLAG_NAMES)[number];
 
 /**
@@ -24,6 +28,8 @@ export const FLAG_DEFAULTS: Record<FlagName, boolean> = {
   // with the webcam and audio. The PostHog flag stays as a kill switch: disabled there,
   // the SDK returns undefined and this default applies; enabled at 0%, it turns it off.
   "native-cursor-capture": true,
+  // Screenshots during a take (macOS only): off until it is validated in the real app.
+  "capture-while-recording": false,
 };
 
 /** Identity super-properties attached to every event/error for multi-surface filtering. */

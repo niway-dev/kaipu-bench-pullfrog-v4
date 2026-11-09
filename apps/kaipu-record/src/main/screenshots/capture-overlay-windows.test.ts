@@ -25,6 +25,7 @@ class FakeWindow {
     }),
   };
   setAlwaysOnTop = vi.fn();
+  setContentProtection = vi.fn();
   setVisibleOnAllWorkspaces = vi.fn();
   show = vi.fn(() => {
     keyWindowId = this.webContents.id;
@@ -1625,5 +1626,53 @@ describe("the capture overlays on quit", () => {
 
     expect(answer).toEqual({ kind: "cancelled" });
     expect(created).toHaveLength(0);
+  });
+});
+
+describe("CaptureOverlayWindows: content protection during a take (NIW2-688)", () => {
+  function protectedOverlays(protect: () => boolean) {
+    return new CaptureOverlayWindows({
+      platform: "darwin",
+      enabledModes: CAPTURE_MODES,
+      protectContent: protect,
+    });
+  }
+
+  it("excludes every overlay window from screen capture while a take is protected", () => {
+    void protectedOverlays(() => true).pick("screen", [left, right]);
+    for (const { window } of created) {
+      expect(window.setContentProtection).toHaveBeenCalledWith(true);
+    }
+  });
+
+  it("never touches content protection by default", () => {
+    const windows = overlays();
+    void windows.pick("screen", [left, right]);
+    for (const { window } of created) {
+      window.paint();
+      expect(window.setContentProtection).not.toHaveBeenCalled();
+    }
+  });
+
+  it("protects a window created unprotected once its pick shows it during a take", () => {
+    let protect = false;
+    void protectedOverlays(() => protect).pick("frame", [left]);
+    expect(created[0].window.setContentProtection).not.toHaveBeenCalled();
+    protect = true;
+    created[0].window.paint();
+    expect(created[0].window.setContentProtection).toHaveBeenCalledWith(true);
+  });
+
+  it("Escape on a protected overlay answers cancelled and nothing else", async () => {
+    const picked = protectedOverlays(() => true).pick("frame", [left], "capture");
+    created[0].window.paint();
+    const preventDefault = vi.fn();
+    created[0].window.emitContents(
+      "before-input-event",
+      { preventDefault },
+      { type: "keyDown", key: "Escape" },
+    );
+    expect(preventDefault).toHaveBeenCalled();
+    await expect(picked).resolves.toEqual({ kind: "cancelled" });
   });
 });

@@ -629,6 +629,8 @@ export interface KaipuElectronAPI {
    * window for the duration of the capture so the app isn't in the shot.
    */
   revealAfterCapture(): void;
+  /** Tell main the resolved `capture-while-recording` flag, so a shortcut during a take can route. */
+  reportCaptureWhileRecording(enabled: boolean): void;
   /** Only used by the capture overlay windows; see `CaptureOverlayBridge`. */
   captureOverlay: CaptureOverlayBridge;
   /** Only used by the capture toast window; see `CaptureToastBridge`. */

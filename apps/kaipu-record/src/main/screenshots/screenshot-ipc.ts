@@ -28,6 +28,10 @@ import {
 } from "../infrastructure/settings-store";
 import { scopedAdmitted, screenshotFilePath } from "../library";
 import { activeWorkspace, refreshActiveWorkspaceSettings } from "../workspaces";
+import {
+  captureWhileRecordingEnabled,
+  setReportedCaptureWhileRecording,
+} from "./capture-while-recording";
 import { saveCaptureToWorkspace, saveEditedScreenshot } from "./screenshot-save";
 import { vaultActivity } from "../library/vault-activity";
 import type { CaptureToastShowRequest } from "./capture-toast-window";
@@ -65,6 +69,8 @@ function overlayWindowsInstance(): CaptureOverlayWindows {
   overlayWindows ??= new CaptureOverlayWindows({
     windowLister: createWindowLister(process.platform),
     warmup: overlayWarmup,
+    // A selection made over a take must stay out of the video (NIW2-688).
+    protectContent: () => duringTakeCapture(),
   });
   if (overlayDisposed) overlayWindows.dispose();
   return overlayWindows;
@@ -94,6 +100,9 @@ export function prewarmCaptureOverlay(busy: () => boolean): void {
     else if (modeChanged) windows.prewarm();
   });
 }
+/** Whether a take is active or pending (`capture-while-recording`); main wires the hub in. */
+let takeInProgress: () => boolean = () => false;
+
 /** Told every overlay answer, so the toast lands on the display the shot came from. */
 let observePick: (answer: OverlayAnswer) => void = () => {};
 
@@ -122,6 +131,15 @@ export function disposeCaptureOverlay(): void {
   overlayWindows?.dispose();
 }
 
+/**
+ * A capture made now would land over a take AND the flag allows it: the overlay is protected
+ * from the recording and the shot is saved quietly. False with the flag off, off macOS, or with
+ * no take, so today's behaviour is untouched.
+ */
+function duringTakeCapture(): boolean {
+  return takeInProgress() && captureWhileRecordingEnabled();
+}
+
 /** What the rest of main needs from the screenshot backend once it is registered. */
 export interface ScreenshotHandlers {
   /** The modes this platform's provider can serve (the capture shortcuts fall back on it). */
@@ -137,7 +155,10 @@ export function registerScreenshotHandlers(
   showToast?: (request: CaptureToastShowRequest) => void,
   /** The user chose what to record on the overlay (ADR 0030); main applies it. */
   onRecordTarget?: (target: RecordTarget) => void,
+  /** Whether a take is active or pending, so a capture over it can be handled (NIW2-688). */
+  isTakeInProgress?: () => boolean,
 ): ScreenshotHandlers {
+  if (isTakeInProgress) takeInProgress = isTakeInProgress;
   const provider = createScreenshotProvider(process.platform);
   const toastSeam = deferToastUntilAfterCapture(
     appWindows,
@@ -188,6 +209,7 @@ export function registerScreenshotHandlers(
     },
     onQuietCapture: toastSeam.onQuietCapture,
     onRecordTarget,
+    duringTake: duringTakeCapture,
   });
   // The whole capture is one admission (maintenance mode, NIW2-561): taken before the app
   // hides or any pixel is grabbed, held through the vault write. The hotkey goes through
@@ -197,12 +219,20 @@ export function registerScreenshotHandlers(
       // The folder's settings file is read again as the capture starts, so one a sync changed
       // since is not applied unasked (ADR 0034, decision 8). Never throws, never waits long.
       await refreshActiveWorkspaceSettings().catch(() => {});
+      // A take is on and screenshots over it are not allowed (flag off, or not macOS): the
+      // panel's button reaches here without passing the shortcut's refusal.
+      if (takeInProgress() && !captureWhileRecordingEnabled()) {
+        return { kind: "cancelled" } as const;
+      }
       return handleCapture(request);
     }),
   );
   ipcMain.handle(IPC_CHANNELS.screenshotSupportedModes, () => provider.supportedModes());
 
   ipcMain.on(IPC_CHANNELS.screenshotReveal, () => windows.reveal());
+  ipcMain.on(IPC_CHANNELS.screenshotCaptureWhileRecordingFlag, (_event, enabled: unknown) =>
+    setReportedCaptureWhileRecording(enabled === true),
+  );
 
   ipcMain.handle(IPC_CHANNELS.screenshotCopy, async (_e, png: ArrayBuffer) => {
     clipboard.writeImage(nativeImage.createFromBuffer(Buffer.from(png)));

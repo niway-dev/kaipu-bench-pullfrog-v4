@@ -7,6 +7,7 @@ import {
   VersionGateBanner,
 } from "@renderer/features/version-gate";
 import { useUpdateStatus, UpdateBanner } from "@renderer/features/updater";
+import { useFlag } from "@renderer/features/analytics/use-flag";
 import { useScreenshotCapture } from "@renderer/features/screenshots/use-screenshot-capture";
 import { useCaptureToastHandOffs } from "@renderer/features/screenshots/toast/use-capture-toast-hand-offs";
 import { useRecordingReadyHandOffs } from "@renderer/features/recording-ready/use-recording-ready-hand-offs";
@@ -29,6 +30,12 @@ export function AppRoot(): React.JSX.Element {
   const gate = useVersionGate();
   const update = useUpdateStatus();
   const { capture } = useScreenshotCapture();
+  // Main routes a capture shortcut during a take before the renderer sees it, and has no
+  // PostHog client: it learns `capture-while-recording` from here.
+  const captureWhileRecording = useFlag("capture-while-recording");
+  useEffect(() => {
+    window.electronAPI.reportCaptureWhileRecording(captureWhileRecording);
+  }, [captureWhileRecording]);
   // Every switch remounts the pages (ADR 0032): no editor, list or filter of the old
   // workspace survives it. AppRoot itself stays, so the listeners below keep working.
   const epoch = useOptionalWorkspaces()?.epoch ?? 0;

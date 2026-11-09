@@ -306,3 +306,26 @@
 .card[data-confirmation] .edit {
   opacity: 1;
 }
+
+/* A screenshot made during a take: a notice over the top-left of the image. */
+.taken {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  margin: 0;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--toast-text);
+  background: rgba(19, 19, 21, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}

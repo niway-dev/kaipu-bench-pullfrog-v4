@@ -529,6 +529,46 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
     expect(mockState.shortcutUnregister).toHaveBeenCalledWith("Escape");
   });
 
+  it("lets Esc through to a capture overlay opened over the countdown, then takes it back", async () => {
+    mockState.shortcutRegister.mockClear();
+    mockState.shortcutUnregister.mockClear();
+    const { registerSettings } = await import("../infrastructure/settings-store");
+    const { registerRecordingHub } = await import("./recording-hub");
+    registerSettings();
+    const hub = registerRecordingHub(() => fakeMainWindow() as never);
+    mockState.displays = [{ id: 2, bounds: { x: 0, y: 0, width: 1512, height: 982 } }];
+    const phase = mockState.ipcOn.get(IPC_CHANNELS.recordingRecorderPhase)!;
+    hub.prepareRegionCountdown(2, { x: 100, y: 50, width: 640, height: 360 });
+    phase({}, { phase: "counting", value: 3 });
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(1);
+
+    // The overlay opens: Esc is released, and the next countdown tick does not grab it back.
+    hub.suspendEscapeForCapture();
+    expect(mockState.shortcutUnregister).toHaveBeenCalledWith("Escape");
+    phase({}, { phase: "counting", value: 2 });
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(1);
+
+    // The overlay closed while the countdown still runs: the countdown has its Esc again.
+    hub.resumeEscapeAfterCapture();
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not grab Esc on resume when the countdown ended meanwhile", async () => {
+    mockState.shortcutRegister.mockClear();
+    const { registerSettings } = await import("../infrastructure/settings-store");
+    const { registerRecordingHub } = await import("./recording-hub");
+    registerSettings();
+    const hub = registerRecordingHub(() => fakeMainWindow() as never);
+    mockState.displays = [{ id: 2, bounds: { x: 0, y: 0, width: 1512, height: 982 } }];
+    const phase = mockState.ipcOn.get(IPC_CHANNELS.recordingRecorderPhase)!;
+    hub.prepareRegionCountdown(2, { x: 100, y: 50, width: 640, height: 360 });
+    phase({}, { phase: "counting", value: 3 });
+    hub.suspendEscapeForCapture();
+    phase({}, { phase: "idle" });
+    hub.resumeEscapeAfterCapture();
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(1);
+  });
+
   it("answers that the countdown is visible only once the region's shade has shown it", async () => {
     const { registerSettings } = await import("../infrastructure/settings-store");
     const { registerRecordingHub } = await import("./recording-hub");

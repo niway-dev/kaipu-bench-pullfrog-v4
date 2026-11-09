@@ -72,6 +72,7 @@ export function CaptureToast({
 
   const { imageHeight } = previewCardSize(payload.width, payload.height);
   const workspace = payload.workspace?.name ?? null;
+  const taken = payload.presentation === "taken";
   const pasteKey = platform === "mac" ? "⌘V" : "Ctrl+V";
   const fileApp = platform === "mac" ? "Finder" : "Explorer";
 
@@ -80,9 +81,10 @@ export function CaptureToast({
       <div
         {...uiArea("captureToast.card")}
         role="status"
-        aria-label={t("toast.label")}
+        aria-label={taken ? t("toast.taken") : t("toast.label")}
         className={styles.card}
         data-confirmation={payload.presentation === "copied" || undefined}
+        data-taken={taken || undefined}
         onPointerEnter={() => api.hover(true)}
         onPointerLeave={() => api.hover(false)}
       >
@@ -107,6 +109,12 @@ export function CaptureToast({
           >
             <X size={14} strokeWidth={2.4} aria-hidden />
           </button>
+          {taken && (
+            <p className={styles.taken}>
+              <Check className={styles.ok} size={12} strokeWidth={3} aria-hidden />
+              {t("toast.taken")}
+            </p>
+          )}
           <div className={styles.pills}>
             {payload.saved ? (
               <button

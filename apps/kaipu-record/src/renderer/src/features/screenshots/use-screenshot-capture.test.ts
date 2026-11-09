@@ -14,6 +14,10 @@ let recorderStatus = "idle";
 vi.mock("@renderer/features/recording/recorder-store", () => ({
   getRecorderSnapshot: () => ({ status: recorderStatus }),
 }));
+let captureWhileRecordingFlag = false;
+vi.mock("@renderer/features/analytics/use-flag", () => ({
+  useFlag: () => captureWhileRecordingFlag,
+}));
 vi.mock("@kaipu/i18n", () => ({
   useTranslations: () => (key: string) => key,
 }));
@@ -35,6 +39,7 @@ describe("useScreenshotCapture", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     recorderStatus = "idle";
+    captureWhileRecordingFlag = false;
   });
 
   describe("while the recorder is busy", () => {
@@ -51,6 +56,43 @@ describe("useScreenshotCapture", () => {
         expect(openCapture).not.toHaveBeenCalled();
       });
     }
+  });
+
+  describe("capture-while-recording flag on", () => {
+    const quiet: CaptureResult = {
+      kind: "captured",
+      after: "quiet",
+      saved: { id: "s", assetId: "a" },
+      copied: false,
+      png: new ArrayBuffer(0),
+      width: 10,
+      height: 5,
+      mode: "frame",
+      policy: null,
+    };
+    it.each(["counting", "starting", "recording", "paused"])(
+      "%s: captures, no toast, window stays hidden",
+      async (status) => {
+        captureWhileRecordingFlag = true;
+        recorderStatus = status;
+        const api = stubApi(quiet);
+        const { result } = renderHook(() => useScreenshotCapture());
+        await act(() => result.current.capture("frame"));
+        expect(api.captureScreenshot).toHaveBeenCalledWith("frame");
+        expect(showToast).not.toHaveBeenCalled();
+        expect(openScreenshot).not.toHaveBeenCalled();
+        expect(api.revealAfterCapture).not.toHaveBeenCalled();
+      },
+    );
+    it("finalizing is still refused", async () => {
+      captureWhileRecordingFlag = true;
+      recorderStatus = "finalizing";
+      const api = stubApi(quiet);
+      const { result } = renderHook(() => useScreenshotCapture());
+      await act(() => result.current.capture("frame"));
+      expect(showToast).toHaveBeenCalledWith({ message: "captureWhileRecording" });
+      expect(api.captureScreenshot).not.toHaveBeenCalled();
+    });
   });
 
   it("opens the saved shot in the editor and reveals the app, defaulting to frame", async () => {
