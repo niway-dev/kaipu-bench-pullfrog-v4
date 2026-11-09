@@ -11,11 +11,12 @@
  * captured in the page's render body and kept across renders — hence `controller` in
  * every dependency array.
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useLatest } from "../use-latest";
 import type { CursorTrack } from "@shared/cursor-track";
 import { freeWindowAt, isSourceRangeVisible, sourceTimeAtTimeline } from "../source-time";
 import type { LayoutEntry } from "../timeline";
+import type { VideoScene } from "../scene";
 import type { VideoSceneController } from "../use-video-scene";
 import {
   addManualZoom,
@@ -152,6 +153,41 @@ export function useZoomEditing({
   );
 
   const controllerRef = useLatest(controller);
+  // An edge drag reports every pointermove, and a mouse can send several per frame. Each live
+  // update re-renders the Zooms lane and the strip that hosts it (a hundred-odd blocks on a
+  // long take), so the newest move is kept and applied once per animation frame, the same
+  // coalescing the inspector sliders use (NIW2-662). Release applies the last pending move
+  // first, so the final edge is exactly where the pointer let go.
+  const pendingEdge = useRef<{ id: string; edge: "start" | "end"; sourceTime: number } | null>(
+    null,
+  );
+  const edgeFrame = useRef(0);
+  const flushEdge = useCallback(() => {
+    if (edgeFrame.current !== 0) {
+      cancelAnimationFrame(edgeFrame.current);
+      edgeFrame.current = 0;
+    }
+    const pending = pendingEdge.current;
+    pendingEdge.current = null;
+    if (!pending) return;
+    const controller = controllerRef.current;
+    const next = dragZoomEdge(
+      controller.scene,
+      pending.id,
+      pending.edge,
+      pending.sourceTime,
+      sourceDuration,
+    );
+    // A move that lands on the same range changes nothing: keep the scene (and every lane) as is.
+    if (sameZoomRange(controller.scene, next, pending.id)) return;
+    controller.updateLive(next);
+  }, [controllerRef, sourceDuration]);
+  useEffect(
+    () => () => {
+      if (edgeFrame.current !== 0) cancelAnimationFrame(edgeFrame.current);
+    },
+    [],
+  );
   const edgeDrag = useCallback(
     (
       id: string,
@@ -161,13 +197,18 @@ export function useZoomEditing({
     ) => {
       if (phase === "start") controllerRef.current.beginInteract();
       if (phase === "move" && sourceTime !== null) {
-        controllerRef.current.updateLive(
-          dragZoomEdge(controllerRef.current.scene, id, edge, sourceTime, sourceDuration),
-        );
+        pendingEdge.current = { id, edge, sourceTime };
+        edgeFrame.current ||= requestAnimationFrame(() => {
+          edgeFrame.current = 0;
+          flushEdge();
+        });
       }
-      if (phase === "end") controllerRef.current.endInteract();
+      if (phase === "end") {
+        flushEdge();
+        controllerRef.current.endInteract();
+      }
     },
-    [controllerRef, sourceDuration],
+    [controllerRef, flushEdge],
   );
 
   const liveLock = useCallback(
@@ -219,4 +260,10 @@ export function useZoomEditing({
     reanalyse,
     canDetect: cursorTrack !== null,
   };
+}
+
+function sameZoomRange(a: VideoScene, b: VideoScene, id: string): boolean {
+  const before = a.zoomSegments.find((z) => z.id === id);
+  const after = b.zoomSegments.find((z) => z.id === id);
+  return !!before && !!after && before.start === after.start && before.end === after.end;
 }
