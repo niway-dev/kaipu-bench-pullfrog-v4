@@ -1734,7 +1734,7 @@ describe("VideoEditorPage — preview playback speed (NIW2-666)", () => {
 
 describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
   // jsdom lays nothing out: the lane sits at x = 220 and is 1000 px wide, so the 30 s
-  // recording is 33.3 px/s at fit and zooms up to 8x (800%), whatever its duration (NIW2-675).
+  // recording is 33.3 px/s at fit and zooms up to 20x (2000%), whatever its duration (NIW2-675).
   const LANE_LEFT = 220;
   const LANE_WIDTH = 1000;
 
@@ -1855,21 +1855,21 @@ describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
     await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Split here" }));
     await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
-    for (let i = 0; i < 4; i++) fireEvent.click(zoomIn()); // the 4th press is already at 800%
+    for (let i = 0; i < 5; i++) fireEvent.click(zoomIn()); // the 5th press is already at 2000%
     const zoomBefore = Number(scroller().dataset.zoom);
-    expect(zoomBefore).toBe(8);
+    expect(zoomBefore).toBe(20);
     act(() => {
       scroller().scrollLeft = 99_999;
       fireEvent.scroll(scroller());
     });
-    // The scroll really sits on the 8x maximum (7000 px), where the left edge is at 26 s: past
+    // The scroll really sits on the 20x maximum (19000 px), where the left edge is at 28.5 s: past
     // the 5 s that are left after the delete, so the re-clamp below has work to do.
     expect(scroller().scrollLeft).toBeCloseTo(zoomBefore * LANE_WIDTH - LANE_WIDTH, 3);
     fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[1]); // select the second clip (25 s)
     fireEvent.click(screen.getByRole("button", { name: "Delete segment" }));
     await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1));
     // 5 s are left. The zoom is a factor and its cap does not depend on the duration, so the
-    // view stays at 800% (it re-fits what is left) and the scroll stays inside the content.
+    // view stays at 2000% (it re-fits what is left) and the scroll stays inside the content.
     const zoomAfter = Number(scroller().dataset.zoom);
     expect(zoomAfter).toBe(zoomBefore);
     expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomAfter * LANE_WIDTH - LANE_WIDTH + 0.5);

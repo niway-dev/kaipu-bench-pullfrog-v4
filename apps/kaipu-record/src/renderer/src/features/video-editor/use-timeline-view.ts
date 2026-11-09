@@ -37,14 +37,14 @@ export interface TimelineViewStore {
   getState(): TimelineViewState;
   /** The state against the live duration, clamped — what event handlers should read. */
   getView(): TimelineView;
-  /** The deepest zoom: 8 (800%) for a measured lane and timeline, 1 while either is empty. */
+  /** The deepest zoom: 20 (2000%) for a measured lane and timeline, 1 while either is empty. */
   getMaxZoom(): number;
   subscribe(listener: () => void): () => void;
   setDuration(duration: number): void;
   setLaneWidth(px: number): void;
   /** FIT: 1x, scroll 0. */
   fit(): void;
-  /** `+` / `−`: the next whole step (100% / 200% / 400% / 800%) strictly above or below the
+  /** `+` / `−`: the next whole step (100% / 200% / 400% / 800% / 1600% / 2000%) strictly above or below the
    *  current level, around the centre of the visible window; nothing at either end. A zoom
    *  never stops the view following the playhead (only a pan does), here and in the two below. */
   zoomStep(direction: 1 | -1): void;
