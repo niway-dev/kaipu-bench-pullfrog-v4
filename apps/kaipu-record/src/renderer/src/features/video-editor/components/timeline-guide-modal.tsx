@@ -88,7 +88,7 @@ export function TimelineGuideModal({
   }, [onClose]);
 
   return createPortal(
-    <div className={styles.backdrop} onClick={onClose}>
+    <div className={styles.backdrop} role="presentation" onClick={onClose}>
       <div
         {...uiArea("editorVideo.trackGuide")}
         ref={dialogRef}
