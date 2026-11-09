@@ -25,7 +25,7 @@ precisely.
 
 ## Open
 
-- The bar's layout budget was **not re-measured in the real app**: run
+- `verify/timeline-zoom.verify.ts` and the UI catalog comment were updated for the 2000% steps but **have not been run** (no real-app run in this PR). The bar's layout budget was **not re-measured in the real app** either, and the figures in the stylesheet comment are the old 5ch ones (marked unverified there): run
   `bun run verify -- timeline-zoom` on the Mac mini and confirm no overlap at the 1180 px floor.
 - Lanes at 20x are not windowed except the ruler and filmstrips: Activity marks and zoom blocks are
   positioned by percentage inside a 20x-wide lane. Not profiled on the 54-minute take.

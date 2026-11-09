@@ -360,6 +360,14 @@
 }
 
 /*
+ * UNVERIFIED AFTER THE 2000% CEILING: every figure in this block was measured at 5ch (33 px
+ * readout, "800%" / "800 %"). The ceiling made the readout 6ch ("2,000%" in English, "2000 %" in
+ * Spanish, about 40 px), so the cluster is about 6.6 px wider and each threshold below was moved
+ * up 14 px by arithmetic, not by measurement. The narrow query (792 px before, 806 px now) also
+ * drops the zoom group's padding to 0, which gains 8 px but leaves about 1 px clear at the
+ * 1180 px floor (4 px before) and puts the buttons against the group's border. Re-measure with
+ * `bun run verify -- timeline-zoom` on the Mac mini and rewrite the numbers below from the run.
+ *
  * The right cluster (split, delete, mute, speed, the timeline zoom, fullscreen) and the time
  * label share the right column: the label starts at the column's left edge, so the column
  * must hold the label AND the cluster. Measured in the real app (NIW2-675,
@@ -367,7 +375,7 @@
  * English and Spanish). The bar is the window minus 388 px; a container query reads its
  * CONTENT box (the bar minus its 24 px of padding), and each side column is (that - 132) / 2.
  * The label is 116 px (108 under 10 minutes); its short form (the current time) is 43 px. The
- * level readout is 40 px (6ch; it was 33 px at 5ch before the 2000% ceiling, so every threshold below moved up 14 px and the narrow query drops the group padding to 0. NOT re-measured in the real app: run `bun run verify -- timeline-zoom` on the Mac mini) plus its 2 px gap. The right cluster measures:
+ * level readout is 33 px (5ch) plus its 2 px gap. The right cluster measures:
  *
  *   `− level +`                    285 px (en and es)
  *   `− FIT level +`                316 px (en) / 345 px (es, "Ajustar")
