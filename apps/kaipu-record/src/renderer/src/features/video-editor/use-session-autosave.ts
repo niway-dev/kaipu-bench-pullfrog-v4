@@ -59,16 +59,22 @@ export function useSessionAutosave(
   const touchedRef = useRef(false);
   const pendingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Writes can overlap (the debounce, retry() and the maintenance retry do not wait for
+  // one in flight). Only the latest write may set the chip or clear the flag.
+  const writeGenRef = useRef(0);
   const [state, setState] = useState<SaveState>("idle");
 
   const write = useCallback(async (): Promise<void> => {
     const snapshot = sceneRef.current;
+    const gen = ++writeGenRef.current;
     setState("saving");
     try {
       const assets = assetStoreRef.current
         .entries()
         .map((a) => ({ assetId: a.assetId, bytes: a.bytes }));
       await window.electronAPI.saveVideoEditSession(sourceId, serializeSession(snapshot), assets);
+      // A newer write is in flight or already landed: it owns the chip and the flag.
+      if (gen !== writeGenRef.current) return;
       // An edit may have landed while the write was in flight; it owns the flag now, and
       // nothing is in flight any more, so the chip goes quiet until that edit's write.
       if (sceneRef.current === snapshot) {
@@ -84,7 +90,7 @@ export function useSessionAutosave(
       if (!isMaintenanceError(error)) {
         captureException(error, { context: "video-edit-session-autosave" });
       }
-      setState("failed");
+      if (gen === writeGenRef.current) setState("failed");
     }
   }, [sourceId, assetStoreRef]);
 

@@ -169,6 +169,68 @@ describe("useSessionAutosave", () => {
     expect(result.current.pendingRef.current).toBe(true);
   });
 
+  it("lets only the latest of two overlapping writes set the state", async () => {
+    const finishers: Array<() => void> = [];
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishers.push(resolve);
+        }),
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    // A second edit's write starts while the first is still in flight.
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    expect(finishers).toHaveLength(2);
+    // The first write lands while the second is still being written.
+    await act(async () => {
+      finishers[0]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saving");
+    await act(async () => {
+      finishers[1]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+    expect(result.current.pendingRef.current).toBe(false);
+  });
+
+  it("keeps saved when an older write lands after the newer one", async () => {
+    const finishers: Array<() => void> = [];
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishers.push(resolve);
+        }),
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    await act(async () => {
+      finishers[1]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+    await act(async () => {
+      finishers[0]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+  });
+
   it("drops a stale saved while a drag edits, and stays silent until the write", async () => {
     window.electronAPI.saveVideoEditSession = vi.fn(
       async () => {},
