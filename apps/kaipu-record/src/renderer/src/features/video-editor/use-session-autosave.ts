@@ -69,10 +69,13 @@ export function useSessionAutosave(
         .entries()
         .map((a) => ({ assetId: a.assetId, bytes: a.bytes }));
       await window.electronAPI.saveVideoEditSession(sourceId, serializeSession(snapshot), assets);
-      // An edit may have landed while the write was in flight; it owns the flag now.
+      // An edit may have landed while the write was in flight; it owns the flag now, and
+      // nothing is in flight any more, so the chip goes quiet until that edit's write.
       if (sceneRef.current === snapshot) {
         pendingRef.current = false;
         setState("saved");
+      } else {
+        setState("idle");
       }
     } catch (error) {
       // Non-fatal: keep `pendingRef` true so the discard dialog still warns on the way

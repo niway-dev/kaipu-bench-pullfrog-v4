@@ -256,6 +256,20 @@ function firstDifference(a: CameraPath, b: CameraPath): string | null {
   return null;
 }
 
+/**
+ * Best of several runs, in ms. One sample can land on a GC pause or a JIT tier-up; the
+ * minimum is the run with the least of that noise, on both sides of a ratio.
+ */
+function fastest(run: () => unknown, times = 5): number {
+  let best = Infinity;
+  for (let k = 0; k < times; k++) {
+    const t0 = performance.now();
+    run();
+    best = Math.min(best, performance.now() - t0);
+  }
+  return best;
+}
+
 function maxDeviation(a: CameraPath, b: CameraPath): number {
   let max = 0;
   for (let i = 0; i < a.scale.length; i++) {
@@ -384,12 +398,8 @@ describe("rebuildCameraPath", () => {
     }
     expect(firstDifference(build.path, buildCameraPath(segments, track, duration))).toBeNull();
     const step = segments.map((s) => (s.id === long.id ? { ...long, end: 2296.5 } : s));
-    const t0 = performance.now();
-    rebuildCameraPath(build, step, track, duration);
-    const incremental = performance.now() - t0;
-    const t1 = performance.now();
-    buildCameraBuild(step, track, duration);
-    const full = performance.now() - t1;
+    const incremental = fastest(() => rebuildCameraPath(build, step, track, duration));
+    const full = fastest(() => buildCameraBuild(step, track, duration));
     expect(incremental).toBeLessThan(full / 3);
   });
 
@@ -407,12 +417,9 @@ describe("rebuildCameraPath", () => {
     const build = buildCameraBuild(segments, track, duration);
     const target = segments[64];
     const edited = segments.map((s) => (s === target ? { ...s, end: s.end + 2 } : s));
-    const t0 = performance.now();
     const next = rebuildCameraPath(build, edited, track, duration);
-    const incremental = performance.now() - t0;
-    const t1 = performance.now();
-    buildCameraBuild(edited, track, duration);
-    const full = performance.now() - t1;
+    const incremental = fastest(() => rebuildCameraPath(build, edited, track, duration));
+    const full = fastest(() => buildCameraBuild(edited, track, duration));
     expect(firstDifference(next.path, buildCameraPath(edited, track, duration))).toBeNull();
     // Generous: the point is "a fraction", not a benchmark (CI machines are noisy).
     expect(incremental).toBeLessThan(full / 3);

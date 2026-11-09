@@ -145,6 +145,30 @@ describe("useSessionAutosave", () => {
     expect(result.current.state).toBe("saved");
   });
 
+  it("goes quiet, not saving, when a write lands after a newer edit", async () => {
+    let finish: () => void = () => {};
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    expect(result.current.state).toBe("saving");
+    // A drag starts while the write is still in flight.
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: true });
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("idle");
+    expect(result.current.pendingRef.current).toBe(true);
+  });
+
   it("drops a stale saved while a drag edits, and stays silent until the write", async () => {
     window.electronAPI.saveVideoEditSession = vi.fn(
       async () => {},
