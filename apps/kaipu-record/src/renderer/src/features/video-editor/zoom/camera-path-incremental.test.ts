@@ -187,7 +187,7 @@ function randomSegments(r: () => number, duration: number): ZoomSegment[] {
   const out: ZoomSegment[] = [];
   let t = r() * 3;
   while (t < duration - 1) {
-    const len = 1 + r() * 8;
+    const len = r() < 0.1 ? 20 + r() * 60 : 1 + r() * 8;
     const end = Math.min(duration, t + len);
     out.push(randomSegment(r, t, end));
     const gap = r() < 0.2 ? 0 : r() < 0.5 ? r() * 2 : r() * 25;
@@ -218,7 +218,8 @@ function randomEdit(r: () => number, segments: ZoomSegment[], duration: number):
   const prevEnd = i > 0 ? sorted[i - 1].end : 0;
   const nextStart = i < sorted.length - 1 ? sorted[i + 1].start : duration;
   if (kind < 0.2) return segments.filter((x) => x !== s);
-  if (kind < 0.3) return [...segments]; // no change, new array
+  if (kind < 0.25) return [...segments]; // no change, new array
+  if (kind < 0.3) return segments.map((x) => (x === s ? { ...s, origin: "manual" } : x));
   let next: ZoomSegment;
   if (kind < 0.6) {
     // Edge drag, clamped between the neighbours and to a 1 s minimum.
@@ -268,6 +269,27 @@ function maxDeviation(a: CameraPath, b: CameraPath): number {
   return max;
 }
 
+/**
+ * The incremental build must equal the full one in everything a LATER rebuild reads, not
+ * only in the path: a wrong checkpoint or rest run is invisible until it is resumed from.
+ */
+function buildDifference(a: CameraBuild, b: CameraBuild): string | null {
+  const path = firstDifference(a.path, b.path);
+  if (path) return `path ${path}`;
+  const da = a.checkpoints.data;
+  const db = b.checkpoints.data;
+  if (da.length !== db.length) return "checkpoint count";
+  // Slot 0 is never written nor read.
+  for (let i = 9; i < da.length; i++) {
+    if (!Object.is(da[i], db[i])) return `checkpoint value ${i}: ${da[i]} vs ${db[i]}`;
+  }
+  for (let j = 1; j < a.checkpoints.ids.length; j++) {
+    if (a.checkpoints.ids[j] !== b.checkpoints.ids[j]) return `checkpoint id ${j}`;
+  }
+  if (JSON.stringify(a.rests) !== JSON.stringify(b.rests)) return "rest runs";
+  return null;
+}
+
 describe("buildCameraPath", () => {
   it("stays within 1e-6 of the simulation before rest snapping", () => {
     for (let seed = 1; seed <= 40; seed++) {
@@ -297,9 +319,9 @@ describe("rebuildCameraPath", () => {
         const edits = r() < 0.3 ? 2 + Math.floor(r() * 3) : 1;
         for (let e = 0; e < edits; e++) segments = randomEdit(r, segments, duration);
         build = rebuildCameraPath(build, segments, track, duration);
-        const full = buildCameraPath(segments, track, duration);
-        expect(firstDifference(build.path, full), `seed ${seed}, edit ${step}`).toBeNull();
-        expect(maxDeviation(full, oracle(segments, track, duration))).toBeLessThan(1e-6);
+        const full = buildCameraBuild(segments, track, duration);
+        expect(buildDifference(build, full), `seed ${seed}, edit ${step}`).toBeNull();
+        expect(maxDeviation(full.path, oracle(segments, track, duration))).toBeLessThan(1e-6);
       }
     }
   });
@@ -345,6 +367,30 @@ describe("rebuildCameraPath", () => {
         buildCameraPath(segments, a, 61),
       ),
     ).toBeNull();
+  });
+
+  it("re-simulates only the moved stretch when the end of a long block is dragged", () => {
+    // 100% timeline zoom on a 54-minute take: 300 px is ~13 minutes, so a dragged block
+    // grows to minutes. The rebuild must not re-simulate the whole block each frame.
+    const r = rng(77);
+    const duration = 54 * 60;
+    const track = randomTrack(r, duration);
+    const long = { ...randomSegment(r, 1500, 1512), mode: "follow" as const };
+    let segments = [randomSegment(r, 100, 110), long, randomSegment(r, 2700, 2710)];
+    let build = buildCameraBuild(segments, track, duration);
+    for (let end = 1512; end <= 2290; end += 6.5) {
+      segments = segments.map((s) => (s.id === long.id ? { ...long, end } : s));
+      build = rebuildCameraPath(build, segments, track, duration);
+    }
+    expect(firstDifference(build.path, buildCameraPath(segments, track, duration))).toBeNull();
+    const step = segments.map((s) => (s.id === long.id ? { ...long, end: 2296.5 } : s));
+    const t0 = performance.now();
+    rebuildCameraPath(build, step, track, duration);
+    const incremental = performance.now() - t0;
+    const t1 = performance.now();
+    buildCameraBuild(step, track, duration);
+    const full = performance.now() - t1;
+    expect(incremental).toBeLessThan(full / 3);
   });
 
   it("re-simulates only around the edit on a long take", () => {

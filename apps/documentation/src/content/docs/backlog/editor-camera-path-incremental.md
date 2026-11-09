@@ -43,11 +43,16 @@ median of 3 runs. Traces and scripts: `.evidence/editor-perf-real/` (not committ
 1. The simulation records **rest runs**: stretches with no zoom open or opening where the
    camera sits at exact rest (centre 0.5/0.5, scale 1, every velocity 0). Inside one the
    state does not move, so a run is a seam where a simulation can resume or be spliced.
-2. A rebuild finds the segments that changed (by object identity; edits replace only the
-   segment they touch), copies the old path up to the last rest run before them, resumes
-   there, and stops at the first rest run after them whose carried target matches the old
-   path at the same index, copying the old tail.
-3. A critically damped spring never reaches exact rest in float64 (the velocity decays
+2. The simulation also stores its **whole state every second** (checkpoints), so a rebuild
+   can resume in the middle of a zoom.
+3. A rebuild finds the segments that changed (by object identity, then by the fields the
+   simulation reads; edits replace only the segment they touch). The first index that can
+   differ is the earlier of the two ends when only a segment's end moved, otherwise the
+   earlier of the two starts, minus the 200 ms lookahead. The old path is copied up to the
+   last checkpoint before it, the simulation resumes there, and it stops at the first rest
+   run after the last change whose carried target matches the old path at the same index,
+   copying the old tail.
+4. A critically damped spring never reaches exact rest in float64 (the velocity decays
    through denormals for minutes), so in a gap the state is **snapped** to rest once every
    term is below 1e-9. That is below the Float32 resolution the path is stored in; the path
    stays within 1e-6 of the old simulation.
@@ -58,23 +63,44 @@ scratch; same segment objects return the same path object (no re-render).
 ## Checks
 
 - `camera-path-incremental.test.ts`: after random edit sequences (single and multi-segment
-  edits, with and without a cursor track), the incremental path equals a full rebuild **bit
-  for bit**, and both stay within 1e-6 of a verbatim copy of the pre-change simulation.
+  edits, long and short blocks, with and without a cursor track), the incremental build
+  equals a full rebuild **bit for bit** in the path, the checkpoints and the rest runs, and
+  both stay within 1e-6 of a verbatim copy of the pre-change simulation.
 - Seeded bugs, each caught: splicing before the last changed segment ends; ignoring the
-  200 ms lookahead when choosing the resume point.
-- Editor suites: 1834 tests pass.
+  lookahead when choosing the resume point; taking the later end for an end-only edit;
+  copying one checkpoint too many at the splice.
+- Editor suites: 1835 tests pass.
 
-Node microbenchmark (a proxy), 54-minute take, 128 zooms, 120 edge-drag steps:
+## Measurements of the change
 
-| Dragged zoom | Full rebuild median | Incremental median |
-| ------------ | ------------------- | ------------------ |
-| #10 (early)  | 10.8 ms             | 0.17 ms            |
-| #64 (middle) | 10.2 ms             | 0.25 ms            |
-| #120 (late)  | 7.6 ms              | 0.14 ms            |
+**First version (rest runs only), real app on the Mac mini**, same scenario, interleaved
+before/after, 3 runs each: at 2000% timeline zoom renderer main busy per frame fell from
+6.5 to 2.2 ms (camera work ~870 → ~150 ms per drag). At 100% it barely moved (~930 → ~840
+ms): 300 px there is ~13 minutes of source, the dragged block grew to minutes, and that
+version re-simulated the whole block every frame. Frame pacing was unchanged at 100%
+(p95 13.9 ms, ~25 frames missing a vsync of 144 Hz). That is why checkpoints were added.
+
+**Second version (checkpoints), Node microbenchmark (a proxy)**, the owner's real zoom
+layout (121 zooms over 53 minutes; median gap 10.7 s, 28 gaps under 4 s) with a synthetic
+cursor track, edge drags on 7 zooms across the take, 60 steps each:
+
+| Case                          | Per-frame cost median / p95 |
+| ----------------------------- | --------------------------- |
+| Full rebuild (before)         | 7.5 ms                      |
+| Incremental, 0.33 s per frame | 0.33 / 0.62 ms              |
+| Incremental, 6.5 s per frame  | 0.01 / 0.29 ms              |
+
+**Worst case left:** a cluster of zooms with gaps too short for the camera to return to
+rest. The tail can only be spliced at a rest run, so the rebuild re-simulates through the
+whole cluster after the dragged block. On the Mac mini scenario (63 zooms packed 3.5 s
+apart after the target) the incremental rebuild still costs ~5.7 ms per frame against ~10.5
+ms for a full one. Splicing on an approximately equal state would remove it, at the cost of
+the bit-for-bit guarantee; not done.
 
 ## Open
 
-- Re-measure the same drag in the real app on the Mac mini (before/after table above).
+- Re-measure the second version in the real app on the Mac mini with a realistic zoom
+  layout.
 - The whole editor page still re-renders once per drag frame (~1.1 ms); the zone split
   from NIW2-662 is the next step if frames still miss vsync.
 - The "Saving…" chip appears from the first move of a drag although nothing is written
