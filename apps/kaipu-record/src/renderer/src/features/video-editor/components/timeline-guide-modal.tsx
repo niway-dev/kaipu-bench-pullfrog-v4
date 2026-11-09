@@ -64,7 +64,9 @@ export function TimelineGuideModal({
       const dialog = dialogRef.current;
       if (!dialog) return;
       const focusable = Array.from(
-        dialog.querySelectorAll<HTMLElement>("button:not(:disabled), [tabindex='0']"),
+        dialog.querySelectorAll<HTMLElement>(
+          "button:not(:disabled):not([tabindex='-1']), [tabindex='0']",
+        ),
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -102,7 +104,29 @@ export function TimelineGuideModal({
             {t("guideTitle")}
           </h2>
           <span className={styles.subtitle}>{t("guideSubtitle")}</span>
-          <div className={styles.tabs} role="tablist" aria-label={t("guideTabs")}>
+          <div
+            className={styles.tabs}
+            role="tablist"
+            aria-label={t("guideTabs")}
+            onKeyDown={(event) => {
+              // WAI-ARIA tabs: arrows and Home/End move between tabs; only the selected one is a Tab stop.
+              const index = GUIDE_TABS.indexOf(tab);
+              const target =
+                event.key === "ArrowRight"
+                  ? GUIDE_TABS[(index + 1) % GUIDE_TABS.length]
+                  : event.key === "ArrowLeft"
+                    ? GUIDE_TABS[(index - 1 + GUIDE_TABS.length) % GUIDE_TABS.length]
+                    : event.key === "Home"
+                      ? GUIDE_TABS[0]
+                      : event.key === "End"
+                        ? GUIDE_TABS[GUIDE_TABS.length - 1]
+                        : null;
+              if (!target) return;
+              event.preventDefault();
+              onTabChange(target);
+              document.getElementById(`timeline-guide-tab-${target}`)?.focus();
+            }}
+          >
             {GUIDE_TABS.map((key) => (
               <button
                 key={key}
@@ -111,6 +135,7 @@ export function TimelineGuideModal({
                 id={`timeline-guide-tab-${key}`}
                 aria-controls="timeline-guide-panel"
                 aria-selected={key === tab}
+                tabIndex={key === tab ? 0 : -1}
                 className={`${styles.tab} ${key === tab ? styles.tabActive : ""}`}
                 onClick={() => onTabChange(key)}
               >

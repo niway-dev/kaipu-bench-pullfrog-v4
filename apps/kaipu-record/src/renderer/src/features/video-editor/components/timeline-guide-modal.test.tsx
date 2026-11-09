@@ -26,6 +26,26 @@ describe("TimelineGuideModal", () => {
     expect(selectedTab()).toContain("Clips");
   });
 
+  it("moves between tabs with the arrow keys, and only the selected tab is a Tab stop", () => {
+    render(<Harness start="clips" onClose={vi.fn()} />);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual([
+      "0",
+      "-1",
+      "-1",
+      "-1",
+      "-1",
+      "-1",
+    ]);
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+    expect(selectedTab()).toContain("Objects");
+    expect(screen.getByRole("tab", { selected: true })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "End" });
+    expect(selectedTab()).toContain("Webcam");
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+    expect(selectedTab()).toContain("Clips");
+  });
+
   it("switches tabs when one is pressed", () => {
     render(<Harness start="clips" onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("tab", { name: /Zooms/ }));

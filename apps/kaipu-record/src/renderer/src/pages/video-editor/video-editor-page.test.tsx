@@ -2149,7 +2149,9 @@ describe("VideoEditorPage — Timeline guide (NIW2-679)", () => {
     expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
     // Space would toggle playback behind the modal; the guide swallows it. The control: the
     // same press, with the guide closed, does start playback.
-    const play = vi.spyOn(HTMLMediaElement.prototype, "play");
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockImplementation(() => Promise.resolve());
     fireEvent.keyDown(window, { key: " " });
     expect(play).not.toHaveBeenCalled();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });

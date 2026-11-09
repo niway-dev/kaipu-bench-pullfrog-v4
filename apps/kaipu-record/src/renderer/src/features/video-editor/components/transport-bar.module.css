@@ -280,9 +280,15 @@
     color var(--transition);
 }
 
-.guideButton:hover {
+.guideButton:hover:not(:disabled) {
   background: var(--bg-card-hover);
   color: var(--text-primary);
+}
+
+/* Fullscreen: the guide is portaled to <body>, which fullscreen does not draw (as Tracks). */
+.guideButton:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .tracksCount {
