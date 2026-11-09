@@ -7,7 +7,9 @@
  * useVideoScene's private `sceneRef` (the ref is what makes endInteract's comparison
  * exact and is not exposed), but it is correct here because each pointer/change event
  * flushes its own render before the next one arrives, so a live handler always sees the
- * result of the previous live update. What must never happen is closing over a `scene`
+ * result of the previous live update. (Edge drags are the exception: their live update runs in
+ * an animation frame, so the render behind it can still be pending when the next event lands;
+ * `lastEdgeScene` below is the scene they last applied, and they read that instead.) What must never happen is closing over a `scene`
  * captured in the page's render body and kept across renders — hence `controller` in
  * every dependency array.
  */
@@ -162,6 +164,10 @@ export function useZoomEditing({
     null,
   );
   const edgeFrame = useRef(0);
+  // The scene this drag last handed to updateLive. `controller.scene` is only the last RENDERED
+  // scene, and the render behind a frame's update can still be pending when the pointer is
+  // released; comparing against it could drop the final move.
+  const lastEdgeScene = useRef<VideoScene | null>(null);
   const flushEdge = useCallback(() => {
     if (edgeFrame.current !== 0) {
       cancelAnimationFrame(edgeFrame.current);
@@ -171,15 +177,11 @@ export function useZoomEditing({
     pendingEdge.current = null;
     if (!pending) return;
     const controller = controllerRef.current;
-    const next = dragZoomEdge(
-      controller.scene,
-      pending.id,
-      pending.edge,
-      pending.sourceTime,
-      sourceDuration,
-    );
+    const base = lastEdgeScene.current ?? controller.scene;
+    const next = dragZoomEdge(base, pending.id, pending.edge, pending.sourceTime, sourceDuration);
     // A move that lands on the same range changes nothing: keep the scene (and every lane) as is.
-    if (sameZoomRange(controller.scene, next, pending.id)) return;
+    if (sameZoomRange(base, next, pending.id)) return;
+    lastEdgeScene.current = next;
     controller.updateLive(next);
   }, [controllerRef, sourceDuration]);
   useEffect(
@@ -195,7 +197,10 @@ export function useZoomEditing({
       sourceTime: number | null,
       phase: "start" | "move" | "end",
     ) => {
-      if (phase === "start") controllerRef.current.beginInteract();
+      if (phase === "start") {
+        lastEdgeScene.current = null;
+        controllerRef.current.beginInteract();
+      }
       if (phase === "move" && sourceTime !== null) {
         pendingEdge.current = { id, edge, sourceTime };
         edgeFrame.current ||= requestAnimationFrame(() => {
@@ -205,6 +210,7 @@ export function useZoomEditing({
       }
       if (phase === "end") {
         flushEdge();
+        lastEdgeScene.current = null;
         controllerRef.current.endInteract();
       }
     },
