@@ -43,6 +43,7 @@
   --accent-red-hover: #dc2626;
   --accent-yellow: #eab308;
   --accent-purple: #a855f7;
+  --accent-secondary: #f5884a;
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
@@ -115,4 +116,5 @@
   --accent-red-hover: #b91c1c;
   --accent-yellow: #a16207;
   --accent-purple: #9333ea;
+  --accent-secondary: #c2570f;
 }

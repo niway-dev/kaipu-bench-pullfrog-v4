@@ -66,4 +66,6 @@ export const dark: TokenSet = {
   "accent-red-hover": "#dc2626",
   "accent-yellow": "#eab308",
   "accent-purple": "#a855f7",
+  // What the user did while recording (click ticks): pink is what they edit, amber is evidence.
+  "accent-secondary": "#f5884a",
 };

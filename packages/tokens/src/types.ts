@@ -79,6 +79,7 @@ export const THEME_TOKEN_NAMES = [
   "accent-red-hover",
   "accent-yellow",
   "accent-purple",
+  "accent-secondary",
 ] as const;
 
 export type BaseTokenName = (typeof BASE_TOKEN_NAMES)[number];

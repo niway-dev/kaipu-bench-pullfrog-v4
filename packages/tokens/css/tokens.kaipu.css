@@ -43,6 +43,7 @@
   --kaipu-accent-red-hover: #dc2626;
   --kaipu-accent-yellow: #eab308;
   --kaipu-accent-purple: #a855f7;
+  --kaipu-accent-secondary: #f5884a;
   --kaipu-space-xs: 4px;
   --kaipu-space-sm: 8px;
   --kaipu-space-md: 12px;
@@ -115,4 +116,5 @@
   --kaipu-accent-red-hover: #b91c1c;
   --kaipu-accent-yellow: #a16207;
   --kaipu-accent-purple: #9333ea;
+  --kaipu-accent-secondary: #c2570f;
 }
