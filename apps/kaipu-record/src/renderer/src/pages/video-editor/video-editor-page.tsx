@@ -1370,6 +1370,12 @@ function VideoEditor({
       // the GIF export dialog — they block the scene from being safely mutated or played
       // while open. A video export runs in the background and blocks nothing.
       if (blocker.state === "blocked" || gifExport.status !== "idle" || exportSheetOpen) return;
+      // The Timeline guide is a modal: its own Esc closes it, and nothing behind it reacts.
+      if (guideTab !== null) return;
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "h") {
+        openGuideFirstTab();
+        return;
+      }
       if (e.key === " ") {
         // A focused checkbox or radio (cursor and webcam inspectors) owns Space: it
         // toggles the control, not playback. Other shortcuts still reach them.
@@ -1464,6 +1470,8 @@ function VideoEditor({
     handleToolChange,
     handleAddZoom,
     onSlide,
+    guideTab,
+    openGuideFirstTab,
   ]);
 
   // Lane inputs that used to be inline closures/literals: with stable identities the memoised

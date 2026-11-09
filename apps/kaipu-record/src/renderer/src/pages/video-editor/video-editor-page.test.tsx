@@ -2130,3 +2130,34 @@ describe("VideoEditorPage — background (NIW2-668)", () => {
     // That the picture clips (`overflow: hidden`) is a stylesheet fact: preview-stage-sizing.test.ts.
   });
 });
+
+describe("VideoEditorPage — Timeline guide (NIW2-679)", () => {
+  it("opens on the Clips tab from the header button, and Esc closes it", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    // Two buttons share the name (the header's and the transport bar's `?`): the header is first.
+    fireEvent.click(screen.getAllByRole("button", { name: "Timeline guide" })[0]);
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens on the Clips tab with H, and the shortcuts behind it stay quiet", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.keyDown(window, { key: "h" });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
+    // Space would toggle playback behind the modal; the guide swallows it.
+    const toggle = vi.spyOn(HTMLMediaElement.prototype, "play");
+    fireEvent.keyDown(window, { key: " " });
+    expect(toggle).not.toHaveBeenCalled();
+    toggle.mockRestore();
+  });
+
+  it("ignores H typed with a modifier", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.keyDown(window, { key: "h", metaKey: true });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});

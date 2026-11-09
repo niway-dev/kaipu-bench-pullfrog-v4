@@ -665,7 +665,7 @@ export function EditorToolbar({
           <button
             type="button"
             className={styles.iconBtn}
-            title={t("guideOpen")}
+            title={`${t("guideOpen")} (H)`}
             aria-label={t("guideOpen")}
             onClick={onOpenGuide}
           >
