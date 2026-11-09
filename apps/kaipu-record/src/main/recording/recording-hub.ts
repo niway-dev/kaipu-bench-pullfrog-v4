@@ -1260,7 +1260,12 @@ export function registerRecordingHub(
     },
     hideCameraBubbleForCapture: () => {
       if (!cameraBubble.isVisible()) return;
+      // The capture holds the bubble either way, so a stop meanwhile does not show it over
+      // the screenshot. During a take (`capture-while-recording`) it stays on screen: the
+      // recording comes first. Hidden, it would drop out of a take that records it on screen,
+      // and its renderer could stall the webcam file of one that records it apart.
       cameraBubbleHiddenForCapture = true;
+      if (activity.active) return;
       cameraBubble.hide();
     },
     restoreCameraBubbleAfterCapture: () => {

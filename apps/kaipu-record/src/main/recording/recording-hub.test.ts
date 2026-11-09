@@ -1766,6 +1766,20 @@ describe("recording hub — choosing an area or a display on the overlay", () =>
     expect(mockState.bubble.show).not.toHaveBeenCalled();
   });
 
+  it("a screenshot during a take never hides the camera bubble", async () => {
+    const { handle } = await hub();
+    mockState.ipcOn.get(IPC_CHANNELS.recordingSettingsUpdate)!({}, { isCameraEnabled: true });
+    mockState.ipcOn.get(IPC_CHANNELS.recordingStart)!(
+      {},
+      { sourceId: "screen:1:0", sourceName: "Screen 1" },
+    );
+    mockState.bubble.isVisible.mockReturnValue(true);
+    mockState.bubble.hide.mockClear();
+
+    handle.hideCameraBubbleForCapture();
+    expect(mockState.bubble.hide).not.toHaveBeenCalled();
+  });
+
   it("a forced reset releases the writer's open takes, so no file handle outlives the renderer", async () => {
     const { RecordingWriter } = await import("./recording-writer");
     const release = vi.spyOn(RecordingWriter.prototype, "release");
