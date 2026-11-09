@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { RAIL_MODES, Rail, type RailItem, type RailLinkProps } from "./rail";
 
 /**
  * The collapsed rail's floating label. It repeats the link's own name, so it is visual only:
@@ -18,7 +19,6 @@ const keyboardFocus = (): void => {
   });
 };
 afterEach(() => vi.restoreAllMocks());
-import { RAIL_MODES, Rail, type RailItem, type RailLinkProps } from "./rail";
 
 interface LinkItem extends RailItem {
   to: string;
