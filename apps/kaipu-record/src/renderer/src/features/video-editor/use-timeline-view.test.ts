@@ -26,14 +26,14 @@ describe("the timeline view store", () => {
   it("zoomStep moves between whole steps around the centre of the visible window (NIW2-675)", () => {
     const store = makeStore();
     const levels: number[] = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       store.zoomStep(1);
       levels.push(store.getState().zoom);
       // The centre of a fit view is 50 s; it must still be the centre after every step.
       expect(timeAt(store.getView(), 500, 0)).toBeCloseTo(50, 6);
     }
-    expect(levels).toEqual([2, 4, 8]);
-    for (const expected of [4, 2, 1]) {
+    expect(levels).toEqual([2, 4, 8, 16, 20]);
+    for (const expected of [16, 8, 4, 2, 1]) {
       store.zoomStep(-1);
       expect(store.getState().zoom).toBeCloseTo(expected, 9);
       expect(timeAt(store.getView(), 500, 0)).toBeCloseTo(50, 6);
@@ -55,16 +55,16 @@ describe("the timeline view store", () => {
     expect(down.getState().zoom).toBeCloseTo(4, 9);
   });
 
-  it("zoomStep does nothing at the cap (+ at 800%) or at the floor (− at 100%), and tells nobody", () => {
+  it("zoomStep does nothing at the cap (+ at 2000%) or at the floor (− at 100%), and tells nobody", () => {
     const store = makeStore();
     const listener = vi.fn();
     store.subscribe(listener);
     store.zoomStep(-1); // already 100%
     expect(listener).not.toHaveBeenCalled();
-    store.zoomTo(8);
+    store.zoomTo(20);
     listener.mockClear();
     const before = store.getState();
-    store.zoomStep(1); // already 800%
+    store.zoomStep(1); // already 2000%
     expect(store.getState()).toBe(before);
     expect(listener).not.toHaveBeenCalled();
   });
@@ -82,18 +82,18 @@ describe("the timeline view store", () => {
     expect(timeAt(store.getView(), 500, 0)).toBeCloseTo(centreBefore, 6);
   });
 
-  it("⌘-wheel and pinch zoom stay continuous and clamp at 800%", () => {
+  it("⌘-wheel and pinch zoom stay continuous and clamp at 2000%", () => {
     const store = makeStore();
     store.zoomAtPointer(1.37, 300, 0);
     expect(store.getState().zoom).toBeCloseTo(1.37, 9);
     store.zoomAtPointer(1e6, 300, 0);
-    expect(store.getState().zoom).toBe(8);
+    expect(store.getState().zoom).toBe(20);
   });
 
   it("zoomTo sets an absolute zoom and clamps it to the maximum", () => {
     const store = makeStore();
     store.zoomTo(1e9);
-    expect(store.getState().zoom).toBe(8);
+    expect(store.getState().zoom).toBe(20);
     store.zoomTo(0.1);
     expect(store.getState().zoom).toBe(1);
   });
@@ -252,13 +252,13 @@ describe("the time at the left edge survives a resize and a cut", () => {
     expect(leftEdge(store)).toBeCloseTo(45, 9);
   });
 
-  it("a cut at the deepest zoom keeps 800% (the cap does not depend on the duration) and clamps the window to the end", () => {
+  it("a cut at the deepest zoom keeps 2000% (the cap does not depend on the duration) and clamps the window to the end", () => {
     const store = makeStore(1000, 100);
-    store.zoomTo(8); // 80 px/s
-    store.scrollTo(5000, "user"); // left edge 62.5 s
+    store.zoomTo(20); // 200 px/s
+    store.scrollTo(12_500, "user"); // left edge 62.5 s
     store.setDuration(40);
     const view = store.getView();
-    expect(view.zoom).toBe(8);
+    expect(view.zoom).toBe(20);
     // 62.5 s is past the end of a 40 s take: the window ends at the end.
     expect(store.getState().scroll).toBeCloseTo(contentWidth(view) - 1000, 9);
   });
@@ -453,17 +453,17 @@ describe("the hooks", () => {
     expect(renders).toBe(afterZoom);
   });
 
-  it("useTimelineMaxZoom is 8 for any duration, and follows an empty timeline getting content", () => {
+  it("useTimelineMaxZoom is 20 for any duration, and follows an empty timeline getting content", () => {
     const store = makeStore(1000, 100);
     const { result } = renderHook(() => useTimelineMaxZoom(store));
-    expect(result.current).toBe(8);
+    expect(result.current).toBe(20);
     act(() => store.setDuration(50)); // the cap does not depend on the duration
-    expect(result.current).toBe(8);
+    expect(result.current).toBe(20);
     act(() => store.setDuration(0)); // an empty timeline has nothing to zoom into
     expect(result.current).toBe(1);
     act(() => store.setDuration(30)); // zoom stayed 1, but the control must redraw its slider
     expect(result.current).toBe(maxZoom(1000, 30));
-    expect(result.current).toBe(8);
+    expect(result.current).toBe(20);
   });
 
   it("useTimelineViewState re-renders on every state change", () => {

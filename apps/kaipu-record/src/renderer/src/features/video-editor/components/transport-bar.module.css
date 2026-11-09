@@ -207,12 +207,12 @@
 }
 
 /* The zoom level ("100%", "480%", "480 %" in Spanish), always on screen (NIW2-675): no width
-   query below hides it. A fixed width for the widest value ("800%", "800 %"), so the
+   query below hides it. A fixed width for the widest value ("2,000%", "2000 %"), so the
    buttons beside it do not move while the level changes, and the numbers the container
    queries at the end of this file rely on stay put. */
 .zoomLevel {
   box-sizing: border-box;
-  min-width: 5ch;
+  min-width: 6ch;
   text-align: center;
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
@@ -304,7 +304,7 @@
    hangs off the centre column, one grid gap before the column begins). What that leaves for
    the cluster, and what the narrow bar therefore drops (the slider, FIT, the total), is
    worked out at the end of this file. The speed button is a fixed 40 px and the zoom level a
-   fixed 5ch, so their text ("1x" to "1.5x", "100%" to "800%") never moves the numbers. A
+   fixed 6ch, so their text ("1x" to "1.5x", "100%" to "2,000%") never moves the numbers. A
    wider centre column (it narrows both sides) or one more right-hand control must re-check
    them. */
 .timeDisplay {
@@ -367,7 +367,7 @@
  * English and Spanish). The bar is the window minus 388 px; a container query reads its
  * CONTENT box (the bar minus its 24 px of padding), and each side column is (that - 132) / 2.
  * The label is 116 px (108 under 10 minutes); its short form (the current time) is 43 px. The
- * level readout is 33 px (5ch) plus its 2 px gap. The right cluster measures:
+ * level readout is 40 px (6ch; it was 33 px at 5ch before the 2000% ceiling, so every threshold below moved up 14 px and the narrow query drops the group padding to 0. NOT re-measured in the real app: run `bun run verify -- timeline-zoom` on the Mac mini) plus its 2 px gap. The right cluster measures:
  *
  *   `− level +`                    285 px (en and es)
  *   `− FIT level +`                316 px (en) / 345 px (es, "Ajustar")
@@ -391,19 +391,19 @@
  * whenever a control joins the right cluster or the label grows: `bun run verify --
  * timeline-zoom` on the Mac mini prints the numbers.
  */
-@container transport (max-width: 1206px) {
+@container transport (max-width: 1220px) {
   .zoomSlider {
     display: none;
   }
 }
 
-@container transport (max-width: 1056px) {
+@container transport (max-width: 1070px) {
   .fitButton {
     display: none;
   }
 }
 
-@container transport (max-width: 938px) {
+@container transport (max-width: 952px) {
   .timeFull {
     position: absolute;
     width: 1px;
@@ -417,12 +417,12 @@
   }
 }
 
-@container transport (max-width: 792px) {
+@container transport (max-width: 806px) {
   .right {
     gap: 4px;
   }
 
   .zoomGroup {
-    padding: 0 2px;
+    padding: 0;
   }
 }

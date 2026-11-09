@@ -26,14 +26,14 @@ export interface TimelineView {
 }
 
 /**
- * The deepest zoom, relative to fit: 8 reads as 800% in the UI (NIW2-675). A factor, not a
- * pixel scale, so it is the same for a 10 s clip and a one-hour take; the owner judged 8x
- * enough, and a take so long that 8x is still coarse is accepted.
+ * The deepest zoom, relative to fit: 20 reads as 2000% in the UI. A factor, not a pixel
+ * scale, so it is the same for a 10 s clip and a one-hour take. It was 8 (800%, NIW2-675), which
+ * on a 54-minute take is still too coarse to place a block precisely (2026-11-09).
  */
-export const MAX_ZOOM = 8;
+export const MAX_ZOOM = 20;
 
-/** `−` and `+` move between these whole levels (100%, 200%, 400%, 800%). */
-export const ZOOM_STEPS: readonly number[] = [1, 2, 4, 8];
+/** `−` and `+` move between these whole levels (100%, 200%, 400%, 800%, 1600%, 2000%). */
+export const ZOOM_STEPS: readonly number[] = [1, 2, 4, 8, 16, 20];
 
 /** While playing, the view scrolls once the playhead passes this share of the lane. */
 export const FOLLOW_EDGE = 0.8;

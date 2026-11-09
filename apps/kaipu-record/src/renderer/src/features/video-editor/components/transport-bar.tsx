@@ -107,7 +107,7 @@ function zoomKeyDirection(key: string): 1 | -1 | 0 {
 /**
  * `−`, slider, FIT, the level, `+` (NIW2-667, NIW2-675). It subscribes to the zoom factor and
  * the deepest zoom only: a scroll, which fires every frame, never re-renders the bar. The
- * slider is logarithmic over 100% to 800%; `−` and `+` move between whole steps. The level
+ * slider is logarithmic over 100% to 2000%; `−` and `+` move between whole steps. The level
  * ("480%") is plain text that no width query hides: a narrow bar drops the slider and FIT,
  * and the level stays between `−` and `+` so the zoom can always be read.
  */
