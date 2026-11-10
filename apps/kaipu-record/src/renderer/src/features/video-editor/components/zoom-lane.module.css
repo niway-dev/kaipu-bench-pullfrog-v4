@@ -7,7 +7,8 @@
 }
 
 /* Cursor activity (ADR 0050 decision 4): the evidence the zooms come from, behind the blocks.
-   Clicks are thin accent ticks over the lane's height; pointer pauses are short muted bars
+   Clicks are thin amber ticks (accent-secondary: what the user did while recording, never the
+   pink of what they edit) over the lane's height; pointer pauses are short muted bars
    on its floor (height = how long they lasted, set inline). Never takes a pointer event. */
 .marks {
   position: absolute;
@@ -24,7 +25,7 @@
   width: 2px;
   margin-left: -1px;
   border-radius: 1px;
-  background: color-mix(in srgb, var(--accent-primary) 70%, transparent);
+  background: var(--accent-secondary);
 }
 
 .dwell {
@@ -50,18 +51,23 @@
   pointer-events: none;
 }
 
-/* UI spec § 6.3 — rgba(246,5,92,.15) background, faint border, level in mono. */
+/* UI spec § 6.3 — rgba(246,5,92,.15) background, faint border, level in mono.
+   The block is as wide as its zoom really is, so it grows with the timeline zoom. The old
+   10 px floor (min-width + 4 px padding) made every zoom under ~10 px the same width: in a
+   long recording (121 zooms in 54 min) none grew until far past the 8x limit. A 3 px floor
+   keeps a sliver visible and clickable; the level and the lock appear once there is room. */
 .block {
   position: absolute;
   top: 3px;
   bottom: 3px;
-  min-width: 10px;
+  min-width: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: 0 4px;
+  padding: 0;
   overflow: hidden;
+  container-type: inline-size;
   border: 1px solid color-mix(in srgb, var(--accent-primary) 35%, transparent);
   border-radius: 3px;
   background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
@@ -76,13 +82,28 @@
 }
 
 .level {
+  display: none;
   font-family: var(--font-mono);
   font-size: 10px;
   white-space: nowrap;
 }
 
 .lock {
+  display: none;
   flex-shrink: 0;
+}
+
+/* Room for "2.1×" with a little margin; the lock needs a bit more. */
+@container (min-width: 30px) {
+  .level {
+    display: inline;
+  }
+}
+
+@container (min-width: 44px) {
+  .lock {
+    display: inline;
+  }
 }
 
 .handle {

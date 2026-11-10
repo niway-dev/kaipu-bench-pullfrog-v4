@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  CircleHelp,
   Layers,
   Maximize2,
   Minimize2,
@@ -26,6 +27,8 @@ import { TracksPopover } from "./tracks-popover";
 import styles from "./transport-bar.module.css";
 
 export interface TransportBarProps {
+  /** Opens the Timeline guide on its first tab (NIW2-679): the `?` next to Tracks. */
+  onOpenGuide?: () => void;
   /** The cut layout: Shift + rewind/forward jump between its entries. */
   layout: LayoutEntry[];
   playing: boolean;
@@ -104,7 +107,7 @@ function zoomKeyDirection(key: string): 1 | -1 | 0 {
 /**
  * `−`, slider, FIT, the level, `+` (NIW2-667, NIW2-675). It subscribes to the zoom factor and
  * the deepest zoom only: a scroll, which fires every frame, never re-renders the bar. The
- * slider is logarithmic over 100% to 800%; `−` and `+` move between whole steps. The level
+ * slider is logarithmic over 100% to 2000%; `−` and `+` move between whole steps. The level
  * ("480%") is plain text that no width query hides: a narrow bar drops the slider and FIT,
  * and the level stays between `−` and `+` so the zoom can always be read.
  */
@@ -204,6 +207,7 @@ export function TransportBar({
   deleteDisabled,
   onToggleFullscreen,
   timelineView,
+  onOpenGuide,
 }: TransportBarProps): React.JSX.Element {
   const t = useTranslations("videoEditor");
   const locale = useLocale();
@@ -240,6 +244,19 @@ export function TransportBar({
             {shown}/{total}
           </span>
         </button>
+        {onOpenGuide && (
+          <button
+            type="button"
+            className={styles.guideButton}
+            title={t("guideOpen")}
+            aria-label={t("guideOpen")}
+            // The guide is portaled to <body>, which fullscreen does not draw (as the Tracks panel).
+            disabled={isFullscreen}
+            onClick={onOpenGuide}
+          >
+            <CircleHelp size={14} aria-hidden />
+          </button>
+        )}
         {tracksOpen && tracksButtonRef.current && (
           <TracksPopover
             anchor={tracksButtonRef.current}

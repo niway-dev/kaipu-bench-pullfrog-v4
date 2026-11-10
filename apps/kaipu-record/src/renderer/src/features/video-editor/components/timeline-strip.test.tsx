@@ -501,17 +501,17 @@ describe("TimelineStrip lanes", () => {
     ).container;
   }
 
-  it("puts Clips first and leaves out an empty Annotations lane", () => {
+  it("puts Clips first and leaves out an empty Objects lane", () => {
     expect(laneNames(renderStrip([]))).toEqual(["Clips", "Zooms"]);
   });
 
-  it("shows Annotations right under Clips once there is one", () => {
-    expect(laneNames(renderStrip([box]))).toEqual(["Clips", "Annotations", "Zooms"]);
+  it("shows Objects right under Clips once there is one", () => {
+    expect(laneNames(renderStrip([box]))).toEqual(["Clips", "Objects", "Zooms"]);
   });
 
-  it("leaves the Annotations lane out while it is hidden in the Tracks popover", () => {
+  it("leaves the Objects lane out while it is hidden in the Tracks popover", () => {
     expect(laneNames(renderStrip([box], false))).toEqual(["Clips", "Zooms"]);
-    expect(laneNames(renderStrip([box], true))).toEqual(["Clips", "Annotations", "Zooms"]);
+    expect(laneNames(renderStrip([box], true))).toEqual(["Clips", "Objects", "Zooms"]);
   });
 });
 

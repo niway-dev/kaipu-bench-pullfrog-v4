@@ -207,12 +207,12 @@
 }
 
 /* The zoom level ("100%", "480%", "480 %" in Spanish), always on screen (NIW2-675): no width
-   query below hides it. A fixed width for the widest value ("800%", "800 %"), so the
+   query below hides it. A fixed width for the widest value ("2,000%", "2000 %"), so the
    buttons beside it do not move while the level changes, and the numbers the container
    queries at the end of this file rely on stay put. */
 .zoomLevel {
   box-sizing: border-box;
-  min-width: 5ch;
+  min-width: 6ch;
   text-align: center;
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
@@ -263,6 +263,34 @@
   color: var(--accent-primary);
 }
 
+/* `?` beside Tracks: the Timeline guide (NIW2-679). Square, so it reads as help, not a mode. */
+.guideButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.guideButton:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* Fullscreen: the guide is portaled to <body>, which fullscreen does not draw (as Tracks). */
+.guideButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .tracksCount {
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
@@ -276,7 +304,7 @@
    hangs off the centre column, one grid gap before the column begins). What that leaves for
    the cluster, and what the narrow bar therefore drops (the slider, FIT, the total), is
    worked out at the end of this file. The speed button is a fixed 40 px and the zoom level a
-   fixed 5ch, so their text ("1x" to "1.5x", "100%" to "800%") never moves the numbers. A
+   fixed 6ch, so their text ("1x" to "1.5x", "100%" to "2,000%") never moves the numbers. A
    wider centre column (it narrows both sides) or one more right-hand control must re-check
    them. */
 .timeDisplay {
@@ -332,6 +360,14 @@
 }
 
 /*
+ * UNVERIFIED AFTER THE 2000% CEILING: every figure in this block was measured at 5ch (33 px
+ * readout, "800%" / "800 %"). The ceiling made the readout 6ch ("2,000%" in English, "2000 %" in
+ * Spanish, about 40 px), so the cluster is about 6.6 px wider and each threshold below was moved
+ * up 14 px by arithmetic, not by measurement. The narrow query (792 px before, 806 px now) also
+ * drops the zoom group's padding to 0, which gains 8 px but leaves about 1 px clear at the
+ * 1180 px floor (4 px before) and puts the buttons against the group's border. Re-measure with
+ * `bun run verify -- timeline-zoom` on the Mac mini and rewrite the numbers below from the run.
+ *
  * The right cluster (split, delete, mute, speed, the timeline zoom, fullscreen) and the time
  * label share the right column: the label starts at the column's left edge, so the column
  * must hold the label AND the cluster. Measured in the real app (NIW2-675,
@@ -363,19 +399,19 @@
  * whenever a control joins the right cluster or the label grows: `bun run verify --
  * timeline-zoom` on the Mac mini prints the numbers.
  */
-@container transport (max-width: 1206px) {
+@container transport (max-width: 1220px) {
   .zoomSlider {
     display: none;
   }
 }
 
-@container transport (max-width: 1056px) {
+@container transport (max-width: 1070px) {
   .fitButton {
     display: none;
   }
 }
 
-@container transport (max-width: 938px) {
+@container transport (max-width: 952px) {
   .timeFull {
     position: absolute;
     width: 1px;
@@ -389,12 +425,12 @@
   }
 }
 
-@container transport (max-width: 792px) {
+@container transport (max-width: 806px) {
   .right {
     gap: 4px;
   }
 
   .zoomGroup {
-    padding: 0 2px;
+    padding: 0;
   }
 }

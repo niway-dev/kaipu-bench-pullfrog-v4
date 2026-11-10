@@ -536,28 +536,28 @@ describe("a cut while zoomed", () => {
     expect(body.scrollLeft).toBe(3000);
   });
 
-  it("keeps 800% when the take gets shorter (the cap does not depend on the duration) and re-clamps the scroll", () => {
+  it("keeps 2000% when the take gets shorter (the cap does not depend on the duration) and re-clamps the scroll", () => {
     stubGeometry();
     const store = createTimelineViewStore();
     store.setDuration(100);
     const utils = render(strip(store));
     act(() => {
-      store.zoomTo(8);
-      store.scrollTo(7000, "user");
+      store.zoomTo(20);
+      store.scrollTo(19_000, "user");
     });
     const body = utils.container.querySelector('[data-testid="timeline-scroller"]') as HTMLElement;
-    expect(body.scrollLeft).toBe(7000);
+    expect(body.scrollLeft).toBe(19_000);
     const shorter = toLayout([
       { id: "a", kind: "clip", sourceStart: 0, sourceEnd: 40 },
     ] as TrackItem[]);
     act(() => store.setDuration(40));
     utils.rerender(strip(store, { layout: shorter, playback: makePlayback({ duration: 40 }) }));
     const view = store.getView();
-    expect(view.zoom).toBe(8);
-    // The left edge was at 87.5 s (7000 px at 80 px/s): past the 40 s that are left, so the
-    // scroll lands on the very end of the shorter content, 8 x 1000 - 1000 px.
+    expect(view.zoom).toBe(20);
+    // The left edge was at 95 s (19000 px at 200 px/s): past the 40 s that are left, so the
+    // scroll lands on the very end of the shorter content, 20 x 1000 - 1000 px.
     expect(view.scroll).toBeCloseTo(view.zoom * LANE_WIDTH - LANE_WIDTH, 6);
-    expect(body.scrollLeft).toBeCloseTo(7000, 6);
+    expect(body.scrollLeft).toBeCloseTo(19_000, 6);
     expect(body.dataset.zoom).toBe(String(view.zoom));
   });
 });
@@ -1314,13 +1314,16 @@ describe("ruler labels near the end of the content", () => {
     expect(rulerLabels(container)).toEqual(atStart);
   });
 
-  it("at the deepest zoom of a 10-minute take (800%) the last labels are there too", () => {
-    // 13.3 px/s, a label every 10 s, 133 px apart; the lane shows 525..600 s. The old rule
-    // dropped every label from 576 s on, so this stretch of the ruler was blank.
+  it("at the deepest zoom of a 10-minute take (2000%) the last labels are there too", () => {
+    // 33.3 px/s, so the ruler picks a label every 5 s (600 / 5 = 120 <= 10 x 20 labels; every
+    // 3 s is not a step), 167 px apart; the lane shows 570..600 s. The old rule dropped every
+    // label from 576 s on, so this stretch of the ruler was blank. 9:25 is the one step of
+    // overscan left of the window; 9:20 is two steps out and is not built at all.
     const labels = rulerLabels(renderAt(600, 1e9, 1e9));
-    for (const label of ["9:20", "9:30", "9:40", "9:50"]) {
+    for (const label of ["9:30", "9:35", "9:40", "9:45", "9:50", "9:55"]) {
       expect(labels).toContain(label);
     }
+    expect(labels).not.toContain("9:20");
     expect(labels).not.toContain("10:00");
   });
 });

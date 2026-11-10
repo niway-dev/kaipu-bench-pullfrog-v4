@@ -8,8 +8,9 @@ import {
   type CSSProperties,
   type ReactElement,
 } from "react";
-import { Film, ImagePlus, PenLine, type LucideIcon } from "lucide-react";
+import { Film, ImagePlus, Info, PenLine, type LucideIcon } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
+import { isGuideTab, type GuideTab } from "../track-guide";
 import type { PreviewPlayback } from "../use-preview-playback";
 import type { LayoutEntry } from "../timeline";
 import { layoutDuration } from "../timeline";
@@ -88,6 +89,7 @@ export const TimelineStrip = memo(function TimelineStrip({
   onWindowChange,
   extraLanes = [],
   timelineView,
+  onOpenGuide,
 }: {
   layout: LayoutEntry[];
   playback: PreviewPlayback;
@@ -115,6 +117,9 @@ export const TimelineStrip = memo(function TimelineStrip({
   selectedOverlayId: string | null;
   onSelectOverlay: (id: string | null) => void;
   onWindowChange?: (id: string, start: number, end: number, phase: WindowChangePhase) => void;
+  /** Opens the Timeline guide on a lane: each lane label gets an info button that calls it
+   *  (NIW2-679). Without it the labels stay plain text. */
+  onOpenGuide?: (tab: GuideTab) => void;
   /** Lanes rendered below the main track, each with its label, in order. */
   extraLanes?: ExtraLane[];
   /** The page's zoom and scroll (the transport bar's zoom control drives the same store).
@@ -453,7 +458,12 @@ export const TimelineStrip = memo(function TimelineStrip({
               {rulerMarks}
             </div>
             {/* Clips lead: the recording is what every other lane edits. */}
-            <LaneLabel icon={Film} label={t("laneClips")} />
+            <LaneLabel
+              icon={Film}
+              label={t("laneClips")}
+              guideTab="clips"
+              onOpenGuide={onOpenGuide}
+            />
             <div
               className={styles.track}
               onPointerDown={startScrub}
@@ -483,7 +493,12 @@ export const TimelineStrip = memo(function TimelineStrip({
             {/* Annotations are made with the drawing tools on the preview, never on this lane,
                 so an empty lane would only be a blank row: it appears with the first one. */}
             {showOverlays && overlays.length > 0 && (
-              <LaneRow icon={PenLine} label={t("laneAnnotations")}>
+              <LaneRow
+                icon={PenLine}
+                label={t("laneAnnotations")}
+                guideTab="annotations"
+                onOpenGuide={onOpenGuide}
+              >
                 <OverlayLane
                   overlays={overlays}
                   duration={duration}
@@ -494,7 +509,13 @@ export const TimelineStrip = memo(function TimelineStrip({
               </LaneRow>
             )}
             {extraLanes.map((lane) => (
-              <LaneRow key={lane.key} icon={lane.icon} label={lane.label}>
+              <LaneRow
+                key={lane.key}
+                icon={lane.icon}
+                label={lane.label}
+                guideTab={isGuideTab(lane.key) ? lane.key : undefined}
+                onOpenGuide={onOpenGuide}
+              >
                 {lane.node}
               </LaneRow>
             ))}
@@ -513,11 +534,40 @@ export const TimelineStrip = memo(function TimelineStrip({
   );
 });
 
-function LaneLabel({ icon: Icon, label }: { icon: LucideIcon; label: string }): React.JSX.Element {
+function LaneLabel({
+  icon: Icon,
+  label,
+  guideTab,
+  onOpenGuide,
+}: {
+  icon: LucideIcon;
+  label: string;
+  /** The lane's tab in the Timeline guide; with `onOpenGuide`, the label becomes its opener. */
+  guideTab?: GuideTab;
+  onOpenGuide?: (tab: GuideTab) => void;
+}): React.JSX.Element {
+  const t = useTranslations("videoEditor");
+  if (!guideTab || !onOpenGuide) {
+    return (
+      <span className={styles.laneLabel}>
+        <Icon size={14} aria-hidden className={styles.laneIcon} />
+        {label}
+      </span>
+    );
+  }
   return (
     <span className={styles.laneLabel}>
-      <Icon size={14} aria-hidden className={styles.laneIcon} />
-      {label}
+      <button
+        type="button"
+        className={styles.laneGuide}
+        title={t("guideOpenLane")}
+        aria-label={t("guideOpenLaneAria", { track: label })}
+        onClick={() => onOpenGuide(guideTab)}
+      >
+        <Icon size={14} aria-hidden className={styles.laneIcon} />
+        {label}
+        <Info size={11} aria-hidden className={styles.laneGuideInfo} />
+      </button>
     </span>
   );
 }
@@ -525,15 +575,19 @@ function LaneLabel({ icon: Icon, label }: { icon: LucideIcon; label: string }): 
 function LaneRow({
   icon,
   label,
+  guideTab,
+  onOpenGuide,
   children,
 }: {
   icon: LucideIcon;
   label: string;
+  guideTab?: GuideTab;
+  onOpenGuide?: (tab: GuideTab) => void;
   children: ReactElement;
 }): React.JSX.Element {
   return (
     <>
-      <LaneLabel icon={icon} label={label} />
+      <LaneLabel icon={icon} label={label} guideTab={guideTab} onOpenGuide={onOpenGuide} />
       {/* Exactly one grid cell, whatever the lane renders — the label/lane pairing of
           every row below this one depends on it. */}
       <div className={styles.laneCell}>{children}</div>

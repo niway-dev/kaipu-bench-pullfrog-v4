@@ -109,6 +109,44 @@
   flex-shrink: 0;
 }
 
+/* The label as the guide's opener (NIW2-679): looks like the plain label; the info glyph
+   shows on hover and keyboard focus, so the column stays quiet until it is pointed at. */
+.laneGuide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.laneGuide:hover,
+.laneGuide:focus-visible {
+  color: var(--text-primary);
+}
+
+.laneGuide:focus-visible {
+  outline: 2px solid var(--accent-primary-ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.laneGuideInfo {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.laneGuide:hover .laneGuideInfo,
+.laneGuide:focus-visible .laneGuideInfo {
+  opacity: 0.8;
+}
+
 /* One grid cell per extra lane (see LaneRow). min-width: 0 stops a wide lane from
    growing the column past its 1fr share. */
 .laneCell {

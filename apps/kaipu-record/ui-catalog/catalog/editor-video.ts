@@ -267,6 +267,44 @@ export const editorVideo = catalog(
       ],
       demonstrates: ["editorVideo.tracksPopover:open"],
     },
+    "track-guide-clips": {
+      profile: "default",
+      how: "Open “Team notes” and press Guide in the header: the Timeline guide opens on the Clips tab, with the sample timeline lit on Clips.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        {
+          click: { area: "editorVideo.toolbar", part: { role: "button", name: "Timeline guide" } },
+        },
+      ],
+      demonstrates: ["editorVideo.trackGuide:clips"],
+    },
+    "track-guide-zooms": {
+      profile: "default",
+      how: "Open “Team notes”, press Guide in the header, then the Zooms tab: the legend explains zoom blocks, amber click ticks and pauses.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        {
+          click: { area: "editorVideo.toolbar", part: { role: "button", name: "Timeline guide" } },
+        },
+        { click: { area: "editorVideo.trackGuide", part: { role: "tab", name: "Zooms" } } },
+      ],
+      demonstrates: ["editorVideo.trackGuide:zooms"],
+    },
+    "track-guide-webcam": {
+      profile: "default",
+      how: "Open “Team notes”, press Guide in the header, then the Webcam tab: the legend explains the frame strip, hidden and custom blocks.",
+      steps: [
+        open(ASSETS.teamNotes),
+        loaded,
+        {
+          click: { area: "editorVideo.toolbar", part: { role: "button", name: "Timeline guide" } },
+        },
+        { click: { area: "editorVideo.trackGuide", part: { role: "tab", name: "Webcam" } } },
+      ],
+      demonstrates: ["editorVideo.trackGuide:webcam"],
+    },
     "playback-speed": {
       profile: "default",
       how: "Open “Team notes” and press the speed button next to mute twice: it reads 2× and the preview plays at double speed.",
@@ -292,8 +330,9 @@ export const editorVideo = catalog(
     "timeline-zoomed": {
       profile: "default",
       how: "Open “Team notes” and press + in the transport bar twice: the zoom level reads 400%, the lanes stretch to four times the window, the labels stay put and a scrollbar appears under the lanes.",
-      // Two presses reach 400% (100% → 200% → 400%); a fourth would be a click on a disabled
-      // button (800% is the deepest zoom), which Playwright waits on until the step times out.
+      // Two presses reach 400% (100% → 200% → 400%); a sixth would be a click on a disabled
+      // button (2000% is the deepest zoom, reached by the fifth press), which Playwright waits on
+      // until the step times out.
       steps: [open(ASSETS.teamNotes), loaded, zoomIn, zoomIn],
       demonstrates: ["editorVideo.transport:zoomed", "editorVideo.timeline:zoomed"],
     },

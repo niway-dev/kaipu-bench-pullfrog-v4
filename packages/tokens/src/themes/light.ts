@@ -51,4 +51,5 @@ export const light: TokenSet = {
   "accent-red-hover": "#b91c1c",
   "accent-yellow": "#a16207",
   "accent-purple": "#9333ea",
+  "accent-secondary": "#c2570f",
 };

@@ -7,11 +7,11 @@ import { test, expect, type ElectronApplication, type Locator, type Page } from 
 import { launchApp } from "../e2e/helpers/launch";
 
 /*
- * Timeline zoom (NIW2-667, NIW2-675), in the real app: a long recording at 100%, 400% and 800%
+ * Timeline zoom (NIW2-667, NIW2-675), in the real app: a long recording at 100%, 400% and 2000%
  * (the deepest zoom), the transport bar at 1180, 1280, 1440 and 1570 px (and the wider ones) in
  * English and Spanish with the zoom level always on screen, the whole steps of + and −, and the
  * proof the maths agrees with the real layout (a click lands the playhead under the pointer, a
- * trim moves by the 400% amount, the wheel zooms around the pointer and clamps at 800%,
+ * trim moves by the 400% amount, the wheel zooms around the pointer and clamps at 2000%,
  * playback follows).
  *
  * Self-contained and tolerant of a tree from before the change (no zoom control there): the
@@ -421,7 +421,7 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
         return head.getBoundingClientRect().left + 1; // the 2 px line's centre
       });
 
-    // --- whole steps: + goes 100% → 200% → 400% → 800%, − comes back (NIW2-675) -------------
+    // --- whole steps: + goes 100% → 200% → 400% → 800% → 1600% → 2000%, − comes back (NIW2-675) -------------
     const level = page.getByTitle(LEVEL_TITLE);
     // Back to 100% at any width: FIT when the bar still shows it, `−` until it stops otherwise.
     const toFit = async (): Promise<void> => {
@@ -431,22 +431,34 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
         return;
       }
       const out = page.getByRole("button", { name: ZOOM_OUT });
-      for (let i = 0; i < 4 && (await out.isEnabled()); i++) await out.click();
+      for (let i = 0; i < 6 && (await out.isEnabled()); i++) await out.click();
     };
     const readLevel = async (): Promise<string> =>
-      ((await level.textContent()) ?? "").replace(/\s|\u00a0/g, "");
+      ((await level.textContent()) ?? "").replace(/[\s\u00a0,]/g, "");
     const steps: string[] = [await readLevel()];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       await page.getByRole("button", { name: ZOOM_IN }).click();
       steps.push(await readLevel());
     }
     const plusDisabledAtCap = await page.getByRole("button", { name: ZOOM_IN }).isDisabled();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       await page.getByRole("button", { name: ZOOM_OUT }).click();
       steps.push(await readLevel());
     }
     console.log(`[verify] ${NAME}: walk steps ${JSON.stringify({ steps, plusDisabledAtCap })}`);
-    expect(steps).toEqual(["100%", "200%", "400%", "800%", "400%", "200%", "100%"]);
+    expect(steps).toEqual([
+      "100%",
+      "200%",
+      "400%",
+      "800%",
+      "1600%",
+      "2000%",
+      "1600%",
+      "800%",
+      "400%",
+      "200%",
+      "100%",
+    ]);
     expect(plusDisabledAtCap).toBe(true);
     expect((await geometry()).zoom).toBe(1);
 
@@ -539,7 +551,7 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     const t0 = (wx - gw0.laneLeft + gw0.scroll) / gw0.scale;
     await page.mouse.move(wx, y);
     await page.keyboard.down("Meta");
-    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -40);
+    for (let i = 0; i < 10; i++) await page.mouse.wheel(0, -40);
     await page.keyboard.up("Meta");
     await page.waitForTimeout(300);
     const gw1 = await geometry();
@@ -584,26 +596,26 @@ test("timeline zoom: a 2:43 recording at 1x, 4x and 16x, and the pointer lands o
     expect(headNow).toBeLessThanOrEqual(g6.laneLeft + g6.laneWidth + 2);
     await shoot("4x-following");
 
-    // --- 800%: the deepest zoom --------------------------------------------------------------
+    // --- 2000%: the deepest zoom --------------------------------------------------------------
     await toFit();
-    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
+    for (let i = 0; i < 5; i++) await page.getByRole("button", { name: ZOOM_IN }).click();
     await scroller.evaluate((el) => (el.scrollLeft = el.scrollWidth * 0.4));
-    await shoot("800");
+    await shoot("2000");
     const tiles = await footer.locator("img").count();
     const deepest = await geometry();
     console.log(
-      `[verify] ${NAME}: walk 800% ${JSON.stringify({ zoom: deepest.zoom, level: await readLevel(), tiles })}`,
+      `[verify] ${NAME}: walk 2000% ${JSON.stringify({ zoom: deepest.zoom, level: await readLevel(), tiles })}`,
     );
-    expect(deepest.zoom).toBe(8);
-    expect(await readLevel()).toBe("800%");
+    expect(deepest.zoom).toBe(20);
+    expect(await readLevel()).toBe("2000%");
 
-    // A ⌘-wheel past the maximum clamps at 800%.
+    // A ⌘-wheel past the maximum clamps at 2000% (ten events of e^0.4 each overshoot e^4 = 54x).
     await page.mouse.move(bodyBox.x + 500, y);
     await page.keyboard.down("Meta");
-    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -40);
+    for (let i = 0; i < 10; i++) await page.mouse.wheel(0, -40);
     await page.keyboard.up("Meta");
     await page.waitForTimeout(300);
-    expect((await geometry()).zoom).toBe(8);
+    expect((await geometry()).zoom).toBe(20);
 
     // An in-between level from the wheel (e.g. 480%): + goes to 800%, − to 400%.
     await toFit();

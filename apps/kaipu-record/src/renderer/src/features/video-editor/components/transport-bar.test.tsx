@@ -9,7 +9,7 @@ import { createTimelineViewStore, type TimelineViewStore } from "../use-timeline
 import { maxZoom, sliderToZoom } from "./timeline-view";
 import { TransportBar, type TransportBarProps } from "./transport-bar";
 
-/** A 100 s timeline in a 1000 px lane: it can zoom up to 8x (800%). */
+/** A 100 s timeline in a 1000 px lane: it can zoom up to 20x (2000%). */
 function zoomStore(laneWidth = 1000, duration = 100): TimelineViewStore {
   const store = createTimelineViewStore();
   store.setDuration(duration);
@@ -418,19 +418,19 @@ describe("TransportBar — timeline zoom", () => {
     expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 100%");
   });
 
-  it("+ goes up whole steps 100% → 200% → 400% → 800%, and − comes back down", () => {
+  it("+ goes up whole steps 100% → 200% → 400% → 800% → 1600% → 2000%, and − comes back down", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     const seen: string[] = [];
-    for (const expected of [2, 4, 8]) {
+    for (const expected of [2, 4, 8, 16, 20]) {
       fireEvent.click(zoomIn());
       expect(timelineView.getState().zoom).toBeCloseTo(expected, 9);
       seen.push(level().textContent ?? "");
     }
-    expect(seen).toEqual(["200%", "400%", "800%"]);
+    expect(seen).toEqual(["200%", "400%", "800%", "1,600%", "2,000%"]);
     expect(zoomOut()).toBeEnabled();
     expect(fit()).toBeEnabled();
-    for (const expected of [4, 2, 1]) {
+    for (const expected of [16, 8, 4, 2, 1]) {
       fireEvent.click(zoomOut());
       expect(timelineView.getState().zoom).toBeCloseTo(expected, 9);
     }
@@ -469,18 +469,18 @@ describe("TransportBar — timeline zoom", () => {
     expect(level()).toHaveTextContent("100%");
   });
 
-  it("the slider is logarithmic over [1, 8] and drives the same zoom: the middle is the geometric mean", () => {
+  it("the slider is logarithmic over [1, 20] and drives the same zoom: the middle is the geometric mean", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     const max = maxZoom(1000, 100);
-    expect(max).toBe(8);
+    expect(max).toBe(20);
     fireEvent.change(slider(), { target: { value: "0.5" } });
     expect(timelineView.getState().zoom).toBeCloseTo(sliderToZoom(0.5, max), 6);
-    expect(timelineView.getState().zoom).toBeCloseTo(Math.sqrt(8), 6);
-    expect(level()).toHaveTextContent("283%");
-    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 283%");
+    expect(timelineView.getState().zoom).toBeCloseTo(Math.sqrt(20), 6);
+    expect(level()).toHaveTextContent("447%"); // sqrt(20) = 4.472
+    expect(slider()).toHaveAttribute("aria-valuetext", "Zoom 447%");
     fireEvent.change(slider(), { target: { value: "1" } });
-    expect(level()).toHaveTextContent("800%");
+    expect(level()).toHaveTextContent("2,000%");
   });
 
   // The slider's native keyboard step is one thousandth of its range: on a logarithmic range
@@ -523,20 +523,20 @@ describe("TransportBar — timeline zoom", () => {
     // What the native slider does with them: a change event to the ends of [0, 1]. The
     // component turns that position into the zoom through the log scale.
     fireEvent.change(slider(), { target: { value: "1" } }); // End
-    expect(timelineView.getState().zoom).toBeCloseTo(8, 6);
+    expect(timelineView.getState().zoom).toBeCloseTo(20, 6);
     fireEvent.change(slider(), { target: { value: "0" } }); // Home
     expect(timelineView.getState().zoom).toBe(1);
   });
 
-  it("an arrow at 800% or at 100% changes nothing", () => {
+  it("an arrow at 2000% or at 100% changes nothing", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     fireEvent.keyDown(slider(), { key: "ArrowLeft" });
     expect(timelineView.getState().zoom).toBe(1);
     act(() => timelineView.zoomTo(1e9));
-    expect(timelineView.getState().zoom).toBe(8);
+    expect(timelineView.getState().zoom).toBe(20);
     fireEvent.keyDown(slider(), { key: "ArrowRight" });
-    expect(timelineView.getState().zoom).toBe(8);
+    expect(timelineView.getState().zoom).toBe(20);
   });
 
   it("leaves other keys and modified arrows alone (⌘ ← is the browser's, not a zoom)", () => {
@@ -559,23 +559,21 @@ describe("TransportBar — timeline zoom", () => {
     expect(level()).toHaveTextContent("400%");
   });
 
-  it("a wheel zoom past the limit clamps at 800% and + is disabled there", () => {
+  it("a wheel zoom past the limit clamps at 2000% and + is disabled there", () => {
     const timelineView = zoomStore();
     renderBar({ timelineView });
     act(() => timelineView.zoomAtPointer(1e6, 300, 0));
-    expect(level()).toHaveTextContent("800%");
+    expect(level()).toHaveTextContent("2,000%");
     expect(zoomIn()).toBeDisabled();
     expect(slider()).toHaveValue("1");
   });
 
-  it("a short recording zooms the same 100% to 800% (the cap no longer depends on the duration)", () => {
+  it("a short recording zooms the same 100% to 2000% (the cap no longer depends on the duration)", () => {
     const timelineView = zoomStore(1000, 2);
     renderBar({ timelineView });
     expect(slider()).toBeEnabled();
-    fireEvent.click(zoomIn());
-    fireEvent.click(zoomIn());
-    fireEvent.click(zoomIn());
-    expect(level()).toHaveTextContent("800%");
+    for (let i = 0; i < 5; i++) fireEvent.click(zoomIn()); // 200, 400, 800, 1600, 2000
+    expect(level()).toHaveTextContent("2,000%");
     expect(zoomIn()).toBeDisabled();
   });
 

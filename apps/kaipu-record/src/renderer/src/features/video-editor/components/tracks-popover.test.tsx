@@ -40,7 +40,7 @@ describe("TracksPopover — rows", () => {
     setup();
     expect(rowNames()).toEqual([
       "ClipsAlways",
-      "Annotations",
+      "Objects",
       "Zooms",
       "Cursor activity",
       "Privacy",
@@ -50,7 +50,7 @@ describe("TracksPopover — rows", () => {
 
   it("leaves Cursor activity out without a cursor track, and Webcam out without a camera", () => {
     setup({ hasCursorTrack: false });
-    expect(rowNames()).toEqual(["ClipsAlways", "Annotations", "Zooms", "Privacy", "Audio"]);
+    expect(rowNames()).toEqual(["ClipsAlways", "Objects", "Zooms", "Privacy", "Audio"]);
   });
 
   it("lists Webcam when the take has a camera", () => {
@@ -134,7 +134,7 @@ describe("TracksPopover — position", () => {
 describe("TracksPopover — keyboard and dismissal", () => {
   it("focuses the first row that can be toggled when it opens", () => {
     setup();
-    expect(row("Annotations")).toHaveFocus();
+    expect(row("Objects")).toHaveFocus();
   });
 
   it("moves with the arrow keys and wraps", () => {

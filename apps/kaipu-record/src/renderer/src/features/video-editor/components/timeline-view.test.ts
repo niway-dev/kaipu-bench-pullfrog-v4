@@ -50,16 +50,16 @@ describe("fitView", () => {
 });
 
 describe("maxZoom", () => {
-  it("is 8, which the UI shows as 800%, whatever the duration (NIW2-675)", () => {
-    expect(MAX_ZOOM).toBe(8);
+  it("is 20, which the UI shows as 2000%, whatever the duration (NIW2-675)", () => {
+    expect(MAX_ZOOM).toBe(20);
     for (const duration of [2, 40, 100, 605, 3600]) {
-      expect(maxZoom(1000, duration)).toBe(8);
+      expect(maxZoom(1000, duration)).toBe(20);
     }
   });
 
   it("does not depend on the lane width either", () => {
-    expect(maxZoom(300, 100)).toBe(8);
-    expect(maxZoom(24_000, 100)).toBe(8);
+    expect(maxZoom(300, 100)).toBe(20);
+    expect(maxZoom(24_000, 100)).toBe(20);
   });
 
   it("is 1x while the lane or the timeline is unmeasured", () => {
@@ -71,7 +71,7 @@ describe("maxZoom", () => {
 describe("clampView", () => {
   it("keeps zoom within [1, maxZoom]", () => {
     expect(clampView({ ...fit, zoom: 0.2 }).zoom).toBe(1);
-    expect(clampView({ ...fit, zoom: 1000 }).zoom).toBe(8);
+    expect(clampView({ ...fit, zoom: 1000 }).zoom).toBe(20);
   });
 
   it("keeps scroll within [0, contentWidth - laneWidth]", () => {
@@ -103,6 +103,9 @@ describe("timeAt and xOf", () => {
     [8, 0],
     [8, 3500],
     [8, 7000],
+    [20, 0],
+    [20, 9500],
+    [20, 19_000],
   ])("round-trips at zoom %d, scroll %d", (zoom, scroll) => {
     const view = viewAt(zoom, scroll);
     for (const t of [0, 1.25, 33.3, 50, 99.9]) {
@@ -180,7 +183,7 @@ describe("zoomAt", () => {
     const anchor = LANE_LEFT + 700;
     const t = timeUnder(fit, anchor);
     const after = zoomAt(fit, 10_000, anchor, LANE_LEFT);
-    expect(after.zoom).toBe(8);
+    expect(after.zoom).toBe(20);
     expect(timeUnder(after, anchor)).toBeCloseTo(t, 6);
   });
 
@@ -329,15 +332,16 @@ describe("resizing under a live view (a cut while zoomed)", () => {
 describe("the zoom slider", () => {
   const max = maxZoom(1000, 100);
 
-  it("covers [1, 8] on a log scale: 100% at one end, 800% at the other", () => {
-    expect(max).toBe(8);
+  it("covers [1, 20] on a log scale: 100% at one end, 2000% at the other", () => {
+    expect(max).toBe(20);
     expect(zoomToSlider(1, max)).toBe(0);
-    expect(zoomToSlider(8, max)).toBeCloseTo(1, 12);
-    // 200% and 400% are a third and two thirds along: equal ratios are equal distances.
-    expect(zoomToSlider(2, max)).toBeCloseTo(1 / 3, 12);
-    expect(zoomToSlider(4, max)).toBeCloseTo(2 / 3, 12);
+    expect(zoomToSlider(20, max)).toBeCloseTo(1, 12);
+    // Position is ln(zoom) / ln(20): equal ratios are equal distances, so 200% and 400%
+    // sit at ln 2 / ln 20 and ln 4 / ln 20 (twice as far), not at a linear share.
+    expect(zoomToSlider(2, max)).toBeCloseTo(Math.log(2) / Math.log(20), 12);
+    expect(zoomToSlider(4, max)).toBeCloseTo(2 * zoomToSlider(2, max), 12);
     expect(sliderToZoom(0, max)).toBe(1);
-    expect(sliderToZoom(1, max)).toBeCloseTo(8, 12);
+    expect(sliderToZoom(1, max)).toBeCloseTo(20, 12);
   });
 
   it("maps fit to 0 and the maximum to 1", () => {
@@ -432,12 +436,17 @@ describe("formatZoom", () => {
     expect(formatZoom(2, "en")).toBe("200%");
     expect(formatZoom(4.8, "en")).toBe("480%");
     expect(formatZoom(8, "en")).toBe("800%");
+    // English groups thousands, so the ceiling reads "2,000%"; Spanish does not group four digits.
+    expect(formatZoom(16, "en")).toBe("1,600%");
+    expect(formatZoom(20, "en")).toBe("2,000%");
   });
 
   it("uses the locale's own percent format: Spanish puts a no-break space before the sign", () => {
     expect(formatZoom(1, "es")).toBe("100\u00a0%");
     expect(formatZoom(4.8, "es")).toBe("480\u00a0%");
     expect(formatZoom(8, "es")).toBe("800\u00a0%");
+    expect(formatZoom(16, "es")).toBe("1600\u00a0%");
+    expect(formatZoom(20, "es")).toBe("2000\u00a0%");
   });
 
   it("rounds to an integer percent, so a wheel zoom never shows a decimal", () => {
@@ -453,19 +462,23 @@ describe("formatZoom", () => {
 });
 
 describe("ZOOM_STEPS and stepZoom (the + and − buttons, NIW2-675)", () => {
-  const max = 8;
+  const max = 20;
 
-  it("are the whole steps 100%, 200%, 400% and 800%", () => {
-    expect([...ZOOM_STEPS]).toEqual([1, 2, 4, 8]);
+  it("are the whole steps 100%, 200%, 400%, 800%, 1600% and 2000%", () => {
+    expect([...ZOOM_STEPS]).toEqual([1, 2, 4, 8, 16, 20]);
   });
 
-  it("+ goes up one whole step from 100%: 100% → 200% → 400% → 800%", () => {
+  it("+ goes up one whole step from 100%: 100% → 200% → 400% → 800% → 1600% → 2000%", () => {
     expect(stepZoom(1, 1, max)).toBe(2);
     expect(stepZoom(2, 1, max)).toBe(4);
     expect(stepZoom(4, 1, max)).toBe(8);
+    expect(stepZoom(8, 1, max)).toBe(16);
+    expect(stepZoom(16, 1, max)).toBe(20);
   });
 
-  it("− goes back down: 800% → 400% → 200% → 100%", () => {
+  it("− goes back down: 2000% → 1600% → 800% → 400% → 200% → 100%", () => {
+    expect(stepZoom(20, -1, max)).toBe(16);
+    expect(stepZoom(16, -1, max)).toBe(8);
     expect(stepZoom(8, -1, max)).toBe(4);
     expect(stepZoom(4, -1, max)).toBe(2);
     expect(stepZoom(2, -1, max)).toBe(1);
@@ -477,6 +490,8 @@ describe("ZOOM_STEPS and stepZoom (the + and − buttons, NIW2-675)", () => {
     expect(stepZoom(1.4, 1, max)).toBe(2);
     expect(stepZoom(1.4, -1, max)).toBe(1);
     expect(stepZoom(7.9, -1, max)).toBe(4);
+    expect(stepZoom(18, 1, max)).toBe(20);
+    expect(stepZoom(18, -1, max)).toBe(16);
   });
 
   it("is strict: a level a hair off a step (float error) does not stay on it", () => {
@@ -486,15 +501,15 @@ describe("ZOOM_STEPS and stepZoom (the + and − buttons, NIW2-675)", () => {
     expect(stepZoom(2 - 1e-12, -1, max)).toBe(1);
   });
 
-  it("does nothing at the cap (+ at 800%) and at the floor (− at 100%)", () => {
-    expect(stepZoom(8, 1, max)).toBe(8);
+  it("does nothing at the cap (+ at 2000%) and at the floor (− at 100%)", () => {
+    expect(stepZoom(20, 1, max)).toBe(20);
     expect(stepZoom(1, -1, max)).toBe(1);
   });
 
   it("stays inside [1, max] for any input, and holds at 1 when nothing can zoom", () => {
-    expect(stepZoom(20, 1, max)).toBe(8);
+    expect(stepZoom(50, 1, max)).toBe(20);
     // An out-of-range level is first clamped to the cap, then stepped.
-    expect(stepZoom(20, -1, max)).toBe(4);
+    expect(stepZoom(50, -1, max)).toBe(16);
     expect(stepZoom(0.3, 1, max)).toBe(2);
     expect(stepZoom(1, 1, 1)).toBe(1);
     expect(stepZoom(Number.NaN, 1, max)).toBe(2);

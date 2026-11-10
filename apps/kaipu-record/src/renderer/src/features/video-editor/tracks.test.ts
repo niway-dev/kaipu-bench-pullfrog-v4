@@ -19,7 +19,7 @@ describe("the shared literals", () => {
 });
 
 describe("availableTracks", () => {
-  it("lists Clips, Annotations, Zooms, Privacy and Audio for a take with neither extra", () => {
+  it("lists Clips, Objects, Zooms, Privacy and Audio for a take with neither extra", () => {
     expect(availableTracks({ hasCursorTrack: false, hasWebcam: false })).toEqual([
       "clips",
       "annotations",

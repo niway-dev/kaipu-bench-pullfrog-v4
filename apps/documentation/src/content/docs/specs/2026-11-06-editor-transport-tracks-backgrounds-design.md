@@ -78,6 +78,9 @@ Defaulted on 2026-11-06; each stands unless its "revisit if" triggers.
 5. **Timeline zoom maximum.** Decided (NIW2-675, after the owner tried PR 4): 8× (800 %) relative
    to fit, for any duration; the maximum is the constant `MAX_ZOOM`. A recording so long that 8× is
    still coarse is accepted. Revisit if the owner asks for more depth on long takes.
+   **Revisited 2026-11-09:** the owner asked; the maximum is now 20× (2000 %) and the steps are
+   100/200/400/800/1600/2000 % (see the backlog doc `timeline-zoom-2000`). The text below that
+   says 800 % is the original decision.
 6. **Rewind/forward buttons.** Default: skip 5 s, and ⇧ skips to the previous/next cut. Revisit if
    the owner prefers frame stepping on the buttons (the keyboard keeps ←/→ for frames).
 

@@ -192,6 +192,9 @@ describe("Sidebar Library badge (copies being made or ready)", () => {
 describe("Sidebar is icon-only (NIW2-626)", () => {
   const tip = (): HTMLElement | null => document.querySelector("[data-rail-tooltip]");
 
+  // The keyboard-focus test spies on Element.prototype.matches; never leak it into other tests.
+  afterEach(() => vi.restoreAllMocks());
+
   it("always draws the collapsed rail, with no way to expand it", () => {
     renderAt("/");
     expect(screen.getByRole("navigation")).toHaveAttribute("data-mode", "collapsed");

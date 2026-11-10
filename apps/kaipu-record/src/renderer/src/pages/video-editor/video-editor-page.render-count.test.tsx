@@ -151,17 +151,18 @@ function buildTrack(): CursorTrack {
   };
 }
 
-/** SYNTHETIC saved session: 100 non-overlapping manual zooms, 5 s long every 30 s. */
+/** SYNTHETIC saved session: 128 non-overlapping manual zooms (the owner's 54-minute take has
+ *  ~121-128), 5 s long every 28 s. */
 function buildSession(): string {
   return JSON.stringify({
     version: 1,
     scene: {
       items: [{ id: "clip-a", kind: "clip", sourceStart: 0, sourceEnd: DURATION }],
       overlays: [],
-      zoomSegments: Array.from({ length: 100 }, (_, i) => ({
+      zoomSegments: Array.from({ length: 128 }, (_, i) => ({
         id: `zoom-${i + 1}`,
-        start: 10 + i * 30,
-        end: 15 + i * 30,
+        start: 10 + i * 28,
+        end: 15 + i * 28,
         scale: 2,
         mode: "fixed",
         anchor: { x: 0.5, y: 0.5 },
@@ -348,5 +349,94 @@ describe("VideoEditorPage — render counts during a slider drag", () => {
     await waitFor(() =>
       expect(screen.getByRole("slider", { name: "Sensitivity" })).not.toHaveValue("70"),
     );
+  }, 120_000);
+
+  it("a zoom edge drag re-renders the zoom lane once per frame, however many pointer moves land in it", async () => {
+    const router = createMemoryRouter(
+      [{ path: "/", element: <VideoEditorLoader source={SOURCE} /> }],
+      { initialEntries: ["/"] },
+    );
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(document.querySelector("footer")).not.toBeNull(), {
+      timeout: 20_000,
+    });
+    const footer = document.querySelector("footer")!;
+    await waitFor(
+      () => {
+        expect(footer.querySelectorAll("[data-activity-marks] span").length).toBeGreaterThan(1000);
+      },
+      { timeout: 20_000 },
+    );
+    expect(footer.querySelectorAll("[data-zoom-id]").length).toBeGreaterThanOrEqual(120);
+
+    // The strip converts a pointer x to time from these live rects; jsdom has no layout.
+    const rect = (left: number, width: number): DOMRect =>
+      ({
+        left,
+        right: left + width,
+        width,
+        top: 0,
+        bottom: 20,
+        height: 20,
+        x: left,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const id = this.dataset.testid;
+        if (id === "timeline-scroller") return rect(0, 120 + 3600);
+        if (id === "lane-corner") return rect(0, 120);
+        return rect(0, 0);
+      },
+    );
+
+    fireEvent.click(footer.querySelector<HTMLButtonElement>('button[aria-label="Zoom 1"]')!);
+    await screen.findByRole("heading", { name: "Zoom 1" });
+    const endHandle = (): HTMLElement =>
+      footer.querySelector<HTMLElement>('[data-zoom-handle="end"]')!;
+    const leftBefore = endHandle().style.left;
+
+    // A real drag delivers several pointer moves per frame (a 240 Hz mouse on a 60 Hz screen).
+    // Only the edge drag's own frame runs after each batch: it is queued first, by the first
+    // move. Frames the page queues while re-rendering (camera path, playback loop) are dropped,
+    // so the measurement is the lane renders and not a one-hour camera simulation per frame.
+    const queued: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => queued.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    for (const key of Object.keys(renders)) renders[key] = 0;
+    const frames = 30;
+    const movesPerFrame = 4;
+    const start = performance.now();
+    fireEvent.pointerDown(endHandle(), { pointerId: 1, clientX: 120 + 5 });
+    for (let f = 0; f < frames; f++) {
+      queued.length = 0;
+      for (let m = 0; m < movesPerFrame; m++) {
+        const x = 120 + 5 + (f * movesPerFrame + m + 1) * 0.5;
+        fireEvent.pointerMove(endHandle(), { pointerId: 1, clientX: x });
+      }
+      const [edgeFrame] = queued.splice(0);
+      act(() => edgeFrame?.(0));
+    }
+    fireEvent.pointerUp(endHandle(), { pointerId: 1 });
+    const ms = performance.now() - start;
+    if (process.env.RENDER_COUNT)
+      console.info(
+        `[render-count] zoom edge drag: zoom=${renders["zoom"] ?? 0} strip=${renders["strip"] ?? 0} ` +
+          `activity=${renders["activity"] ?? 0} frames=${frames} moves=${frames * movesPerFrame} ms=${ms.toFixed(0)}`,
+      );
+    // The lanes that do not show the dragged zoom stay put.
+    expect(renders["audio"] ?? 0).toBe(0);
+    expect(renders["privacy"] ?? 0).toBe(0);
+    // One lane render per frame, not per pointer move (+3: the gesture's own state changes).
+    expect(renders["zoom"] ?? 0).toBeGreaterThan(0);
+    expect(renders["zoom"] ?? 0).toBeLessThanOrEqual(frames + 3);
+    expect(renders["strip"] ?? 0).toBeLessThanOrEqual(frames + 3);
+    // The drag itself still works: the edge followed the pointer, and the whole drag is one
+    // undo step.
+    expect(endHandle().style.left).not.toBe(leftBefore);
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+    await waitFor(() => expect(endHandle().style.left).toBe(leftBefore));
   }, 120_000);
 });
