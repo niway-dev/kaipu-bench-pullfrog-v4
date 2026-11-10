@@ -1099,6 +1099,7 @@
   "screenshots": {
     "toast": {
       "label": "Screenshot ready",
+      "taken": "Screenshot taken",
       "meta": "{width} × {height} · {mode}",
       "notSaved": "Not saved",
       "edit": "Edit",

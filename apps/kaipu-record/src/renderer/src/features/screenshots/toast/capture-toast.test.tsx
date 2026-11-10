@@ -79,6 +79,15 @@ describe("CaptureToast (the capture preview card)", () => {
     });
   });
 
+  it("a shot taken during a take says so, and the plain card does not", () => {
+    const { unmount } = renderCard({ ...SAVED, presentation: "taken" });
+    expect(screen.getByText("Screenshot taken")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Screenshot taken" })).toBeTruthy();
+    unmount();
+    renderCard(SAVED);
+    expect(screen.queryByText("Screenshot taken")).toBeNull();
+  });
+
   it("saved and copied: both states, the paste hint, the size, mode and workspace", () => {
     renderCard(SAVED);
     expect(button("Saved · show the file in Finder")).toHaveTextContent("Saved");

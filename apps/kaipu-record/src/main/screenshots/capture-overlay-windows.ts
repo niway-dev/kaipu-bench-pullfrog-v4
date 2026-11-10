@@ -66,6 +66,7 @@ export interface OverlayWindow {
     ): void;
   };
   setAlwaysOnTop(flag: boolean, level?: "screen-saver"): void;
+  setContentProtection(enable: boolean): void;
   setVisibleOnAllWorkspaces(
     visible: boolean,
     options?: { visibleOnFullScreen?: boolean; skipTransformProcessType?: boolean },
@@ -133,6 +134,13 @@ export interface CaptureOverlayDeps {
   enabledModes: readonly CaptureMode[];
   /** Keep the next pick's windows loaded hidden (see `OverlayWarmup`); none when absent. */
   warmup: OverlayWarmup | null;
+  /**
+   * Whether the overlay windows are excluded from screen capture (`capture-while-recording`,
+   * NIW2-688): true while a screenshot is taken during a take, so the selection never lands
+   * in the video. Read when a window is made and again when a pick shows it, because a spare
+   * warmed before the take must still be protected. Defaults to never (today's behaviour).
+   */
+  protectContent: () => boolean;
   /** The warm-up's delays; tests shorten them. */
   warmDelayMs: number;
   warmRetryMs: number;
@@ -157,6 +165,7 @@ const electronDeps = (): CaptureOverlayDeps => ({
   windowLister: NO_WINDOWS_LISTER,
   enabledModes: ENABLED_CAPTURE_MODES,
   warmup: null,
+  protectContent: () => false,
   warmDelayMs: OVERLAY_WARM_DELAY_MS,
   warmRetryMs: OVERLAY_WARM_RETRY_MS,
 });
@@ -166,6 +175,8 @@ type OverlayEntry = {
   displayId: number;
   /** Its renderer painted (`ready-to-show`): a spare that did is shown at once by its pick. */
   ready: boolean;
+  /** Whether `setContentProtection(true)` is on, so a pick only calls it on a change. */
+  protected: boolean;
 };
 
 /** Windows loaded hidden for a pick that has not opened yet; `key` is their joined queries. */
@@ -665,8 +676,10 @@ export class CaptureOverlayWindows implements OverlayPort {
     });
     // Above full-screen apps on macOS and above the taskbar on Windows.
     window.setAlwaysOnTop(true, "screen-saver");
+    const protect = this.deps.protectContent();
+    if (protect) window.setContentProtection(true);
 
-    const entry: OverlayEntry = { window, displayId: display.id, ready: false };
+    const entry: OverlayEntry = { window, displayId: display.id, ready: false, protected: protect };
     window.once("ready-to-show", () => {
       entry.ready = true;
       // A spare waits hidden for its pick; one whose pick ended was destroyed with it.
@@ -710,6 +723,13 @@ export class CaptureOverlayWindows implements OverlayPort {
     // Answered or destroyed before it painted: never show a stale overlay.
     if (window.isDestroyed() || !this.session?.settle) return;
     this.setSpaceBehavior(window, true);
+    // A spare warmed before a take is protected now; one protected for a take that has
+    // ended is exposed again, so a plain screenshot behaves as it always did.
+    const protect = this.deps.protectContent();
+    if (protect !== entry.protected) {
+      entry.protected = protect;
+      window.setContentProtection(protect);
+    }
     // The state first: a spare learns its mode, intent and frame display here, and it paints
     // nothing until it has them.
     this.sendState(window);

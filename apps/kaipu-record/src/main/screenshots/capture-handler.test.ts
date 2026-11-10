@@ -18,7 +18,9 @@ const overlay: OverlayPort = {
 
 // Copying manual by default, so a Capture touches the clipboard only when a test asks.
 let prefs: { copy: ScreenshotCopyMode; afterCapture?: ScreenshotAfterCapture } = { copy: "manual" };
+let takeNow = false;
 beforeEach(() => {
+  takeNow = false;
   prefs = { copy: "manual" };
   clearLastQuietCapture();
 });
@@ -39,6 +41,7 @@ function setup(
   const copyToClipboard = vi.fn();
   const onQuietCapture = vi.fn();
   const onRecordTarget = vi.fn();
+  const recordingTarget = vi.fn(async () => ({ displayId: 2, rect: null }));
   const handler = createCaptureHandler({
     platform,
     provider: { capture, supports, supportedModes: () => [] },
@@ -55,9 +58,12 @@ function setup(
     onQuietCapture,
     onRecordTarget,
     workspace,
+    duringTake: () => takeNow,
+    recordingTarget,
   });
   return {
     handler,
+    recordingTarget,
     windows,
     track,
     rememberMode,
@@ -691,5 +697,86 @@ describe("createCaptureHandler", () => {
       expect(out).toMatchObject({ kind: "captured", after: "editor" });
       expect(fallback.rememberMode).toHaveBeenCalledExactlyOnceWith("window");
     });
+  });
+});
+
+describe("createCaptureHandler — a screenshot during a take (NIW2-688)", () => {
+  const shot = async (): Promise<ProviderResult> => ({
+    kind: "captured",
+    png: Buffer.from("png"),
+    mode: "frame",
+    action: "capture",
+  });
+
+  it("saves to the vault, shows the notice and never opens the editor, even with Editor as the destination", async () => {
+    takeNow = true;
+    prefs = { copy: "manual", afterCapture: "editor" };
+    const { handler, saveToVault, onQuietCapture, windows } = setup(shot);
+    const answer = await handler({ mode: "frame" });
+    expect(saveToVault).toHaveBeenCalledOnce();
+    expect(answer).toMatchObject({ kind: "captured", after: "quiet" });
+    expect(onQuietCapture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentation: "taken",
+        saved: { id: "screenshot-1", assetId: "asset-1" },
+      }),
+    );
+    expect(windows.afterCapture).toHaveBeenCalledWith("quiet");
+  });
+
+  it("passes the take target to the provider without changing the idle screenshot mode", async () => {
+    takeNow = true;
+    const capture = vi.fn(shot);
+    const { handler, rememberMode } = setup(capture);
+    await handler({ mode: "frame" });
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recordingTarget: { displayId: 2, rect: null },
+      }),
+    );
+    expect(rememberMode).not.toHaveBeenCalled();
+  });
+
+  it("cancels instead of falling back to the selector when the take target is unavailable", async () => {
+    takeNow = true;
+    const capture = vi.fn(shot);
+    const { handler, recordingTarget } = setup(capture);
+    recordingTarget.mockResolvedValue(null as never);
+    expect(await handler({ mode: "frame" })).toEqual({ kind: "cancelled" });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it("still applies the copy setting", async () => {
+    takeNow = true;
+    prefs = { copy: "auto" };
+    const { handler, copyToClipboard } = setup(shot);
+    await handler({ mode: "frame" });
+    expect(copyToClipboard).toHaveBeenCalledOnce();
+  });
+
+  it("a failed save keeps the shot in the toast instead of opening the editor", async () => {
+    takeNow = true;
+    const { handler, saveToVault, onQuietCapture } = setup(shot);
+    saveToVault.mockRejectedValue(new Error("vault closed"));
+    const answer = await handler({ mode: "frame" });
+    expect(answer).toMatchObject({ kind: "captured", after: "quiet", saved: null });
+    expect(onQuietCapture).toHaveBeenCalledWith(
+      expect.objectContaining({ presentation: "taken", saved: null }),
+    );
+    expect(takeLastQuietCapture()).not.toBeNull();
+  });
+
+  it("outside a take nothing changes: the notice is not used and the editor still opens", async () => {
+    prefs = { copy: "manual", afterCapture: "editor" };
+    const { handler, onQuietCapture } = setup(shot);
+    const answer = await handler({ mode: "frame" });
+    expect(answer).toMatchObject({ kind: "captured", after: "editor" });
+    expect(onQuietCapture).not.toHaveBeenCalled();
+  });
+
+  it("a plain quiet capture outside a take carries no presentation", async () => {
+    const { handler, onQuietCapture } = setup(shot);
+    await handler({ mode: "frame" });
+    expect(onQuietCapture.mock.calls[0]![0]).not.toHaveProperty("presentation");
   });
 });

@@ -1,3 +1,4 @@
+import type { RecordingCaptureTarget } from "../screenshots/screenshot-capture";
 import {
   app,
   BrowserWindow,
@@ -79,6 +80,7 @@ export interface RecordingHubHandle {
   isActive(): boolean;
   /** The area chosen in settings (main's own copy), or null. */
   currentArea(): RecordingArea | null;
+  screenshotTarget(): Promise<RecordingCaptureTarget | null>;
   /** True while a take is pending (countdown or acquiring): not active yet, but busy. */
   isPending(): boolean;
   /** A writer session is open: a take or an editor export is writing into the workspace. */
@@ -103,6 +105,13 @@ export interface RecordingHubHandle {
    * the camera device. No-ops if the bubble isn't currently shown.
    */
   hideCameraBubbleForCapture(): void;
+  /**
+   * A screenshot overlay opens during a take (`capture-while-recording`): let go of the global
+   * Esc the countdown holds, so Esc reaches the overlay and cancels only the selection.
+   */
+  suspendEscapeForCapture(): void;
+  /** The overlay closed: take the countdown's Esc back, if the countdown still wants it. */
+  resumeEscapeAfterCapture(): void;
   /** Restore the bubble after a capture, but only if it was actually hidden
    *  for it AND the camera toggle is still on (it may have been turned off
    *  mid-capture). */
@@ -929,13 +938,19 @@ export function registerRecordingHub(
   } | null = null;
   let countdownRegionTimer: ReturnType<typeof setTimeout> | null = null;
   let escapeHeld = false;
+  // The countdown wants Esc (`escapeWanted`), but a capture overlay opened over it needs the
+  // key for itself (`escapeSuspended`): Esc there cancels the selection, never the take.
+  let escapeWanted = false;
+  let escapeSuspended = false;
   const releaseEscape = (): void => {
+    escapeWanted = false;
     if (!escapeHeld) return;
     escapeHeld = false;
     releaseTemporaryShortcut("Escape");
   };
   const holdEscape = (): void => {
-    if (escapeHeld) return;
+    escapeWanted = true;
+    if (escapeHeld || escapeSuspended) return;
     escapeHeld = holdTemporaryShortcut("Escape", () => {
       markRecordTiming("Esc pressed: stop sent to the recorder");
       getMainWindow()?.webContents.send(IPC_CHANNELS.recordingCommand, "stop");
@@ -1066,6 +1081,8 @@ export function registerRecordingHub(
   // not show the bar or change the shade of the take that started after it.
   let takeCount = 0;
   let lastTakeDisplayId: number | null = null;
+  let takeSourceId: string | null = null;
+  let takeArea: RecordingArea | null = null;
   ipcMain.on(IPC_CHANNELS.recordingStart, (e, info: RecordingStartInfo) => {
     activity = startedActivity();
     const senderId = (e as { sender?: { id?: unknown } } | undefined)?.sender?.id;
@@ -1083,6 +1100,8 @@ export function registerRecordingHub(
     // cannot set one (`windowSettingsPatch`), so the renderer's copy in `info` is the same value.
     const chosen =
       settings.area && settings.selectedSource?.id === info.sourceId ? settings.area : null;
+    takeSourceId = info.sourceId;
+    takeArea = chosen ? structuredClone(chosen) : null;
     const areaDisplay = chosen
       ? screen.getAllDisplays().find((display) => display.id === chosen.displayId)
       : undefined;
@@ -1231,13 +1250,45 @@ export function registerRecordingHub(
   return {
     isActive: () => activity.active,
     currentArea: () => settings.area,
+    screenshotTarget: async () => {
+      const sourceId = activity.active ? takeSourceId : settings.selectedSource?.id;
+      const area = activity.active ? takeArea : settings.area;
+      if (!sourceId) return null;
+      if (sourceId.startsWith("window:")) {
+        const windowId = sourceId.split(":")[1];
+        const display = screen.getAllDisplays()[0];
+        return windowId && display ? { displayId: display.id, rect: null, windowId } : null;
+      }
+      const displayId = await displayIdForSource(screenSources, sourceId);
+      const display = screen.getAllDisplays().find((d) => String(d.id) === displayId);
+      if (!display) return null;
+      const safeArea = area ? sanitizeArea(area, display) : null;
+      // A stale region must never widen a screenshot to the entire display.
+      if (area && !safeArea) return null;
+      return { displayId: display.id, rect: safeArea?.rect ?? null };
+    },
     isPending: () => pending && !activity.active,
     lastTakeDisplayId: () => lastTakeDisplayId,
     hasOpenWrites: () => writer.ids().length > 0,
     toggleRecordingSetting: (key) => applySettingsPatch({ [key]: !settings[key] }),
+    suspendEscapeForCapture: () => {
+      escapeSuspended = true;
+      if (!escapeHeld) return;
+      escapeHeld = false;
+      releaseTemporaryShortcut("Escape");
+    },
+    resumeEscapeAfterCapture: () => {
+      escapeSuspended = false;
+      if (escapeWanted) holdEscape();
+    },
     hideCameraBubbleForCapture: () => {
       if (!cameraBubble.isVisible()) return;
+      // The capture holds the bubble either way, so a stop meanwhile does not show it over
+      // the screenshot. During a take (`capture-while-recording`) it stays on screen: the
+      // recording comes first. Hidden, it would drop out of a take that records it on screen,
+      // and its renderer could stall the webcam file of one that records it apart.
       cameraBubbleHiddenForCapture = true;
+      if (activity.active) return;
       cameraBubble.hide();
     },
     restoreCameraBubbleAfterCapture: () => {

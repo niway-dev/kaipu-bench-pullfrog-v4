@@ -18,6 +18,7 @@ import {
 } from "electron";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { captureWhileRecordingEnabled } from "./screenshots/capture-while-recording";
 import { setActiveFlagOverrides, withFlagOverrides } from "./flag-overrides";
 import { parseFlagOverrides } from "@shared/flag-overrides";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
@@ -647,6 +648,7 @@ function bringAppToFront(): void {
 function triggerCaptureScreenshot(request: CaptureRequestPayload): void {
   routeCaptureRequest({
     isRecordingActive: () => (hub?.isActive() || hub?.isPending()) ?? false,
+    allowDuringTake: () => captureWhileRecordingEnabled(),
     notifyBusy: () => {
       // The main window is hidden during a take, so the renderer cannot show its
       // "finish the recording first" toast — use a system notification.
@@ -744,6 +746,8 @@ const captureWindowHooks = createCaptureWindowHooks({
   dismissToast: () => captureToast?.dismiss(),
   hideCameraBubble: () => hub?.hideCameraBubbleForCapture(),
   restoreCameraBubble: () => hub?.restoreCameraBubbleAfterCapture(),
+  suspendTakeEscape: () => hub?.suspendEscapeForCapture(),
+  resumeTakeEscape: () => hub?.resumeEscapeAfterCapture(),
   showMainWindow,
   bringAppToFront,
 });
@@ -1080,6 +1084,8 @@ app.whenReady().then(async () => {
     captureWindowHooks,
     (request) => toast.show(request),
     (target) => void applyRecordTarget(target),
+    () => (hub?.isActive() || hub?.isPending()) ?? false,
+    async () => (await hub?.screenshotTarget()) ?? null,
   );
 
   /**

@@ -25,6 +25,8 @@ function setup(options: { visible?: boolean; window?: boolean } = {}) {
     restoreCameraBubble: vi.fn(() => calls.push("restore-bubble")),
     showMainWindow: vi.fn(() => calls.push("show-and-focus")),
     bringAppToFront: vi.fn(() => calls.push("front")),
+    suspendTakeEscape: vi.fn(() => calls.push("suspend-esc")),
+    resumeTakeEscape: vi.fn(() => calls.push("resume-esc")),
   };
   return { hooks: createCaptureWindowHooks(deps), deps, window, calls };
 }
@@ -38,6 +40,14 @@ describe("createCaptureWindowHooks", () => {
     expect(deps.hideCameraBubble).toHaveBeenCalledOnce();
     // The toast from the last quiet capture would otherwise sit inside the next shot.
     expect(deps.dismissToast).toHaveBeenCalledOnce();
+  });
+
+  it("lets Esc through to the overlay while it is open, and hands it back after", () => {
+    const { hooks, calls } = setup();
+    hooks.beforeCapture();
+    hooks.afterCapture("quiet");
+    expect(calls.indexOf("suspend-esc")).toBeGreaterThanOrEqual(0);
+    expect(calls.indexOf("resume-esc")).toBeGreaterThan(calls.indexOf("suspend-esc"));
   });
 
   it("still dismisses the toast when there is no main window", () => {

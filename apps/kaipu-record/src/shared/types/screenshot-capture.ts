@@ -232,8 +232,12 @@ export interface OverlayState {
 
 /** Main → toast window. */
 export interface CaptureToastPayload {
-  /** Successful explicit Copy keeps the image and actions with a brief confirmation timer. */
-  presentation?: "copied";
+  /**
+   * `taken`: a screenshot made during a take (NIW2-688); the card also says "Screenshot taken".
+   * `copied`: successful explicit Copy keeps the image and actions with a brief confirmation
+   * timer.
+   */
+  presentation?: "copied" | "taken";
   /** Data URL, at most PREVIEW_THUMBNAIL_MAX_SIDE px on its longest side. */
   thumbnail: string;
   width: number;

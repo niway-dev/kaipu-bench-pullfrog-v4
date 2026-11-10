@@ -477,8 +477,12 @@ export const UI_MAP = {
     areas: {
       root: { states: ["saved", "notSaved"] },
       card: {
-        states: ["rest", "hover", "copied"],
-        gatedBy: [{ setting: "screenshotAfterCapture" }, { setting: "screenshotCopy" }],
+        states: ["rest", "hover", "copied", "taken"],
+        gatedBy: [
+          { setting: "screenshotAfterCapture" },
+          { setting: "screenshotCopy" },
+          { flag: "capture-while-recording" },
+        ],
       },
     },
   },

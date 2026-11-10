@@ -327,6 +327,7 @@ window.electronAPI = {
   captureScreenshot: async () => ({ kind: "cancelled" }),
   screenshotSupportedModes: async () => ["frame", "window", "screen"],
   revealAfterCapture: () => {},
+  reportCaptureWhileRecording: () => {},
   captureOverlay: {
     answer: () => {},
     hover: () => {},
