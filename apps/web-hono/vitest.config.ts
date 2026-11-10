@@ -7,7 +7,7 @@ import react from "@vitejs/plugin-react";
 const require = createRequire(import.meta.url);
 const packageDir = (name: string): string => path.dirname(require.resolve(`${name}/package.json`));
 
-// The workspace has two React patch versions (this app pins 19.2.3, the desktop 19.3.1), and
+// The workspace has two React versions (this app pins 19.2.3, the desktop 19.3.1), and
 // packages with a React peer dependency can bind to either. Two copies in one test run break
 // hooks ("Cannot read properties of null (reading 'useState')"), so every import of React, even
 // from inside a dependency, resolves to this app's copy.

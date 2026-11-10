@@ -34,7 +34,7 @@ Production builds have no such logging. React 19.3 skips typed arrays
 ## Change
 
 `apps/kaipu-record` pins `react` and `react-dom` to `19.3.1` (from `19.2.4`). No code
-change. The other apps keep their own pins (web-hono, console and infra-email: 19.2.3).
+change. web-hono, console and the infra-email package keep their own pins (19.2.3).
 The shared packages that declare `react: ^19` (`@kaipu/ui`, `@kaipu/brand`, `@kaipu/i18n`,
 `@kaipu/web-ui`) now resolve to the root `react@19.3.1`. web-hono keeps a single React
 copy in its tests only through the alias in `apps/web-hono/vitest.config.ts`.
