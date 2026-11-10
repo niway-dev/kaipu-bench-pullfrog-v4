@@ -51,9 +51,9 @@ in-page `requestAnimationFrame` recorder; long tasks come from a `PerformanceObs
 | dev, React 19.3.1        | 100%          | 0          | 0            | 19.4 ms     |
 | dev, React 19.3.1        | 2000%         | 0          | 0            | 12.4 ms     |
 
-The React 19.2.4 dev rows ran on the PR #565 branch; the 19.3.1 rows ran on `main` plus
-this change. Rows of the two kinds are not a controlled comparison of anything but the
-React version.
+The React 19.2.4 rows ran on the PR #565 branch; the 19.3.1 rows ran on `main` plus this
+change, without PR #565's incremental camera path. So the dev rows also differ in that
+change. It is not where the time went: see the profile below.
 
 A JavaScript CPU profile of the 19.2.4 dev drag attributed 6.4 s of 6.6 s of scripting to
 `logComponentRender` → `addObjectDiffToProperties`. Wrapping `performance.measure` showed
