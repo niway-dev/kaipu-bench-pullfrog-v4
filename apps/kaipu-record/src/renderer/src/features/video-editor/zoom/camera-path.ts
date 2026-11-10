@@ -77,34 +77,100 @@ function segmentAt(segments: ZoomSegment[], t: number, hint: { i: number }): Zoo
   return s && s.start <= t ? s : null;
 }
 
-export function buildCameraPath(
-  segments: ZoomSegment[],
+/** Below this, a camera with no segment ahead is snapped to exact rest (see simulate). */
+const REST_EPSILON = 1e-9;
+
+/**
+ * A stretch of the path where the camera sits at EXACT rest — centre (0.5, 0.5), scale 1,
+ * every velocity 0 — and no segment is open or opening. From index `start` up to (not
+ * including) `end` the outputs are the constants (0.5, 0.5, 1) and the state does not
+ * move: the spring toward any target is clamped straight back to the centre while the
+ * scale is 1. Only the carried target (`tx`, `ty`) and `smoothing` survive into the next
+ * segment, so a run is a seam where a simulation can be resumed or spliced exactly.
+ */
+interface RestRun {
+  start: number;
+  end: number;
+  tx: number;
+  ty: number;
+  smoothing: number;
+}
+
+/**
+ * The whole simulation state every CHECKPOINT_STEPS steps, so a rebuild can resume in the
+ * middle of a zoom (an edge drag on a 13-minute block re-simulates the moved edge, not the
+ * block). Slot j holds the state right after index j * CHECKPOINT_STEPS - 1; slot 0 is
+ * unused (a resume from 0 is a fresh start). Per slot, STATE_FIELDS numbers in `data`:
+ * cx, cy, vx, vy, s, vs, tx, ty, smoothing — plus the active segment id in `ids`.
+ */
+interface Checkpoints {
+  data: Float64Array;
+  ids: (string | null)[];
+}
+
+const CHECKPOINT_STEPS = 60;
+const STATE_FIELDS = 9;
+
+/** A built path plus what an incremental rebuild needs to reuse it. */
+export interface CameraBuild {
+  path: CameraPath;
+  segments: ZoomSegment[];
+  track: CursorTrack | null;
+  sourceDurationSeconds: number;
+  rests: RestRun[];
+  checkpoints: Checkpoints;
+}
+
+interface Splice {
+  prev: CameraBuild;
+  /** Splicing is only allowed from this index on: no changed segment reaches it. */
+  fromIndex: number;
+}
+
+/**
+ * The simulation itself. Runs from `i0` — 0, or a checkpoint boundary resumed from the
+ * state stored in `checkpoints` slot `i0 / CHECKPOINT_STEPS` — to the end, or until it
+ * settles into a rest run that `splice.prev` also had with the same carried state: from
+ * there on the old path is the new path, so it is copied instead of simulated. `run` is
+ * the rest run already open at `i0 - 1`, if any.
+ */
+function simulate(
+  sorted: ZoomSegment[],
   track: CursorTrack | null,
-  sourceDurationSeconds: number,
-): CameraPath {
-  const fps = CAMERA.fps;
-  const n = Math.max(1, Math.ceil(sourceDurationSeconds * fps) + 1);
-  const cxOut = new Float32Array(n);
-  const cyOut = new Float32Array(n);
-  const scaleOut = new Float32Array(n);
-  const sorted = [...segments].sort((a, b) => a.start - b.start);
-  const dt = 1 / fps;
+  out: CameraPath,
+  rests: RestRun[],
+  checkpoints: Checkpoints,
+  i0: number,
+  openRun: RestRun | null,
+  splice: Splice | null,
+): void {
+  const n = out.scale.length;
+  const dt = 1 / out.fps;
+  const cxOut = out.cx;
+  const cyOut = out.cy;
+  const scaleOut = out.scale;
   // Two independent cursors into `sorted`: one for `t`, one for the lookahead `u`.
+  // segmentAt only ever walks forward past segments that have ended, so starting both at
+  // 0 lands them where an uninterrupted run from t = 0 would have them.
   const hintNow = { i: 0 };
   const hintAhead = { i: 0 };
 
-  let cx = 0.5;
-  let cy = 0.5;
-  let vx = 0;
-  let vy = 0;
-  let s = 1;
-  let vs = 0;
-  let tx = 0.5;
-  let ty = 0.5;
-  let smoothing: number = ZOOM_DEFAULTS.smoothing;
-  let activeId: string | null = null;
+  const cp = checkpoints.data;
+  const slot0 = (i0 / CHECKPOINT_STEPS) * STATE_FIELDS;
+  const resumed = i0 > 0;
+  let cx = resumed ? cp[slot0] : 0.5;
+  let cy = resumed ? cp[slot0 + 1] : 0.5;
+  let vx = resumed ? cp[slot0 + 2] : 0;
+  let vy = resumed ? cp[slot0 + 3] : 0;
+  let s = resumed ? cp[slot0 + 4] : 1;
+  let vs = resumed ? cp[slot0 + 5] : 0;
+  let tx = resumed ? cp[slot0 + 6] : 0.5;
+  let ty = resumed ? cp[slot0 + 7] : 0.5;
+  let smoothing: number = resumed ? cp[slot0 + 8] : ZOOM_DEFAULTS.smoothing;
+  let activeId: string | null = resumed ? checkpoints.ids[i0 / CHECKPOINT_STEPS] : null;
+  let run: RestRun | null = openRun;
 
-  for (let i = 0; i < n; i++) {
+  for (let i = i0; i < n; i++) {
     const t = i * dt;
     const u = t + CAMERA.lookaheadSeconds;
     // The lookahead is ANTICIPATION: it may open a segment early, never close one
@@ -175,12 +241,223 @@ export function buildCameraPath(
       cy = clamp(cy, half, 1 - half);
       vy = 0;
     }
+    // Settle to EXACT rest once nothing is left to see. A critically damped spring only
+    // approaches its goal: in float64 the scale reaches 1 but its velocity keeps halving
+    // through denormals for minutes, so the state would never be exactly at rest and no
+    // rest run (the seam incremental rebuilds splice at) would ever start. Every term is
+    // below 1e-9 here — under the Float32 resolution the path is stored in.
+    if (
+      seg === null &&
+      Math.abs(s - 1) < REST_EPSILON &&
+      Math.abs(vs) < REST_EPSILON &&
+      Math.abs(cx - 0.5) < REST_EPSILON &&
+      Math.abs(cy - 0.5) < REST_EPSILON &&
+      Math.abs(vx) < REST_EPSILON &&
+      Math.abs(vy) < REST_EPSILON
+    ) {
+      s = 1;
+      vs = 0;
+      cx = 0.5;
+      cy = 0.5;
+      vx = 0;
+      vy = 0;
+    }
 
     cxOut[i] = cx;
     cyOut[i] = cy;
     scaleOut[i] = s;
+
+    if ((i + 1) % CHECKPOINT_STEPS === 0) {
+      const j = (i + 1) / CHECKPOINT_STEPS;
+      const o = j * STATE_FIELDS;
+      cp[o] = cx;
+      cp[o + 1] = cy;
+      cp[o + 2] = vx;
+      cp[o + 3] = vy;
+      cp[o + 4] = s;
+      cp[o + 5] = vs;
+      cp[o + 6] = tx;
+      cp[o + 7] = ty;
+      cp[o + 8] = smoothing;
+      checkpoints.ids[j] = activeId;
+    }
+
+    const atRest =
+      seg === null && s === 1 && vs === 0 && cx === 0.5 && cy === 0.5 && vx === 0 && vy === 0;
+    if (!atRest) {
+      if (run) run.end = i;
+      run = null;
+      continue;
+    }
+    if (!run) {
+      run = { start: i, end: n, tx, ty, smoothing };
+      rests.push(run);
+    }
+    if (splice && i >= splice.fromIndex) {
+      const old = runAt(splice.prev.rests, i);
+      if (old && old.tx === tx && old.ty === ty && old.smoothing === smoothing) {
+        // Same exact state at the same index, and every segment from here on is the
+        // same: the rest of the old path IS the rest of this one.
+        run.end = old.end;
+        const from = i + 1;
+        cxOut.set(splice.prev.path.cx.subarray(from), from);
+        cyOut.set(splice.prev.path.cy.subarray(from), from);
+        scaleOut.set(splice.prev.path.scale.subarray(from), from);
+        for (const r of splice.prev.rests) if (r.start > old.start) rests.push({ ...r });
+        // Slots after index i hold the same states too.
+        const firstSlot = Math.floor(from / CHECKPOINT_STEPS) + 1;
+        const prevCp = splice.prev.checkpoints;
+        cp.set(prevCp.data.subarray(firstSlot * STATE_FIELDS), firstSlot * STATE_FIELDS);
+        for (let j = firstSlot; j < prevCp.ids.length; j++) checkpoints.ids[j] = prevCp.ids[j];
+        return;
+      }
+    }
   }
-  return { fps, cx: cxOut, cy: cyOut, scale: scaleOut };
+}
+
+/** The rest run covering index `i`, by binary search over runs sorted by `start`. */
+function runAt(rests: RestRun[], i: number): RestRun | null {
+  let lo = 0;
+  let hi = rests.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const r = rests[mid];
+    if (i < r.start) hi = mid - 1;
+    else if (i >= r.end) lo = mid + 1;
+    else return r;
+  }
+  return null;
+}
+
+function emptyPath(sourceDurationSeconds: number): CameraPath {
+  const fps = CAMERA.fps;
+  const n = Math.max(1, Math.ceil(sourceDurationSeconds * fps) + 1);
+  return { fps, cx: new Float32Array(n), cy: new Float32Array(n), scale: new Float32Array(n) };
+}
+
+function emptyCheckpoints(n: number): Checkpoints {
+  const slots = Math.floor(n / CHECKPOINT_STEPS) + 1;
+  return { data: new Float64Array(slots * STATE_FIELDS), ids: new Array(slots).fill(null) };
+}
+
+const sameAnchor = (a: ZoomSegment["anchor"], b: ZoomSegment["anchor"]): boolean =>
+  a === b || (a !== null && b !== null && a.x === b.x && a.y === b.y);
+
+const byStart = (segments: ZoomSegment[]): ZoomSegment[] =>
+  [...segments].sort((a, b) => a.start - b.start);
+
+/** Full simulation from t = 0, keeping the rest runs so a later edit can reuse it. */
+export function buildCameraBuild(
+  segments: ZoomSegment[],
+  track: CursorTrack | null,
+  sourceDurationSeconds: number,
+): CameraBuild {
+  const path = emptyPath(sourceDurationSeconds);
+  const rests: RestRun[] = [];
+  const checkpoints = emptyCheckpoints(path.scale.length);
+  simulate(byStart(segments), track, path, rests, checkpoints, 0, null, null);
+  return { path, segments, track, sourceDurationSeconds, rests, checkpoints };
+}
+
+export function buildCameraPath(
+  segments: ZoomSegment[],
+  track: CursorTrack | null,
+  sourceDurationSeconds: number,
+): CameraPath {
+  return buildCameraBuild(segments, track, sourceDurationSeconds).path;
+}
+
+/**
+ * Same result as `buildCameraBuild(segments, …)`, bit for bit, but reuses `prev` around
+ * the segments that changed. An edge drag on one zoom of an hour-long take re-simulates
+ * the stretch the edge moved over instead of all 194,000 steps:
+ *
+ *   - everything before the first index that can differ is copied, and the simulation
+ *     resumes from the last checkpoint before it. For a segment whose END alone moved
+ *     that index is the earlier of its two ends (minus the lookahead); otherwise it is
+ *     the earlier of its two starts;
+ *   - after the last changed segment, the simulation stops at the first rest run whose
+ *     carried state matches the old path's at the same index, and copies the old tail.
+ *
+ * "Changed" starts from reference identity: an edit replaces the segment object it
+ * touches and keeps the others (zoom-edits.ts). A replaced object whose simulated fields
+ * are all equal (an `origin` flip) changes nothing. A new track or duration rebuilds from
+ * scratch.
+ */
+export function rebuildCameraPath(
+  prev: CameraBuild | null,
+  segments: ZoomSegment[],
+  track: CursorTrack | null,
+  sourceDurationSeconds: number,
+): CameraBuild {
+  if (!prev || prev.track !== track || prev.sourceDurationSeconds !== sourceDurationSeconds) {
+    return buildCameraBuild(segments, track, sourceDurationSeconds);
+  }
+  const before = new Map(prev.segments.map((s) => [s.id, s]));
+  let dirtyStart = Infinity;
+  let dirtyEnd = -Infinity;
+  const mark = (from: number, to: number): void => {
+    dirtyStart = Math.min(dirtyStart, from);
+    dirtyEnd = Math.max(dirtyEnd, to);
+  };
+  const seen = new Set<string>();
+  for (const s of segments) {
+    seen.add(s.id);
+    const old = before.get(s.id);
+    if (old === s) continue;
+    if (!old) {
+      mark(s.start, s.end);
+      continue;
+    }
+    const sameButEnd =
+      old.start === s.start &&
+      old.scale === s.scale &&
+      old.mode === s.mode &&
+      old.smoothing === s.smoothing &&
+      sameAnchor(old.anchor, s.anchor);
+    if (sameButEnd && old.end === s.end) continue;
+    const to = Math.max(old.end, s.end);
+    mark(sameButEnd ? Math.min(old.end, s.end) : Math.min(old.start, s.start), to);
+  }
+  for (const old of prev.segments) if (!seen.has(old.id)) mark(old.start, old.end);
+  if (dirtyStart === Infinity) {
+    // Nothing the simulation reads changed (a new array, or an `origin` flip).
+    return { ...prev, segments };
+  }
+
+  const path = emptyPath(sourceDurationSeconds);
+  const n = path.scale.length;
+  const checkpoints = emptyCheckpoints(n);
+  const fps = path.fps;
+  // The last index whose lookahead still falls before every change, with a step of
+  // margin for float rounding: nothing up to it can differ.
+  const keep = Math.floor((dirtyStart - CAMERA.lookaheadSeconds) * fps) - 1;
+  const slot = Math.max(0, Math.floor((keep + 1) / CHECKPOINT_STEPS));
+  const i0 = slot * CHECKPOINT_STEPS;
+  const rests: RestRun[] = [];
+  let openRun: RestRun | null = null;
+  if (i0 > 0) {
+    path.cx.set(prev.path.cx.subarray(0, i0));
+    path.cy.set(prev.path.cy.subarray(0, i0));
+    path.scale.set(prev.path.scale.subarray(0, i0));
+    checkpoints.data.set(prev.checkpoints.data.subarray(0, (slot + 1) * STATE_FIELDS));
+    for (let j = 0; j <= slot; j++) checkpoints.ids[j] = prev.checkpoints.ids[j];
+    for (const r of prev.rests) {
+      if (r.start >= i0) break;
+      const copy = { ...r };
+      rests.push(copy);
+      // A run still open at i0 - 1 continues in the resumed simulation.
+      if (r.end >= i0) {
+        copy.end = n;
+        openRun = copy;
+      }
+    }
+  }
+  // From this index on no changed segment is open at `t` or opening at `u` (both past its
+  // end), again with a step of margin.
+  const fromIndex = Math.ceil(dirtyEnd * fps) + 1;
+  simulate(byStart(segments), track, path, rests, checkpoints, i0, openRun, { prev, fromIndex });
+  return { path, segments, track, sourceDurationSeconds, rests, checkpoints };
 }
 
 /** Camera at source time `t` (seconds), linearly interpolated between path steps. */

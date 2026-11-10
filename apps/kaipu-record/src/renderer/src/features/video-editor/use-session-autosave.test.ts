@@ -116,22 +116,136 @@ describe("useSessionAutosave", () => {
     expect(saved).toEqual([]);
   });
 
-  it("exposes saving → saved around a successful write", async () => {
-    const save = vi.fn(async (id: string, json: string) => {
-      saved.push({ id, json });
-    });
+  it("says saving only while the write is in flight, then saved", async () => {
+    let finish: () => void = () => {};
+    const save = vi.fn(
+      (id: string, json: string) =>
+        new Promise<void>((resolve) => {
+          saved.push({ id, json });
+          finish = resolve;
+        }),
+    );
     window.electronAPI.saveVideoEditSession =
       save as typeof window.electronAPI.saveVideoEditSession;
     const { result, rerender } = render();
     expect(result.current.state).toBe("idle");
     rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    // Edited, not written yet: nothing is being saved, so the chip says nothing.
+    expect(result.current.state).toBe("idle");
+    expect(result.current.pendingRef.current).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    expect(save).toHaveBeenCalledOnce();
     expect(result.current.state).toBe("saving");
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+  });
+
+  it("goes quiet, not saving, when a write lands after a newer edit", async () => {
+    let finish: () => void = () => {};
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    expect(result.current.state).toBe("saving");
+    // A drag starts while the write is still in flight.
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: true });
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("idle");
+    expect(result.current.pendingRef.current).toBe(true);
+  });
+
+  it("lets only the latest of two overlapping writes set the state", async () => {
+    const finishers: Array<() => void> = [];
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishers.push(resolve);
+        }),
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    // A second edit's write starts while the first is still in flight.
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    expect(finishers).toHaveLength(2);
+    // The first write lands while the second is still being written.
+    await act(async () => {
+      finishers[0]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saving");
+    await act(async () => {
+      finishers[1]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+    expect(result.current.pendingRef.current).toBe(false);
+  });
+
+  it("keeps saved when an older write lands after the newer one", async () => {
+    const finishers: Array<() => void> = [];
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishers.push(resolve);
+        }),
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: false });
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+    });
+    await act(async () => {
+      finishers[1]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+    await act(async () => {
+      finishers[0]();
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("saved");
+  });
+
+  it("drops a stale saved while a drag edits, and stays silent until the write", async () => {
+    window.electronAPI.saveVideoEditSession = vi.fn(
+      async () => {},
+    ) as typeof window.electronAPI.saveVideoEditSession;
+    const { result, rerender } = render();
+    rerender({ scene: { ...OPENED, zoomSensitivity: 65 }, interacting: false });
     await act(async () => {
       vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
       await Promise.resolve();
     });
-    expect(save).toHaveBeenCalledOnce();
     expect(result.current.state).toBe("saved");
+    rerender({ scene: { ...OPENED, zoomSensitivity: 70 }, interacting: true });
+    expect(result.current.state).toBe("idle");
+    rerender({ scene: { ...OPENED, zoomSensitivity: 75 }, interacting: true });
+    expect(result.current.state).toBe("idle");
   });
 
   it("exposes failed when the write rejects, and retry() writes again", async () => {
