@@ -7,7 +7,7 @@ description: "React 19.2's development-only prop logger walked the camera path's
 
 > **Status: 🟢 Ready to validate (prod review pending).** No Linear ticket: the workspace
 > free-issue limit still blocks creating one. Follows
-> [zoom-block-drag-lag](./zoom-block-drag-lag/) and the incremental camera path (PR #565).
+> [zoom-block-drag-lag](/backlog/zoom-block-drag-lag/) and the incremental camera path (PR #565).
 
 ## Problem
 
@@ -34,7 +34,10 @@ Production builds have no such logging. React 19.3 skips typed arrays
 ## Change
 
 `apps/kaipu-record` pins `react` and `react-dom` to `19.3.1` (from `19.2.4`). No code
-change. The other workspaces keep their own pins.
+change. The other apps keep their own pins (web-hono, console and infra-email: 19.2.3).
+The shared packages that declare `react: ^19` (`@kaipu/ui`, `@kaipu/brand`, `@kaipu/i18n`,
+`@kaipu/web-ui`) now resolve to the root `react@19.3.1`. web-hono keeps a single React
+copy in its tests only through the alias in `apps/web-hono/vitest.config.ts`.
 
 ## Measurements
 
