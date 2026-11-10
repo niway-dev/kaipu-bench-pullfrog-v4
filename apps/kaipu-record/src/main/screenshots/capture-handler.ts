@@ -17,7 +17,11 @@ import { screenshotTitle } from "@shared/screenshot-title";
 import { decideAfterCapture } from "./after-capture-policy";
 import { clearLastQuietCapture, keepLastQuietCapture } from "./last-quiet-capture";
 import type { OverlayPort } from "./overlay-port";
-import type { ProviderResult, ScreenshotCaptureProvider } from "./screenshot-capture";
+import type {
+  ProviderResult,
+  RecordingCaptureTarget,
+  ScreenshotCaptureProvider,
+} from "./screenshot-capture";
 
 /**
  * How a capture ended, for `afterCapture`: `editor` (the renderer is about to show the
@@ -99,6 +103,7 @@ interface CaptureHandlerDeps {
    * the toast shows a "Screenshot taken" notice. Absent: never (today's behaviour).
    */
   duringTake?(): boolean;
+  recordingTarget?(): Promise<RecordingCaptureTarget | null>;
 }
 
 /** A recording target chosen on the overlay: display-relative DIP, `null` for all of it. */
@@ -176,11 +181,21 @@ export function createCaptureHandler(
     try {
       // Inside the try: a throw while hiding windows must still release the guard.
       deps.windows.beforeCapture();
-      result = await deps.provider.capture({ mode, overlay: deps.overlay, intent });
+      const recordingTarget = duringTake ? await deps.recordingTarget?.() : undefined;
+      // Never open a selector over a take, even if its source can no longer be resolved.
+      result =
+        duringTake && !recordingTarget
+          ? { kind: "cancelled" }
+          : await deps.provider.capture({
+              mode,
+              overlay: deps.overlay,
+              intent,
+              ...(recordingTarget ? { recordingTarget } : {}),
+            });
       if (result.kind === "captured") {
         // Before the policy: a quiet save that fails and falls back to the editor still
         // remembers the mode the user captured in.
-        remember(deps, result.mode);
+        if (!duringTake) remember(deps, result.mode);
         answer = await finish(deps, result, workspace, policy, duringTake);
       } else if (result.kind === "record") {
         // A recording target, not a screenshot: no save, no mode memory, no analytics here.

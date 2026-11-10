@@ -82,6 +82,47 @@ describe("MacProvider", () => {
         settle,
       });
 
+    it.each([
+      [null, "-1920,0,1920,1080", "screen"],
+      [{ x: 100, y: 50, width: 640, height: 360 }, "-1820,50,640,360", "frame"],
+    ] as const)(
+      "captures the recording target %j without touching the overlay",
+      async (rect, region, mode) => {
+        displays = [main, left];
+        const out = await macProvider().capture({
+          mode: "frame",
+          overlay: fake,
+          recordingTarget: { displayId: 2, rect },
+        });
+        expect(fake.pick).not.toHaveBeenCalled();
+        expect(fake.hideAll).not.toHaveBeenCalled();
+        expect(fake.destroyAll).not.toHaveBeenCalled();
+        expect(runCli).toHaveBeenCalledWith("screencapture", ["-R", region, "-x", "/tmp/x.png"]);
+        expect(out).toMatchObject({ kind: "captured", mode, action: "capture" });
+      },
+    );
+
+    it("cancels a missing recording display without opening a selector", async () => {
+      const out = await macProvider().capture({
+        mode: "frame",
+        overlay: fake,
+        recordingTarget: { displayId: 99, rect: null },
+      });
+      expect(out).toEqual({ kind: "cancelled" });
+      expect(fake.pick).not.toHaveBeenCalled();
+      expect(runCli).not.toHaveBeenCalled();
+    });
+
+    it("captures a recorded window by id without opening a selector", async () => {
+      await macProvider().capture({
+        mode: "frame",
+        overlay: fake,
+        recordingTarget: { displayId: 1, rect: null, windowId: "123" },
+      });
+      expect(fake.pick).not.toHaveBeenCalled();
+      expect(runCli).toHaveBeenCalledWith("screencapture", ["-l", "123", "-o", "-x", "/tmp/x.png"]);
+    });
+
     it("screen with one display skips the overlay and captures its bounds", async () => {
       const out = await macProvider().capture({ mode: "screen", overlay: fake });
       expect(fake.pick).not.toHaveBeenCalled();

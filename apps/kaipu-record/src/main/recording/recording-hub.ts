@@ -1,3 +1,4 @@
+import type { RecordingCaptureTarget } from "../screenshots/screenshot-capture";
 import {
   app,
   BrowserWindow,
@@ -79,6 +80,7 @@ export interface RecordingHubHandle {
   isActive(): boolean;
   /** The area chosen in settings (main's own copy), or null. */
   currentArea(): RecordingArea | null;
+  screenshotTarget(): Promise<RecordingCaptureTarget | null>;
   /** True while a take is pending (countdown or acquiring): not active yet, but busy. */
   isPending(): boolean;
   /** A writer session is open: a take or an editor export is writing into the workspace. */
@@ -1079,6 +1081,8 @@ export function registerRecordingHub(
   // not show the bar or change the shade of the take that started after it.
   let takeCount = 0;
   let lastTakeDisplayId: number | null = null;
+  let takeSourceId: string | null = null;
+  let takeArea: RecordingArea | null = null;
   ipcMain.on(IPC_CHANNELS.recordingStart, (e, info: RecordingStartInfo) => {
     activity = startedActivity();
     const senderId = (e as { sender?: { id?: unknown } } | undefined)?.sender?.id;
@@ -1096,6 +1100,8 @@ export function registerRecordingHub(
     // cannot set one (`windowSettingsPatch`), so the renderer's copy in `info` is the same value.
     const chosen =
       settings.area && settings.selectedSource?.id === info.sourceId ? settings.area : null;
+    takeSourceId = info.sourceId;
+    takeArea = chosen ? structuredClone(chosen) : null;
     const areaDisplay = chosen
       ? screen.getAllDisplays().find((display) => display.id === chosen.displayId)
       : undefined;
@@ -1244,6 +1250,23 @@ export function registerRecordingHub(
   return {
     isActive: () => activity.active,
     currentArea: () => settings.area,
+    screenshotTarget: async () => {
+      const sourceId = activity.active ? takeSourceId : settings.selectedSource?.id;
+      const area = activity.active ? takeArea : settings.area;
+      if (!sourceId) return null;
+      if (sourceId.startsWith("window:")) {
+        const windowId = sourceId.split(":")[1];
+        const display = screen.getAllDisplays()[0];
+        return windowId && display ? { displayId: display.id, rect: null, windowId } : null;
+      }
+      const displayId = await displayIdForSource(screenSources, sourceId);
+      const display = screen.getAllDisplays().find((d) => String(d.id) === displayId);
+      if (!display) return null;
+      const safeArea = area ? sanitizeArea(area, display) : null;
+      // A stale region must never widen a screenshot to the entire display.
+      if (area && !safeArea) return null;
+      return { displayId: display.id, rect: safeArea?.rect ?? null };
+    },
     isPending: () => pending && !activity.active,
     lastTakeDisplayId: () => lastTakeDisplayId,
     hasOpenWrites: () => writer.ids().length > 0,

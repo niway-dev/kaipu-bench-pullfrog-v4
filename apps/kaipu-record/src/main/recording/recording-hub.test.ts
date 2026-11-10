@@ -1373,6 +1373,28 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
     }
   });
 
+  it("screenshots use the active take's frozen area after settings change", async () => {
+    mockState.displays = [{ id: 2, bounds: { x: -1920, y: 0, width: 1920, height: 1080 } }];
+    mockState.getSources.mockResolvedValue([
+      { id: "screen:2:0", name: "Screen 2", display_id: "2" },
+    ]);
+    const { registerSettings } = await import("../infrastructure/settings-store");
+    const { registerRecordingHub } = await import("./recording-hub");
+    registerSettings();
+    const hub = registerRecordingHub(() => fakeMainWindow() as never);
+    const rect = { x: 100, y: 50, width: 640, height: 360 };
+    await hub.selectArea(2, rect);
+    expect(await hub.screenshotTarget()).toEqual({ displayId: 2, rect });
+    mockState.ipcOn.get(IPC_CHANNELS.recordingStart)!(
+      {},
+      { sourceId: "screen:2:0", sourceName: "Screen 2" },
+    );
+    await hub.selectArea(2, null);
+    expect(await hub.screenshotTarget()).toEqual({ displayId: 2, rect });
+    mockState.displays[0]!.bounds.width = 50;
+    expect(await hub.screenshotTarget()).toBeNull();
+  });
+
   it("a pending take is busy: isPending and the broadcast say so until it starts", async () => {
     const { registerSettings } = await import("../infrastructure/settings-store");
     const { registerRecordingHub } = await import("./recording-hub");

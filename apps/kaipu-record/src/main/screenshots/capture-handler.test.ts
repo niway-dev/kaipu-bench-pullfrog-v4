@@ -41,6 +41,7 @@ function setup(
   const copyToClipboard = vi.fn();
   const onQuietCapture = vi.fn();
   const onRecordTarget = vi.fn();
+  const recordingTarget = vi.fn(async () => ({ displayId: 2, rect: null }));
   const handler = createCaptureHandler({
     platform,
     provider: { capture, supports, supportedModes: () => [] },
@@ -58,9 +59,11 @@ function setup(
     onRecordTarget,
     workspace,
     duringTake: () => takeNow,
+    recordingTarget,
   });
   return {
     handler,
+    recordingTarget,
     windows,
     track,
     rememberMode,
@@ -719,6 +722,28 @@ describe("createCaptureHandler — a screenshot during a take (NIW2-688)", () =>
       }),
     );
     expect(windows.afterCapture).toHaveBeenCalledWith("quiet");
+  });
+
+  it("passes the take target to the provider without changing the idle screenshot mode", async () => {
+    takeNow = true;
+    const capture = vi.fn(shot);
+    const { handler, rememberMode } = setup(capture);
+    await handler({ mode: "frame" });
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recordingTarget: { displayId: 2, rect: null },
+      }),
+    );
+    expect(rememberMode).not.toHaveBeenCalled();
+  });
+
+  it("cancels instead of falling back to the selector when the take target is unavailable", async () => {
+    takeNow = true;
+    const capture = vi.fn(shot);
+    const { handler, recordingTarget } = setup(capture);
+    recordingTarget.mockResolvedValue(null as never);
+    expect(await handler({ mode: "frame" })).toEqual({ kind: "cancelled" });
+    expect(capture).not.toHaveBeenCalled();
   });
 
   it("still applies the copy setting", async () => {

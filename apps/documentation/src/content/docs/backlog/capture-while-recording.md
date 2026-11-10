@@ -1,6 +1,6 @@
 ---
 title: Screenshots while recording (macOS)
-description: Take a screenshot during a take, behind the capture-while-recording flag. The overlay is excluded from the video and the shot never opens the editor.
+description: Take a screenshot during a take, behind the capture-while-recording flag. The recording target is captured without a selector and the shot never opens the editor.
 ---
 
 # Screenshots while recording (macOS)
@@ -10,13 +10,15 @@ description: Take a screenshot during a take, behind the capture-while-recording
 
 ## Behaviour
 
-With the flag on, a capture shortcut during a take (active or in its countdown) opens the capture
-overlay instead of refusing with a notification.
+With the flag on, a capture shortcut during a take (active or in its countdown) captures the
+recording destination directly, without opening the selection overlay.
 
-- Full screen and area selection both work. The RECORD selector is still refused during a take.
-- The overlay windows use `setContentProtection(true)`, so the selection is not in the video.
-- Esc on the overlay cancels only the selection. The countdown's global Esc is released while the
-  overlay is open and taken back after (`suspendEscapeForCapture` in the recording hub).
+- Area takes capture the whole recorded rectangle; screen takes capture their display.
+- Window takes capture the recorded window by its OS id. An unavailable target cancels the shot
+  rather than opening a selector or capturing another display.
+- The active take's source and area are retained even if recording settings change mid-take.
+- The RECORD selector is still refused during a take. Idle screenshots keep their usual selector
+  and remembered mode; a direct take capture does not overwrite that preference.
 - The shot is saved to the Library and never opens the preview card or the editor, whatever the
   after-capture setting says. The copy setting still applies.
 - `screencapture -x` plays no shutter sound and draws no flash. The capture toast, which is content
@@ -33,7 +35,9 @@ Main has no PostHog client, so the renderer reports the resolved flag over
 
 ## Not verified / out of scope
 
-- Not verified in the real app: that macOS honours content protection on the overlay so the
-  selection is absent from a real recording.
+- Owner-reported validation: the selection grid appeared in the recorded video despite overlay
+  content protection. The saved-shot thumbnail was correctly absent from the recording.
+- The replacement direct-capture flow has regression coverage for display/area coordinates and
+  skipping the overlay; it still needs real-recording validation on macOS.
 - Out of scope: linking the screenshot to the video, shortcut simplification, widget mic and audio
   buttons, Windows.

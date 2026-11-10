@@ -1085,6 +1085,7 @@ app.whenReady().then(async () => {
     (request) => toast.show(request),
     (target) => void applyRecordTarget(target),
     () => (hub?.isActive() || hub?.isPending()) ?? false,
+    async () => (await hub?.screenshotTarget()) ?? null,
   );
 
   /**

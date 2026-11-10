@@ -18,7 +18,7 @@ import {
 } from "./capture-handler";
 import { CaptureOverlayWindows, type OverlayWarmup } from "./capture-overlay-windows";
 import type { OverlayPort } from "./overlay-port";
-import { createScreenshotProvider } from "./screenshot-capture";
+import { type RecordingCaptureTarget, createScreenshotProvider } from "./screenshot-capture";
 import { createWindowLister } from "./window-lister";
 import { captureMainEvent } from "../services/analytics.service";
 import {
@@ -157,6 +157,7 @@ export function registerScreenshotHandlers(
   onRecordTarget?: (target: RecordTarget) => void,
   /** Whether a take is active or pending, so a capture over it can be handled (NIW2-688). */
   isTakeInProgress?: () => boolean,
+  recordingTarget?: () => Promise<RecordingCaptureTarget | null>,
 ): ScreenshotHandlers {
   if (isTakeInProgress) takeInProgress = isTakeInProgress;
   const provider = createScreenshotProvider(process.platform);
@@ -210,6 +211,17 @@ export function registerScreenshotHandlers(
     onQuietCapture: toastSeam.onQuietCapture,
     onRecordTarget,
     duringTake: duringTakeCapture,
+    recordingTarget: async () => {
+      const target = await recordingTarget?.();
+      if (target)
+        toastSeam.onPick({
+          kind: "display",
+          displayId: target.displayId,
+          mode: "screen",
+          action: "capture",
+        });
+      return target ?? null;
+    },
   });
   // The whole capture is one admission (maintenance mode, NIW2-561): taken before the app
   // hides or any pixel is grabbed, held through the vault write. The hotkey goes through
