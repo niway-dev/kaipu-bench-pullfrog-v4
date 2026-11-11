@@ -4,7 +4,6 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  NO_OCR_LANGUAGE_EXIT_CODE,
   WINDOWS_OCR_SCRIPT,
   WindowsOcrTextRecognizer,
   windowsOcrArgs,
@@ -67,10 +66,10 @@ it("returns an empty list when the image has no text", async () => {
 
 it("is unavailable, with the script's error in the log, when it exits non-zero", async () => {
   const recognizer = await fakePowerShell(
-    `process.stderr.write("no OCR language pack is installed\\n"); process.exit(1);`,
+    `process.stderr.write("The image cannot be decoded\\n"); process.exit(1);`,
   );
   expect(await recognizer.recognize(png)).toBe("unavailable");
-  expect(String(warn.mock.calls[0]?.[0])).toContain("no OCR language pack is installed");
+  expect(String(warn.mock.calls[0]?.[0])).toContain("The image cannot be decoded");
 });
 
 it("is unavailable when the output is not JSON, off-schema, or another version", async () => {
@@ -104,15 +103,7 @@ it("is unavailable when PowerShell does not exist, and does not look for it agai
   expect(counter.calls).toBe(1);
 });
 
-it("does not start PowerShell again once no OCR language pack is installed", async () => {
-  const { counter, spawnImpl } = countingSpawn();
-  const recognizer = await fakePowerShell(`process.exit(${NO_OCR_LANGUAGE_EXIT_CODE});`, spawnImpl);
-  expect(await recognizer.recognize(png)).toBe("unavailable");
-  expect(await recognizer.recognize(png)).toBe("unavailable");
-  expect(counter.calls).toBe(1);
-});
-
-it("tries again after any other failure", async () => {
+it("tries again after any other failure, such as no OCR language pack yet", async () => {
   const { counter, spawnImpl } = countingSpawn();
   const recognizer = await fakePowerShell(`process.exit(1);`, spawnImpl);
   await recognizer.recognize(png);
