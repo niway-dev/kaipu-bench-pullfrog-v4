@@ -50,16 +50,21 @@ chrome, sidebar, 11–13 pt labels, a table, a code line) with 119 ground-truth 
 - **Machines:** MacBook Pro M5 (Mac17,2, 24 GB), macOS 26.6.2; Mac mini M4 (Mac16,10, 16 GB),
   macOS 27.0.1. Swift 6.4.2 on both.
 
-Wall clock in ms, `accurate` level, first run after the build, then the median and maximum of
-five more processes; recall is ground-truth words recognized exactly:
+Wall clock in ms, `accurate` level, first run of that image in the bench, then the median and
+maximum of five more processes; recall is ground-truth words recognized exactly:
 
-| Machine  | Image              | First run | Median | Max | Recall |
-| -------- | ------------------ | --------- | ------ | --- | ------ |
-| M5       | 1920×1080, scale 1 | 1413      | 561    | 577 | 86.6%  |
-| M5       | 3024×1964, scale 2 | 539       | 515    | 535 | 95.0%  |
-| Mac mini | 1920×1080, scale 1 | 388       | 212    | 236 | 99.2%  |
-| Mac mini | 3024×1964, scale 2 | 214       | 246    | 266 | 99.2%  |
+| Machine  | Image              | First run (this bench) | Median | Max | Recall |
+| -------- | ------------------ | ---------------------- | ------ | --- | ------ |
+| M5       | 1920×1080, scale 1 | 1413                   | 561    | 577 | 86.6%  |
+| M5       | 3024×1964, scale 2 | 539                    | 515    | 535 | 95.0%  |
+| Mac mini | 1920×1080, scale 1 | 388                    | 212    | 236 | 99.2%  |
+| Mac mini | 3024×1964, scale 2 | 214                    | 246    | 266 | 99.2%  |
 
+- **Only the first row per machine can be cold, and the mini's table row is not.** The bench runs
+  the 1920×1080 image first and the Retina one after it, so the Retina row follows a loaded
+  model. On the mini the true first run is the 13.5 s one below, done outside the bench, so its
+  388 ms is a warm run. The table therefore shows warm numbers; the cold case missed the 1.5 s
+  target on the mini.
 - **The first recognition on a machine is much slower.** On the mini the first `accurate`
   run hit the 10 s timeout of the runner's first version (the committed runner allows 60 s); a stack sample showed the process waiting in
   `_ANEClient compileModel` (the Neural Engine compiling the model). Run again by hand, it
