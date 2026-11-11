@@ -41,6 +41,8 @@ const scriptOutputSchema = z.object({
  *   normalizes boxes by the displayed size.
  * - An image larger than `OcrEngine.MaxImageDimension` is scaled down for recognition and
  *   its boxes scaled back to source pixels.
+ * - Tilted text: OCR reports boxes for the deskewed text plus `TextAngle`; each box is rotated
+ *   back onto the image and replaced by the box that encloses it.
  * - Errors go to stderr with exit code 1.
  */
 export const WINDOWS_OCR_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
@@ -97,16 +99,36 @@ try {
   }
   $json = New-Object System.Text.StringBuilder
   $null = $json.Append('{"version":1,"width":' + $width.ToString($culture) + ',"height":' + $height.ToString($culture) + ',"words":[')
+  # Word boxes are in the deskewed text's space: rotate them clockwise by TextAngle around
+  # the bitmap's centre to land on the image (OcrResult.TextAngle), then take the box that
+  # encloses the four corners.
+  $radians = 0.0
+  if ($null -ne $result.TextAngle) { $radians = [double]$result.TextAngle * [Math]::PI / 180 }
+  $cos = [Math]::Cos($radians)
+  $sin = [Math]::Sin($radians)
+  $cx = $bitmap.PixelWidth / 2
+  $cy = $bitmap.PixelHeight / 2
   $first = $true
   $line = 0
   foreach ($ocrLine in $result.Lines) {
     foreach ($word in $ocrLine.Words) {
       if ([string]::IsNullOrWhiteSpace($word.Text)) { continue }
       $r = $word.BoundingRect
-      $x0 = Pixel ($r.X * $sx) $width
-      $x1 = Pixel (($r.X + $r.Width) * $sx) $width
-      $y0 = Pixel ($r.Y * $sy) $height
-      $y1 = Pixel (($r.Y + $r.Height) * $sy) $height
+      $minX = [double]::MaxValue; $maxX = [double]::MinValue
+      $minY = [double]::MaxValue; $maxY = [double]::MinValue
+      foreach ($corner in @(@($r.X, $r.Y), @(($r.X + $r.Width), $r.Y),
+          @($r.X, ($r.Y + $r.Height)), @(($r.X + $r.Width), ($r.Y + $r.Height)))) {
+        $dx = $corner[0] - $cx
+        $dy = $corner[1] - $cy
+        $px = $cx + $dx * $cos - $dy * $sin
+        $py = $cy + $dx * $sin + $dy * $cos
+        $minX = [Math]::Min($minX, $px); $maxX = [Math]::Max($maxX, $px)
+        $minY = [Math]::Min($minY, $py); $maxY = [Math]::Max($maxY, $py)
+      }
+      $x0 = Pixel ($minX * $sx) $width
+      $x1 = Pixel ($maxX * $sx) $width
+      $y0 = Pixel ($minY * $sy) $height
+      $y1 = Pixel ($maxY * $sy) $height
       if (-not $first) { $null = $json.Append(',') }
       $first = $false
       $text = [regex]::Replace($word.Text, '[\u0000-\u001f"\\]', $escape)

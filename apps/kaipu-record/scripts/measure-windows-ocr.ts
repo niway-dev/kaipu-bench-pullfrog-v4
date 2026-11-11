@@ -142,6 +142,24 @@ check(
   `dense fixture: 9 "Display" words (got ${dense.filter((word) => word.text === "Display").length})`,
 );
 
+// The sparse fixture rotated 10° clockwise about the image centre. Windows OCR reports such
+// text deskewed, with TextAngle; the script must rotate the boxes back. "Display" (centre
+// about (747, 394) upright) lands near (775, 359); unrotated boxes would stay near (747, 394).
+try {
+  const tilted = (
+    await timed(new Uint8Array(readFileSync(join(fixtures, "settings-text-1080p-tilted.png"))))
+  ).words;
+  samples["settings-text-1080p-tilted.png"] = tilted;
+  const word = tilted.find((candidate) => candidate.text === "Display");
+  const centre = word && { x: word.rect.x + word.rect.w / 2, y: word.rect.y + word.rect.h / 2 };
+  check(
+    centre !== undefined && Math.abs(centre.x - 775) <= 20 && Math.abs(centre.y - 359) <= 20,
+    `tilted fixture: "Display" box centre near (775, 359): ${JSON.stringify(centre)}`,
+  );
+} catch (error) {
+  check(false, `tilted fixture: ${(error as Error).message}`);
+}
+
 const cold = runs["settings-text-1080p.png"]?.[0];
 console.log(
   `cold ${cold ?? "n/a"} ms against the ${TARGET_COLD_MS} ms target: ${
