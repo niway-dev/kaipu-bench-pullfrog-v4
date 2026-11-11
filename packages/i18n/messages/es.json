@@ -1253,7 +1253,7 @@
     "inspectColorsUnavailable": "Los colores no están disponibles para esta imagen",
     "inspectColorsEmpty": "No hay píxeles opacos",
     "inspectColorsSummary": "{groups, plural, one {# color} other {# colores}} · {distinct, plural, one {# valor exacto} other {# valores exactos}}",
-    "inspectColorsMore": "Los {shown} más grandes de {total} colores",
+    "inspectColorsMore": "Los {shown, number} más grandes de {total, number} colores",
     "inspectColorsLocateGroup": "Resaltar {color} y los valores agrupados con él",
     "inspectColorsLocateColor": "Resaltar solo {color}",
     "inspectColorsMatched": "{count, plural, one {# píxel resaltado} other {# píxeles resaltados}}",

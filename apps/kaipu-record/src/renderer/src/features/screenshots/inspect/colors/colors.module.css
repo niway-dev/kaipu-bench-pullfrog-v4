@@ -16,9 +16,8 @@
 
 .header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  flex-direction: column;
+  gap: 2px;
 }
 
 .title {
@@ -138,6 +137,7 @@
   background: transparent;
   color: var(--text-secondary);
   font-size: var(--font-size-xs);
+  white-space: nowrap;
   cursor: pointer;
 }
 

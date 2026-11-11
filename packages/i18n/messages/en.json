@@ -1253,7 +1253,7 @@
     "inspectColorsUnavailable": "Colors unavailable for this image",
     "inspectColorsEmpty": "No opaque pixels",
     "inspectColorsSummary": "{groups, plural, one {# color} other {# colors}} · {distinct, plural, one {# exact value} other {# exact values}}",
-    "inspectColorsMore": "The {shown} largest of {total} colors",
+    "inspectColorsMore": "The {shown, number} largest of {total, number} colors",
     "inspectColorsLocateGroup": "Highlight {color} and the values grouped with it",
     "inspectColorsLocateColor": "Highlight only {color}",
     "inspectColorsMatched": "{count, plural, one {# pixel} other {# pixels}} highlighted",

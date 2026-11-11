@@ -139,14 +139,36 @@ async function openInspect(s: Scenario): Promise<void> {
   await expect(s.page.getByText("Reading pixels…")).toHaveCount(0, { timeout: 60_000 });
 }
 
+/**
+ * Main-thread stalls, from a heartbeat: a 5 ms timer records every gap over 50 ms between its
+ * ticks, which is how long the thread was blocked. (`PerformanceObserver` with `longtask`
+ * reports nothing in this Electron, so it cannot be the measure.)
+ */
 async function startLongTasks(s: Scenario): Promise<void> {
   await s.page.evaluate(() => {
     const w = window as unknown as { __longTasks: number[] };
     w.__longTasks = [];
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) w.__longTasks.push(entry.duration);
-    }).observe({ type: "longtask" });
+    let last = performance.now();
+    const tick = (): void => {
+      const now = performance.now();
+      if (now - last > 50) w.__longTasks.push(Math.round(now - last));
+      last = now;
+      setTimeout(tick, 5);
+    };
+    setTimeout(tick, 5);
   });
+  // Prove the heartbeat sees a stall: a 150 ms busy loop must show up as one.
+  await s.page.evaluate(() => {
+    const end = performance.now() + 150;
+    while (performance.now() < end) {
+      // busy
+    }
+  });
+  await expect
+    .poll(async () => Math.max(0, ...(await takeLongTasks(s))), { timeout: 5_000 })
+    .toBeGreaterThanOrEqual(150);
+  await s.page.waitForTimeout(200);
+  await takeLongTasks(s);
 }
 const takeLongTasks = (s: Scenario): Promise<number[]> =>
   s.page.evaluate(() => {
