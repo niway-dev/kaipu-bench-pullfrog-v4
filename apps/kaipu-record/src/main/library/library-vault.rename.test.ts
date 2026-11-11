@@ -158,6 +158,7 @@ describe("LibraryVault.renameItem", () => {
     await writeFile(join(meta, `${id}.cursor.json.tmp`), "half");
     await writeFile(join(meta, `${id}.edit.json`), '{"scene":1}');
     await writeFile(join(meta, `${id}.edit.meta.json`), '{"savedAt":1}');
+    await writeFile(join(meta, `${id}.canvas.json`), '{"items":[]}');
     await writeFile(join(meta, `${id}.assets`, "slide-1.png"), "slide");
   }
 
@@ -182,6 +183,7 @@ describe("LibraryVault.renameItem", () => {
     expect((await readdir(meta)).sort()).toEqual(
       [
         `${newId}.assets`,
+        `${newId}.canvas.json`,
         `${newId}.cursor.json`,
         `${newId}.edit.json`,
         `${newId}.edit.meta.json`,
@@ -193,6 +195,7 @@ describe("LibraryVault.renameItem", () => {
     expect(await readFile(join(meta, `${newId}.webcam.mp4`), "utf-8")).toBe("webcam");
     expect(await readFile(join(meta, `${newId}.jpg`), "utf-8")).toBe("poster");
     expect(await readFile(join(meta, `${newId}.edit.json`), "utf-8")).toBe('{"scene":1}');
+    expect(await readFile(join(meta, `${newId}.canvas.json`), "utf-8")).toBe('{"items":[]}');
     expect(await readFile(join(meta, `${newId}.assets`, "slide-1.png"), "utf-8")).toBe("slide");
     const sidecar = await readJson(join(meta, `${newId}.json`));
     expect(sidecar).toMatchObject({
@@ -333,7 +336,7 @@ describe("LibraryVault.renameItem", () => {
     expect(await readdir(meta)).toEqual(["Named.json"]);
   });
 
-  it.each(["Demo.edit", "Demo.cursor", "Demo.edit.meta", "Demo.EDIT"])(
+  it.each(["Demo.edit", "Demo.cursor", "Demo.edit.meta", "Demo.EDIT", "Demo.canvas"])(
     "renaming Demo to %j never lands on Demo's own companion paths",
     async (title) => {
       // No edit project, no cursor track: the overlapping paths are free on disk.
@@ -733,7 +736,14 @@ describe("LibraryVault — writeMeta guard and companions", () => {
     const meta = join(directory, ".kaipu");
     await mkdir(join(meta, "clip.assets"), { recursive: true });
     await writeFile(join(directory, "clip.mp4"), "v");
-    for (const suffix of [".json", ".jpg", ".cursor.json", ".edit.json", ".edit.meta.json"]) {
+    for (const suffix of [
+      ".json",
+      ".jpg",
+      ".cursor.json",
+      ".edit.json",
+      ".edit.meta.json",
+      ".canvas.json",
+    ]) {
       await writeFile(join(meta, `clip${suffix}`), "{}");
     }
     await writeFile(join(meta, "clip.assets", "a.png"), "png");
@@ -751,6 +761,7 @@ describe("LibraryVault — writeMeta guard and companions", () => {
       join(".kaipu", "x.cursor.json.tmp"),
       join(".kaipu", "x.edit.json"),
       join(".kaipu", "x.edit.meta.json"),
+      join(".kaipu", "x.canvas.json"),
       join(".kaipu", "x.assets"),
       join(".kaipu", "x.webcam.mp4"),
     ]);

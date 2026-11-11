@@ -273,12 +273,24 @@ export const UI_MAP = {
         states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      redactionStyle: {
+        states: ["blur", "solid"],
+        gatedBy: [{ flag: "image-canvas" }],
+      },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
       // The colors panel (NIW2-704): the list, and the list with one color highlighted.
       inspectColors: { states: ["list", "located"], gatedBy: [{ flag: "image-inspect" }] },
+      // The ruler (NIW2-702): its row in the Inspect bar, the run drawn under the cursor, and
+      // a run pinned as a `measure` annotation.
+      inspectRuler: {
+        states: ["off", "horizontal", "vertical"],
+        gatedBy: [{ flag: "image-inspect" }],
+      },
+      inspectRun: { states: ["horizontal", "vertical"], gatedBy: [{ flag: "image-inspect" }] },
+      measure: { states: ["pinned"], gatedBy: [{ flag: "image-inspect" }] },
       beautify: { states: ["default"] },
     },
   },

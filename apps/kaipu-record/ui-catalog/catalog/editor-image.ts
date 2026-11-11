@@ -94,6 +94,28 @@ export const editorImage = catalog(
       steps: [open(ASSETS.settingsShot), zoomOut],
       demonstrates: ["editorImage.canvasView:zoomedOut"],
     },
+    "redaction-blur": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page” and pick the Blur tool: the panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
+      steps: [open(ASSETS.settingsShot), tool("Blur")],
+      demonstrates: ["editorImage.redactionStyle:blur"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "redaction-solid": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page”, pick the Blur tool and press Solid in the panel: Solid is now the selected style.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Blur"),
+        {
+          click: {
+            area: "editorImage.redactionStyle",
+            part: { role: "button", name: "Solid", exact: true },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.redactionStyle:solid"],
+    },
     "inspect-off": {
       profile: "image-inspect",
       how: "With the flag forced on, open “Settings page”: the Inspect button is in the toolbar, off.",
@@ -109,7 +131,11 @@ export const editorImage = catalog(
         inspectToggle,
         { waitFor: { area: "editorImage.inspectBar" } },
       ],
-      demonstrates: ["editorImage.inspectToggle:on", "editorImage.inspectBar:hex"],
+      demonstrates: [
+        "editorImage.inspectToggle:on",
+        "editorImage.inspectBar:hex",
+        "editorImage.inspectRuler:off",
+      ],
     },
     "inspect-as-captured": {
       profile: "image-inspect",
@@ -163,6 +189,50 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.inspectColors:located"],
+    },
+    "inspect-ruler": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 1: the horizontal pixel run under the cursor is drawn with its length, and Horizontal is on in the bar.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.inspectHud" } },
+        { press: "1" },
+        { waitFor: { area: "editorImage.inspectRun" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRuler:horizontal", "editorImage.inspectRun:horizontal"],
+    },
+    "inspect-ruler-vertical": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 2: the vertical pixel run under the cursor is drawn with its length beside it, and Vertical is on in the bar.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.inspectHud" } },
+        { press: "2" },
+        { waitFor: { area: "editorImage.inspectRun" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRuler:vertical", "editorImage.inspectRun:vertical"],
+    },
+    "inspect-measure-pinned": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image, press 1 and click: the run stays on the image as a measurement with its length.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.inspectHud" } },
+        { press: "1" },
+        { waitFor: { area: "editorImage.inspectRun" } },
+        { click: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.measure" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.measure:pinned"],
     },
     "canvas-light": {
       profile: "image-canvas",

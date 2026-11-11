@@ -1,6 +1,7 @@
 import { backgroundPaint, frameRadius } from "../beautify/backgrounds";
 import { roughArrow, roughRect } from "./rough";
 import { smoothPath } from "./smooth";
+import { MEASURE_FONT, measureLabel, measureShape, measureTextColor } from "./measure";
 import {
   BLUR_STD,
   HAND_FONT,
@@ -22,6 +23,7 @@ import {
   worldToFrame,
   type Extents,
 } from "./canvas-geometry";
+import { bakeRedactions } from "./redaction";
 import { stepNumbers, type Annotation, type Scene } from "./scene";
 
 /**
@@ -101,7 +103,10 @@ export async function compositeSceneAt(
   displayedW: number,
   options: CompositeOptions = {},
 ): Promise<CompositeResult> {
-  const href = await bytesToDataUrl(bytes);
+  // Canvas mode: redactions are destructive, so their pixels go into the base image here
+  // (locked ones are already in it) and buildSvg draws no blur. Untouched = same bytes.
+  const base = options.canvas ? await bakeRedactions(bytes, scene.annotations) : bytes;
+  const href = await bytesToDataUrl(base);
   // Decode the PNG for its TRUE pixel size (Retina-safe — `getSize` can differ).
   const { width: naturalW, height: naturalH } = await imageSize(href);
   const scale = displayedW > 0 ? naturalW / displayedW : 1;
@@ -268,9 +273,11 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // beautify padding is shown there — clipping to the shot truncated it in the
   // export only. The output viewBox (the crop window, or the whole frame) is the
   // natural bound, so they render exactly as previewed.
+  // Canvas mode (`ext` set): blurs were baked into the base bytes. Each one still redraws
+  // the (baked) base over its rect, in z-order, so it covers an annotation drawn before it.
   const steps = stepNumbers(scene.annotations);
   const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
-    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps))
+    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps, Boolean(ext)))
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
@@ -284,7 +291,15 @@ function annotationSvg(
   H: number,
   scale: number,
   steps: Map<string, number>,
+  baked = false,
 ): string {
+  if (a.kind === "blur" && baked) {
+    // The base already holds the redacted pixels: a clipped, unfiltered copy of them.
+    return (
+      `<defs><clipPath id="bclip-${a.id}"><rect x="${a.x * W}" y="${a.y * H}" width="${a.w * W}" height="${a.h * H}"/></clipPath></defs>` +
+      `<use href="#shot" clip-path="url(#bclip-${a.id})"/>`
+    );
+  }
   if (a.kind === "step") {
     const d = stepDiameterPx(a.size);
     const n = steps.get(a.id) ?? 1;
@@ -341,6 +356,24 @@ function annotationSvg(
     const sw = STROKE_WIDTHS[a.stroke] * scale;
     const d = smoothPath(a.points.map((pt) => ({ x: pt.x * W, y: pt.y * H })));
     return `<path d="${d}" fill="none" stroke="${a.color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  if (a.kind === "measure") {
+    const s = measureShape(a, W, H, scale);
+    const sw = STROKE_WIDTHS[1] * scale;
+    const ticks = s.ticks
+      .map(
+        (t) =>
+          `<line x1="${t[0]}" y1="${t[1]}" x2="${t[2]}" y2="${t[3]}" stroke="${a.color}" stroke-width="${sw}" stroke-linecap="round"/>`,
+      )
+      .join("");
+    return (
+      `<g data-kind="measure">` +
+      `<line x1="${s.p1.x}" y1="${s.p1.y}" x2="${s.p2.x}" y2="${s.p2.y}" stroke="${a.color}" stroke-width="${sw}" stroke-linecap="round"/>` +
+      ticks +
+      `<rect x="${s.pill.x}" y="${s.pill.y}" width="${s.pill.w}" height="${s.pill.h}" rx="${s.pill.rx}" fill="${a.color}"/>` +
+      `<text x="${s.text.x}" y="${s.text.y}" fill="${measureTextColor(a.color)}" font-family="${MEASURE_FONT}" font-size="${s.text.fontSize}" font-weight="600" text-anchor="middle" dominant-baseline="central">${escapeXml(measureLabel(a))}</text>` +
+      `</g>`
+    );
   }
   // Through the resolver: a label sized by dragging a corner must export at the
   // size it was drawn at, not at the preset it started from.

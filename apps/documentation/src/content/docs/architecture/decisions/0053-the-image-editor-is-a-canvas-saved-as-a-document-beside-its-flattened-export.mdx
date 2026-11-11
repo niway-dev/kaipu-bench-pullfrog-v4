@@ -7,12 +7,12 @@ description: The image editor holds images and annotations in one world coordina
 
 ## Status
 
-| Field         | Value                                                                                                                                                                                                                                                                                                                                          |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed, 2026-11-11. Not built. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color)                                                                          |
-| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                     |
-| Relates to    | [0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/) (the quiet path still writes only a PNG), [0051](/architecture/decisions/0051-the-video-background-is-the-screenshot-beautify-drawn-as-the-outermost-step/) (the beautify model is unchanged), [0003](/architecture/decisions/0003-export-never-replaces-the-original/) |
-| Superseded by | —                                                                                                                                                                                                                                                                                                                                              |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed, 2026-11-11. Points 3–5 (storage, fallback, destructive redaction) built behind the `image-canvas` flag by NIW2-700 (M3); see Implementation status. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                         |
+| Relates to    | [0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/) (the quiet path still writes only a PNG), [0051](/architecture/decisions/0051-the-video-background-is-the-screenshot-beautify-drawn-as-the-outermost-step/) (the beautify model is unchanged), [0003](/architecture/decisions/0003-export-never-replaces-the-original/)                                                     |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## Context
 
@@ -45,6 +45,31 @@ whose coordinates belong to one image and whose only saved artifact is a flatten
    for certain: block averages of short, predictable text can be matched against rendered
    candidates, so the strong blur has a minimum block size and the tool states the difference; the light gaussian that `annotations/tools.ts` documents as
    reversible is retired, so it is never the thing baked into an asset.
+
+## Implementation status
+
+M3 ([NIW2-700](https://linear.app/niway/issue/NIW2-700)) builds points 3–5 behind the
+`image-canvas` flag. The rest of the decision (several images, world units) is later milestones.
+
+- **Files.** `<id>.png`, `.kaipu/<id>.canvas.json` and `.kaipu/<id>.assets/base.png`. The
+  document and the assets are vault companions: rename, move and delete carry them.
+- **Write order.** The PNG first, then the assets, then the document (atomic) last, so a crash
+  leaves a valid PNG. A crash between the assets and the document can leave the previous
+  document over the new `base.png` (the older annotations on pixels that may carry newer
+  redactions); per-save asset ids would remove that window and are a follow-up. If the canvas part fails, the document is
+  removed and the save still succeeds. A save without a document (flag off) deletes both.
+- **Coordinates.** Annotations stay normalized to the base image, as in M2, and may fall outside
+  0–1. Item 0 is the base image at 0,0 with its pixel size. World units arrive with the second
+  image (M6); the document's `schemaVersion` is what lets that migration happen.
+- **Strong blur.** Block size `max(24, ceil(min(w, h) / 4))` pixels of the region: block
+  averages, then bilinear smoothing, so the output depends only on the averages. `solid` fills
+  with RGB(26, 26, 26). The light gaussian is no longer offered in canvas mode; with the flag
+  off it is unchanged.
+- **Locked items.** During a session a redaction stays editable, because the editor keeps the
+  unredacted pixels in memory. The saved document marks it `locked`; after reopening it is part
+  of the asset and draws nothing of its own.
+- **Not built.** "Reset edits" and keeping an unredacted original (from the re-editable
+  screenshots analysis) contradict a destructive redaction and are left out.
 
 ## Alternatives rejected
 

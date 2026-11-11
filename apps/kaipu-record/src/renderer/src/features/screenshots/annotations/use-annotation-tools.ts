@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { RedactionStyle } from "./scene";
 import { ANNOTATION_COLORS, type AnnotationTool } from "./tools";
 
 export interface AnnotationToolsController {
@@ -13,6 +14,9 @@ export interface AnnotationToolsController {
   /** Text-size level — an index into TEXT_SIZES (0–2). */
   textSize: number;
   setTextSize(level: number): void;
+  /** Style a new redaction takes (canvas mode). "blur" = the strong blur. */
+  redactionStyle: RedactionStyle;
+  setRedactionStyle(style: RedactionStyle): void;
   /** Step-badge size level — an index into STEP_PX (0–3). */
   stepSize: number;
   setStepSize(level: number): void;
@@ -26,6 +30,8 @@ export function useAnnotationTools(): AnnotationToolsController {
   const [textSize, setTextSize] = useState<number>(1);
   const [stepSize, setStepSize] = useState<number>(1);
 
+  const [redactionStyle, setRedactionStyle] = useState<RedactionStyle>("blur");
+
   return {
     tool,
     setTool,
@@ -35,6 +41,8 @@ export function useAnnotationTools(): AnnotationToolsController {
     setStroke,
     textSize,
     setTextSize,
+    redactionStyle,
+    setRedactionStyle,
     stepSize,
     setStepSize,
   };

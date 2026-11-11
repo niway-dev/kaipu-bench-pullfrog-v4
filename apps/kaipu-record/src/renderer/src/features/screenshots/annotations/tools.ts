@@ -18,12 +18,11 @@ export const ANNOTATION_TOOLS = [
 export type AnnotationTool = (typeof ANNOTATION_TOOLS)[number];
 
 /**
- * Gaussian blur radius (px, in the display coordinate space) for a redaction box —
- * strong enough to make text unreadable while keeping the surrounding shape, which
- * is the point of a blur vs a solid bar. The export scales it by the same factor as
- * strokes so it matches the preview. NOTE: Gaussian blur is not cryptographically
- * secure (reversible); a destructive mosaic is the documented follow-up for true
- * redaction — see backlog/screenshot-redaction.
+ * Gaussian blur radius (px, in the display coordinate space) for the FLAG-OFF preview
+ * and export only; the export scales it like strokes so it matches the preview. A
+ * gaussian blur is partly reversible, so it is not a redaction. Canvas mode
+ * (`image-canvas`) does not use it: there a blur is the destructive block redaction in
+ * `redaction.ts`, baked into the image's pixels at save (ADR 0053).
  */
 export const BLUR_STD = 12;
 

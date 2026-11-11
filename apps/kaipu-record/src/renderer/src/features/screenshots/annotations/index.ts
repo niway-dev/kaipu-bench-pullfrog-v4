@@ -11,7 +11,9 @@ export {
   type CompositeOptions,
   type CompositeResult,
 } from "./compositor";
-export type { Scene, Annotation, CropRect } from "./scene";
+export type { Scene, Annotation, CropRect, MeasureAnnotation } from "./scene";
+export { nextAnnotationId } from "./scene";
+export { measureLabel, measureLength } from "./measure";
 export {
   annotationBounds,
   contentExtents,
@@ -54,3 +56,22 @@ export {
   handleCursor,
   type HandleId,
 } from "./handles";
+export type { RedactionStyle, BlurAnnotation } from "./scene";
+export { reserveAnnotationIds } from "./scene";
+export {
+  REDACTION_MIN_BLOCK_PX,
+  REDACTION_SOLID_RGB,
+  redactionBlockSize,
+  redactRegion,
+  bakeRedactions,
+  type PixelRegion,
+} from "./redaction";
+export {
+  CANVAS_DOC_VERSION,
+  BASE_ASSET_ID,
+  buildCanvasDoc,
+  parseCanvasDoc,
+  type CanvasImageItem,
+  type CanvasDocV1,
+  type ParsedCanvasDoc,
+} from "./canvas-doc";

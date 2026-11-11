@@ -18,6 +18,8 @@ function makeTools(overrides: Partial<AnnotationToolsController> = {}): Annotati
     setStroke: vi.fn(),
     textSize: 1,
     setTextSize: vi.fn(),
+    redactionStyle: "blur",
+    setRedactionStyle: vi.fn(),
     stepSize: 1,
     setStepSize: vi.fn(),
     ...overrides,
@@ -63,6 +65,39 @@ afterEach(() => {
   delete HTMLElement.prototype.clientWidth;
   // @ts-expect-error — see above
   delete HTMLElement.prototype.clientHeight;
+});
+
+describe("AnnotationLayer — canvas-mode redaction", () => {
+  const unlocked: Annotation = { id: "u1", kind: "blur", x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+  const locked: Annotation = { ...unlocked, id: "l1", locked: true };
+
+  it("keeps the gaussian filter with the flag off", () => {
+    const { container } = render(
+      <AnnotationLayer scene={makeScene([unlocked], null)} tools={makeTools()} src="" />,
+    );
+    expect(container.querySelector("feGaussianBlur")).not.toBeNull();
+  });
+
+  it("draws no gaussian in canvas mode and nothing at all for a locked blur", () => {
+    const { container } = render(
+      <AnnotationLayer
+        scene={makeScene([unlocked, locked], null)}
+        tools={makeTools()}
+        src=""
+        canvasMode
+      />,
+    );
+    expect(container.querySelector("feGaussianBlur")).toBeNull();
+    expect(container.querySelector('[data-annotation="u1"]')).not.toBeNull();
+    expect(container.querySelector('[data-annotation="l1"]')).toBeNull();
+  });
+
+  it("does not delete a locked blur on Backspace in canvas mode", () => {
+    const scene = makeScene([locked], "l1");
+    render(<AnnotationLayer scene={scene} tools={makeTools()} src="" canvasMode />);
+    fireEvent.keyDown(window, { key: "Backspace" });
+    expect(scene.removeSelected).not.toHaveBeenCalled();
+  });
 });
 
 describe("AnnotationLayer — keyboard", () => {
@@ -556,5 +591,81 @@ describe("AnnotationLayer — step badges", () => {
       ["20", "1"],
       ["80", "2"],
     ]);
+  });
+});
+
+describe("AnnotationLayer — measure (NIW2-702)", () => {
+  // Image 200×200 px shown in a 100×100 layer. The line runs from x=40 to x=80 on row 49,
+  // so it spans 20–40 display px horizontally at y = 25.
+  const ruler: Annotation = {
+    id: "m1",
+    kind: "measure",
+    axis: "x",
+    from: 40,
+    to: 80,
+    at: 49,
+    imageW: 200,
+    imageH: 200,
+    color: ANNOTATION_COLORS[0].value,
+  };
+
+  function renderMeasureLayer(scene: EditorScene) {
+    for (const prop of ["clientWidth", "clientHeight"]) {
+      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 100 });
+    }
+    const utils = render(<AnnotationLayer scene={scene} tools={makeTools()} src="" />);
+    const layer = utils.container.firstChild as HTMLElement;
+    layer.setPointerCapture = vi.fn();
+    layer.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: 100,
+        bottom: 100,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    return { ...utils, layer };
+  }
+
+  it("renders the line with its length label and a readable data-measure-length", () => {
+    const { container } = renderMeasureLayer(makeScene([ruler], null));
+    const g = container.querySelector('[data-kind="measure"]');
+    expect(g?.getAttribute("data-annotation")).toBe("m1");
+    expect(g?.getAttribute("data-measure-length")).toBe("40");
+    expect(g?.textContent).toBe("40 px");
+  });
+
+  it("dragging an end handle commits one patch that changes only that end", () => {
+    const scene = makeScene([ruler], "m1");
+    const { layer } = renderMeasureLayer(scene);
+    expect(screen.getAllByTestId("resize-handle")).toHaveLength(2);
+    fireEvent.pointerDown(layer, { clientX: 40, clientY: 25 }); // the "to" end
+    fireEvent.pointerMove(layer, { clientX: 50, clientY: 25 });
+    fireEvent.pointerMove(layer, { clientX: 60, clientY: 25 });
+    fireEvent.pointerUp(layer);
+    expect(scene.commitAnnotation).toHaveBeenCalledTimes(1);
+    expect(scene.commitAnnotation).toHaveBeenCalledWith("m1", { from: 40, to: 120 });
+  });
+
+  it("a press on the label pill, off the line, grabs the measure", () => {
+    const scene = makeScene([ruler], null);
+    const { layer } = renderMeasureLayer(scene);
+    // The line is at y = 25, too close to the top for the pill, so it sits about 19 px below:
+    // well past the line's own slop.
+    fireEvent.pointerDown(layer, { clientX: 30, clientY: 44 });
+    expect(scene.select).toHaveBeenCalledWith("m1");
+  });
+
+  it("moving the body keeps the length and shifts from, to and at", () => {
+    const scene = makeScene([ruler], null);
+    const { layer } = renderMeasureLayer(scene);
+    fireEvent.pointerDown(layer, { clientX: 30, clientY: 25 }); // middle of the line
+    fireEvent.pointerMove(layer, { clientX: 40, clientY: 35 });
+    fireEvent.pointerUp(layer);
+    expect(scene.commitAnnotation).toHaveBeenCalledTimes(1);
+    expect(scene.commitAnnotation).toHaveBeenCalledWith("m1", { from: 60, to: 100, at: 69 });
   });
 });

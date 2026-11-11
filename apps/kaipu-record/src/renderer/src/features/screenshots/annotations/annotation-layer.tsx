@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "@kaipu/i18n";
+import { uiArea } from "@renderer/lib/ui-area";
 import {
   BLUR_STD,
   HAND_FONT,
@@ -16,7 +17,16 @@ import {
 } from "./tools";
 import { roughArrow, roughRect } from "./rough";
 import { smoothPath } from "./smooth";
+import {
+  MEASURE_FONT,
+  measureEndpoints,
+  measureLabel,
+  measureShape,
+  measureTextColor,
+  moveMeasure,
+} from "./measure";
 import { nextAnnotationId, stepNumbers, type Annotation } from "./scene";
+import { useRedactionTile } from "./redaction-preview";
 import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } from "./handles";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
@@ -50,6 +60,12 @@ interface LayerProps {
    * pointer-downs anywhere on the canvas through an invisible hit surface around it.
    */
   canvas?: boolean;
+  /**
+   * Redaction mode (NIW2-700, behind `image-canvas`): an unlocked blur previews the real
+   * destructive redaction as a raster tile, and a locked one (already baked into the
+   * stored image) draws nothing and cannot be hit. false (default) = today's gaussian.
+   */
+  canvasMode?: boolean;
 }
 
 /**
@@ -58,7 +74,13 @@ interface LayerProps {
  * size and renders in px (so stroke/text sizes match the design regardless of
  * the image's natural resolution).
  */
-function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps): React.JSX.Element {
+function AnnotationLayerImpl({
+  scene,
+  tools,
+  src,
+  canvas = false,
+  canvasMode = false,
+}: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
@@ -115,6 +137,8 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
     return () => obs.disconnect();
   }, []);
 
+  const canvasModeRef = useRef(canvasMode);
+  canvasModeRef.current = canvasMode;
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       // Don't hijack keys while the user is typing in a field or a
@@ -122,6 +146,9 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
       if (isEditingText(e.target) || document.querySelector('[aria-modal="true"]')) return;
       const scn = sceneRef.current;
       if ((e.key === "Delete" || e.key === "Backspace") && scn.selectedId) {
+        // A locked redaction is part of the stored image: it cannot be deleted.
+        const sel = scn.annotations.find((a) => a.id === scn.selectedId);
+        if (canvasModeRef.current && sel?.kind === "blur" && sel.locked) return;
         e.preventDefault();
         scn.removeSelected();
       }
@@ -159,7 +186,7 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
   // Select tool only, so it never clashes with the drawing tools' single-click.
   const onDoubleClick = (e: React.MouseEvent): void => {
     if (tools.tool !== "select") return;
-    const hit = hitTest(scene.annotations, toNorm(e), size);
+    const hit = hitTest(scene.annotations, toNorm(e), size, canvasMode);
     if (hit?.kind !== "text") return;
     scene.select(hit.id);
     editDone.current = false;
@@ -197,7 +224,7 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
           return;
         }
       }
-      const hit = hitTest(scene.annotations, p, size);
+      const hit = hitTest(scene.annotations, p, size, canvasMode);
       scene.select(hit?.id ?? null);
       // The label whose inline editor is open belongs to that editor. The hit-test
       // keeps an 8px margin around it, and the textarea only covers the box itself,
@@ -288,6 +315,8 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
         y: Math.min(d.start.y, p.y),
         w: Math.abs(p.x - d.start.x),
         h: Math.abs(p.y - d.start.y),
+        // Absent = the strong blur; only "solid" is stored.
+        ...(canvasMode && tools.redactionStyle === "solid" ? { style: "solid" as const } : {}),
       });
       return;
     }
@@ -434,11 +463,14 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
               size={size}
               selected={scene.selectedId === a.id}
               src={src}
+              canvasMode={canvasMode}
               n={numbers.get(a.id)}
             />
           ),
         )}
-        {draft && <Shape a={draft} size={size} selected={false} src={src} />}
+        {draft && (
+          <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+        )}
         {selectedAnnotation && <Handles a={selectedAnnotation} size={size} />}
       </svg>
       {editing && (
@@ -517,7 +549,9 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.color === n.tools.color &&
     p.tools.stroke === n.tools.stroke &&
     p.tools.textSize === n.tools.textSize &&
-    p.tools.stepSize === n.tools.stepSize
+    p.tools.redactionStyle === n.tools.redactionStyle &&
+    p.tools.stepSize === n.tools.stepSize &&
+    p.canvasMode === n.canvasMode
   );
 }
 
@@ -551,12 +585,14 @@ const Shape = React.memo(function Shape({
   size,
   selected,
   src,
+  canvasMode,
   n,
 }: {
   a: Annotation;
   size: Size;
   selected: boolean;
   src: string;
+  canvasMode: boolean;
   /** The badge's number, for a `step` annotation (see `stepNumbers`). */
   n?: number;
 }): React.JSX.Element {
@@ -587,6 +623,10 @@ const Shape = React.memo(function Shape({
         {selected && <circle className={styles.selOutline} cx={cx} cy={cy} r={d / 2 + 4} />}
       </g>
     );
+  }
+
+  if (a.kind === "blur" && canvasMode) {
+    return <RedactionTile a={a} size={size} selected={selected} src={src} />;
   }
 
   if (a.kind === "blur") {
@@ -693,6 +733,50 @@ const Shape = React.memo(function Shape({
     );
   }
 
+  if (a.kind === "measure") {
+    const s = measureShape(a, W, H);
+    const sw = STROKE_WIDTHS[1];
+    return (
+      <g
+        {...uiArea("editorImage.measure")}
+        data-annotation={a.id}
+        data-kind="measure"
+        data-measure-length={a.to - a.from}
+      >
+        <g stroke={a.color} strokeWidth={sw} strokeLinecap="round">
+          <line x1={s.p1.x} y1={s.p1.y} x2={s.p2.x} y2={s.p2.y} />
+          {s.ticks.map((t, i) => (
+            <line key={i} x1={t[0]} y1={t[1]} x2={t[2]} y2={t[3]} />
+          ))}
+        </g>
+        <rect
+          x={s.pill.x}
+          y={s.pill.y}
+          width={s.pill.w}
+          height={s.pill.h}
+          rx={s.pill.rx}
+          fill={a.color}
+        />
+        <text
+          x={s.text.x}
+          y={s.text.y}
+          fill={measureTextColor(a.color)}
+          fontFamily={MEASURE_FONT}
+          fontSize={s.text.fontSize}
+          fontWeight={600}
+          textAnchor="middle"
+          dominantBaseline="central"
+          style={{ userSelect: "none" }}
+        >
+          {measureLabel(a)}
+        </text>
+        {selected && (
+          <line className={styles.selOutline} x1={s.p1.x} y1={s.p1.y} x2={s.p2.x} y2={s.p2.y} />
+        )}
+      </g>
+    );
+  }
+
   if (a.kind === "path") {
     const sw = STROKE_WIDTHS[a.stroke];
     const d = smoothPath(a.points.map((pt) => ({ x: pt.x * W, y: pt.y * H })));
@@ -750,6 +834,70 @@ const Shape = React.memo(function Shape({
   );
 });
 
+/**
+ * Canvas-mode blur: the real redaction as a raster tile over the rect. A locked one is
+ * already in the image, so it redraws the image's own pixels over the rect: in z-order it
+ * still covers whatever annotation was drawn before it, as the export does.
+ */
+function RedactionTile({
+  a,
+  size,
+  selected,
+  src,
+}: {
+  a: Extract<Annotation, { kind: "blur" }>;
+  size: Size;
+  selected: boolean;
+  src: string;
+}): React.JSX.Element | null {
+  const tile = useRedactionTile(src, a, a.style ?? "blur", !a.locked);
+  const bx = a.x * size.w;
+  const by = a.y * size.h;
+  if (a.locked) {
+    const clipId = `lock-clip-${a.id}`;
+    return (
+      <g data-testid="locked-redaction">
+        <clipPath id={clipId}>
+          <rect x={bx} y={by} width={a.w * size.w} height={a.h * size.h} />
+        </clipPath>
+        <image
+          href={src}
+          x={0}
+          y={0}
+          width={size.w}
+          height={size.h}
+          preserveAspectRatio="none"
+          clipPath={`url(#${clipId})`}
+        />
+      </g>
+    );
+  }
+  return (
+    <g data-annotation={a.id}>
+      {tile && (
+        <image
+          data-testid="redaction-tile"
+          href={tile.url}
+          x={(tile.rect.x / tile.naturalW) * size.w}
+          y={(tile.rect.y / tile.naturalH) * size.h}
+          width={(tile.rect.w / tile.naturalW) * size.w}
+          height={(tile.rect.h / tile.naturalH) * size.h}
+          preserveAspectRatio="none"
+        />
+      )}
+      {selected && (
+        <rect
+          className={styles.selOutline}
+          x={bx}
+          y={by}
+          width={a.w * size.w}
+          height={a.h * size.h}
+        />
+      )}
+    </g>
+  );
+}
+
 /** True when the keyboard event originated in a text field (so the canvas shouldn't grab it). */
 function isEditingText(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -760,6 +908,7 @@ function isBigEnough(a: Annotation): boolean {
   if (a.kind === "box" || a.kind === "blur") return a.w > 0.01 && a.h > 0.01;
   if (a.kind === "arrow") return Math.hypot(a.x2 - a.x1, a.y2 - a.y1) > 0.02;
   if (a.kind === "path") return a.points.length >= 1;
+  if (a.kind === "measure") return a.to - a.from >= 1;
   return true; // text and step are placed by a click, never dragged out
 }
 
@@ -772,12 +921,20 @@ function moveBy(a: Annotation, dx: number, dy: number): Partial<Annotation> {
       points: a.points.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })),
     } as Partial<Annotation>;
   }
+  if (a.kind === "measure") return moveMeasure(a, dx, dy);
   return { x: a.x + dx, y: a.y + dy } as Partial<Annotation>;
 }
 
-function hitTest(annotations: Annotation[], p: Pt, size: Size): Annotation | null {
+function hitTest(
+  annotations: Annotation[],
+  p: Pt,
+  size: Size,
+  canvasMode = false,
+): Annotation | null {
   for (let i = annotations.length - 1; i >= 0; i -= 1) {
     const a = annotations[i];
+    // A locked redaction is already part of the stored image: nothing to grab.
+    if (canvasMode && a.kind === "blur" && a.locked) continue;
     if (a.kind === "box" || a.kind === "blur") {
       if (
         p.x >= a.x - 0.01 &&
@@ -813,6 +970,16 @@ function hitTest(annotations: Annotation[], p: Pt, size: Size): Annotation | nul
     } else if (a.kind === "path") {
       for (let j = 0; j < a.points.length - 1; j += 1) {
         if (distToSegment(p, a.points[j], a.points[j + 1]) < 0.02) return a;
+      }
+    } else if (a.kind === "measure") {
+      const { p1, p2 } = measureEndpoints(a);
+      if (distToSegment(p, p1, p2) < 0.02) return a;
+      // The label pill sits off the line and is what the eye goes to: it grabs the measure too.
+      const { pill } = measureShape(a, size.w, size.h);
+      const px = p.x * size.w;
+      const py = p.y * size.h;
+      if (px >= pill.x && px <= pill.x + pill.w && py >= pill.y && py <= pill.y + pill.h) {
+        return a;
       }
     } else if (distToSegment(p, { x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }) < 0.02) {
       return a;
