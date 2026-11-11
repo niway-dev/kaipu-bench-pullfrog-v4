@@ -54,6 +54,10 @@ export function useLocalLibrary(): LocalLibrary {
   const [isLoading, setLoading] = useState(true);
   const [isRefreshing, setRefreshing] = useState(false);
   const inFlight = useRef(0);
+  // Request order: a re-list that started later always read newer state, so only the
+  // latest started refresh may write results (an older one resolving last would
+  // overwrite a fresh list with a stale one).
+  const latest = useRef(0);
   const [hasError, setHasError] = useState(false);
   const [catalogVerifiedAt, setCatalogVerifiedAt] = useState<number | null>(null);
 
@@ -62,8 +66,12 @@ export function useLocalLibrary(): LocalLibrary {
     // current videos on screen so open pages (detail, editor home) do not blank.
     inFlight.current += 1;
     setRefreshing(true);
+    const seq = ++latest.current;
+    let applied = false;
     try {
       const result = await window.electronAPI.listLibraryItems();
+      if (seq !== latest.current) return; // superseded: a newer list is on its way or landed
+      applied = true;
       // Do NOT blank the list to [] on a vault error — cloud items from the
       // cached catalog are still real data, and blanking would render as the
       // "No recordings yet" empty state, indistinguishable from real data loss.
@@ -77,6 +85,8 @@ export function useLocalLibrary(): LocalLibrary {
         });
       }
     } catch (error) {
+      if (seq !== latest.current) return;
+      applied = true;
       setHasError(true);
       reportError(t("errorRead"), error, {
         context: { phase: "library-list" },
@@ -85,7 +95,9 @@ export function useLocalLibrary(): LocalLibrary {
     } finally {
       inFlight.current -= 1;
       if (inFlight.current === 0) setRefreshing(false);
-      setLoading(false);
+      // A dropped result must not end "loading": the newer request is still in flight and
+      // will, so the first paint is never an empty list read as "no recordings".
+      if (applied) setLoading(false);
     }
   }, []);
 

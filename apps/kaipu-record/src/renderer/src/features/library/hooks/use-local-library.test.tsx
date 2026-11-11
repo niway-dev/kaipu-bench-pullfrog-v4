@@ -177,6 +177,49 @@ describe("useLocalLibrary", () => {
     expect(result.current.videos).toHaveLength(0);
   });
 
+  it("an older list resolving last cannot overwrite a newer one", async () => {
+    type ListResult = Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>;
+    const resolvers: Array<(value: ListResult) => void> = [];
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise<ListResult>((r) => resolvers.push(r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    // A second re-list starts while the first is still scanning.
+    await act(async () => void result.current.refresh());
+    expect(resolvers).toHaveLength(2);
+
+    // The newer list lands first, then the stale one resolves last.
+    await act(async () =>
+      resolvers[1]!({ items: [items[0]!], vaultError: null, catalogVerifiedAt: 7 }),
+    );
+    expect(result.current.isLoading).toBe(false);
+    await act(async () => resolvers[0]!({ items, vaultError: null, catalogVerifiedAt: null }));
+
+    expect(result.current.videos).toHaveLength(1);
+    expect(result.current.catalogVerifiedAt).toBe(7);
+    expect(result.current.isRefreshing).toBe(false);
+  });
+
+  it("stays loading when the first list is superseded until the newer one lands", async () => {
+    type ListResult = Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>;
+    const resolvers: Array<(value: ListResult) => void> = [];
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise<ListResult>((r) => resolvers.push(r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    await act(async () => void result.current.refresh());
+
+    await act(async () => resolvers[0]!({ items, vaultError: null, catalogVerifiedAt: null }));
+    expect(result.current.isLoading).toBe(true);
+    await act(async () =>
+      resolvers[1]!({ items: [items[1]!], vaultError: null, catalogVerifiedAt: null }),
+    );
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.videos).toHaveLength(1);
+  });
+
   it("sync() forces the cloud refresh and re-lists locally", async () => {
     const { result } = renderHook(() => useLocalLibrary());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
