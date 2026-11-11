@@ -17,8 +17,9 @@ milestone M5. Issue: [NIW2-701](https://linear.app/niway/issue/NIW2-701).
 - **Numbers follow order.** A badge's number is its position among the badges, in the order they
   were placed. Deleting one renumbers the rest; undo brings it back with its old number.
 - **Color and size.** The options panel sets the badge color and one of four sizes, for the next
-  badge or for the selected one. The number is dark on light fills (white, yellow) and white
-  otherwise.
+  badge or for the selected one. A new badge is not selected, so picking a color for the next
+  one never repaints the last. The number is dark on light fills (white, yellow, green) and
+  white otherwise.
 - **In the export.** Badges are drawn into the copied, saved and exported image, with the same
   numbers as on screen. With the `image-canvas` flag on they can sit outside the image, and the
   export grows to include them.

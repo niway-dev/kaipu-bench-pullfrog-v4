@@ -90,10 +90,13 @@ describe("stepInk", () => {
   it("uses dark ink on light fills", () => {
     expect(stepInk("#f5f5f5")).toBe("#1a1a1a");
     expect(stepInk("#eab308")).toBe("#1a1a1a");
+    expect(stepInk("#22c55e")).toBe("#1a1a1a");
   });
   it("uses white ink on dark or saturated fills", () => {
     expect(stepInk("#f6055c")).toBe("#ffffff");
     expect(stepInk("#1a1a1a")).toBe("#ffffff");
+    expect(stepInk("#ef4444")).toBe("#ffffff");
+    expect(stepInk("#a855f7")).toBe("#ffffff");
   });
   it("shrinks the number font for two digits", () => {
     expect(stepFontPx(40, 9)).toBeCloseTo(22);

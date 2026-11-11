@@ -75,7 +75,8 @@ export const STEP_FONT =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
 /** Ink (number + ring) for a badge filled with `color`: dark on light fills, white otherwise.
- * Threshold 0.45, not 0.5: the palette yellow (#eab308) has luminance 0.496 and needs dark ink. */
+ * Threshold 0.3: green (#22c55e, luminance 0.41) gives white only 2.3:1 but dark 7.6:1, and
+ * yellow and white are lighter still. Pink, red and purple (about 0.21) keep white at ~4:1. */
 export function stepInk(color: string): string {
   const hex = color.trim().replace(/^#/, "");
   const full =
@@ -91,7 +92,7 @@ export function stepInk(color: string): string {
     return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   };
   const lum = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
-  return lum > 0.45 ? "#1a1a1a" : "#ffffff";
+  return lum > 0.3 ? "#1a1a1a" : "#ffffff";
 }
 
 /** Ring stroke width of a badge of diameter `d`. */

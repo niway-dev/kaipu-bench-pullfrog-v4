@@ -221,7 +221,9 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
     }
     if (tools.tool === "step") {
       // Each click drops the next number. The tool stays active (unlike the drawing
-      // tools) so consecutive clicks number 1, 2, 3; the new badge is selected.
+      // tools) so consecutive clicks number 1, 2, 3. The new badge is NOT selected: the
+      // options panel edits the selection, so picking a colour for the next badge would
+      // repaint the one just placed.
       const { id } = nextAnnotationId();
       scene.addAnnotation({
         id,
@@ -231,7 +233,7 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
         color: tools.color,
         size: tools.stepSize,
       });
-      scene.select(id);
+      scene.select(null);
       return;
     }
     if (tools.tool === "pen") {

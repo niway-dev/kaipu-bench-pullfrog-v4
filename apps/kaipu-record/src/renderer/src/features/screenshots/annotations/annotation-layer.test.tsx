@@ -531,6 +531,11 @@ describe("AnnotationLayer — step badges", () => {
     fireEvent.pointerDown(layer, { clientX: 80, clientY: 80 });
     expect(numbers(container)).toEqual(["1", "2", "3"]);
     expect(screen.getByTestId("tool").textContent).toBe("step"); // never auto-switches
+    // Placing does not select: the options panel would otherwise repaint the badge just
+    // placed when the user picks a colour for the next one. One circle each, no outline.
+    for (const g of container.querySelectorAll("g[data-annotation]")) {
+      expect(g.querySelectorAll("circle")).toHaveLength(1);
+    }
 
     // Select the middle badge with the select tool, then delete it.
     fireEvent.click(screen.getByText("to-select"));
@@ -538,7 +543,13 @@ describe("AnnotationLayer — step badges", () => {
     fireEvent.keyDown(window, { key: "Delete" });
     expect(numbers(container)).toEqual(["1", "2"]);
     // The survivors are the first and the last badge, now numbered 1 and 2.
-    const ids = Array.from(container.querySelectorAll("g[data-annotation]"));
-    expect(ids).toHaveLength(2);
+    const centers = Array.from(container.querySelectorAll("g[data-annotation] text")).map((el) => [
+      el.getAttribute("x"),
+      el.textContent,
+    ]);
+    expect(centers).toEqual([
+      ["20", "1"],
+      ["80", "2"],
+    ]);
   });
 });
