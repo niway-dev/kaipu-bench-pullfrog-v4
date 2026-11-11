@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -318,6 +318,22 @@ export function ScreenshotEditor({
       scale,
     );
   }, [canvasMode, metrics, scene.annotations]);
+  // Growing or shrinking the content box re-centres the frame, which would slide the shot
+  // on screen. Move the pan by the same amount so the shot stays where the user left it.
+  const prevExtents = useRef(ZERO_EXTENTS);
+  const { compensate } = viewport;
+  useLayoutEffect(() => {
+    const prev = prevExtents.current;
+    prevExtents.current = extents;
+    if (
+      prev.left !== extents.left ||
+      prev.top !== extents.top ||
+      prev.right !== extents.right ||
+      prev.bottom !== extents.bottom
+    ) {
+      compensate(prev, extents);
+    }
+  }, [extents, compensate]);
   const hasContentOutside =
     extents.left > 0 || extents.top > 0 || extents.right > 0 || extents.bottom > 0;
   // The composed frame in display px, to move the crop tool's 0–1 rect to and from the
@@ -330,12 +346,17 @@ export function ScreenshotEditor({
     canvasGeom && scene.exportFrame
       ? intersectFrame(worldToFrame(scene.exportFrame, canvasGeom))
       : undefined;
+  // A stored frame that now lies fully outside the content box (the content it framed was
+  // removed) paints and exports nothing. The crop tool must still know it exists, or Reset
+  // and Esc would do nothing while the frame stays and silently comes back with the content.
+  // It reads as the full frame (what the export really uses) and Reset / Esc clear it.
+  const frameHidden = canvasGeom != null && scene.exportFrame != null && !exportFrameCrop;
   // In canvas mode the Crop tool edits the export frame: the same overlay and Reset button,
   // fed a scene whose `crop` is the frame and whose `setCrop` writes the frame.
   const cropScene: EditorScene = canvasMode
     ? {
         ...scene,
-        crop: exportFrameCrop,
+        crop: exportFrameCrop ?? (frameHidden ? { x: 0, y: 0, w: 1, h: 1 } : undefined),
         setCrop: (crop) => {
           if (!canvasGeom) return;
           scene.setExportFrame(crop ? frameToWorld(crop, canvasGeom) : undefined);

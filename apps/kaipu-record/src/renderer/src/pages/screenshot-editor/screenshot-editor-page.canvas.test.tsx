@@ -362,6 +362,45 @@ describe("ScreenshotEditorPage — preview matches the export (image-canvas)", (
     }
   });
 
+  it("flag on: growing the right extent pans the view so the shot stays put", async () => {
+    imageCanvas = true;
+    sizeTheCanvas();
+    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", {
+      configurable: true,
+      get: () => 400,
+    });
+    Object.defineProperty(HTMLImageElement.prototype, "naturalHeight", {
+      configurable: true,
+      get: () => 400,
+    });
+    try {
+      mount(PASTE);
+      await loadImage();
+      expect(frameEl().style.transform).toBe("");
+      fireEvent.click(screen.getByRole("button", { name: "Box" }));
+      const surface = screen.getByTestId("canvas-hit-surface");
+      // Entirely right of the 200 px shot.
+      fireEvent.pointerDown(surface, { button: 0, clientX: 230, clientY: 50, pointerId: 7 });
+      fireEvent.pointerMove(surface, { clientX: 280, clientY: 90, pointerId: 7 });
+      fireEvent.pointerUp(surface, { pointerId: 7 });
+      await waitFor(() => expect(canvasEl().dataset.hasContentOutside).toBe("true"));
+      const right = parseFloat(frameEl().style.padding.split(" ")[1]);
+      expect(right).toBeGreaterThanOrEqual(80);
+      // The centred frame slid left by right / 2; the pan undoes exactly that.
+      const m = /^translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(1\)$/.exec(
+        frameEl().style.transform,
+      );
+      expect(m).not.toBeNull();
+      expect(parseFloat(m![1])).toBeCloseTo(right / 2);
+      expect(parseFloat(m![2])).toBeCloseTo(0);
+    } finally {
+      // @ts-expect-error — drop the stubs
+      delete HTMLImageElement.prototype.naturalWidth;
+      // @ts-expect-error — see above
+      delete HTMLImageElement.prototype.naturalHeight;
+    }
+  });
+
   it("flag off: the same drawing leaves the frame exactly as it was", async () => {
     sizeTheCanvas();
     mount(PASTE);
@@ -432,6 +471,66 @@ describe("ScreenshotEditorPage — Crop is the export frame (image-canvas)", () 
     await waitFor(() => expect(canvasEl().dataset.exportFrame).toBe("true"));
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(canvasEl().dataset.exportFrame).toBe("false"));
+  });
+
+  it("flag on: a frame left fully outside the content box can still be reset", async () => {
+    imageCanvas = true;
+    sizeTheCanvas();
+    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", {
+      configurable: true,
+      get: () => 400,
+    });
+    Object.defineProperty(HTMLImageElement.prototype, "naturalHeight", {
+      configurable: true,
+      get: () => 400,
+    });
+    try {
+      mount(PASTE);
+      await loadImage();
+      // A box above-left of the shot grows the content box (about 63 px left, 42 px top).
+      fireEvent.click(screen.getByRole("button", { name: "Box" }));
+      const surface = screen.getByTestId("canvas-hit-surface");
+      fireEvent.pointerDown(surface, { button: 0, clientX: -60, clientY: -40, pointerId: 8 });
+      fireEvent.pointerMove(surface, { clientX: -10, clientY: -10, pointerId: 8 });
+      fireEvent.pointerUp(surface, { pointerId: 8 });
+      await waitFor(() => expect(canvasEl().dataset.hasContentOutside).toBe("true"));
+      // A frame in the top-left corner of the content box: all of it outside the shot.
+      fireEvent.click(screen.getByRole("button", { name: "Crop" }));
+      const overlay = await waitFor(() => {
+        const el = document.querySelector('[class*="overlay"]');
+        expect(el).not.toBeNull();
+        return el as HTMLElement;
+      });
+      // Drag the full frame's bottom-right corner up to (20, 20).
+      fireEvent.pointerDown(overlay, { clientX: 198, clientY: 198, pointerId: 9 });
+      fireEvent.pointerMove(overlay, { clientX: 20, clientY: 20, pointerId: 9 });
+      fireEvent.pointerUp(overlay, { pointerId: 9 });
+      await waitFor(() => expect(canvasEl().dataset.exportFrame).toBe("true"));
+      // Remove the box: the content box shrinks back to the shot and the frame is outside it.
+      fireEvent.click(screen.getByRole("button", { name: "Select" }));
+      // Select the box by its left edge, then delete it.
+      fireEvent.pointerDown(screen.getByTestId("canvas-hit-surface"), {
+        button: 0,
+        clientX: -60,
+        clientY: -25,
+        pointerId: 10,
+      });
+      fireEvent.pointerUp(screen.getByTestId("canvas-hit-surface"), { pointerId: 10 });
+      fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+      await waitFor(() => expect(canvasEl().dataset.hasContentOutside).toBe("false"));
+      expect(canvasEl().dataset.exportFrame).toBe("true");
+      // The frame paints and exports nothing, yet Reset is live and clears it.
+      fireEvent.click(screen.getByRole("button", { name: "Crop" }));
+      const reset = screen.getByRole("button", { name: "Reset" });
+      expect(reset).toBeEnabled();
+      fireEvent.click(reset);
+      await waitFor(() => expect(canvasEl().dataset.exportFrame).toBe("false"));
+    } finally {
+      // @ts-expect-error — drop the stubs
+      delete HTMLImageElement.prototype.naturalWidth;
+      // @ts-expect-error — see above
+      delete HTMLImageElement.prototype.naturalHeight;
+    }
   });
 
   it("flag on: the export frame is one undo entry", async () => {
