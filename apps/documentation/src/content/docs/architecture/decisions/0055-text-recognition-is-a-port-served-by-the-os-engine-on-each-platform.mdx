@@ -53,6 +53,23 @@ native code to one patched npm module and in-house Swift helpers built with `swi
   per platform, not on equal output.
 - The text cache is one more file that must follow the item when it is moved or deleted.
 
+## Implementation status
+
+M8 ([NIW2-705](https://linear.app/niway/issue/NIW2-705)) builds points 1, 2, 4 and 5 for macOS,
+behind the `image-text` flag (with `image-canvas`). Windows (point 3) is
+[NIW2-707](https://linear.app/niway/issue/NIW2-707). Usage and file layout:
+[image editor text recognition](/backlog/image-editor-text-recognition/).
+
+- **Port.** `TextRecognizer` and the `RecognizedWord` schema live in `@kaipu/domain/schemas`.
+- **Helper.** `native/text-recognition/main.swift`, `accurate` level with language correction,
+  macOS 13 or later, universal. The PNG arrives on stdin, so no copy of the screenshot is
+  written to a temporary file. Main allows 45 s per call, for the first-run model compilation.
+- **Cache key.** Each asset's entry carries the sha256 of the PNG bytes it was recognized from;
+  a different image is recognized again instead of trusting a stale entry.
+- **Redactions.** The renderer sends the words outside every baked redaction with each save, and
+  main rewrites the file from them; a save without them deletes it. A recognition that finishes
+  after a save, rename or delete of its item is discarded.
+
 ## Non-goals
 
 Translation, handwriting, searching the Library by recognized text, recognizing text in video

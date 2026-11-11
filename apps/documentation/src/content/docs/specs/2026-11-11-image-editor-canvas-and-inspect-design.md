@@ -285,6 +285,11 @@ selects a range in reading order, shown as highlights; copy puts the text on the
 **Hiding text (M9).** In the redact tool, hovering a recognized line outlines it; a click
 creates a redaction over its box grown by a small margin, in the strong blur or `solid` style.
 
+**As built in M8 (NIW2-705).** macOS only, behind `image-text` with `image-canvas`. The helper
+reads the PNG on stdin instead of a path; the timeout is 45 s; the cache keys each asset by the
+sha256 of the bytes recognized; selection is a **Select text** tool, so dragging elsewhere keeps
+moving annotations. Details in ADR 0055's Implementation status.
+
 ### 6. Flags
 
 `image-inspect`, `image-canvas`, `image-text`, added to `FLAG_NAMES` in `shared/analytics.ts`
