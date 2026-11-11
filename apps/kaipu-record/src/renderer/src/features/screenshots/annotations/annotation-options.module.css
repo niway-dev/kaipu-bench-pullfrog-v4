@@ -175,3 +175,16 @@
   line-height: var(--line-height-label);
   color: var(--text-4);
 }
+
+/* ── Text recognition status ("Select text" tool) ─ */
+
+.textTool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.textActions {
+  display: flex;
+  gap: var(--space-xs);
+}

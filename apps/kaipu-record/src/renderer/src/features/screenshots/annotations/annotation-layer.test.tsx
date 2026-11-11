@@ -6,6 +6,8 @@ import { handlesFor } from "./handles";
 import type { Annotation, BoxAnnotation } from "./scene";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
+import type { RecognizedWord } from "@kaipu/domain/schemas";
+import type { TextLayerModel } from "../text-selection";
 
 function makeTools(overrides: Partial<AnnotationToolsController> = {}): AnnotationToolsController {
   return {
@@ -504,5 +506,110 @@ describe("AnnotationLayer — canvas mode (NIW2-698)", () => {
     fireEvent.pointerMove(surface, { clientX: -10, clientY: -5 });
     fireEvent.pointerUp(surface);
     expect(scene.addAnnotation).not.toHaveBeenCalled();
+  });
+});
+
+describe("AnnotationLayer — Select text tool", () => {
+  const w = (text: string, x: number, y: number): RecognizedWord => ({
+    text,
+    line: 0,
+    rect: { x, y, w: 80, h: 20 },
+    confidence: 1,
+  });
+  // A 400×400 image shown at 100×100: every display box is a quarter of the pixel box.
+  const A = w("a", 40, 40); // display 10-30 x 10-15
+  const B = w("b", 200, 40); // display 50-70 x 10-15
+  const NATURAL = { w: 400, h: 400 };
+
+  function renderText(
+    selected: RecognizedWord[] = [],
+    tool: AnnotationToolsController["tool"] = "selectText",
+  ) {
+    for (const prop of ["clientWidth", "clientHeight"]) {
+      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 100 });
+    }
+    const select = vi.fn();
+    const clear = vi.fn();
+    const scene = makeScene([box], null);
+    const model: TextLayerModel = {
+      words: [A, B],
+      natural: NATURAL,
+      selected: new Set(selected),
+      select,
+      clear,
+    };
+    const utils = render(
+      <AnnotationLayer scene={scene} tools={makeTools({ tool })} src="" text={model} />,
+    );
+    const layer = utils.container.firstChild as HTMLElement;
+    layer.setPointerCapture = vi.fn();
+    layer.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: 100,
+        bottom: 100,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    return { ...utils, layer, select, clear, scene };
+  }
+
+  it("draws a translucent box over each selected word, at its place in the image", () => {
+    const { container } = renderText([B]);
+    const rects = container.querySelectorAll('[data-testid="text-highlight"]');
+    expect(rects).toHaveLength(1);
+    expect(rects[0].getAttribute("x")).toBe("50");
+    expect(rects[0].getAttribute("width")).toBe("20");
+  });
+
+  it("marks the layer as the text selection area only while the tool is active", () => {
+    const on = renderText();
+    expect(on.layer).toHaveAttribute("data-ui-area", "editorImage.textSelection");
+    on.unmount();
+    const off = renderText([A], "select");
+    expect(off.layer).not.toHaveAttribute("data-ui-area");
+    expect(off.container.querySelector('[data-testid="text-highlight"]')).toBeNull();
+  });
+
+  it("a press on a word selects it, a drag extends to the nearest word", () => {
+    const { layer, select } = renderText();
+    fireEvent.pointerDown(layer, { clientX: 20, clientY: 12, pointerId: 1 });
+    expect(select).toHaveBeenLastCalledWith(A, A);
+    // Past the end of the line, nowhere near any word: the nearest one still ends the range.
+    fireEvent.pointerMove(layer, { clientX: 95, clientY: 90, pointerId: 1 });
+    expect(select).toHaveBeenLastCalledWith(A, B);
+    fireEvent.pointerUp(layer, { pointerId: 1 });
+  });
+
+  it("a press far from every word clears and starts no drag", () => {
+    const { layer, select, clear } = renderText([A]);
+    fireEvent.pointerDown(layer, { clientX: 20, clientY: 80, pointerId: 1 });
+    expect(clear).toHaveBeenCalledTimes(1);
+    fireEvent.pointerMove(layer, { clientX: 60, clientY: 12, pointerId: 1 });
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("shows the text cursor over a word and the default one elsewhere", () => {
+    const { layer } = renderText();
+    fireEvent.pointerMove(layer, { clientX: 20, clientY: 12, pointerId: 1 });
+    expect(layer.style.cursor).toBe("text");
+    fireEvent.pointerMove(layer, { clientX: 20, clientY: 80, pointerId: 1 });
+    expect(layer.style.cursor).toBe("default");
+  });
+
+  it("does not grab shapes while the tool is active", () => {
+    const { layer, scene } = renderText();
+    fireEvent.pointerDown(layer, { clientX: 20, clientY: 20, pointerId: 1 }); // on the box
+    expect(scene.select).not.toHaveBeenCalled();
+  });
+
+  it("with the select tool the words take no input", () => {
+    const { layer, select, clear } = renderText([], "select");
+    fireEvent.pointerDown(layer, { clientX: 20, clientY: 12, pointerId: 1 });
+    expect(select).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
   });
 });

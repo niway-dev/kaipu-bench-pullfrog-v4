@@ -5,6 +5,7 @@ import { ANNOTATION_COLORS } from "./tools";
 import type { Annotation } from "./scene";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
+import type { TextToolStatus } from "../text-selection";
 
 function makeTools(overrides: Partial<AnnotationToolsController> = {}): AnnotationToolsController {
   return {
@@ -227,6 +228,64 @@ describe("a label sized by dragging a corner", () => {
     it("stays hidden in canvas mode for a non-blur selection", () => {
       render(<AnnotationOptions tools={makeTools()} scene={makeScene([box], "b1")} canvasMode />);
       expect(screen.queryByText(NOTE)).toBeNull();
+    });
+  });
+
+  describe("Select text tool", () => {
+    const status = (over: Partial<TextToolStatus> = {}): TextToolStatus => ({
+      status: "ready",
+      wordCount: 3,
+      selectedCount: 0,
+      onCopy: vi.fn(),
+      onSelectAll: vi.fn(),
+      ...over,
+    });
+    const renderText = (text: TextToolStatus | undefined) =>
+      render(
+        <AnnotationOptions
+          tools={makeTools({ tool: "selectText" })}
+          scene={makeScene([], null)}
+          textTool={text}
+        />,
+      );
+
+    it("renders nothing without the flag", () => {
+      const { container } = renderText(undefined);
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it.each([
+      ["pending", { status: "pending" as const }, "Recognizing text…"],
+      ["unavailable", { status: "unavailable" as const }, "Text recognition is not available"],
+      ["noText", { wordCount: 0 }, "No text found"],
+      ["ready", {}, "3 words found"],
+    ])("%s", (state, over, message) => {
+      renderText(status(over));
+      expect(screen.getByRole("status")).toHaveAttribute("data-state", state);
+      expect(screen.getByText(message)).toBeInTheDocument();
+    });
+
+    it("Copy text needs a selection; Select all does not", () => {
+      const text = status();
+      const { rerender } = renderText(text);
+      expect(screen.getByRole("button", { name: "Copy text" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+      expect(text.onSelectAll).toHaveBeenCalledTimes(1);
+      const withSelection = status({ selectedCount: 2 });
+      rerender(
+        <AnnotationOptions
+          tools={makeTools({ tool: "selectText" })}
+          scene={makeScene([], null)}
+          textTool={withSelection}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Copy text" }));
+      expect(withSelection.onCopy).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers no actions while pending", () => {
+      renderText(status({ status: "pending" }));
+      expect(screen.queryByRole("button", { name: "Copy text" })).toBeNull();
     });
   });
 });

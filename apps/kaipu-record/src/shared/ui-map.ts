@@ -277,6 +277,13 @@ export const UI_MAP = {
         states: ["blur", "solid"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      // The "Select text" tool (`image-text`, NIW2-705): the options bar's recognition
+      // status, and the image with its recognized words while the tool is active.
+      textStatus: {
+        states: ["pending", "ready", "noText", "unavailable"],
+        gatedBy: [{ flag: "image-text" }],
+      },
+      textSelection: { states: ["selected"], gatedBy: [{ flag: "image-text" }] },
       beautify: { states: ["default"] },
     },
   },

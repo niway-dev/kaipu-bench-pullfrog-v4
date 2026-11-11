@@ -83,6 +83,12 @@ export const PROFILES = {
     seed: "demo",
     flags: { "image-canvas": true },
   },
+  "image-text": {
+    description:
+      "Flag image-text forced on: the image editor's Select text tool and text recognition.",
+    seed: "demo",
+    flags: { "image-text": true },
+  },
   exporting: {
     description:
       "The demo workspace; states here start real exports of its short recording, so the vault ends up holding the copies.",

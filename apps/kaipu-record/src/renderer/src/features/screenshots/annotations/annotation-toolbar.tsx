@@ -1,7 +1,16 @@
 import React from "react";
-import { ArrowUpRight, Crop, Droplet, MousePointer2, Pencil, Square, Type } from "lucide-react";
+import {
+  ArrowUpRight,
+  Crop,
+  Droplet,
+  MousePointer2,
+  Pencil,
+  Square,
+  TextSelect,
+  Type,
+} from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
-import { ANNOTATION_TOOLS, type AnnotationTool } from "./tools";
+import { ANNOTATION_TOOLS, TEXT_SELECT_TOOL, type AnnotationTool } from "./tools";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import styles from "./annotation-toolbar.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
@@ -13,7 +22,8 @@ type ToolLabelKey =
   | "toolArrow"
   | "toolText"
   | "toolBlur"
-  | "toolCrop";
+  | "toolCrop"
+  | "toolSelectText";
 
 const TOOL_META: Record<AnnotationTool, { labelKey: ToolLabelKey; Icon: typeof Square }> = {
   select: { labelKey: "toolSelect", Icon: MousePointer2 },
@@ -23,6 +33,7 @@ const TOOL_META: Record<AnnotationTool, { labelKey: ToolLabelKey; Icon: typeof S
   text: { labelKey: "toolText", Icon: Type },
   blur: { labelKey: "toolBlur", Icon: Droplet },
   crop: { labelKey: "toolCrop", Icon: Crop },
+  selectText: { labelKey: "toolSelectText", Icon: TextSelect },
 };
 
 /**
@@ -33,16 +44,22 @@ const TOOL_META: Record<AnnotationTool, { labelKey: ToolLabelKey; Icon: typeof S
 export function AnnotationToolbar({
   tools,
   onPick,
+  textTool = false,
 }: {
   tools: AnnotationToolsController;
+  /** Shows the "Select text" tool after the others (`image-text`). */
+  textTool?: boolean;
   /** Fired when the user manually picks a tool — used to deselect the current shape
    *  so the freshly-picked tool starts clean (auto-select otherwise leaves one selected). */
   onPick?: () => void;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
+  const shown: readonly AnnotationTool[] = textTool
+    ? [...ANNOTATION_TOOLS, TEXT_SELECT_TOOL]
+    : ANNOTATION_TOOLS;
   return (
     <div {...uiArea("editorImage.tools")} className={styles.toolGroup}>
-      {ANNOTATION_TOOLS.map((tool) => {
+      {shown.map((tool) => {
         const { labelKey, Icon } = TOOL_META[tool];
         const label = t(labelKey);
         return (

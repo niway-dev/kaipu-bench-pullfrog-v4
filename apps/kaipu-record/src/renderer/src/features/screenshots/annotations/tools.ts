@@ -6,7 +6,13 @@
  */
 
 export const ANNOTATION_TOOLS = ["select", "pen", "box", "arrow", "text", "blur", "crop"] as const;
-export type AnnotationTool = (typeof ANNOTATION_TOOLS)[number];
+/**
+ * The "Select text" tool (`image-text`, NIW2-705). Not in ANNOTATION_TOOLS on purpose: it
+ * draws nothing, and the toolbar adds it only when the flag is on, so everything that walks
+ * the list (the toolbar with the flag off) is untouched.
+ */
+export const TEXT_SELECT_TOOL = "selectText" as const;
+export type AnnotationTool = (typeof ANNOTATION_TOOLS)[number] | typeof TEXT_SELECT_TOOL;
 
 /**
  * Gaussian blur radius (px, in the display coordinate space) for the FLAG-OFF preview
