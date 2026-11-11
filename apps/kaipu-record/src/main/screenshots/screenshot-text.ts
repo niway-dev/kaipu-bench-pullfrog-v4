@@ -43,7 +43,10 @@ export const sha256Hex = (bytes: Uint8Array): string =>
 const itemKey = (vault: LibraryVault, id: string): string =>
   `${vault.workspaceId ?? vault.directory}\u0000${id}`;
 
-/** Per-item generation: bumped by every save, clear and delete, so an older recognition is stale. */
+/**
+ * Per-item generation: bumped by every save, so an older recognition is stale. A rename, move
+ * or delete is covered by the `hasMedia` check and the sha256 key, not by this counter.
+ */
 const generations = new Map<string, number>();
 
 /** The item's current generation. A recognition reads it before it starts. */
@@ -100,14 +103,6 @@ async function writeAssets(
     return;
   }
   await atomicWriteFile(path, json);
-}
-
-/** Best-effort removal of `<id>.text.json`; invalidates recognitions still running. */
-export async function clearTextCache(vault: LibraryVault, id: string): Promise<void> {
-  bumpTextGeneration(vault, id);
-  await withLock(lockKey(vault, id), () =>
-    rm(vault.companionPaths(id).textCache, { force: true }),
-  ).catch(() => {});
 }
 
 /**
