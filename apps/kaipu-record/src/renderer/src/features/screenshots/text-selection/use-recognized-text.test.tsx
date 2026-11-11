@@ -76,4 +76,15 @@ describe("useRecognizedText", () => {
     );
     await waitFor(() => expect(result.current).toEqual({ status: "unavailable" }));
   });
+
+  it("reads an image whose bytes cannot be read as unavailable, without recognizing", async () => {
+    const getBytes = async (): Promise<ArrayBuffer> => {
+      throw new Error("unreadable");
+    };
+    const { result } = renderHook(() =>
+      useRecognizedText({ enabled: true, getBytes, assetId: "base", getId: () => null }),
+    );
+    await waitFor(() => expect(result.current).toEqual({ status: "unavailable" }));
+    expect(recognize).not.toHaveBeenCalled();
+  });
 });

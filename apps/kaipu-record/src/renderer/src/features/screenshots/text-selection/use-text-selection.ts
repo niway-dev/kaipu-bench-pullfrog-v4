@@ -38,8 +38,8 @@ export interface TextSelection {
 
 /**
  * The text selection over `words`: an anchor and a focus word, and the range between them in
- * reading order. A word that disappears (a redaction now covers it) drops the selection
- * instead of leaving a range that points at nothing.
+ * reading order. A word that disappears (a redaction now covers it) hides the range instead
+ * of leaving one that points at nothing; the range comes back if the word returns.
  */
 export function useTextSelection(words: RecognizedWord[]): TextSelection {
   const ordered = useMemo(() => wordsInReadingOrder(words), [words]);
