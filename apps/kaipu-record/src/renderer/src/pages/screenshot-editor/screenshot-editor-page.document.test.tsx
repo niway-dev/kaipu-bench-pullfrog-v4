@@ -183,7 +183,7 @@ describe("ScreenshotEditor — reopen from the document (image-canvas)", () => {
     expect(exportScene).not.toHaveBeenCalled();
   });
 
-  it("starts from the document's frame and keeps its export frame", async () => {
+  it("keeps the document's export frame", async () => {
     readCanvas.mockResolvedValue(
       stored(
         docJson({

@@ -526,9 +526,10 @@ function ScreenshotEditorBody({
    * then stores the flat PNG alone, and main drops any stale document.
    */
   const buildCanvasPayload = async (snap: Scene): Promise<CanvasSavePayload | null> => {
-    // The decoded image first; the known sizes cover an image that has not reported one.
-    const pixelWidth = imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0;
-    const pixelHeight = imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0;
+    // The decoded image first; the known sizes cover an image that has not reported one. A
+    // reopened document's base size comes before the source's, which is the flat export's.
+    const pixelWidth = imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0;
+    const pixelHeight = imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0;
     if (pixelWidth <= 0 || pixelHeight <= 0) return null;
     const baked = await bakeRedactions(await image!.getBytes(), snap.annotations);
     const docJson = JSON.stringify(buildCanvasDoc(snap, { pixelWidth, pixelHeight }));

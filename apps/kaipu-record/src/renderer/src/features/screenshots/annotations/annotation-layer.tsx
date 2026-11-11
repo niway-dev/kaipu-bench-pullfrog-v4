@@ -723,7 +723,6 @@ const Shape = React.memo(function Shape({
   );
 });
 
-/** True when the keyboard event originated in a text field (so the canvas shouldn't grab it). */
 /** Canvas-mode blur: the real redaction as a raster tile over the rect; locked = nothing. */
 function RedactionTile({
   a,
@@ -766,6 +765,7 @@ function RedactionTile({
   );
 }
 
+/** True when the keyboard event originated in a text field (so the canvas shouldn't grab it). */
 function isEditingText(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
