@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile, rm, stat } from "node:fs/promises";
+import { join } from "node:path";
 import {
   recognizedWordsSchema,
   type RecognizedWord,
@@ -165,6 +166,40 @@ const toBytes = (png: unknown): Uint8Array | null => {
   return null;
 };
 
+/**
+ * The sha256 of the bytes the asset has on disk right now, or null when it cannot be known.
+ * A canvas asset is `.kaipu/<id>.assets/<assetId>.png`. Only `base` of an item without a
+ * stored canvas document is the media file itself; with a canvas document the assets folder
+ * is the truth, so a missing asset file means "unknown", never the flat PNG (which a canvas
+ * save does not keep in step with a redaction).
+ */
+async function onDiskSha256(
+  vault: LibraryVault,
+  id: string,
+  assetId: string,
+): Promise<string | null> {
+  const paths = vault.companionPaths(id);
+  const missing = (error: unknown): boolean =>
+    ["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException)?.code ?? "");
+  try {
+    return sha256Hex(await readFile(join(paths.assetsDir, `${assetId}.png`)));
+  } catch (error) {
+    if (!missing(error)) return null;
+  }
+  if (assetId !== "base") return null;
+  try {
+    await stat(paths.canvasDoc);
+    return null;
+  } catch (error) {
+    if (!missing(error)) return null;
+  }
+  try {
+    return sha256Hex(await readFile(await vault.filePath(id)));
+  } catch {
+    return null;
+  }
+}
+
 async function cacheRecognition(
   vault: LibraryVault,
   id: string,
@@ -178,6 +213,10 @@ async function cacheRecognition(
     if (textGeneration(vault, id) !== startedAt) return;
     // A rename, move or delete may have taken the item away: never write under its old id.
     if (!(await vault.hasMedia(id))) return;
+    // The words belong to the bytes the caller held, which may be older than the asset: a
+    // window that kept the unredacted image open can ask after another window saved a
+    // redaction. Only the image on disk right now may be cached.
+    if ((await onDiskSha256(vault, id, assetId)) !== sha256) return;
     const assets = await readTextCache(vault, id);
     assets[assetId] = { sha256, words };
     await writeAssets(vault, id, assets);
@@ -204,6 +243,8 @@ export async function recognizeScreenshotText(
     const vault = resolveVault(deps.vault);
     const sha256 = sha256Hex(png);
 
+    // Before any await: a save that lands from here on makes this recognition stale.
+    const startedAt = id === null ? 0 : textGeneration(vault, id);
     if (id !== null) {
       const hit = (await readTextCache(vault, id))[assetId];
       if (hit && hit.sha256 === sha256) return { status: "ready", words: hit.words };
@@ -212,7 +253,6 @@ export async function recognizeScreenshotText(
     const key = `${id === null ? "" : itemKey(vault, id)}\u0000${assetId}\u0000${sha256}`;
     let pending = inFlight.get(key);
     if (!pending) {
-      const startedAt = id === null ? 0 : textGeneration(vault, id);
       pending = (async () => {
         const words = await deps.recognizer.recognize(png);
         if (words === "unavailable") return words;

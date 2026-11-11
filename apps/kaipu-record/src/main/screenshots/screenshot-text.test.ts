@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,9 +24,19 @@ function fakeRecognizer(result: RecognizedWord[] | "unavailable" = [word("hello"
   return { recognizer: { recognize } satisfies TextRecognizer, recognize };
 }
 
-async function seedItem(id = "Shot"): Promise<string> {
-  await writeFile(join(directory, `${id}.png`), "png");
+/** A flat screenshot whose PNG on disk holds `content`: the bytes a request must carry to be cached. */
+async function seedItem(id = "Shot", content = "a"): Promise<string> {
+  await writeFile(join(directory, `${id}.png`), content);
   return id;
+}
+/** Gives the item a stored canvas document and these assets on disk (`.kaipu/<id>.assets/`). */
+async function seedCanvas(id: string, assets: Record<string, string>): Promise<void> {
+  const paths = vault.companionPaths(id);
+  await mkdir(paths.assetsDir, { recursive: true });
+  await writeFile(paths.canvasDoc, "{}");
+  for (const [assetId, content] of Object.entries(assets)) {
+    await writeFile(join(paths.assetsDir, `${assetId}.png`), content);
+  }
 }
 const cachePath = (id: string): string => vault.companionPaths(id).textCache;
 
@@ -41,7 +51,7 @@ afterEach(async () => {
 
 describe("recognizeScreenshotText", () => {
   it("caches a recognition and answers the next request from the cache", async () => {
-    const id = await seedItem();
+    const id = await seedItem("Shot", "pixels");
     const { recognizer, recognize } = fakeRecognizer();
     const request = { id, assetId: "base", png: bytes("pixels") };
     expect(await recognizeScreenshotText({ vault, recognizer }, request)).toEqual({
@@ -62,9 +72,11 @@ describe("recognizeScreenshotText", () => {
 
   it("recognizes again when the bytes changed, keeping other assets", async () => {
     const id = await seedItem();
+    await seedCanvas(id, { base: "a", extra: "x" });
     const { recognizer, recognize } = fakeRecognizer();
     await recognizeScreenshotText({ vault, recognizer }, { id, assetId: "base", png: bytes("a") });
     await recognizeScreenshotText({ vault, recognizer }, { id, assetId: "extra", png: bytes("x") });
+    await seedCanvas(id, { base: "b" });
     await recognizeScreenshotText({ vault, recognizer }, { id, assetId: "base", png: bytes("b") });
     expect(recognize).toHaveBeenCalledTimes(3);
     const cache = await readTextCache(vault, id);
@@ -188,6 +200,71 @@ describe("recognizeScreenshotText", () => {
     await saveTextCache(vault, id, undefined, undefined);
     release();
     expect((await pending).status).toBe("ready");
+    await expect(readFile(cachePath(id))).rejects.toThrow();
+  });
+
+  it("caches a canvas asset whose bytes match the asset on disk", async () => {
+    const id = await seedItem();
+    await seedCanvas(id, { base: "redacted" });
+    const { recognizer } = fakeRecognizer([word("ok")]);
+    await recognizeScreenshotText(
+      { vault, recognizer },
+      { id, assetId: "base", png: bytes("redacted") },
+    );
+    expect(await readTextCache(vault, id)).toEqual({
+      base: { sha256: sha(Buffer.from("redacted")), words: [word("ok")] },
+    });
+  });
+
+  it("does not cache words of an older image over a newer redacted asset", async () => {
+    // Window A saved a redaction (asset on disk is "redacted", cache rewritten without the
+    // word); window B still holds the unredacted bytes and asks for recognition afterwards.
+    const id = await seedItem();
+    await seedCanvas(id, { base: "redacted" });
+    await saveTextCache(
+      vault,
+      id,
+      { assets: [{ assetId: "base", words: [word("ok", 20)] }] },
+      { docJson: "{}", assets: [{ assetId: "base", png: bytes("redacted") }] },
+    );
+    const { recognizer } = fakeRecognizer([word("secret")]);
+    const result = await recognizeScreenshotText(
+      { vault, recognizer },
+      { id, assetId: "base", png: bytes("unredacted") },
+    );
+    // The caller still gets its words; nothing reaches the file.
+    expect(result).toEqual({ status: "ready", words: [word("secret")] });
+    expect(await readTextCache(vault, id)).toEqual({
+      base: { sha256: sha(Buffer.from("redacted")), words: [word("ok", 20)] },
+    });
+  });
+
+  it("does not cache an asset that has no file on disk", async () => {
+    const id = await seedItem();
+    await seedCanvas(id, { base: "a" });
+    const { recognizer } = fakeRecognizer();
+    await recognizeScreenshotText({ vault, recognizer }, { id, assetId: "extra", png: bytes("x") });
+    await expect(readFile(cachePath(id))).rejects.toThrow();
+  });
+
+  it("does not use the flat PNG for base once a canvas document exists", async () => {
+    const id = await seedItem("Shot", "flat");
+    await writeFile(vault.companionPaths(id).canvasDoc, "{}");
+    const { recognizer } = fakeRecognizer();
+    await recognizeScreenshotText(
+      { vault, recognizer },
+      { id, assetId: "base", png: bytes("flat") },
+    );
+    await expect(readFile(cachePath(id))).rejects.toThrow();
+  });
+
+  it("does not cache a non-canvas item whose PNG changed since the request's bytes", async () => {
+    const id = await seedItem("Shot", "new");
+    const { recognizer } = fakeRecognizer();
+    await recognizeScreenshotText(
+      { vault, recognizer },
+      { id, assetId: "base", png: bytes("old") },
+    );
     await expect(readFile(cachePath(id))).rejects.toThrow();
   });
 
