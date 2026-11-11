@@ -1,6 +1,6 @@
 ---
 title: Image editor Inspect mode
-description: Inspect mode in the image editor — a loupe and the live color under the cursor, copied in hex, rgb, hsl or oklch, and a ruler that measures and pins pixel runs — behind the image-inspect flag.
+description: Inspect mode in the image editor — a loupe and the live color under the cursor, copied in hex, rgb, hsl or oklch, a ruler that measures and pins pixel runs, and a colors panel that locates each color — behind the image-inspect flag.
 ---
 
 # Image editor Inspect mode
@@ -68,6 +68,30 @@ value come from decoding a 32 × 32 tile around the pointer again, once the poin
 (`color.ts`, `pixel-buffer.ts`, `inspect-keys.ts`, `use-inspect.ts`) is separate from the view so
 NIW2-708 can restyle it.
 
+## Colors panel
+
+The **Colors** button in the Inspect bar opens a panel with every color in the image, largest
+share first ([NIW2-704](https://linear.app/niway/issue/NIW2-704), milestone M7).
+
+- **Groups.** Near-identical colors form one group, shown with its most frequent exact value
+  and its share of the image. When a group has more than one notable exact value, they are
+  listed under it, so two whites that should have been one sit side by side.
+- **Locate.** Clicking a group, or one exact value, dims the image everywhere except those
+  pixels and says how many there are. Clicking it again, Clear highlight, closing the panel
+  or leaving Inspect removes the highlight. The highlight follows zoom and pan.
+- **Format.** Values are sRGB, in the Inspect bar's format.
+
+How it counts: the buffer Inspect already decoded is copied once into a worker (a few
+milliseconds on the main thread), so the editor never waits on the count. The worker counts
+exact colors, drops the low 3 bits of each channel (32,768 bins), and groups bins closer than
+0.03 in OKLab around the most frequent ones, looking only at neighbouring cells of a grid, so
+the work is linear: a 5K image of pure noise takes about half a second, all of it off the main
+thread. Fully transparent pixels are not counted. The worker and its copy of the pixels live
+while the panel can be used and are released when Inspect exits, the image changes or the
+editor closes. Code: `inspect/colors/` — the counting (`histogram.ts`) is pure and tested; the
+worker, the hook and the view are separate, so NIW2-708 can restyle the panel. The real-app
+check is `apps/kaipu-record/verify/image-colors.verify.ts`.
+
 ## How to turn it on
 
 - **Released builds:** the PostHog feature flag `image-inspect`.
@@ -85,5 +109,4 @@ NIW2-708 can restyle it.
 
 - Reopening a saved item with its measurements still editable: that needs the editable canvas
   document (M5, NIW2-700). Until then a pinned measurement is baked into the saved PNG.
-- The colors panel: M7, NIW2-704.
-- The final look of the HUD and bar: NIW2-708.
+- The final look of the HUD, bar and colors panel: NIW2-708.
