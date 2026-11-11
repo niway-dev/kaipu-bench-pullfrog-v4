@@ -7,12 +7,12 @@ description: The image editor holds images and annotations in one world coordina
 
 ## Status
 
-| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed, 2026-11-11. Points 3–5 (storage, fallback, destructive redaction) built behind the `image-canvas` flag by NIW2-700 (M3); see Implementation status. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
-| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                         |
-| Relates to    | [0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/) (the quiet path still writes only a PNG), [0051](/architecture/decisions/0051-the-video-background-is-the-screenshot-beautify-drawn-as-the-outermost-step/) (the beautify model is unchanged), [0003](/architecture/decisions/0003-export-never-replaces-the-original/)                                                     |
-| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed, 2026-11-11. Points 3–5 (storage, fallback, destructive redaction) built behind the `image-canvas` flag by NIW2-700 (M3), several images and world units on disk by NIW2-703 (M6); see Implementation status. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Relates to    | [0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/) (the quiet path still writes only a PNG), [0051](/architecture/decisions/0051-the-video-background-is-the-screenshot-beautify-drawn-as-the-outermost-step/) (the beautify model is unchanged), [0003](/architecture/decisions/0003-export-never-replaces-the-original/)                                                                                                              |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ## Context
 
@@ -49,7 +49,8 @@ whose coordinates belong to one image and whose only saved artifact is a flatten
 ## Implementation status
 
 M3 ([NIW2-700](https://linear.app/niway/issue/NIW2-700)) builds points 3–5 behind the
-`image-canvas` flag. The rest of the decision (several images, world units) is later milestones.
+`image-canvas` flag. M6 ([NIW2-703](https://linear.app/niway/issue/NIW2-703)) adds more images
+and moves the document to world units (see "Several images" below).
 
 - **Files.** `<id>.png`, `.kaipu/<id>.canvas.json` and `.kaipu/<id>.assets/base.png`. The
   document and the assets are vault companions: rename, move and delete carry them.
@@ -68,6 +69,32 @@ M3 ([NIW2-700](https://linear.app/niway/issue/NIW2-700)) builds points 3–5 beh
 - **Locked items.** During a session a redaction stays editable, because the editor keeps the
   unredacted pixels in memory. The saved document marks it `locked`; after reopening it is part
   of the asset and draws nothing of its own.
+- **Several images (M6).** Add image (a new capture or a Library item) and paste put an image
+  item on the canvas; the select tool moves and deletes it. Each one is its own asset,
+  `.kaipu/<id>.assets/img-<random>.png`. The base image stays the anchor (item 0, not
+  selectable or movable): whether it should become an ordinary item is an open question for the
+  owner on NIW2-703. Radius and shadow apply to every image item. A capture taken for the canvas
+  goes back to the editor only: main skips the capture policy, so it is never saved or copied
+  on its own.
+- **World units on disk (schema version 2).** Every saved geometry is in world units, one unit
+  per source pixel of the base image, which sits at 0,0 with its pixel size. Inside the editor
+  the geometry stays normalized to the base, the M2 model, because the base is the anchor: the
+  two differ only by the base's pixel size, so the conversion is one multiply at save and one
+  divide at open, in `canvas-doc.ts`. Strokes, font sizes and seeds are not geometry and are
+  stored as before. A version 1 document opens unchanged (it holds one image, so it needs no
+  conversion); every save writes version 2. An older build reads a version 2 document as
+  unsupported and opens the flattened PNG, the fallback of point 4.
+  - _Why world units now, not at the first movable base._ The disk format is the part that
+    must be readable forever. Base-normalized coordinates on disk would need a second breaking
+    version the day the base moves or stops being item 0, and this ADR reopens on a second
+    breaking change. World units make the document independent of which image is the anchor.
+  - _Rejected: world units inside the editor too._ Every geometry helper (`handles.ts`,
+    `crop.ts`, `compositor.ts`, the annotation layer) would change with no visible result
+    while the base is the anchor. That rewrite belongs to the milestone that makes the base
+    movable, if the owner chooses it.
+- **Redaction over several images.** A redaction is baked into every image it overlaps, the
+  base and each added image, whatever their order. The pixels under an image on top are not
+  visible, but they are still on disk.
 - **Not built.** "Reset edits" and keeping an unredacted original (from the re-editable
   screenshots analysis) contradict a destructive redaction and are left out.
 

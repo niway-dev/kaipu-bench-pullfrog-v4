@@ -224,6 +224,12 @@ The quiet capture path (ADR 0042: capture and copy without opening the editor) w
 second image; the base asset is `base.png`; the strong blur's block is
 `max(24, ceil(min(w, h) / 4))` pixels. The details are in ADR 0053's Implementation status.
 
+**As built in M6 (NIW2-703).** The document is `schemaVersion: 2` with every geometry in world
+units (one unit per base source pixel, base at 0,0); version 1 still opens. Inside the editor
+the geometry stays normalized to the base, which remains the anchor. An added image is an
+`image` item with its own `img-<random>` asset, and a redaction bakes into every image it
+overlaps. ADR 0053's Implementation status has the reasoning.
+
 ### 3. Inspect mode
 
 Entered with one key or a toolbar button; `Esc` leaves. While active, over an image item:
