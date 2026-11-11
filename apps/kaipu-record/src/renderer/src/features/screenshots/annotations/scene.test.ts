@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { FULL_CROP, sameScene, type Scene } from "./scene";
+import {
+  FULL_CROP,
+  nextAnnotationId,
+  reserveAnnotationIds,
+  sameScene,
+  type Annotation,
+  type Scene,
+} from "./scene";
 
 const base: Scene = { beautify: {} as Scene["beautify"], annotations: [] };
 
@@ -14,5 +21,17 @@ describe("sameScene with crop", () => {
   });
   it("FULL_CROP is the whole image", () => {
     expect(FULL_CROP).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+  });
+});
+
+describe("reserveAnnotationIds", () => {
+  it("moves the counter past ids already present in a reopened document", () => {
+    const box = (id: string): Annotation => ({ id, kind: "blur", x: 0, y: 0, w: 1, h: 1 });
+    reserveAnnotationIds([box("a41"), box("a7"), box("custom"), box("image-base")]);
+    const next = nextAnnotationId();
+    expect(Number(next.id.slice(1))).toBeGreaterThanOrEqual(42);
+    // Never moves backwards.
+    reserveAnnotationIds([box("a3")]);
+    expect(Number(nextAnnotationId().id.slice(1))).toBeGreaterThan(Number(next.id.slice(1)));
   });
 });

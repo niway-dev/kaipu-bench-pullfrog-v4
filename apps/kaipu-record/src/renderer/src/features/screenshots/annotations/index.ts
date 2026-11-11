@@ -54,3 +54,22 @@ export {
   handleCursor,
   type HandleId,
 } from "./handles";
+export type { RedactionStyle, BlurAnnotation } from "./scene";
+export { reserveAnnotationIds } from "./scene";
+export {
+  REDACTION_MIN_BLOCK_PX,
+  REDACTION_SOLID_RGB,
+  redactionBlockSize,
+  redactRegion,
+  bakeRedactions,
+  type PixelRegion,
+} from "./redaction";
+export {
+  CANVAS_DOC_VERSION,
+  BASE_ASSET_ID,
+  buildCanvasDoc,
+  parseCanvasDoc,
+  type CanvasImageItem,
+  type CanvasDocV1,
+  type ParsedCanvasDoc,
+} from "./canvas-doc";
