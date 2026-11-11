@@ -116,7 +116,10 @@ export async function readCanvas(
     }
     return { docJson, assets };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return null;
+    // Only the code crosses to the renderer (and its error report): the message names
+    // absolute vault paths, which hold the user's name.
+    throw Object.assign(new Error(`canvas document read failed: ${code ?? "unknown"}`), { code });
   }
 }

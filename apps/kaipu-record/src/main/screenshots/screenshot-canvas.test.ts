@@ -170,7 +170,10 @@ describe("screenshot canvas storage", () => {
     it("rejects on a read error other than a missing file", async () => {
       await seed(doc("a"));
       await mkdir(join(vault.companionPaths("S").assetsDir, "a.png"), { recursive: true });
-      await expect(readCanvas(vault, "S")).rejects.toMatchObject({ code: "EISDIR" });
+      const error = await readCanvas(vault, "S").catch((e: Error) => e);
+      expect(error).toMatchObject({ code: "EISDIR" });
+      // The message carries the code, never a path.
+      expect((error as Error).message).toBe("canvas document read failed: EISDIR");
     });
 
     it("returns null for a document over 5 MB", async () => {
