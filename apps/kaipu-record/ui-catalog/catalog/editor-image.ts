@@ -245,6 +245,14 @@ export const editorImage = catalog(
   },
   {
     notCapturable: {
+      "editorImage.inspectColors:counting": nc(
+        "transient",
+        "the count of a catalog-sized image ends in well under a second, before a screenshot can be taken",
+      ),
+      "editorImage.inspectColors:error": nc(
+        "inducedFailure",
+        "shown only when the image cannot be decoded or the colors worker fails; the page tests pin it",
+      ),
       "editorImage.canvasView:exportFrame": nc(
         "needsSetup",
         "the export frame is set by dragging the crop rectangle, and the catalog steps cannot drag; a fixture that starts from a saved frame would show it (not built)",

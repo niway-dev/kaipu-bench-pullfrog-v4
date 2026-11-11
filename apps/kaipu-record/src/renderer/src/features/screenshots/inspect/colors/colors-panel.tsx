@@ -3,9 +3,27 @@ import { X } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { uiArea } from "@renderer/lib/ui-area";
 import { formatColor, type ColorFormat } from "../color";
-import { formatShare, unpackRgb, type ColorGroup, type LocateTarget } from "./histogram";
+import {
+  formatShare,
+  NOTABLE_MEMBER_SHARE,
+  unpackRgb,
+  type ColorGroup,
+  type LocateTarget,
+} from "./histogram";
 import { sameTarget, type ColorsController } from "./use-colors";
 import styles from "./colors.module.css";
+
+/**
+ * Exact chips show when a group has two notable values, or one plus minor values that add up
+ * to a notable share: only then does the exact chip highlight something the group does not.
+ * Every bin of a photo holds many exact values, so `distinct > 1` alone would add a chip to
+ * nearly every row.
+ */
+function showMembers(group: ColorGroup): boolean {
+  if (group.members.length > 1) return true;
+  const hidden = group.count - group.members[0].count;
+  return hidden >= group.count * NOTABLE_MEMBER_SHARE;
+}
 
 const css = (rgb: number): string => `#${rgb.toString(16).padStart(6, "0")}`;
 
@@ -39,8 +57,7 @@ function Row({
         <span className={styles.value}>{value}</span>
         <span className={styles.share}>{formatShare(group.count, total)}</span>
       </button>
-      {/* Also with one listed value: the group may hide minor ones, and only the exact chip excludes them. */}
-      {(group.members.length > 1 || group.distinct > 1) && (
+      {showMembers(group) && (
         <div className={styles.members}>
           {group.members.map((member) => {
             const memberValue = formatColor(unpackRgb(member.rgb), format);
