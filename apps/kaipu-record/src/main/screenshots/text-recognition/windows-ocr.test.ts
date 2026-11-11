@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  NO_OCR_LANGUAGE_EXIT_CODE,
   WINDOWS_OCR_SCRIPT,
   WindowsOcrTextRecognizer,
   windowsOcrArgs,
@@ -26,7 +28,10 @@ afterEach(async () => {
 });
 
 /** A stand-in for powershell.exe: `body` runs once stdin has ended, with it in `input`. */
-async function fakePowerShell(body: string): Promise<WindowsOcrTextRecognizer> {
+async function fakePowerShell(
+  body: string,
+  spawnImpl?: typeof spawn,
+): Promise<WindowsOcrTextRecognizer> {
   const directory = await mkdtemp(join(tmpdir(), "kaipu-windows-ocr-"));
   directories.push(directory);
   const path = join(directory, "fake-powershell.cjs");
@@ -38,7 +43,7 @@ process.stdin.on("data", (chunk) => { input += chunk; });
 process.stdin.on("end", () => { ${body} });
 `,
   );
-  return new WindowsOcrTextRecognizer({ command: process.execPath, args: [path] });
+  return new WindowsOcrTextRecognizer({ command: process.execPath, args: [path], spawnImpl });
 }
 
 const png = new Uint8Array([137, 80, 78, 71, 0, 255, 10, 13]);
@@ -78,11 +83,41 @@ it("is unavailable when the output is not JSON, off-schema, or another version",
   }
 });
 
-it("is unavailable when PowerShell does not exist", async () => {
+/** Counts the processes a recognizer starts. */
+function countingSpawn() {
+  const counter = { calls: 0 };
+  const spawnImpl = ((...args: Parameters<typeof spawn>) => {
+    counter.calls += 1;
+    return spawn(...args);
+  }) as typeof spawn;
+  return { counter, spawnImpl };
+}
+
+it("is unavailable when PowerShell does not exist, and does not look for it again", async () => {
+  const { counter, spawnImpl } = countingSpawn();
   const recognizer = new WindowsOcrTextRecognizer({
     command: join(tmpdir(), "kaipu-no-such-powershell.exe"),
+    spawnImpl,
   });
   expect(await recognizer.recognize(png)).toBe("unavailable");
+  expect(await recognizer.recognize(png)).toBe("unavailable");
+  expect(counter.calls).toBe(1);
+});
+
+it("does not start PowerShell again once no OCR language pack is installed", async () => {
+  const { counter, spawnImpl } = countingSpawn();
+  const recognizer = await fakePowerShell(`process.exit(${NO_OCR_LANGUAGE_EXIT_CODE});`, spawnImpl);
+  expect(await recognizer.recognize(png)).toBe("unavailable");
+  expect(await recognizer.recognize(png)).toBe("unavailable");
+  expect(counter.calls).toBe(1);
+});
+
+it("tries again after any other failure", async () => {
+  const { counter, spawnImpl } = countingSpawn();
+  const recognizer = await fakePowerShell(`process.exit(1);`, spawnImpl);
+  await recognizer.recognize(png);
+  await recognizer.recognize(png);
+  expect(counter.calls).toBe(2);
 });
 
 it("is unavailable when the script does not answer in time", async () => {

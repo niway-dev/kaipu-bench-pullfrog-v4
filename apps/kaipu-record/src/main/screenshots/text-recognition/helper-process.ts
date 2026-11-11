@@ -11,6 +11,8 @@ export interface HelperRunResult {
   reason?: string;
   /** The executable does not exist; no retry can change that. */
   missing?: boolean;
+  /** The process's exit code, when it exited on its own. */
+  exitCode?: number | null;
 }
 
 export interface HelperRunOptions {
@@ -87,7 +89,8 @@ export function runHelperProcess(options: HelperRunOptions): Promise<HelperRunRe
     });
     child.on("close", (code) => {
       if (code === 0) finish({ ok: true, stdout: Buffer.concat(chunks).toString("utf8") });
-      else finish({ ok: false, stdout: "", reason: withStderr(`exit code ${code}`) });
+      else
+        finish({ ok: false, stdout: "", reason: withStderr(`exit code ${code}`), exitCode: code });
     });
     // A process that exits before reading stdin raises EPIPE; the exit code reports it.
     child.stdin?.on("error", () => {});

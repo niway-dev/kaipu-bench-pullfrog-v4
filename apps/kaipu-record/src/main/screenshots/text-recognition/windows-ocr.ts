@@ -27,6 +27,9 @@ import { runHelperProcess } from "./helper-process";
  */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+/** The script's exit code when no profile language has an OCR pack: permanent for this run. */
+export const NO_OCR_LANGUAGE_EXIT_CODE = 2;
+
 const scriptOutputSchema = z.object({
   version: z.literal(1),
   words: recognizedWordsSchema,
@@ -41,7 +44,8 @@ const scriptOutputSchema = z.object({
  *   normalizes boxes by the displayed size.
  * - An image larger than `OcrEngine.MaxImageDimension` is scaled down for recognition and
  *   its boxes scaled back to source pixels.
- * - Errors go to stderr with exit code 1.
+ * - Errors go to stderr with exit code 1; no OCR language for the profile is exit code 2
+ *   (`NO_OCR_LANGUAGE_EXIT_CODE`).
  */
 export const WINDOWS_OCR_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
 try {
@@ -62,7 +66,10 @@ try {
   }
 
   $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
-  if ($null -eq $engine) { throw 'no OCR language pack is installed for the user profile languages' }
+  if ($null -eq $engine) {
+    [Console]::Error.WriteLine('no OCR language pack is installed for the user profile languages')
+    exit 2
+  }
 
   $bytes = [Convert]::FromBase64String([Console]::In.ReadToEnd().Trim())
   if ($bytes.Length -eq 0) { throw 'empty input' }
@@ -164,6 +171,12 @@ export class WindowsOcrTextRecognizer implements TextRecognizer {
   private readonly args: string[];
   private readonly timeoutMs: number;
   private readonly spawnImpl: typeof spawn;
+  /**
+   * Set by a failure no retry can fix in this app session (no PowerShell, no OCR language
+   * pack), so later requests answer at once instead of starting PowerShell again. A timeout
+   * or any other failure is retried on the next request.
+   */
+  private permanentlyUnavailable = false;
 
   constructor(options: WindowsOcrTextRecognizerOptions = {}) {
     this.command = options.command ?? windowsPowerShellPath();
@@ -173,6 +186,7 @@ export class WindowsOcrTextRecognizer implements TextRecognizer {
   }
 
   async recognize(png: Uint8Array): Promise<RecognizedWord[] | "unavailable"> {
+    if (this.permanentlyUnavailable) return "unavailable";
     try {
       const input = Buffer.from(Buffer.from(png).toString("base64"), "ascii");
       const result = await runHelperProcess({
@@ -183,7 +197,12 @@ export class WindowsOcrTextRecognizer implements TextRecognizer {
         spawnImpl: this.spawnImpl,
         keepStderr: true,
       });
-      if (!result.ok) return unavailable(result.reason ?? "failed");
+      if (!result.ok) {
+        if (result.missing || result.exitCode === NO_OCR_LANGUAGE_EXIT_CODE) {
+          this.permanentlyUnavailable = true;
+        }
+        return unavailable(result.reason ?? "failed");
+      }
       let json: unknown;
       try {
         json = JSON.parse(result.stdout);

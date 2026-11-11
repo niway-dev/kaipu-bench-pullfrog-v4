@@ -5,9 +5,10 @@
  *
  *   bun apps/kaipu-record/scripts/measure-windows-ocr.ts [report.json]
  *
- * Run by .github/workflows/text-recognition-windows.yml. "Cold" is the first call in the
- * process tree of this run: the first OCR since the runner VM booted, not a first install on
- * a consumer machine. Exit code 1 when a check fails; the 1.5 s target is reported, not
+ * Run by .github/workflows/text-recognition-windows.yml. "Cold" is the first call of this
+ * script, before it touches PowerShell or WinRT for anything else: the first OCR this job
+ * runs on a fresh runner VM. It is not a first run on a consumer machine, and the runner
+ * image may have touched OCR while it was built. Exit code 1 when a check fails; the 1.5 s target is reported, not
  * enforced.
  */
 import { execFileSync } from "node:child_process";
@@ -52,29 +53,6 @@ function powershell(command: string): string {
   ).trim();
 }
 
-const machine = {
-  os: release(),
-  caption: powershell("(Get-CimInstance Win32_OperatingSystem).Caption"),
-  cpu: cpus()[0]?.model ?? "unknown",
-  cores: cpus().length,
-  memoryGiB: Math.round(totalmem() / 2 ** 30),
-  powershell: powershell("$PSVersionTable.PSVersion.ToString()"),
-  profileLanguages: powershell("(Get-WinUserLanguageList).LanguageTag -join ','"),
-  ocrLanguages: powershell(
-    "$null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]; ([Windows.Media.Ocr.OcrEngine]::AvailableRecognizerLanguages | ForEach-Object { $_.LanguageTag }) -join ','",
-  ),
-};
-console.log("machine", JSON.stringify(machine));
-
-// PowerShell start alone, to read how much of each call is the shell rather than OCR.
-const shellStart: number[] = [];
-for (let i = 0; i < 3; i++) {
-  const started = performance.now();
-  powershell("exit 0");
-  shellStart.push(Math.round(performance.now() - started));
-}
-console.log("powershell start (ms)", shellStart.join(", "));
-
 const recognizer = new WindowsOcrTextRecognizer();
 
 async function timed(png: Uint8Array): Promise<{ ms: number; words: RecognizedWord[] }> {
@@ -102,6 +80,30 @@ for (const name of ["settings-text-1080p.png", "settings-text-1080p-dense.png"])
   }
   console.log(`${name} (ms)`, runs[name].join(", "));
 }
+
+const machine = {
+  os: release(),
+  caption: powershell("(Get-CimInstance Win32_OperatingSystem).Caption"),
+  cpu: cpus()[0]?.model ?? "unknown",
+  cores: cpus().length,
+  memoryGiB: Math.round(totalmem() / 2 ** 30),
+  powershell: powershell("$PSVersionTable.PSVersion.ToString()"),
+  profileLanguages: powershell("(Get-WinUserLanguageList).LanguageTag -join ','"),
+  ocrLanguages: powershell(
+    "$null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]; ([Windows.Media.Ocr.OcrEngine]::AvailableRecognizerLanguages | ForEach-Object { $_.LanguageTag }) -join ','",
+  ),
+};
+console.log("machine", JSON.stringify(machine));
+
+// After the timed runs, so none of this warms the cold one. PowerShell start alone, to
+// read how much of each call is the shell rather than OCR.
+const shellStart: number[] = [];
+for (let i = 0; i < 3; i++) {
+  const started = performance.now();
+  powershell("exit 0");
+  shellStart.push(Math.round(performance.now() - started));
+}
+console.log("powershell start (ms)", shellStart.join(", "));
 
 // The sparse fixture is settings-text.png (560×340) centered in 1920×1080: offset (680, 370).
 const sparse = samples["settings-text-1080p.png"] ?? [];
