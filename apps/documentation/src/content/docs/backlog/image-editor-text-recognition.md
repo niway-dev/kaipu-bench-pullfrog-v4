@@ -1,6 +1,6 @@
 ---
 title: Image editor text recognition
-description: Select and copy the text inside a screenshot in the image editor, recognized on macOS by Apple Vision through a Swift helper and cached beside the item, behind the image-text flag.
+description: Select and copy the text inside a screenshot in the image editor, or hide a recognized line in one click, recognized on macOS by Apple Vision through a Swift helper and cached beside the item, behind the image-text flag.
 ---
 
 # Image editor text recognition
@@ -10,7 +10,7 @@ description: Select and copy the text inside a screenshot in the image editor, r
 Design: [image editor canvas and inspect](../specs/2026-11-11-image-editor-canvas-and-inspect-design/),
 detail 5. Decision: [ADR 0055](../architecture/decisions/0055-text-recognition-is-a-port-served-by-the-os-engine-on-each-platform/).
 Issue: [NIW2-705](https://linear.app/niway/issue/NIW2-705). Windows: [NIW2-707](https://linear.app/niway/issue/NIW2-707).
-Hiding a recognized block: [NIW2-706](https://linear.app/niway/issue/NIW2-706).
+Hiding a recognized line in one click: [NIW2-706](https://linear.app/niway/issue/NIW2-706) (canvas editor only).
 
 ## What it does
 
@@ -27,6 +27,18 @@ editor (`image-canvas`) and in the classic one:
 - Words under a redaction, saved or not, cannot be selected.
 - Where recognition is not available (Windows and Linux until NIW2-707, a missing or broken
   helper, a timeout), the options bar says so and the rest of the editor is unchanged.
+
+**Hiding a line (NIW2-706).** In the canvas editor (`image-canvas` too), the redact tool
+(**Blur**) also uses the recognized text:
+
+- Its options bar adds "Click a line of text to hide it, or drag over a region." once there are
+  words ("Recognizing text…" before that; nothing when there is no text).
+- Resting the pointer on a recognized line outlines the area a click would hide. A click
+  redacts it in the style chosen in the tool (Blur or Solid). The tool stays on and nothing is
+  selected, so the next line is one more click; ⌘/Ctrl+Z undoes it like any annotation.
+- A drag, even one that starts on text, draws a region as before. Without recognized text
+  (none found, pending, or recognition unavailable) the tool works exactly as before.
+- The classic editor offers no line targets: its blur is a gaussian, which is not a redaction.
 
 With `image-text` off, the editor is unchanged.
 
@@ -56,6 +68,15 @@ With `image-text` off, the editor is unchanged.
    item lock those operations take), nor one whose bytes are not the image on disk now (another
    window may hold the image from before a redaction), so a hidden word never comes back.
 
+5. **One-click hide.** A line is a block: the words that share a `line` index (one Vision
+   observation). `textBlocks`, `nearestBlock` and `blockRedactionRect` in the renderer's
+   `text-selection/geometry.ts` find the block under the pointer (within 6 display px) and the
+   rect to redact: its box grown by a quarter of its height (2 to 16 px), on whole pixels, inside
+   the image. The margin halves, then drops, rather than touch a word of another line, so the
+   click hides exactly that line and the save drops exactly its words from the cache. The
+   redaction is an ordinary `blur` annotation, so baking, the cache filter (step 4), undo and the
+   style control need nothing new. Real-app proof: `verify/image-text-hide.verify.ts`.
+
 ## How to turn it on
 
 - **Released builds:** the PostHog feature flag `image-text` (and `image-canvas` for the canvas
@@ -66,11 +87,11 @@ With `image-text` off, the editor is unchanged.
   KAIPU_FLAG_OVERRIDES='{"image-canvas":true,"image-text":true}' bun run dev
   ```
 
-  The UI catalog's `image-text` profile does the same.
+  The UI catalog's `image-text` profile does the same for `image-text` alone, and
+  `image-text-canvas` turns on both (the one-click hide states).
 
 ## Not built yet
 
 - Windows (`Windows.Media.Ocr`): NIW2-707.
-- A recognized line as a one-click redaction target: NIW2-706.
 - A cache that survives a save in the classic editor (flag `image-canvas` off).
 - Re-recognizing after an unsaved edit: the editor recognizes the image as it was loaded.
