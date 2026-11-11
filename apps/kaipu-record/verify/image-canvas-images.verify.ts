@@ -59,6 +59,25 @@ async function copiedSize(s: Scenario): Promise<{ width: number; height: number 
   return s.app.evaluate(({ clipboard }) => clipboard.readImage().getSize());
 }
 
+/** Every object lies inside the visible canvas: nothing added or reopened is off screen. */
+async function expectAllInCanvas(page: Page, label: string): Promise<void> {
+  const canvas = await page.locator('[data-canvas="true"]').boundingBox();
+  if (!canvas) throw new Error("no canvas box");
+  const boxes = await page.locator("[data-annotation]").evaluateAll((els) =>
+    els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom };
+    }),
+  );
+  for (const [i, b] of boxes.entries()) {
+    const where = `${label}: object ${i} ${JSON.stringify(b)} in canvas ${JSON.stringify(canvas)}`;
+    expect(b.x, where).toBeGreaterThanOrEqual(canvas.x - 1);
+    expect(b.y, where).toBeGreaterThanOrEqual(canvas.y - 1);
+    expect(b.right, where).toBeLessThanOrEqual(canvas.x + canvas.width + 1);
+    expect(b.bottom, where).toBeLessThanOrEqual(canvas.y + canvas.height + 1);
+  }
+}
+
 interface DocItem {
   id: string;
   kind: string;
@@ -133,6 +152,7 @@ test("image-canvas images: paste, add from the Library, move, copy, save, reopen
     await expect(objects).toHaveCount(2);
     await page.waitForTimeout(500);
     await s.shot("two-added");
+    await expectAllInCanvas(page, "after adding from the Library");
 
     // Move the pasted image (the first object) 150 px down-left with the select tool. It sits
     // beside the shot, partly outside the viewport, so grab the part that is visible.
@@ -195,6 +215,7 @@ test("image-canvas images: paste, add from the Library, move, copy, save, reopen
     await page.waitForTimeout(1_000);
     await s.shot("reopened");
     await expect(objects).toHaveCount(2);
+    await expectAllInCanvas(page, "after reopening");
   } finally {
     await s.finish();
   }
