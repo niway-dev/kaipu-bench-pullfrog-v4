@@ -1,0 +1,207 @@
+/*
+ * Inspect mode (NIW2-699): the toolbar button, the layer over the canvas with its loupe chip,
+ * and the floating bar. Tokens only; this file is the view, the logic is in use-inspect.ts.
+ */
+
+/* ── Toolbar button (same look as the annotation tools) ───────────── */
+
+.toggleGroup {
+  display: flex;
+  flex-shrink: 0;
+  padding: 3px;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.toggle:hover {
+  color: var(--text-primary);
+}
+
+.toggleOn,
+.toggleOn:hover {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+/* ── Layer over the canvas ────────────────────────────────────────── */
+
+/* Above the frame and the annotation layer: while Inspect is on, the image is read, not edited.
+   Wheel and pointerdown are not handled here, so they bubble to the canvas (pan, zoom). */
+.layer {
+  position: absolute;
+  inset: 0;
+  /* Above the frame and the annotation layer, below the floating bars (z-index 2 in the
+     page), so the Inspect bar and the zoom buttons stay clickable. */
+  z-index: 1;
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.hud {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 184px;
+  padding: var(--space-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  pointer-events: none;
+}
+
+.loupeFrame {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  align-self: center;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-canvas);
+}
+
+.loupe {
+  display: block;
+  width: 120px;
+  height: 120px;
+  image-rendering: pixelated;
+}
+
+/* The centre pixel: 120px / 15 cells = 8px, starting at 56px. */
+.loupeCentre {
+  position: absolute;
+  left: 56px;
+  top: 56px;
+  width: 8px;
+  height: 8px;
+  box-shadow:
+    0 0 0 1px #000,
+    inset 0 0 0 1px #fff;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.chipSwatch {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.5);
+}
+
+.chipText {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.coords {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.gamut {
+  align-self: flex-start;
+  padding: 1px var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* ── Floating bar (takes the options float's place) ───────────────── */
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.segments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.segment,
+.barBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.segment:hover:not(:disabled),
+.barBtn:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.segment:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.segmentOn,
+.segmentOn:hover:not(:disabled),
+.barBtnOn,
+.barBtnOn:hover:not(:disabled) {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.barBtn {
+  border: 1px solid var(--border);
+}
+
+.status {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
