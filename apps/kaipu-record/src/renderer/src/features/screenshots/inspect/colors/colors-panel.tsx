@@ -72,7 +72,7 @@ function Row({
  * are side by side. Clicking a group or a value highlights where it is in the image.
  * Values are sRGB in the Inspect bar's format.
  */
-export function ColorsPanel({
+function ColorsPanelView({
   colors,
   format,
   reading,
@@ -146,3 +146,6 @@ export function ColorsPanel({
     </section>
   );
 }
+
+/** Memoized: the page re-renders on every hover move, the list only when its inputs change. */
+export const ColorsPanel = React.memo(ColorsPanelView);

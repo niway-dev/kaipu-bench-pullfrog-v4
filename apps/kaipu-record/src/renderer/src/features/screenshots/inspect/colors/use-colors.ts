@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "@kaipu/i18n";
 import { reportError } from "@renderer/features/analytics";
 import type { PixelBuffer } from "../pixel-buffer";
@@ -46,6 +46,11 @@ export const sameTarget = (a: LocateTarget | null, b: LocateTarget | null): bool
  */
 export function useColors({ active, buffer }: Options): ColorsController {
   const t = useTranslations("screenshots");
+  // Read through a ref: a new `t` must not restart counting nor change the controller.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [open, setOpenState] = useState(false);
   const [status, setStatus] = useState<ColorsStatus>("idle");
   const [analysis, setAnalysis] = useState<ColorAnalysis | null>(null);
@@ -113,11 +118,16 @@ export function useColors({ active, buffer }: Options): ColorsController {
       },
       (error: unknown) => {
         if (analyzer.current !== current || error instanceof AnalyzerDisposed) return;
+        // Drop the failed analyzer so closing and reopening the panel tries again.
+        current.dispose();
+        analyzer.current = null;
         setStatus("error");
-        reportError(t("inspectColorsUnavailable"), error, { context: { phase: "inspect-colors" } });
+        reportError(tRef.current("inspectColorsUnavailable"), error, {
+          context: { phase: "inspect-colors" },
+        });
       },
     );
-  }, [open, active, buffer, t]);
+  }, [open, active, buffer]);
 
   const locate = useCallback(
     (target: LocateTarget | null): void => {
@@ -129,6 +139,8 @@ export function useColors({ active, buffer }: Options): ColorsController {
       const seq = ++locateSeq.current;
       locatedRef.current = target;
       setLocated(target);
+      // The previous mask (and its count) describes another color: drop it until the new one.
+      setOverlay(null);
       current.locate(target).then(
         (image) => {
           if (seq !== locateSeq.current || analyzer.current !== current) {
@@ -140,13 +152,13 @@ export function useColors({ active, buffer }: Options): ColorsController {
         (error: unknown) => {
           if (seq !== locateSeq.current || error instanceof AnalyzerDisposed) return;
           clearLocate();
-          reportError(t("inspectColorsUnavailable"), error, {
+          reportError(tRef.current("inspectColorsUnavailable"), error, {
             context: { phase: "inspect-colors-locate" },
           });
         },
       );
     },
-    [clearLocate, setOverlay, t],
+    [clearLocate, setOverlay],
   );
 
   useEffect(
@@ -159,14 +171,10 @@ export function useColors({ active, buffer }: Options): ColorsController {
     [],
   );
 
-  return {
-    open,
-    setOpen,
-    toggle: () => setOpen(!open),
-    status,
-    analysis,
-    located,
-    locate,
-    overlay,
-  };
+  const toggle = useCallback(() => setOpen(!open), [open, setOpen]);
+  // Stable while nothing changes, so the memoized panel skips the page's hover re-renders.
+  return useMemo(
+    () => ({ open, setOpen, toggle, status, analysis, located, locate, overlay }),
+    [open, setOpen, toggle, status, analysis, located, locate, overlay],
+  );
 }

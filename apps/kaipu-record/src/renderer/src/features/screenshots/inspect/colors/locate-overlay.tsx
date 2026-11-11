@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import type { LocatedImage } from "./colors-client";
 import styles from "./colors.module.css";
 
@@ -8,7 +8,17 @@ import styles from "./colors.module.css";
  * located pixels. Pointer events pass through.
  */
 export function LocateOverlay({ image }: { image: LocatedImage | null }): React.JSX.Element | null {
-  const ref = useRef<HTMLCanvasElement>(null);
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  // Release the backing store (59 MiB at 5K) as soon as the canvas leaves the page, which is
+  // when the highlight is cleared: a callback ref still holds the node at that moment.
+  const attach = useCallback((canvas: HTMLCanvasElement | null): void => {
+    const previous = ref.current;
+    if (!canvas && previous) {
+      previous.width = 0;
+      previous.height = 0;
+    }
+    ref.current = canvas;
+  }, []);
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas || !image) return;
@@ -22,21 +32,10 @@ export function LocateOverlay({ image }: { image: LocatedImage | null }): React.
       ctx.putImageData(data, 0, 0);
     }
   }, [image]);
-  // Release the backing store (59 MiB at 5K) as soon as the highlight goes.
-  useEffect(
-    () => () => {
-      const canvas = ref.current;
-      if (canvas) {
-        canvas.width = 0;
-        canvas.height = 0;
-      }
-    },
-    [],
-  );
   if (!image) return null;
   return (
     <canvas
-      ref={ref}
+      ref={attach}
       className={styles.overlay}
       width={image.width}
       height={image.height}
