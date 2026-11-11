@@ -68,6 +68,25 @@ describe("useRecognizedText", () => {
     expect(result.current).toEqual({ status: "unavailable" });
   });
 
+  it("retries an unavailable result when retryKey moves, and never re-requests a ready one", async () => {
+    recognize.mockResolvedValueOnce({ status: "unavailable" });
+    recognize.mockResolvedValueOnce({ status: "ready", words: [WORD] });
+    const getBytes = async () => bytesA;
+    const { result, rerender } = renderHook(
+      (p: { retryKey: number }) =>
+        useRecognizedText({ enabled: true, getBytes, assetId: "base", getId: () => null, ...p }),
+      { initialProps: { retryKey: 0 } },
+    );
+    await waitFor(() => expect(result.current).toEqual({ status: "unavailable" }));
+    rerender({ retryKey: 1 });
+    expect(result.current).toEqual({ status: "pending" });
+    await waitFor(() => expect(result.current).toEqual({ status: "ready", words: [WORD] }));
+    expect(recognize).toHaveBeenCalledTimes(2);
+    rerender({ retryKey: 2 });
+    await waitFor(() => expect(result.current).toEqual({ status: "ready", words: [WORD] }));
+    expect(recognize).toHaveBeenCalledTimes(2);
+  });
+
   it("reads a rejected call as unavailable", async () => {
     recognize.mockRejectedValue(new Error("ipc"));
     const getBytes = async () => bytesA;

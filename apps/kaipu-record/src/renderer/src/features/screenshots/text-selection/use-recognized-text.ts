@@ -11,6 +11,10 @@ interface Run {
   getBytes: () => Promise<ArrayBuffer>;
   assetId: string;
   promise: Promise<RecognizedText>;
+  /** The `retryKey` this run was started for. */
+  retryKey: number;
+  /** Set once the run settles; an `unavailable` one is replaced when `retryKey` moves. */
+  result: RecognizedText | null;
 }
 
 /**
@@ -23,6 +27,9 @@ interface Run {
  * never blocks the canvas: it is pending until it settles, and a result for an image that has
  * since been replaced is dropped.
  *
+ * A settled `unavailable` result is kept until `retryKey` changes; then one new request goes
+ * out (pending meanwhile). A `ready` result is never requested again for the same image.
+ *
  * Disabled (flag off, image not loaded) it is `pending` and calls nothing.
  */
 export function useRecognizedText(opts: {
@@ -30,8 +37,10 @@ export function useRecognizedText(opts: {
   getBytes: (() => Promise<ArrayBuffer>) | null;
   assetId: string;
   getId: () => string | null;
+  /** Bump to retry a run that ended `unavailable`; ignored while pending or ready. */
+  retryKey?: number;
 }): RecognizedText {
-  const { enabled, getBytes, assetId, getId } = opts;
+  const { enabled, getBytes, assetId, getId, retryKey = 0 } = opts;
   const [text, setText] = useState<RecognizedText>({ status: "pending" });
   const getIdRef = useRef(getId);
   getIdRef.current = getId;
@@ -41,7 +50,8 @@ export function useRecognizedText(opts: {
   useEffect(() => {
     if (!enabled || !getBytes) return;
     let run = runRef.current;
-    if (!run || run.getBytes !== getBytes || run.assetId !== assetId) {
+    const retry = run?.result?.status === "unavailable" && run.retryKey !== retryKey;
+    if (!run || run.getBytes !== getBytes || run.assetId !== assetId || retry) {
       const promise: Promise<RecognizedText> = (async () => {
         try {
           const png = await getBytes();
@@ -58,7 +68,11 @@ export function useRecognizedText(opts: {
           return { status: "unavailable" as const };
         }
       })();
-      run = { getBytes, assetId, promise };
+      const started: Run = { getBytes, assetId, promise, retryKey, result: null };
+      void promise.then((result) => {
+        started.result = result;
+      });
+      run = started;
       runRef.current = run;
     }
     let live = true;
@@ -69,7 +83,7 @@ export function useRecognizedText(opts: {
     return () => {
       live = false;
     };
-  }, [enabled, getBytes, assetId]);
+  }, [enabled, getBytes, assetId, retryKey]);
 
   return text;
 }

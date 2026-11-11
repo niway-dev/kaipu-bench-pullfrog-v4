@@ -300,8 +300,11 @@ function ScreenshotEditorBody({
   const refusedDuringMaintenance = useRef<Parameters<typeof persist>[0] | null>(null);
   // Recognition runs once per image on open, never blocks the canvas, and reads the saved id
   // when its call goes out (the id a first save creates does not re-run it).
+  // Picking Select text bumps this: an `unavailable` result is then requested once more.
+  const [textPicks, setTextPicks] = useState(0);
   const recognized = useRecognizedText({
     enabled: textEnabled,
+    retryKey: textPicks,
     getBytes: image?.getBytes ?? null,
     assetId: BASE_ASSET_ID,
     getId: () => savedIdRef.current,
@@ -322,6 +325,9 @@ function ScreenshotEditorBody({
   }, [recognized, natural, scene.annotations]);
   const textSelection = useTextSelection(visibleWords);
   const textActive = textEnabled && tools.tool === "selectText";
+  useEffect(() => {
+    if (textActive) setTextPicks((n) => n + 1);
+  }, [textActive]);
   // Leaving the tool drops the selection: a highlight nobody can see must not be copied.
   const { clear: clearTextSelection } = textSelection;
   useEffect(() => {

@@ -238,6 +238,27 @@ describe("text recognition — options bar", () => {
     expect(screen.getByRole("button", { name: "Select text" })).toBeEnabled();
   });
 
+  it("unavailable: picking the tool again retries once; ready is never re-requested", async () => {
+    // The open-time call and the first pick's retry both fail; the second pick succeeds.
+    recognize.mockResolvedValueOnce({ status: "unavailable" });
+    recognize.mockResolvedValueOnce({ status: "unavailable" });
+    recognize.mockResolvedValueOnce({ status: "ready", words: [] });
+    mountPaste();
+    await loadImage();
+    await waitFor(() => expect(recognize).toHaveBeenCalledTimes(1));
+    pickText();
+    await waitFor(() => expect(recognize).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Text recognition is not available")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    pickText();
+    expect(await screen.findByText("No text found")).toBeInTheDocument();
+    expect(recognize).toHaveBeenCalledTimes(3);
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    pickText();
+    expect(await screen.findByText("No text found")).toBeInTheDocument();
+    expect(recognize).toHaveBeenCalledTimes(3);
+  });
+
   it("a call that rejects reads as unavailable", async () => {
     recognize.mockRejectedValue(new Error("ipc"));
     mountPaste();
