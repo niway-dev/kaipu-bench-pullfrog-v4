@@ -21,6 +21,7 @@ describe("flag model", () => {
     expect(FLAG_DEFAULTS["bypass-login"]).toBe(true);
     expect(FLAG_DEFAULTS["native-cursor-capture"]).toBe(true);
     expect(FLAG_DEFAULTS["image-canvas"]).toBe(false);
+    expect(FLAG_DEFAULTS["image-inspect"]).toBe(false);
     expect(FLAG_DEFAULTS["image-text"]).toBe(false);
   });
 

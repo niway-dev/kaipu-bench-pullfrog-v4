@@ -30,7 +30,8 @@ vi.mock("@renderer/features/screenshots/annotations/redaction", async (importOri
 const originalRect = Element.prototype.getBoundingClientRect;
 
 const flatBytes = new Uint8Array([1, 2, 3]).buffer;
-const assetBytes = new Uint8Array([9, 9, 9, 9]).buffer;
+// A PNG signature and one byte: enough for the reader's PNG check.
+const assetBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9]).buffer;
 const LOCAL: ImageSource = { kind: "local", id: "shot-1", assetId: "a-shot-1", title: "Shot" };
 const PASTE: ImageSource = {
   kind: "blob",
@@ -183,7 +184,7 @@ describe("ScreenshotEditor — reopen from the document (image-canvas)", () => {
     expect(exportScene).not.toHaveBeenCalled();
   });
 
-  it("starts from the document's frame and keeps its export frame", async () => {
+  it("keeps the document's export frame", async () => {
     readCanvas.mockResolvedValue(
       stored(
         docJson({
@@ -223,6 +224,13 @@ describe("ScreenshotEditor — reopen from the document (image-canvas)", () => {
       () => readCanvas.mockResolvedValue(stored(docJson({ schemaVersion: 2 }))),
     ],
     ["a missing base asset", () => readCanvas.mockResolvedValue(stored(docJson(), {}))],
+    [
+      "a base asset that is not a PNG",
+      () =>
+        readCanvas.mockResolvedValue(
+          stored(docJson(), { base: new Uint8Array([0x3c, 0x73, 0x76, 0x67]).buffer }),
+        ),
+    ],
   ])("falls back to the flat PNG with no annotations: %s", async (_name, arrange) => {
     arrange();
     mountLocal();

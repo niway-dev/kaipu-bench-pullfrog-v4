@@ -17,6 +17,8 @@ export interface ScenarioOptions {
   shotOffset?: number;
   /** Basename of the finalized video (default `video`), so launches do not overwrite it. */
   videoName?: string;
+  /** Fills the throwaway vault before launch (default: the suite's two fixtures). */
+  seedVault?: (vaultDir: string) => Promise<void>;
 }
 
 export interface Scenario {
@@ -52,6 +54,7 @@ export async function startScenario(
   const { app, page, vaultDir, teardown } = await launchApp({
     recordVideoDir: outDir,
     ...(options.env ? { env: options.env } : {}),
+    ...(options.seedVault ? { seedVault: options.seedVault } : {}),
   });
   let n = options.shotOffset ?? 0;
   return {

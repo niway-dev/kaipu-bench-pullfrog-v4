@@ -35,6 +35,12 @@ import {
   DEFAULT_BEAUTIFY,
   FLAT_BEAUTIFY,
 } from "@renderer/features/screenshots/beautify";
+import {
+  InspectBar,
+  InspectLayer,
+  InspectToggle,
+  useInspect,
+} from "@renderer/features/screenshots/inspect";
 import { SaveOptionsDialog } from "@renderer/features/screenshots/save-options-dialog";
 import { CaptureTitleInput } from "@renderer/features/screenshots/capture-title-input";
 import {
@@ -148,6 +154,12 @@ interface LoadedCanvasDoc {
  * PNG instead": no document, a corrupt or unsupported one, a missing base asset, or a read
  * that failed. It never rejects, so a bad document can never keep the editor from opening.
  */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const isPng = (bytes: ArrayBuffer): boolean => {
+  const head = new Uint8Array(bytes, 0, Math.min(8, bytes.byteLength));
+  return head.length === 8 && PNG_SIGNATURE.every((b, i) => head[i] === b);
+};
+
 async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
   try {
     const stored = await window.electronAPI.readScreenshotCanvas(id);
@@ -155,7 +167,8 @@ async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
     const parsed = parseCanvasDoc(stored.docJson);
     if (!parsed) return null;
     const bytes = stored.assets[parsed.base.assetId];
-    if (!bytes) return null;
+    // Not a PNG: the image would never load and the editor would stay disabled.
+    if (!bytes || !isPng(bytes)) return null;
     // New annotations must not reuse an id the document already holds.
     reserveAnnotationIds(parsed.scene.annotations);
     return {
@@ -255,6 +268,19 @@ function ScreenshotEditorBody({
   // reactive, but a shot must never mix the two models (a classic crop would be dropped, or
   // outside content clipped, on the next export or autosave). A flag change applies to the
   // next editor that opens. Everything below branches on this boolean. Off = today's editor.
+  // Inspect mode (NIW2-699): latched like `canvasMode`. Off = no button, no key, no listener,
+  // no decode: the editor is exactly what it was.
+  const [inspectEnabled] = useState(useFlag("image-inspect"));
+  const inspect = useInspect({
+    enabled: inspectEnabled,
+    image,
+    imgRef,
+    // Inspect reads the image, it does not edit it: leave any drawing tool (a crop included).
+    onEnter: () => {
+      tools.setTool("select");
+      scene.select(null);
+    },
+  });
   const [zoom, setZoom] = useState(1);
   // Text recognition (NIW2-705, behind `image-text`). Latched at mount like `canvasMode`:
   // a shot never gains or loses the tool halfway through an edit.
@@ -620,9 +646,10 @@ function ScreenshotEditorBody({
    * then stores the flat PNG alone, and main drops any stale document.
    */
   const buildCanvasPayload = async (snap: Scene): Promise<CanvasSavePayload | null> => {
-    // The decoded image first; the known sizes cover an image that has not reported one.
-    const pixelWidth = imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0;
-    const pixelHeight = imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0;
+    // The decoded image first; the known sizes cover an image that has not reported one. A
+    // reopened document's base size comes before the source's, which is the flat export's.
+    const pixelWidth = imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0;
+    const pixelHeight = imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0;
     if (pixelWidth <= 0 || pixelHeight <= 0) return null;
     const baked = await bakeRedactions(await image!.getBytes(), snap.annotations);
     const docJson = JSON.stringify(buildCanvasDoc(snap, { pixelWidth, pixelHeight }));
@@ -906,7 +933,15 @@ function ScreenshotEditorBody({
         role="toolbar"
         aria-label={t("editorToolbar")}
       >
-        <AnnotationToolbar tools={tools} onPick={() => scene.select(null)} textTool={textEnabled} />
+        <AnnotationToolbar
+          tools={tools}
+          onPick={() => {
+            scene.select(null);
+            inspect.setActive(false);
+          }}
+          textTool={textEnabled}
+        />
+        {inspectEnabled && <InspectToggle active={inspect.active} onToggle={inspect.toggle} />}
         <CaptureTitleInput title={captureTitle} />
         <div className={styles.actions}>
           <button
@@ -991,6 +1026,7 @@ function ScreenshotEditorBody({
             ref={canvasRef}
             className={styles.canvas}
             data-zoomed={shownZoom > 1}
+            {...(inspectEnabled ? { "data-inspect": String(inspect.active) } : {})}
             {...(canvasMode
               ? {
                   ...viewport.bindings,
@@ -1028,16 +1064,21 @@ function ScreenshotEditorBody({
                 setImageReady(true);
               }}
             />
+            {inspectEnabled && inspect.active && <InspectLayer inspect={inspect} />}
           </div>
 
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
-            <AnnotationOptions
-              tools={tools}
-              scene={cropScene}
-              canvasMode={canvasMode}
-              textTool={textTool}
-            />
+            {inspect.active ? (
+              <InspectBar inspect={inspect} />
+            ) : (
+              <AnnotationOptions
+                tools={tools}
+                scene={cropScene}
+                canvasMode={canvasMode}
+                textTool={textTool}
+              />
+            )}
           </div>
 
           {/* Zoom pinned at the foot of the canvas — a familiar editor convention. */}

@@ -10,6 +10,9 @@ const theme = (value: "light" | "dark"): Step => ({
   call: "updateSettings",
   args: [{ theme: value }],
 });
+const inspectToggle: Step = {
+  click: { area: "editorImage.inspectToggle" },
+};
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
@@ -40,11 +43,11 @@ export const editorImage = catalog(
         "editorImage.canvas:default",
         "editorImage.beautify:default",
       ],
-      // The flag is off in this profile: the `canvasView` area is not drawn, this is the other side.
-      // Both flags are off in this profile: the `canvasView` and Select text areas are not
-      // drawn, this is the other side.
+      // The flags are off in this profile: the `canvasView`, Inspect and Select text areas are
+      // not drawn, this is the other side.
       gates: [
         { flag: "image-canvas", side: "off" },
+        { flag: "image-inspect", side: "off" },
         { flag: "image-text", side: "off" },
       ],
     },
@@ -52,6 +55,12 @@ export const editorImage = catalog(
       profile: "default",
       steps: [open(ASSETS.settingsShot), tool("Box")],
       demonstrates: ["editorImage.tools:annotate", "editorImage.canvas:annotate"],
+    },
+    "tool-step": {
+      profile: "default",
+      how: "Open “Settings page”, pick Step and click the canvas: a badge numbered 1 appears.",
+      steps: [open(ASSETS.settingsShot), tool("Step"), { click: { area: "editorImage.canvas" } }],
+      demonstrates: ["editorImage.tools:step", "editorImage.canvas:step"],
     },
     "tool-crop": {
       profile: "default",
@@ -113,6 +122,50 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.redactionStyle:solid"],
+    },
+    "inspect-off": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”: the Inspect button is in the toolbar, off.",
+      steps: [open(ASSETS.settingsShot)],
+      demonstrates: ["editorImage.inspectToggle:off"],
+      gates: [{ flag: "image-inspect", side: "on" }],
+    },
+    "inspect-on": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page” and press Inspect: the button turns on and the Inspect bar replaces the tool options.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { waitFor: { area: "editorImage.inspectBar" } },
+      ],
+      demonstrates: ["editorImage.inspectToggle:on", "editorImage.inspectBar:hex"],
+    },
+    "inspect-as-captured": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then As captured: HSL and OKLCH are disabled because the raw bytes are not sRGB.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        {
+          click: {
+            area: "editorImage.inspectBar",
+            part: { role: "button", name: "As captured", exact: true },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.inspectBar:asCaptured"],
+    },
+    "inspect-hud": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect and rest the pointer on the image: the loupe and colour chip appear beside it.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.inspectHud" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectHud:reading"],
     },
     "text-none": {
       profile: "image-text",

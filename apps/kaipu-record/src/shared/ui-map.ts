@@ -267,8 +267,8 @@ export const UI_MAP = {
     areas: {
       page: { states: ["saved"] },
       toolbar: { states: ["default", "saved"] },
-      tools: { states: ["select", "annotate", "crop"] },
-      canvas: { states: ["default", "crop", "annotate"] },
+      tools: { states: ["select", "annotate", "crop", "step"] },
+      canvas: { states: ["default", "crop", "annotate", "step"] },
       canvasView: {
         states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light"],
         gatedBy: [{ flag: "image-canvas" }],
@@ -277,6 +277,10 @@ export const UI_MAP = {
         states: ["blur", "solid"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
+      inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
+      inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
+      inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
       // The "Select text" tool (`image-text`, NIW2-705): the options bar's recognition
       // status, and the image with its recognized words while the tool is active.
       textStatus: {

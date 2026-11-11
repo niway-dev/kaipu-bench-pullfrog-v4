@@ -17,6 +17,9 @@ export interface AnnotationToolsController {
   /** Style a new redaction takes (canvas mode). "blur" = the strong blur. */
   redactionStyle: RedactionStyle;
   setRedactionStyle(style: RedactionStyle): void;
+  /** Step-badge size level — an index into STEP_PX (0–3). */
+  stepSize: number;
+  setStepSize(level: number): void;
 }
 
 /** Toolbar state for the annotation tools. (Drawing the shapes is a later slice.) */
@@ -25,6 +28,7 @@ export function useAnnotationTools(): AnnotationToolsController {
   const [color, setColor] = useState<string>(ANNOTATION_COLORS[0].value);
   const [stroke, setStroke] = useState<number>(1);
   const [textSize, setTextSize] = useState<number>(1);
+  const [stepSize, setStepSize] = useState<number>(1);
 
   const [redactionStyle, setRedactionStyle] = useState<RedactionStyle>("blur");
 
@@ -39,5 +43,7 @@ export function useAnnotationTools(): AnnotationToolsController {
     setTextSize,
     redactionStyle,
     setRedactionStyle,
+    stepSize,
+    setStepSize,
   };
 }
