@@ -401,16 +401,36 @@ describe("ScreenshotEditorPage — preview matches the export (image-canvas)", (
     }
   });
 
+  it("flag on: a flag that flips off mid-session does not change this editor's mode", async () => {
+    imageCanvas = true;
+    mount(PASTE);
+    await loadImage();
+    imageCanvas = false;
+    // Any state change re-renders the page; `useFlag` now answers false.
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(exportCalls()).toHaveLength(1));
+    expect(exportCalls()[0][1]).toMatchObject({ canvas: true });
+  });
+
   it("flag off: the same drawing leaves the frame exactly as it was", async () => {
     sizeTheCanvas();
     mount(PASTE);
     await loadImage();
     expect(frameEl().style.padding).toBe("0px");
     fireEvent.click(screen.getByRole("button", { name: "Box" }));
-    // The same drag as the flag-on test, on the canvas itself (there is no hit surface).
-    fireEvent.pointerDown(canvasEl(), { button: 0, clientX: -60, clientY: -40, pointerId: 6 });
-    fireEvent.pointerMove(canvasEl(), { clientX: -10, clientY: -10, pointerId: 6 });
-    fireEvent.pointerUp(canvasEl(), { pointerId: 6 });
+    // Start inside the shot, on the annotation layer (the element that owns the press),
+    // and end past its edge. With the flag on this reaches outside the frame; with it off
+    // the frame must not move.
+    const layer = canvasEl().querySelector("svg")!.parentElement!;
+    fireEvent.pointerDown(layer, { button: 0, clientX: 100, clientY: 100, pointerId: 6 });
+    fireEvent.pointerMove(layer, { clientX: 260, clientY: 140, pointerId: 6 });
+    fireEvent.pointerUp(layer, { pointerId: 6 });
+    // The drawing really happened: the exported scene carries one annotation.
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(exportCalls()).toHaveLength(1));
+    const exported = exportCalls()[0][1] as { scene: { annotations: unknown[] } };
+    expect(exported.scene.annotations).toHaveLength(1);
     expect(frameEl().style.padding).toBe("0px");
     expect(screen.queryByTestId("canvas-box-fill")).toBeNull();
     expect(screen.queryByTestId("canvas-hit-surface")).toBeNull();
