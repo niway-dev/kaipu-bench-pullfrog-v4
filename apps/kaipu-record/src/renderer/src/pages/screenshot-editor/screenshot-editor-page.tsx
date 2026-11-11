@@ -136,8 +136,11 @@ export function ScreenshotEditor({
   const canvasRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   // Infinite canvas (NIW2-698): content may leave the image, the view pans, export is the
-  // content box. Read once; everything below branches on this boolean. Off = today's editor.
-  const canvasMode = useFlag("image-canvas");
+  // content box. Latched at mount: `useFlag` is reactive, but a shot must never mix the two
+  // models (a classic crop would be dropped, or outside content clipped, on the next export
+  // or autosave). A flag change applies to the next editor that opens. Everything below
+  // branches on this boolean. Off = today's editor.
+  const [canvasMode] = useState(useFlag("image-canvas"));
   const [zoom, setZoom] = useState(1);
   // One transient "last action" indicator — copied or saved-with-name — that
   // auto-clears; avoids the illegal "both shown" state two flags allowed.
