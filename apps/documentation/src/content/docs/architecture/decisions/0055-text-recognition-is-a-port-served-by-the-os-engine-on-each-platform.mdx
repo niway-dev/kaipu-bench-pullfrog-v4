@@ -83,10 +83,10 @@ behind the `image-text` flag, in the canvas editor and in the classic one. M10
   PowerShell 5.1.26100, OCR language en-US), 2026-11-11, run 43122488358. End to end per call,
   each a new PowerShell process:
 
-  | Fixture (1920×1080)     | Cold (first OCR call on the VM) | Warm (next 4 calls) |
-  | ----------------------- | ------------------------------- | ------------------- |
-  | sparse settings card    | 3353 ms                         | 506–516 ms          |
-  | dense, 3×3 copies of it | 753 ms                          | 754–764 ms          |
+  | Fixture (1920×1080)     | First call of the fixture                      | Next 4 calls |
+  | ----------------------- | ---------------------------------------------- | ------------ |
+  | sparse settings card    | 3353 ms (cold: first OCR call on the VM)       | 506–516 ms   |
+  | dense, 3×3 copies of it | 753 ms (not cold: runs after the sparse calls) | 754–764 ms   |
 
   PowerShell start alone takes about 200 ms. All six lines were recognized exactly, boxes landed
   within a few pixels of the drawn text, and a 10° tilted copy put its boxes back on the text.

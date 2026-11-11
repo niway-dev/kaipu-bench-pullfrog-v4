@@ -144,7 +144,7 @@ merged. Every UI milestone adds its areas and states to `ui-map.ts` (ADR 0046).
 | M5  | Step counter         | `step` annotation, auto-numbering, renumber on delete.                                                                                                                               | M2         | —               |
 | M6  | More images          | **Add image** button (new capture or an item from the Library), paste from the clipboard, move the image on the canvas.                                                              | M3         | `image-canvas`  |
 | M7  | Colors panel         | Quantized histogram in a worker, grouping of near-identical colors, click to locate.                                                                                                 | M1         | `image-inspect` |
-| M8  | Text recognition     | Port, macOS helper, Windows backend, cache, select and copy text.                                                                                                                    | M0, M3     | `image-text`    |
+| M8  | Text recognition     | Port, macOS helper, cache, select and copy text (Windows backend: M10).                                                                                                              | M0, M3     | `image-text`    |
 | M9  | Hide recognized text | Recognized blocks as one-click redaction targets.                                                                                                                                    | M8, M3     | `image-text`    |
 
 M1 and M2 do not depend on each other and can run in parallel.
@@ -313,4 +313,5 @@ pass owner QA; the canvas is then the only editor.
 - Canvas color spaces: [WebKit](https://webkit.org/blog/12058/wide-gamut-2d-graphics-using-html-canvas/),
   [MDN `ImageData.colorSpace`](https://developer.mozilla.org/docs/Web/API/ImageData/colorSpace).
 - Not verified: that `screencapture` PNGs carry a Display P3 profile; Vision latency on a
-  Retina screenshot; `Windows.Media.Ocr` from PowerShell. M0 measures all three.
+  Retina screenshot. `Windows.Media.Ocr` from PowerShell was measured in M10 on a CI runner
+  only (ADR 0055).

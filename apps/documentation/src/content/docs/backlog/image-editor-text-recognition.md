@@ -43,11 +43,18 @@ With `image-text` off, the editor is unchanged.
    stdin (no temporary file), `--version` checked once, a 45 s timeout (the first run on a Mac
    compiles Vision's model: 13.5 s measured in M0), an output cap, and Zod validation. Any failure
    is `"unavailable"`.
-3. **Cache.** `.kaipu/<id>.text.json`: `{ schemaVersion: 1, assets: { <assetId>: { sha256, words } } }`.
+3. **Windows backend.** `src/main/screenshots/text-recognition/windows-ocr.ts` runs a PowerShell
+   5.1 script with `-EncodedCommand` (`Windows.Media.Ocr`, the user profile's OCR languages),
+   the PNG base64 on stdin, a 30 s timeout and the same JSON and Zod validation. Nothing to
+   build or sign. No OCR language pack, or any failure, is `"unavailable"` and retried on the
+   next request; a missing PowerShell is remembered for the session. The workflow
+   `Text recognition (Windows)` runs `scripts/measure-windows-ocr.ts` and the backend tests on a
+   Windows runner when these files change.
+4. **Cache.** `.kaipu/<id>.text.json`: `{ schemaVersion: 1, assets: { <assetId>: { sha256, words } } }`.
    A request whose PNG hash matches the entry is answered without running the helper. It is a
    vault companion like the canvas document: rename, move between workspaces, delete and the
    library repair carry or remove it.
-4. **Redactions.** Every save rewrites the cache from the words the renderer sends, which already
+5. **Redactions.** Every save rewrites the cache from the words the renderer sends, which already
    exclude every word a baked redaction touches, hashed from the assets just written. A save
    without words (recognition still pending, or the classic editor, which stores no assets)
    deletes the file, so the classic editor recognizes its image again on the next open. A
