@@ -835,6 +835,7 @@ export function ScreenshotEditor({
                     colors={colors}
                     format={inspect.format}
                     reading={inspect.status === "decoding"}
+                    unreadable={inspect.status === "error"}
                   />
                 )}
               </>

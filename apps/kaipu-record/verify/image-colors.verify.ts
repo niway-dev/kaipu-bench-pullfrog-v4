@@ -205,6 +205,8 @@ async function photographRun(canvas: boolean): Promise<void> {
     const listMs = Date.now() - t0;
     const listTasks = await takeLongTasks(s);
     await shot(s, `photo-${tag}-list`);
+    // The screenshot's own stall is not the panel's: drop it before timing the locate.
+    await takeLongTasks(s);
 
     const t1 = Date.now();
     await s.page.locator(`${PANEL} li > button`).first().click();

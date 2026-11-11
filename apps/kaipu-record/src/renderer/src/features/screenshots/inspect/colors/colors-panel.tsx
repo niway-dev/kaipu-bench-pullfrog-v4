@@ -76,15 +76,19 @@ function ColorsPanelView({
   colors,
   format,
   reading,
+  unreadable = false,
 }: {
   colors: ColorsController;
   format: ColorFormat;
   /** Inspect is still decoding the pixels. */
   reading: boolean;
+  /** Inspect could not decode the pixels, so there is nothing to count. */
+  unreadable?: boolean;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const { analysis, status, located, overlay } = colors;
-  const state = located ? "located" : status === "ready" ? "list" : status;
+  const failed = status === "error" || unreadable;
+  const state = located ? "located" : status === "ready" ? "list" : failed ? "error" : status;
   return (
     <section
       {...uiArea("editorImage.inspectColors")}
@@ -106,7 +110,7 @@ function ColorsPanelView({
       {(reading || status === "counting") && (
         <span className={styles.status}>{t("inspectColorsCounting")}</span>
       )}
-      {status === "error" && <span className={styles.status}>{t("inspectColorsUnavailable")}</span>}
+      {failed && <span className={styles.status}>{t("inspectColorsUnavailable")}</span>}
       {analysis && analysis.groups.length === 0 && (
         <span className={styles.status}>{t("inspectColorsEmpty")}</span>
       )}

@@ -509,6 +509,16 @@ describe.each([
     await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
   }
 
+  it("says the colors are unavailable when Inspect could not read the pixels", async () => {
+    decodeSrgbBuffer.mockRejectedValue(new Error("no canvas"));
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(colorsButton());
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "error"));
+    expect(panel()).toHaveTextContent("Colors unavailable for this image");
+  });
+
   it("lists the colors with their share and the two whites side by side", async () => {
     await openPanel();
     expect(colorsButton()).toHaveAttribute("aria-pressed", "true");
