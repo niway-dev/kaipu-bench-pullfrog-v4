@@ -872,6 +872,14 @@ describe("createCaptureHandler — insert into the open editor", () => {
     expect(track).not.toHaveBeenCalled();
   });
 
+  it("still reports an insert that failed", async () => {
+    const { handler, track } = setup(async () => {
+      throw new Error("capture broke");
+    });
+    expect(await handler({ mode: "frame", insert: true })).toEqual({ kind: "cancelled" });
+    expect(track).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" }));
+  });
+
   it("refuses an insert that is not a boolean", async () => {
     const capture = vi.fn();
     const { handler } = setup(capture);

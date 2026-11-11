@@ -241,7 +241,8 @@ export function createCaptureHandler(
     }
     // Choosing a recording target is not a screenshot outcome, and an insert adds an image
     // to the open editor: counting it would inflate the "captured, opened the editor" numbers.
-    if (result.kind === "record" || insert) return answer;
+    // A failed insert is still reported, so a broken insert path shows up as failures.
+    if (result.kind === "record" || (insert && !failed)) return answer;
     // A throw answers `cancelled` to the renderer but is a failure for the owner's numbers.
     report(
       failed ? "failed" : result.kind,
