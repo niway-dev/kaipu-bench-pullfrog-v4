@@ -52,8 +52,9 @@ With `image-text` off, the editor is unchanged.
    without words (recognition still pending, or the classic editor, which stores no assets)
    deletes the file, so the classic editor recognizes its image again on the next open. A
    recognition that finishes after a save of its item writes nothing (a generation counter
-   per item), nor one whose item was renamed, moved or deleted meanwhile, so a hidden word
-   never comes back.
+   per item), nor one whose item was renamed, moved or deleted meanwhile (the write takes the
+   item lock those operations take), nor one whose bytes are not the image on disk now (another
+   window may hold the image from before a redaction), so a hidden word never comes back.
 
 ## How to turn it on
 
