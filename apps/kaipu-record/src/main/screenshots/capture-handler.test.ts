@@ -866,6 +866,12 @@ describe("createCaptureHandler — insert into the open editor", () => {
     expect(windows.afterCapture).not.toHaveBeenCalled();
   });
 
+  it("is not reported as a capture: adding an image is not opening the editor", async () => {
+    const { handler, track } = setup(async () => shot());
+    await handler({ mode: "frame", insert: true });
+    expect(track).not.toHaveBeenCalled();
+  });
+
   it("refuses an insert that is not a boolean", async () => {
     const capture = vi.fn();
     const { handler } = setup(capture);
