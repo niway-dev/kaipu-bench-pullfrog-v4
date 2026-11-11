@@ -7,12 +7,12 @@ description: Loupe, color readout, ruler and colors panel work on an image alrea
 
 ## Status
 
-| Field         | Value                                                                                                                                                                                                                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status        | Proposed, 2026-11-11. Not built. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color)                |
-| Date          | 2026-11-11                                                                                                                                                                                                                                                                           |
-| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (its non-goals for the overlay stand), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (pinned measurements are canvas items) |
-| Superseded by | —                                                                                                                                                                                                                                                                                    |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed, 2026-11-11. Not built. Color and memory measured on macOS by the M0 spike ([NIW2-697](https://linear.app/niway/issue/NIW2-697/image-editor-m0-spikes-for-color-memory-and-text-recognition-on-macos), results below); the buffer is read in `srgb`. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (its non-goals for the overlay stand), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (pinned measurements are canvas items)                                                                                                                                                                                                               |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## Context
 
@@ -38,6 +38,76 @@ source, documents a scan from the cursor until the pixel difference exceeds a to
 5. **Units.** Lengths are image pixels, stored in the measured image's coordinates.
 6. **Color.** The readout is the sampled color converted once to sRGB, with a switch to the
    value as captured. Formats: hex, rgb, hsl, oklch. Colors outside sRGB are marked.
+
+## M0 results (macOS, 2026-11-11)
+
+Measured by the spike in `apps/kaipu-record/scripts/spikes/image-editor-m0/color-memory/`
+([NIW2-697](https://linear.app/niway/issue/NIW2-697/image-editor-m0-spikes-for-color-memory-and-text-recognition-on-macos)).
+
+- **Machine:** Mac mini M4 (Mac16,10, 16 GB), macOS 27.0.1, Electron 39.8.10 (Chromium 142,
+  the version `bun.lock` pins), display "G27FC A" at 1920×1080, scale 1.
+- **Command:** from the M5, `apps/kaipu-record/scripts/spikes/image-editor-m0/color-memory/run-on-macmini.sh`.
+  It generates the fixtures on the mini, runs Electron there under a launchd job (screen
+  capture needs the Screen Recording grant), and copies `results-<host>.json` back.
+
+**What a capture carries.** `screencapture` tags its PNG with the profile of the display it
+was taken on, not with Display P3: on the M5 and on the mini the main display is an external
+monitor and the PNG carried "G27FC A". The decode must convert from whatever profile is
+embedded; it cannot assume sRGB or Display P3.
+
+**Color**, maximum error per channel (R/G/B) at the centre of each swatch, in 8-bit units:
+
+| Fixture                                                         | `srgb` buffer | `display-p3` buffer, then one JS conversion | `colorSpaceConversion: "none"` |
+| --------------------------------------------------------------- | ------------- | ------------------------------------------- | ------------------------------ |
+| 16 known sRGB swatches, tagged sRGB                             | **0/0/0**     | 3/1/1 (`#00ff00`)                           | 0/0/0                          |
+| Display P3 swatches inside sRGB, tagged P3                      | **0/0/1**     | 0/0/0                                       | raw P3 bytes                   |
+| sRGB swatches converted into the G27FC profile                  | 2/29/1        | 5/30/1                                      | raw monitor bytes              |
+| Capture round trip: CSS `#hex` → `screencapture -x -R` → decode | 5/30/0        | 3/30/1                                      | raw monitor bytes              |
+
+- The reference for P3 is the CSS Color 4 matrices, computed in JS independently of Chromium
+  and ColorSync. Out-of-sRGB P3 swatches came back clipped per channel, exactly as the
+  reference clips them, in both buffers.
+- The 29–30 error on the G27FC rows is one swatch, `#0000ff`, which lies outside that
+  monitor's gamut: ColorSync (`sips --matchTo`) produces the same value, so the pixel on disk
+  is already not sRGB blue. Inside the round trip, every other swatch is within 2, except
+  `#00ff00` (+5 red) and `#10b981` (+3 red). Raw bytes from `"none"` equal what CoreGraphics
+  reads from the same file.
+
+**Memory** of one 6144×3456 decode (theoretical buffer 81 MiB; the PNG is 30 MB), median of
+three runs in a fresh window, renderer private memory over baseline:
+
+| Stage                                    | Default (GPU) canvas | `willReadFrequently` canvas |
+| ---------------------------------------- | -------------------- | --------------------------- |
+| After `getImageData`                     | +161 MiB             | +245 MiB                    |
+| Standalone array kept, the rest released | +81 MiB              | +83 MiB                     |
+| Everything dropped, after `gc()`         | 0 MiB                | +2 MiB                      |
+
+`gc()` runs only after the release and drop stages, so the "After `getImageData`" row also
+counts garbage not yet collected; the budget rests on the later rows.
+
+With the default canvas the GPU process kept about 160–210 MiB after release; with
+`willReadFrequently` everything returned to baseline. The GPU-process baseline was noisy (29
+to 112 MiB between runs), so that residue is indicative. Decode time: `createImageBitmap`
+about 150 ms, then `getImageData` about 18 ms on the CPU canvas (60 ms on the GPU one).
+
+**What this decides for M1:**
+
+- The pixel buffer is read in **`srgb`**, from a canvas created with `willReadFrequently:
+true`, copied into a standalone `Uint8ClampedArray`, and the canvas and bitmap are released.
+  Chromium's color management performs the single conversion from the embedded profile. A
+  `display-p3` buffer is not exact for sRGB content (3 units on `#00ff00`) and is not used.
+- One image on the canvas costs its buffer, about 81 MiB at 6K, and nothing more once decoded.
+- An `srgb` buffer has already clipped out-of-gamut colors, so it cannot mark them, and it
+  is not the value as captured. Both come from decoding the region under the cursor again:
+  `createImageBitmap(blob, x, y, w, h, …)` into a `display-p3` canvas, where an out-of-sRGB
+  color converts to a channel outside 0–255, or with `colorSpaceConversion: "none"` for the
+  raw value. M1 must prove this; M0 did not measure it.
+- The fixture criterion of the spec (known sRGB swatches exactly, a tagged Display P3 fixture
+  within one unit) holds for decoded files. A capture of a color the monitor cannot show
+  reads as what the monitor showed, not the CSS value; the readout must not claim otherwise.
+
+**Not measured:** a capture on a Retina display (scale 2) or on a built-in Display P3 panel,
+other monitor profiles, an image larger than 6K, several images on one canvas.
 
 ## Alternatives rejected
 
