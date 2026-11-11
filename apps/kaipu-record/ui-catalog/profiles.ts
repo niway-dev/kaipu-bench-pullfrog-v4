@@ -83,6 +83,12 @@ export const PROFILES = {
     seed: "demo",
     flags: { "image-canvas": true },
   },
+  "image-inspect": {
+    description:
+      "Flag image-inspect forced on: the image editor's Inspect mode (loupe, live colour, format bar).",
+    seed: "demo",
+    flags: { "image-inspect": true },
+  },
   exporting: {
     description:
       "The demo workspace; states here start real exports of its short recording, so the vault ends up holding the copies.",
