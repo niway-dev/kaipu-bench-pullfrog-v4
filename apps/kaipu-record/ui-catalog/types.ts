@@ -107,11 +107,22 @@ export type WaitTarget =
   | { readonly video: true | "paused-at-start" }
   | { readonly window: WindowKind };
 
+/** A point in a target's box, as fractions of its width and height. */
+export interface DragPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
 export type Step =
   /** Hash navigation in the main window: `{ navigate: "/library" }`. */
   | ({ readonly navigate: string } & On)
   | ({ readonly click: Target } & On)
   | ({ readonly hover: Target } & On)
+  /**
+   * Press at `from`, move to `to` and release. Both points are fractions (0-1) of the target's
+   * box, so a drag does not depend on the window size.
+   */
+  | ({ readonly drag: Target; readonly from: DragPoint; readonly to: DragPoint } & On)
   | ({ readonly press: string; readonly target?: Target } & On)
   | ({ readonly fill: Target; readonly value: string } & On)
   | ({ readonly waitFor: WaitTarget; readonly timeoutMs?: number } & On)
@@ -309,6 +320,10 @@ export function describeStep(step: Step): string {
   if ("navigate" in step) return `Go to \`#${step.navigate}\``;
   if ("click" in step) return `Click ${target(step.click)}`;
   if ("hover" in step) return `Hover ${target(step.hover)}`;
+  if ("drag" in step) {
+    const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
+    return `Drag across ${target(step.drag)} from ${pt(step.from)} to ${pt(step.to)}`;
+  }
   if ("press" in step)
     return `Press ${step.press}${step.target ? ` in ${target(step.target)}` : ""}`;
   if ("fill" in step) return `Type "${step.value}" in ${target(step.fill)}`;

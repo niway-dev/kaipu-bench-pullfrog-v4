@@ -720,6 +720,21 @@ async function runStep(ctx: Ctx, step: Step): Promise<void> {
   const page = await pageFor(ctx, "on" in step ? step.on : undefined);
   if ("click" in step) return targetLocator(page, step.click).click({ timeout: t });
   if ("hover" in step) return targetLocator(page, step.hover).hover({ timeout: t });
+  if ("drag" in step) {
+    const box = await targetLocator(page, step.drag).boundingBox({ timeout: t });
+    if (!box) throw new Error("the drag target has no box");
+    const at = (p: { x: number; y: number }) => ({
+      x: box.x + box.width * p.x,
+      y: box.y + box.height * p.y,
+    });
+    const from = at(step.from);
+    const to = at(step.to);
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    await page.mouse.up();
+    return;
+  }
   if ("fill" in step) return targetLocator(page, step.fill).fill(step.value, { timeout: t });
   if ("scrollTo" in step) {
     return targetLocator(page, step.scrollTo).scrollIntoViewIfNeeded({ timeout: t });
@@ -1152,6 +1167,7 @@ async function runProfile(name: ProfileName, entries: CatalogEntry[]): Promise<v
           now: STARTED_AT,
           content: profile.seed,
           cursorRecording: profile.cursorRecording,
+          textScreenshot: profile.textScreenshot,
           reconcile: profile.reconcile,
         }),
       env: {

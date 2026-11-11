@@ -72,6 +72,9 @@ git fetch --quiet origin
 git checkout --quiet --detach $sha
 bun install --frozen-lockfile >&2
 cd apps/kaipu-record
+# The Select text states need the recognition helper; electron-vite does not build it. It only
+# warns when swiftc is missing, and then those states fail on "words found" instead of lying.
+bash scripts/build-text-recognition.sh >&2
 MAIN_VITE_SERVER_URL=http://localhost:3000 MAIN_VITE_WEB_URL=http://localhost:3001 \
   ./node_modules/.bin/electron-vite build >&2
 bun ui-catalog/cli.ts --prepare-only$quoted_args | sed -n 's/^UI_CATALOG_RUN_SPEC=//p'
