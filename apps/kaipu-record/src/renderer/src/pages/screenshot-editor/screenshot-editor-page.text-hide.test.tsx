@@ -168,6 +168,16 @@ describe("text hide — one click", () => {
     expect(screen.queryByTestId("text-target")).toBeNull();
   });
 
+  it("leaving the tool and coming back, with the pointer still, outlines nothing", async () => {
+    mountPaste();
+    await openRedact();
+    fireEvent.pointerMove(hideLayer()!, at(40, 25));
+    expect(screen.getByTestId("text-target")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    pickRedact();
+    expect(screen.queryByTestId("text-target")).toBeNull();
+  });
+
   it("a click on a line hides that line only: one redaction over its box plus the margin", async () => {
     mountPaste();
     await openRedact();

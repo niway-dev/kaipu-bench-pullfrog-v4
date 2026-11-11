@@ -117,6 +117,8 @@ function AnnotationLayerImpl({
   // The line under the pointer, by line number: a hide removes its block, and an index would
   // then name the next one.
   const [hoverLine, setHoverLine] = useState<number | null>(null);
+  // Leaving the tool forgets the hover, so coming back does not outline a stale line.
+  if (!redactText && hoverLine !== null) setHoverLine(null);
   const hoverBlock = redactText ? (blocks.find((b) => b.line === hoverLine) ?? null) : null;
   const blockAt = (p: Pt): TextBlock | null => {
     if (!redactText) return null;
