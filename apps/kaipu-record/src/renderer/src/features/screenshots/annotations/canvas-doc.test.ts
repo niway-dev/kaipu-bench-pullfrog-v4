@@ -287,6 +287,27 @@ describe("canvas document", () => {
     expect(parsed.scene.exportFrame).toEqual({ x: 0, y: 0, w: 1.625, h: 1 });
   });
 
+  it("reopens a ruler on whole source pixels, without float noise from the world round trip", () => {
+    // 49 px across a 1000-unit base: v/49*1000 and back is not exact in doubles.
+    const measures = Array.from({ length: 48 }, (_, i) => ({
+      id: `m${i}`,
+      kind: "measure" as const,
+      axis: (i % 2 ? "x" : "y") as "x" | "y",
+      from: i,
+      to: 48 - (i % 7),
+      at: (i * 5) % 49,
+      imageW: 49,
+      imageH: 49,
+      color: "#0f0",
+    }));
+    const doc = buildCanvasDoc(
+      { ...scene, annotations: measures },
+      { pixelWidth: 1000, pixelHeight: 1000 },
+    );
+    const parsed = parseCanvasDoc(JSON.stringify(doc))!;
+    expect(parsed.scene.annotations).toEqual(measures);
+  });
+
   it("returns null for corrupt JSON", () => {
     expect(parseCanvasDoc("{not json")).toBeNull();
     expect(parseCanvasDoc("42")).toBeNull();

@@ -100,9 +100,11 @@ function mapGeometry(
       return { ...a, x: px(a.x), y: py(a.y) };
     case "measure": {
       // Along the axis: `from`/`to`; across it: `at` (a row for axis x, a column for y).
-      // `imageW`/`imageH` are the base's pixel size and stay as they are.
+      // `imageW`/`imageH` are the base's pixel size and stay as they are. A ruler spans whole
+      // source pixels, so the way back rounds off the float noise of the round trip (else a
+      // reopened label could read "36.99999999999999 px").
       const viaNorm = (map: (v: number) => number, size: number) => (v: number) =>
-        toWorld ? map(v / size) : map(v) * size;
+        toWorld ? map(v / size) : Math.round(map(v) * size);
       const x = viaNorm(px, a.imageW);
       const y = viaNorm(py, a.imageH);
       const [along, across] = a.axis === "x" ? [x, y] : [y, x];
