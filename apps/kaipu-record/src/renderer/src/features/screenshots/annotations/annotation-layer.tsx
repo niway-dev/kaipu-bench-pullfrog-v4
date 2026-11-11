@@ -418,15 +418,18 @@ function AnnotationLayerImpl({
   const shadow = scene.beautify.state?.shadow ?? 0;
   // Every blur still to be baked, drafts included: each one previews on the images it
   // touches, as the save bakes it into them (see `bakeCanvasRedactions`).
+  // Keyed on the blur draft only: any other draft changes on every pointer move, and a new
+  // array would re-render every memoized added image (filter included) while drawing.
+  const blurDraft = draft?.kind === "blur" ? draft : null;
   const redactions = useMemo(
     () =>
       canvasMode
         ? [
             ...shown.filter((a): a is BlurAnnotation => a.kind === "blur" && !a.locked),
-            ...(draft?.kind === "blur" ? [draft] : []),
+            ...(blurDraft ? [blurDraft] : []),
           ]
         : NO_BLURS,
-    [canvasMode, shown, draft],
+    [canvasMode, shown, blurDraft],
   );
   const selectedAnnotation =
     tools.tool === "select" && !editing
