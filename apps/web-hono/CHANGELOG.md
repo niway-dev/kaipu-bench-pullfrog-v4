@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.1](https://github.com/niway-dev/kaipu-record/compare/web-v0.12.0...web-v0.12.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** English text on the share image ([2796ca0](https://github.com/niway-dev/kaipu-record/commit/2796ca0069b48c7b8c3944f1a7820085ad77a461))
+* **web:** English text on the share image ([d8826a3](https://github.com/niway-dev/kaipu-record/commit/d8826a3934a2963c0c55146535990004f664658c))
+
 ## [0.12.0](https://github.com/niway-dev/kaipu-record/compare/web-v0.11.0...web-v0.12.0) (2026-11-10)
 
 
