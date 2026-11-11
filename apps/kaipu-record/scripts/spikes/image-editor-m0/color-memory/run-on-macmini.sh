@@ -33,6 +33,8 @@ sleep 3600
 JOB
 "${SSH[@]}" "chmod +x $REMOTE/job.sh"
 
+# Remove the KeepAlive job however this script ends (interrupt, failed ssh), so it never re-runs.
+trap '"${SSH[@]}" "launchctl remove $LABEL 2>/dev/null || true" || true' EXIT
 echo "== submit launchd job $LABEL"
 "${SSH[@]}" "launchctl submit -l $LABEL -o $REMOTE/job.log -e $REMOTE/job.log -- /bin/zsh $REMOTE/job.sh"
 
@@ -48,6 +50,8 @@ if [ -z "$done_flag" ]; then echo "TIMEOUT: job did not finish; log copied below
 
 echo "== copy results to $LOCAL_OUT"
 mkdir -p "$LOCAL_OUT"
+# Drop the previous run's files so a failed run cannot be summarized from them.
+rm -f "$LOCAL_OUT"/results-*.json "$LOCAL_OUT/capture.png" "$LOCAL_OUT/job.log"
 scp -o BatchMode=yes -q "macmini:$REMOTE/out/results-*.json" "macmini:$REMOTE/out/capture.png" \
   "macmini:$REMOTE/job.log" "$LOCAL_OUT/" || true
 "${SSH[@]}" "pgrep -fl 'niw2-697-spike' || echo 'no leftover spike processes'"

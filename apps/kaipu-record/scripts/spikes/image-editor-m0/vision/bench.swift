@@ -31,7 +31,7 @@ for fx in ["fhd-1x", "retina-3024x1964-2x"] {
     let truth = try! JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(fx).truth.json"))) as! [String: Any]
     let truthWords = truth["words"] as! [String]
     for level in ["accurate", "fast"] {
-        var walls: [Double] = [], recog: [Double] = [], firstWall = 0.0, firstRecog = 0.0
+        var walls: [Double] = [], recog: [Double] = [], firstWall: Double? = nil, firstRecog: Double? = nil
         var lastWords: [String] = [], lineCount = 0
         for i in 0...n {
             let (w, j) = run(helper, png, level)
@@ -45,11 +45,11 @@ for fx in ["fhd-1x", "retina-3024x1964-2x"] {
         var hit = 0; for w in truthWords { if let c = pool[w], c > 0 { pool[w] = c - 1; hit += 1 } }
         let recall = Double(hit) / Double(truthWords.count)
         let mx = walls.max() ?? 0, med = median(walls)
-        results.append(["fixture": fx, "level": level, "firstRunWallMs": r(firstWall), "firstRunRecognizeMs": r(firstRecog),
+        results.append(["fixture": fx, "level": level, "firstRunWallMs": firstWall.map(r) ?? NSNull(), "firstRunRecognizeMs": firstRecog.map(r) ?? NSNull(),
                         "medianWallMs": r(med), "maxWallMs": r(mx), "walls": walls.map(r),
                         "recognizeMsMedian": r(median(recog)), "words": lastWords.count, "lines": lineCount,
                         "groundTruthWords": truthWords.count, "groundTruthHit": hit, "recall": (recall * 1000).rounded() / 1000])
-        print(String(format: "%-22@ %-9@ %9.0f %9.0f %9.0f %10.0f %6d %6.1f%%", fx as NSString, level as NSString, firstWall, med, mx, median(recog), lastWords.count, recall * 100))
+        print(String(format: "%-22@ %-9@ %9.0f %9.0f %9.0f %10.0f %6d %6.1f%%", fx as NSString, level as NSString, firstWall ?? .nan, med, mx, median(recog), lastWords.count, recall * 100))
     }
 }
 try! JSONSerialization.data(withJSONObject: ["results": results], options: [.prettyPrinted]).write(to: URL(fileURLWithPath: outPath))

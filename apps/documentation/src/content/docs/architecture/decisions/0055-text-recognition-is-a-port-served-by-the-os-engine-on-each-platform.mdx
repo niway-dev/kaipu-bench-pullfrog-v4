@@ -61,7 +61,7 @@ five more processes; recall is ground-truth words recognized exactly:
 | Mac mini | 3024×1964, scale 2 | 214       | 246    | 266 | 99.2%  |
 
 - **The first recognition on a machine is much slower.** On the mini the first `accurate`
-  run hit a 10 s timeout; a stack sample showed the process waiting in
+  run hit the 10 s timeout of the runner's first version (the committed runner allows 60 s); a stack sample showed the process waiting in
   `_ANEClient compileModel` (the Neural Engine compiling the model). Run again by hand, it
   took **13.5 s**; every run after that was warm (the rows above). The M5's 1413 ms was the
   first launch after the build, but the model may already have been compiled there, so it
