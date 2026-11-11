@@ -88,3 +88,110 @@ export function wordRange(
   if (ia < 0 || ib < 0) return [];
   return ordered.slice(Math.min(ia, ib), Math.max(ia, ib) + 1);
 }
+
+/**
+ * A recognized text block: the words of one line as the recognizer grouped them (one Vision
+ * observation on macOS), with the box that contains them, in base-image pixels. It is what
+ * the redact tool hides in one click (NIW2-706).
+ */
+export interface TextBlock {
+  line: number;
+  words: RecognizedWord[];
+  rect: PixelRect;
+}
+
+/** The blocks of `words`, one per line, in reading order. Empty words make no block. */
+export function textBlocks(words: readonly RecognizedWord[]): TextBlock[] {
+  const byLine = new Map<number, RecognizedWord[]>();
+  for (const word of words) {
+    const list = byLine.get(word.line);
+    if (list) list.push(word);
+    else byLine.set(word.line, [word]);
+  }
+  const blocks: TextBlock[] = [];
+  for (const [line, list] of [...byLine].sort((a, b) => a[0] - b[0])) {
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const { rect } of list) {
+      x0 = Math.min(x0, rect.x);
+      y0 = Math.min(y0, rect.y);
+      x1 = Math.max(x1, rect.x + rect.w);
+      y1 = Math.max(y1, rect.y + rect.h);
+    }
+    if (x1 > x0 && y1 > y0) {
+      blocks.push({ line, words: list, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } });
+    }
+  }
+  return blocks;
+}
+
+/**
+ * The block nearest to a point, with its distance in DISPLAY pixels (0 inside its box), like
+ * `nearestWord`. `blocks` is returned by index.
+ */
+export function nearestBlock(
+  blocks: readonly TextBlock[],
+  p: NormPoint,
+  natural: PixelSize,
+  display: PixelSize,
+): { index: number; distPx: number } | null {
+  if (natural.w <= 0 || natural.h <= 0) return null;
+  let best: { index: number; distPx: number } | null = null;
+  for (let i = 0; i < blocks.length; i += 1) {
+    const r = blocks[i].rect;
+    const x = r.x / natural.w;
+    const y = r.y / natural.h;
+    const dx = Math.max(x - p.x, 0, p.x - (x + r.w / natural.w)) * display.w;
+    const dy = Math.max(y - p.y, 0, p.y - (y + r.h / natural.h)) * display.h;
+    const distPx = Math.hypot(dx, dy);
+    if (best === null || distPx < best.distPx) best = { index: i, distPx };
+    if (distPx === 0) break;
+  }
+  return best;
+}
+
+/** The margin a one-click redaction grows its block by: a quarter of the block's height. */
+const BLOCK_MARGIN_RATIO = 0.25;
+const BLOCK_MARGIN_MIN_PX = 2;
+const BLOCK_MARGIN_MAX_PX = 16;
+
+function rectsIntersect(a: PixelRect, b: PixelRect): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+/**
+ * The rect a one-click redaction covers, in base-image pixels: the block's box grown by a
+ * small margin (antialiased edges and descenders sit just outside the recognized box), on
+ * whole pixels and inside the image.
+ *
+ * "Hides exactly that block": the margin shrinks (half, then none) when it would reach a word
+ * of another block, so the click never blurs a neighbour's word, and the save never drops one
+ * from the text cache. Boxes that already overlap a neighbour's keep no margin; the cache then
+ * drops that neighbour too, because a redaction removes every word it touches.
+ */
+export function blockRedactionRect(
+  block: TextBlock,
+  others: readonly RecognizedWord[],
+  natural: PixelSize,
+): PixelRect {
+  const own = new Set(block.words);
+  const neighbours = others.filter((w) => !own.has(w)).map((w) => w.rect);
+  const full = Math.min(
+    BLOCK_MARGIN_MAX_PX,
+    Math.max(BLOCK_MARGIN_MIN_PX, Math.round(block.rect.h * BLOCK_MARGIN_RATIO)),
+  );
+  const grow = (m: number): PixelRect => {
+    const x0 = Math.max(0, Math.floor(block.rect.x - m));
+    const y0 = Math.max(0, Math.floor(block.rect.y - m));
+    const x1 = Math.min(natural.w, Math.ceil(block.rect.x + block.rect.w + m));
+    const y1 = Math.min(natural.h, Math.ceil(block.rect.y + block.rect.h + m));
+    return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+  };
+  for (const m of [full, Math.floor(full / 2)]) {
+    const rect = grow(m);
+    if (!neighbours.some((n) => rectsIntersect(rect, n))) return rect;
+  }
+  return grow(0);
+}

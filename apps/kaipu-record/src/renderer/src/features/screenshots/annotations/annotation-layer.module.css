@@ -51,3 +51,13 @@
   fill: var(--accent-primary);
   fill-opacity: 0.3;
 }
+
+/* The text block a click in the redact tool would hide (NIW2-706). */
+.textTarget rect {
+  fill: var(--accent-primary);
+  fill-opacity: 0.12;
+  stroke: var(--accent-primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}

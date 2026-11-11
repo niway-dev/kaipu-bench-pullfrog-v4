@@ -1272,6 +1272,8 @@
     "redactionBlur": "Blur",
     "redactionSolid": "Solid",
     "redactionNote": "Only Solid hides content for certain. Blur keeps a trace of the original colors.",
+    "textHidePending": "Recognizing text… Drag over what to hide meanwhile.",
+    "textHideReady": "Click a line of text to hide it, or drag over a region.",
     "colorPink": "Pink",
     "colorBlack": "Black",
     "colorWhite": "White",

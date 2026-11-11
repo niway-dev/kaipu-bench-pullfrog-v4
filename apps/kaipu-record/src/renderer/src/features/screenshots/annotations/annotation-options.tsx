@@ -262,6 +262,7 @@ export function AnnotationOptions({
             ))}
           </div>
           <p className={styles.note}>{t("redactionNote")}</p>
+          {textTool && tools.tool === "blur" && <TextHideHint text={textTool} />}
         </div>
       )}
 
@@ -277,6 +278,32 @@ export function AnnotationOptions({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * The redact tool's line about recognized text (NIW2-706): while recognition runs, and once
+ * there are lines to click. With no text (none found, or recognition unavailable) it says
+ * nothing: dragging a region works as it always did.
+ */
+function TextHideHint({ text }: { text: TextToolStatus }): React.JSX.Element | null {
+  const t = useTranslations("screenshots");
+  const state =
+    text.status === "pending"
+      ? "pending"
+      : text.status === "ready" && text.wordCount > 0
+        ? "ready"
+        : null;
+  if (!state) return null;
+  return (
+    <p
+      className={styles.note}
+      {...uiArea("editorImage.textHideHint")}
+      data-state={state}
+      role="status"
+    >
+      {t(state === "pending" ? "textHidePending" : "textHideReady")}
+    </p>
   );
 }
 
