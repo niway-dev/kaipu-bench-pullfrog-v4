@@ -54,7 +54,9 @@ M3 ([NIW2-700](https://linear.app/niway/issue/NIW2-700)) builds points 3–5 beh
 - **Files.** `<id>.png`, `.kaipu/<id>.canvas.json` and `.kaipu/<id>.assets/base.png`. The
   document and the assets are vault companions: rename, move and delete carry them.
 - **Write order.** The PNG first, then the assets, then the document (atomic) last, so a crash
-  leaves a valid PNG and at worst an older document. If the canvas part fails, the document is
+  leaves a valid PNG. A crash between the assets and the document can leave the previous
+  document over the new `base.png` (the older annotations on pixels that may carry newer
+  redactions); per-save asset ids would remove that window and are a follow-up. If the canvas part fails, the document is
   removed and the save still succeeds. A save without a document (flag off) deletes both.
 - **Coordinates.** Annotations stay normalized to the base image, as in M2, and may fall outside
   0–1. Item 0 is the base image at 0,0 with its pixel size. World units arrive with the second
