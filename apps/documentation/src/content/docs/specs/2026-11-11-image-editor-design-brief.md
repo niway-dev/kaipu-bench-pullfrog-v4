@@ -50,19 +50,22 @@ use it larger.
 - A **body**: the stage on the left filling the space, and a **Beautify panel** on the
   right, 280 px wide, with a left border.
 
+**Above the toolbar.** A workspace chip ("IN · Work ▾") that shows and changes the
+workspace the saved capture belongs to.
+
 **Top toolbar, left to right.**
 
 - Tools, icon only: Select, Pen, Box, Arrow, Text, Blur, Crop.
-- Undo, Redo.
-- A divider and the editable title of the capture.
-- On the right: Copy, Save (the only filled accent button), PDF, and Discard when a saved
-  version exists.
+- The editable title of the capture.
+- On the right, one group: Undo, Redo, a divider, then Copy, Save (the only filled accent
+  button), PDF, and Discard when a saved version exists.
 
 **Floating over the stage.**
 
 - Top left: an options card for the active tool (color swatches, text size XS/S/M/L, three
   stroke widths, delete).
-- Bottom left: a zoom control showing the percentage; clicking it resets to 100%.
+- Bottom left: a zoom pill with three parts: zoom out, the percentage (clicking it resets
+  to 100%), and zoom in. Zoom runs from 50% to 300%.
 - Bottom center: a "Saved" toast.
 
 **Beautify panel.** Heading, background swatches (none, dark, carbon, magenta and others),
