@@ -142,6 +142,9 @@ test("image-canvas document: save, reopen from the Library, redaction baked, fla
     await s.page.mouse.move(b1.x, b1.y, { steps: 8 });
     await s.page.mouse.up();
     await expect(annotationObjects(s.page)).toHaveCount(2);
+    // The live preview shows the real redaction: a raster tile of the blurred pixels. A
+    // tainted canvas once made it draw nothing while the save still baked the blur.
+    await expect(s.page.locator('svg image[href^="data:image/png"]')).toHaveCount(1);
     await s.shot("drawn");
 
     // The edit autosaves over the vault item, with the document.

@@ -27,17 +27,28 @@ export function naturalRect(
   return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
 }
 
-/** The decoded shot, loaded once per display URL (one entry: the editor shows one shot). */
-let cached: { src: string; image: Promise<HTMLImageElement | null> } | null = null;
+/**
+ * The decoded shot, loaded once per display URL (one entry: the editor shows one shot).
+ *
+ * Decoded from the fetched BYTES, not through an `<img>`: a vault shot's URL is
+ * `kaipu-media://`, another origin than the page, so an `<img>` loaded without CORS taints
+ * the canvas and `getImageData` throws — the preview then silently drew nothing (seen in
+ * the real app, NIW2-700). A bitmap made from a blob is never tainted. The decode options
+ * are the ones `bakeRedactions` uses, so the preview shows the pixels the save writes.
+ */
+let cached: { src: string; image: Promise<ImageBitmap | null> } | null = null;
 
-function loadImage(src: string): Promise<HTMLImageElement | null> {
+function loadImage(src: string): Promise<ImageBitmap | null> {
   if (cached?.src === src) return cached.image;
-  const image = new Promise<HTMLImageElement | null>((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
+  const image = fetch(src)
+    .then((response) => {
+      if (!response.ok) throw new Error(`redaction preview: ${response.status}`);
+      return response.blob();
+    })
+    .then((blob) =>
+      createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" }),
+    )
+    .catch(() => null);
   cached = { src, image };
   return image;
 }
@@ -46,11 +57,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 const tiles = new Map<string, string | null>();
 const MAX_TILES = 32;
 
-function renderTile(
-  img: HTMLImageElement,
-  rect: NaturalRect,
-  style: RedactionStyle,
-): string | null {
+function renderTile(img: ImageBitmap, rect: NaturalRect, style: RedactionStyle): string | null {
   const canvas = document.createElement("canvas");
   canvas.width = rect.w;
   canvas.height = rect.h;
@@ -90,7 +97,7 @@ export function useRedactionTile(
     void loadImage(src).then((img) => {
       if (!live) return;
       if (!img) return setState(null);
-      const nr = naturalRect({ x, y, w, h }, img.naturalWidth, img.naturalHeight);
+      const nr = naturalRect({ x, y, w, h }, img.width, img.height);
       if (!nr) return setState(null);
       const key = `${src}|${nr.x},${nr.y},${nr.w},${nr.h}|${style}`;
       let url = tiles.get(key);
@@ -103,9 +110,7 @@ export function useRedactionTile(
         if (tiles.size >= MAX_TILES) tiles.delete(tiles.keys().next().value as string);
         tiles.set(key, url);
       }
-      setState(
-        url ? { url, rect: nr, naturalW: img.naturalWidth, naturalH: img.naturalHeight } : null,
-      );
+      setState(url ? { url, rect: nr, naturalW: img.width, naturalH: img.height } : null);
     });
     return () => {
       live = false;
