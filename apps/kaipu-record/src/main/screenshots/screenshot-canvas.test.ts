@@ -168,6 +168,7 @@ describe("screenshot canvas storage", () => {
     });
 
     it("rejects on a read error other than a missing file", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
       await seed(doc("a"));
       await mkdir(join(vault.companionPaths("S").assetsDir, "a.png"), { recursive: true });
       const error = await readCanvas(vault, "S").catch((e: Error) => e);

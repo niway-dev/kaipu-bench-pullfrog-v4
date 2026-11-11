@@ -118,6 +118,7 @@ export async function readCanvas(
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return null;
+    console.warn("[screenshot-canvas] reading the canvas document failed:", error);
     // Only the code crosses to the renderer (and its error report): the message names
     // absolute vault paths, which hold the user's name.
     throw Object.assign(new Error(`canvas document read failed: ${code ?? "unknown"}`), { code });
