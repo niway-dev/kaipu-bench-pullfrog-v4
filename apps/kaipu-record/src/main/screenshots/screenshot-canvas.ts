@@ -6,7 +6,7 @@ import {
   type CanvasSavePayload,
 } from "@shared/types/screenshot-canvas";
 import { atomicWriteFile } from "../library/atomic-write";
-import type { LibraryVault } from "../library/library-vault";
+import { isPlainItemId, type LibraryVault } from "../library/library-vault";
 
 /** Largest canvas document main stores or returns (5 MB of JSON text). */
 export const CANVAS_DOC_MAX_BYTES = 5 * 1024 * 1024;
@@ -103,6 +103,8 @@ export async function readCanvas(
   vault: LibraryVault,
   id: string,
 ): Promise<CanvasReadResult | null> {
+  // The id comes from the renderer: never a path out of the vault's metadata folder.
+  if (typeof id !== "string" || !isPlainItemId(id)) return null;
   try {
     const paths = vault.companionPaths(id);
     const info = await stat(paths.canvasDoc);

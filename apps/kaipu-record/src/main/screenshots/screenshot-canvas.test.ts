@@ -177,6 +177,12 @@ describe("screenshot canvas storage", () => {
       expect((error as Error).message).toBe("canvas document read failed: EISDIR");
     });
 
+    it("returns null for an id that would leave the metadata folder", async () => {
+      await seed(doc("a"), { a: "x" });
+      expect(await readCanvas(vault, "../.kaipu/S")).toBeNull();
+      expect(await readCanvas(vault, "S")).not.toBeNull();
+    });
+
     it("returns null for a document over 5 MB", async () => {
       await seed(JSON.stringify({ items: [], pad: "x".repeat(5 * 1024 * 1024) }));
       expect(await readCanvas(vault, "S")).toBeNull();
