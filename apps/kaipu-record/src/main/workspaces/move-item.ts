@@ -135,6 +135,7 @@ const COMPANION_FILES = [
   "editSession",
   "editMeta",
   "canvasDoc",
+  "textCache",
   "webcam",
 ] as const;
 
