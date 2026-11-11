@@ -38,7 +38,9 @@ whose coordinates belong to one image and whose only saved artifact is a flatten
 4. **The flattened PNG is the fallback.** If the document or an asset cannot be read, the
    editor opens `<id>.png` as a single image item.
 5. **Redaction is destructive at save.** The redacted pixels are replaced in the stored
-   asset. The redaction stays in the document as a locked item.
+   asset. The redaction stays in the document as a locked item. Only
+   `solid` and `pixelate` exist as styles; the gaussian blur, which `annotations/tools.ts`
+   documents as reversible, is retired so it is never the thing baked into an asset.
 
 ## Alternatives rejected
 
