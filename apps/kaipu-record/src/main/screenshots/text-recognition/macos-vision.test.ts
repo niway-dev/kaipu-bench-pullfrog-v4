@@ -92,6 +92,39 @@ it("refuses a helper with another version, and checks the version only once", as
   expect(console.warn).toHaveBeenCalledTimes(1);
 });
 
+it("checks the version again after a transient failure", async () => {
+  const helperPath = await helper({
+    stdin: `console.log(JSON.stringify({ version: 1, words: [] }));`,
+  });
+  const realSpawn = (await import("node:child_process")).spawn;
+  let calls = 0;
+  const spawnImpl = ((...args: Parameters<typeof realSpawn>) => {
+    calls += 1;
+    if (calls === 1) throw Object.assign(new Error("busy"), { code: "EAGAIN" });
+    return realSpawn(...args);
+  }) as typeof realSpawn;
+  const recognizer = new MacVisionTextRecognizer({ helperPath, spawnImpl });
+  expect(await recognizer.recognize(png)).toBe("unavailable");
+  expect(await recognizer.recognize(png)).toEqual([]);
+});
+
+it("does not spawn --version again once the version is refused", async () => {
+  const helperPath = await helper({
+    version: "kaipu-text-recognition/0",
+    stdin: `console.log(JSON.stringify({ version: 1, words: [] }));`,
+  });
+  const realSpawn = (await import("node:child_process")).spawn;
+  const versionSpawns: string[][] = [];
+  const spawnImpl = ((...args: Parameters<typeof realSpawn>) => {
+    if (args[1]?.[0] === "--version") versionSpawns.push([...args[1]]);
+    return realSpawn(...args);
+  }) as typeof realSpawn;
+  const recognizer = new MacVisionTextRecognizer({ helperPath, spawnImpl });
+  await recognizer.recognize(png);
+  await recognizer.recognize(png);
+  expect(versionSpawns).toHaveLength(1);
+});
+
 it("kills a helper that prints more than the output cap", async () => {
   const helperPath = await helper({
     stdin: `const big = "x".repeat(1 << 20); for (let i = 0; i < 20; i++) process.stdout.write(big); setInterval(() => {}, 1000);`,

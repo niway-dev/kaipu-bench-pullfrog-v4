@@ -29,6 +29,8 @@ interface RunResult {
   ok: boolean;
   stdout: string;
   reason?: string;
+  /** The helper binary does not exist; no retry can change that. */
+  missing?: boolean;
 }
 
 export class MacVisionTextRecognizer implements TextRecognizer {
@@ -72,6 +74,9 @@ export class MacVisionTextRecognizer implements TextRecognizer {
     const result = await this.run(["--version"], undefined, VERSION_TIMEOUT_MS);
     if (!result.ok) {
       this.unavailable(`version check failed (${result.reason ?? "failed"})`);
+      // Only a missing binary is a definitive answer; a timeout or another spawn error may
+      // pass on the next call, so the check is not remembered.
+      if (!result.missing) this.versionCheck = undefined;
       return false;
     }
     if (result.stdout.trim() !== TEXT_RECOGNITION_HELPER_VERSION) {
@@ -104,11 +109,21 @@ export class MacVisionTextRecognizer implements TextRecognizer {
       try {
         child = this.spawnImpl(this.helperPath, args, { stdio: ["pipe", "pipe", "ignore"] });
       } catch (error) {
-        finish({ ok: false, stdout: "", reason: `spawn failed (${errorCode(error)})` });
+        finish({
+          ok: false,
+          stdout: "",
+          reason: `spawn failed (${errorCode(error)})`,
+          missing: errorCode(error) === "ENOENT",
+        });
         return;
       }
       child.on("error", (error) =>
-        finish({ ok: false, stdout: "", reason: `spawn failed (${errorCode(error)})` }),
+        finish({
+          ok: false,
+          stdout: "",
+          reason: `spawn failed (${errorCode(error)})`,
+          missing: errorCode(error) === "ENOENT",
+        }),
       );
       child.stdout?.on("data", (chunk: Buffer) => {
         size += chunk.length;
