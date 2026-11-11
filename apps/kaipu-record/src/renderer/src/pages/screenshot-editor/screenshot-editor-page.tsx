@@ -36,9 +36,12 @@ import {
   FLAT_BEAUTIFY,
 } from "@renderer/features/screenshots/beautify";
 import {
+  ColorsPanel,
   InspectBar,
   InspectLayer,
   InspectToggle,
+  LocateOverlay,
+  useColors,
   useInspect,
 } from "@renderer/features/screenshots/inspect";
 import { SaveOptionsDialog } from "@renderer/features/screenshots/save-options-dialog";
@@ -298,6 +301,8 @@ function ScreenshotEditorBody({
       });
     },
   });
+  // The colors panel (NIW2-704) counts Inspect's decoded pixels in a worker.
+  const colors = useColors({ active: inspect.active, buffer: inspect.buffer });
   const [zoom, setZoom] = useState(1);
   // Text recognition (NIW2-705, behind `image-text`). Latched at mount like `canvasMode`:
   // a shot never gains or loses the tool halfway through an edit.
@@ -1062,14 +1067,17 @@ function ScreenshotEditorBody({
               beautify={scene.beautify.state}
               crop={tools.tool === "crop" ? undefined : canvasMode ? exportFrameCrop : scene.crop}
               overlay={
-                <AnnotationLayer
-                  scene={scene}
-                  tools={tools}
-                  src={image.displayUrl}
-                  canvas={canvasMode}
-                  canvasMode={canvasMode}
-                  text={textLayer}
-                />
+                <>
+                  <AnnotationLayer
+                    scene={scene}
+                    tools={tools}
+                    src={image.displayUrl}
+                    canvas={canvasMode}
+                    canvasMode={canvasMode}
+                    text={textLayer}
+                  />
+                  {inspectEnabled && <LocateOverlay image={colors.overlay} />}
+                </>
               }
               frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}
               imgRef={imgRef}
@@ -1087,7 +1095,17 @@ function ScreenshotEditorBody({
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
             {inspect.active ? (
-              <InspectBar inspect={inspect} />
+              <>
+                <InspectBar inspect={inspect} colors={colors} />
+                {colors.open && (
+                  <ColorsPanel
+                    colors={colors}
+                    format={inspect.format}
+                    reading={inspect.status === "decoding"}
+                    unreadable={inspect.status === "error"}
+                  />
+                )}
+              </>
             ) : (
               <AnnotationOptions
                 tools={tools}
