@@ -62,9 +62,10 @@ maximum of five more processes; recall is ground-truth words recognized exactly:
 
 - **Only the first row per machine can be cold, and the mini's table row is not.** The bench runs
   the 1920×1080 image first and the Retina one after it, so the Retina row follows a loaded
-  model. On the mini the true first run is the 13.5 s one below, done outside the bench, so its
-  388 ms is a warm run. The table therefore shows warm numbers; the cold case missed the 1.5 s
-  target on the mini.
+  model. On the mini the first run ever was killed at 10 s while the model compiled, and the one
+  after it, by hand, took 13.5 s (below); both happened before the bench, so its 388 ms is a
+  warm run. The table therefore shows warm numbers; the cold case missed the 1.5 s target on
+  the mini.
 - **The first recognition on a machine is much slower.** On the mini the first `accurate`
   run hit the 10 s timeout of the runner's first version (the committed runner allows 60 s); a stack sample showed the process waiting in
   `_ANEClient compileModel` (the Neural Engine compiling the model). Run again by hand, it
