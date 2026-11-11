@@ -60,6 +60,23 @@ async function beautify(page: Page): Promise<void> {
   await padding.press("End");
 }
 
+/** Rightmost column holding a pixel that is not the white (#ffffff) fill, or -1 when none. */
+function rightmostInkColumn(clip: Clip): number {
+  for (let x = clip.width - 1; x >= 0; x -= 1) {
+    for (let y = 0; y < clip.height; y += 1) {
+      const i = (y * clip.width + x) * 4;
+      const [a, b, c, alpha] = [
+        clip.bitmap[i],
+        clip.bitmap[i + 1],
+        clip.bitmap[i + 2],
+        clip.bitmap[i + 3],
+      ];
+      if (alpha !== 0 && (a !== 255 || b !== 255 || c !== 255)) return x;
+    }
+  }
+  return -1;
+}
+
 async function parity(s: Scenario, file: string, off: Clip, on: Clip): Promise<void> {
   let differing = 0;
   const sameSize = off.width === on.width && off.height === on.height;
@@ -108,28 +125,42 @@ test("image-canvas: export parity with the flag off, content outside the image, 
   }
 
   // Launch 2: flag on.
-  const on = await startScenario("image-canvas", {
+  const onParity = await startScenario("image-canvas", {
     env: FLAG_ON,
     keepOutput: true,
     shotOffset: 1,
     videoName: "video-flag-on",
   });
   try {
-    await openImageEditor(on);
-    await expect(on.page.locator('[data-canvas="true"]')).toBeVisible();
-    await on.shot("flag-on-editor");
-    const onPlain = await copyToClipboard(on);
-    await save(on, "flag-on.png", onPlain);
-    await parity(on, "parity.json", offPlain, onPlain);
+    await openImageEditor(onParity);
+    await expect(onParity.page.locator('[data-canvas="true"]')).toBeVisible();
+    await onParity.shot("flag-on-editor");
+    const onPlain = await copyToClipboard(onParity);
+    await save(onParity, "flag-on.png", onPlain);
+    await parity(onParity, "parity.json", offPlain, onPlain);
 
     // Same beautify clicks, then compare, then start from a clean editor for the rest.
-    await beautify(on.page);
-    const onBeautified = await copyToClipboard(on);
-    await save(on, "flag-on-beautified.png", onBeautified);
-    await parity(on, "parity-beautified.json", offBeautified, onBeautified);
-    await on.page.reload();
+    await beautify(onParity.page);
+    const onBeautified = await copyToClipboard(onParity);
+    await save(onParity, "flag-on-beautified.png", onBeautified);
+    await parity(onParity, "parity-beautified.json", offBeautified, onBeautified);
+  } finally {
+    await onParity.finish();
+  }
+
+  // Launch 3: flag on, fresh vault. The editor autosaves into the stored PNG, so D and E
+  // start from a clean, non-beautified image.
+  const on = await startScenario("image-canvas", {
+    env: FLAG_ON,
+    keepOutput: true,
+    shotOffset: 2,
+    videoName: "video-flag-on-text",
+  });
+  try {
     await openImageEditor(on);
+    await expect(on.page.locator('[data-canvas="true"]')).toBeVisible();
     await on.page.getByRole("button", { name: "Copy", exact: true }).waitFor();
+    const offPlainSize = { width: offPlain.width, height: offPlain.height };
 
     // D. Text outside the image grows the export.
     await on.page.getByRole("button", { name: "Text", exact: true }).click();
@@ -141,18 +172,35 @@ test("image-canvas: export parity with the flag off, content outside the image, 
     expect(x, "the click must land inside the canvas, right of the image").toBeLessThan(
       canvasBox.x + canvasBox.width - 200,
     );
+    const shotBefore = await on.page.locator('[data-canvas="true"] img').first().boundingBox();
+    if (!shotBefore) throw new Error("shot has no box before the text");
     await on.page.mouse.click(x, y);
     const input = on.page.getByPlaceholder("Type…");
     await expect(input).toBeVisible();
-    await input.pressSequentially("Outside the image");
+    await input.pressSequentially("WWWWWWWWWW outside");
     // Enter commits; Escape would cancel the label.
     await input.press("Enter");
     await expect(input).toBeHidden();
     await on.shot("text-outside");
+    const shotAfter = await on.page.locator('[data-canvas="true"] img').first().boundingBox();
+    if (!shotAfter) throw new Error("shot has no box after the text");
+    const noJump = {
+      before: shotBefore,
+      after: shotAfter,
+      dx: shotAfter.x - shotBefore.x,
+      dy: shotAfter.y - shotBefore.y,
+    };
+    await writeFile(path.join(on.outDir, "no-jump.json"), JSON.stringify(noJump, null, 2));
+    console.log(`[verify] image-canvas: no-jump.json ${JSON.stringify(noJump)}`);
     const withText = await copyToClipboard(on);
     await save(on, "text-outside.png", withText);
+    const inkColumn = rightmostInkColumn(withText);
     const textResult = {
-      imageFlagOff: { width: offPlain.width, height: offPlain.height },
+      width: withText.width,
+      height: withText.height,
+      rightmostInkColumn: inkColumn,
+      marginToRightEdge: withText.width - 1 - inkColumn,
+      imageFlagOff: offPlainSize,
       textOutside: { width: withText.width, height: withText.height },
       widerThanImage: withText.width > offPlain.width,
       atLeastAsTall: withText.height >= offPlain.height,
@@ -161,6 +209,13 @@ test("image-canvas: export parity with the flag off, content outside the image, 
     console.log(`[verify] image-canvas: text-outside.json ${JSON.stringify(textResult)}`);
     expect(withText.width).toBeGreaterThan(offPlain.width);
     expect(withText.height).toBeGreaterThanOrEqual(offPlain.height);
+    expect(inkColumn, "the copy has ink").toBeGreaterThanOrEqual(0);
+    expect(
+      withText.width - 1 - inkColumn,
+      "the text must not be clipped at the right edge (>= 8 px margin)",
+    ).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(noJump.dx), "shot x moved when extents changed").toBeLessThanOrEqual(2);
+    expect(Math.abs(noJump.dy), "shot y moved when extents changed").toBeLessThanOrEqual(2);
 
     // E. Zoom out twice, pan with the wheel, then the export-frame (Crop) tool.
     const zoomOut = on.page.getByRole("button", { name: "Zoom out", exact: true });
