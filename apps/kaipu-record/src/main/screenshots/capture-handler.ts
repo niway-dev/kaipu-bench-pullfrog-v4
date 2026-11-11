@@ -181,8 +181,9 @@ export function createCaptureHandler(
     // An insert belongs to the open editor, which is not reachable during a take.
     if (insert && readDuringTake(deps)) return { kind: "cancelled" };
     capturing = true;
-    // A new capture frees the previous quiet capture's bytes.
-    clearLastQuietCapture();
+    // A new capture frees the previous quiet capture's bytes. An insert does not replace it
+    // (it never reaches the toast), so the toast's Save retry keeps its shot.
+    if (!insert) clearLastQuietCapture();
     const workspace = readWorkspace(deps);
     // An insert never reads the capture policy: nothing is saved, copied or toasted.
     const policy = insert ? null : readPolicy(deps, workspace);

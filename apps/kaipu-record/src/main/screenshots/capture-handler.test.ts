@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScreenshotAfterCapture, ScreenshotCopyMode } from "@shared/types";
 import type { CaptureAction } from "@shared/types/screenshot-capture";
 import { createCaptureHandler } from "./capture-handler";
-import { clearLastQuietCapture, takeLastQuietCapture } from "./last-quiet-capture";
+import {
+  clearLastQuietCapture,
+  keepLastQuietCapture,
+  takeLastQuietCapture,
+} from "./last-quiet-capture";
 import type { OverlayPort } from "./overlay-port";
 import {
   MacProvider,
@@ -825,6 +829,20 @@ describe("createCaptureHandler — insert into the open editor", () => {
     );
     expect(windows.afterCapture).toHaveBeenCalledWith("editor");
     expect(rememberMode).toHaveBeenCalledWith("frame");
+  });
+
+  it("keeps the quiet capture the toast holds for its Save retry", async () => {
+    keepLastQuietCapture({
+      png: Buffer.from([9, 8, 7]),
+      width: 3,
+      height: 1,
+      mode: "frame",
+      workspaceId: null,
+      policy: { copy: "auto", afterCapture: "preview" },
+    } as Parameters<typeof keepLastQuietCapture>[0]);
+    const { handler } = setup(async () => shot());
+    await handler({ mode: "frame", insert: true });
+    expect(takeLastQuietCapture()?.png).toEqual(Buffer.from([9, 8, 7]));
   });
 
   it("never saves, copies or toasts", async () => {
