@@ -45,30 +45,30 @@ export function useTags(): Tags {
         await work();
       } catch (error) {
         reportError(t("errorTags"), error, { context: { phase } });
+        // A success needs no re-list: main broadcasts `library:changed`. A failure sends none,
+        // so re-read to drop anything the UI assumed would be saved.
+        await refresh();
       }
-      await refresh();
     },
     [refresh],
   );
 
-  const create = useCallback(
-    async (name: string, color?: TagColor): Promise<TagSummary | null> => {
-      try {
-        const tag = await window.electronAPI.createTag(name, color);
-        await refresh();
-        return tag;
-      } catch (error) {
-        // The name is taken: hand back the tag that has it instead of failing.
-        const existing = (await window.electronAPI.listTags()).find(
-          (tag) => tag.name.toLowerCase() === name.trim().toLowerCase(),
-        );
-        if (existing) return existing;
-        reportError(t("errorTags"), error, { context: { phase: "create-tag" } });
-        return null;
-      }
-    },
-    [refresh],
-  );
+  const create = useCallback(async (name: string, color?: TagColor): Promise<TagSummary | null> => {
+    try {
+      // No refresh: main broadcasts `library:changed` after the write.
+      return await window.electronAPI.createTag(name, color);
+    } catch (error) {
+      // The name is taken: hand back the tag that has it instead of failing.
+      // A failed lookup falls through, so the create error is still reported.
+      const existing = await window.electronAPI
+        .listTags()
+        .then((list) => list.find((tag) => tag.name.toLowerCase() === name.trim().toLowerCase()))
+        .catch(() => undefined);
+      if (existing) return existing;
+      reportError(t("errorTags"), error, { context: { phase: "create-tag" } });
+      return null;
+    }
+  }, []);
 
   return {
     tags,

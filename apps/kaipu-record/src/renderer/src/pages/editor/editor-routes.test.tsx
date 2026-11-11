@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LibraryItem } from "@shared/types/library-item";
@@ -135,6 +135,53 @@ describe("Editor workspace routes", () => {
     expect(window.electronAPI.listLibraryItems).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps the image editor open when a re-list returns a vault error and loses the item", async () => {
+    let notify: (() => void) | null = null;
+    window.electronAPI.onLibraryChanged = (cb: () => void) => {
+      notify = cb;
+      return () => {};
+    };
+    setLibrary([localItem("s1", "screenshot", 1)]);
+    const router = renderAt("/editor/image/s1");
+    expect(await screen.findByText("image-editor:local:local-s1")).toBeInTheDocument();
+
+    window.electronAPI.listLibraryItems = vi.fn(async () => ({
+      items: [],
+      vaultError: "EACCES",
+      catalogVerifiedAt: null,
+    }));
+    await act(async () => notify?.());
+    // The page re-lists once more for the unknown id; wait for that to settle too.
+    await waitFor(() => expect(window.electronAPI.listLibraryItems).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(screen.getByText("image-editor:local:local-s1")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/editor/image/s1");
+  });
+
+  it("keeps the video editor open when a re-list loses the item", async () => {
+    let notify: (() => void) | null = null;
+    window.electronAPI.onLibraryChanged = (cb: () => void) => {
+      notify = cb;
+      return () => {};
+    };
+    setLibrary([localItem("a1", "recording", 1)]);
+    const router = renderAt("/editor/video/a1");
+    expect(await screen.findByText("video-editor:a1:local-a1")).toBeInTheDocument();
+
+    window.electronAPI.listLibraryItems = vi.fn(async () => ({
+      items: [],
+      vaultError: "EACCES",
+      catalogVerifiedAt: null,
+    }));
+    await act(async () => notify?.());
+    await waitFor(() => expect(window.electronAPI.listLibraryItems).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(screen.getByText("video-editor:a1:local-a1")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/editor/video/a1");
+  });
+
   it("stamps the opened item, once, so the Editor home can list it", async () => {
     setLibrary([localItem("s1", "screenshot", 1)]);
     renderAt("/editor/image/s1");
@@ -215,6 +262,27 @@ describe("EditorHomePage", () => {
     expect(screen.queryByText("Item rec")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Images/ })).toHaveTextContent("2");
     expect(screen.getByRole("tab", { name: /Videos/ })).toHaveTextContent("1");
+  });
+
+  it("keeps the Continue list on screen during a background re-list", async () => {
+    let notify: (() => void) | null = null;
+    window.electronAPI.onLibraryChanged = (cb: () => void) => {
+      notify = cb;
+      return () => {};
+    };
+    setLibrary([
+      localItem("saved", "screenshot", now - 9 * hour, {}, { editorSavedAt: now - hour }),
+    ]);
+    renderAt("/editor");
+    await screen.findByRole("button", { name: "Open Item saved" });
+
+    // A re-list that never answers: isLoading must not flip back to true.
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise(() => {}),
+    ) as typeof window.electronAPI.listLibraryItems;
+    await act(async () => notify?.());
+
+    expect(screen.getByRole("button", { name: "Open Item saved" })).toBeInTheDocument();
   });
 
   it("opens on the tab holding the most recent work, and resumes a video from it", async () => {

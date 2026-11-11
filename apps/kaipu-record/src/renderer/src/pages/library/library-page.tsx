@@ -75,7 +75,8 @@ export function LibraryPage(): React.JSX.Element {
   const tCopy = useTranslations("backgroundCopy");
   const navigate = useNavigate();
   const { openItem } = useOpenInEditor();
-  const { videos, isLoading, hasError, refresh, remove, setTags } = useLocalLibrary();
+  const { videos, isLoading, isRefreshing, hasError, refresh, sync, remove, setTags } =
+    useLocalLibrary();
   const tagApi = useTags();
   // Outside videos come in through Export, the door for any video: the Library only lists.
   const canShowVaultBanner = hasError && videos.length > 0;
@@ -258,12 +259,12 @@ export function LibraryPage(): React.JSX.Element {
             className={styles.headerSyncButton}
             title={t("rescan")}
             type="button"
-            onClick={() => void refresh()}
+            onClick={() => void sync()}
           >
             <RefreshCw
               size={15}
               strokeWidth={1.8}
-              className={isLoading ? styles.spinning : undefined}
+              className={isLoading || isRefreshing ? styles.spinning : undefined}
             />
             {t("sync")}
           </button>

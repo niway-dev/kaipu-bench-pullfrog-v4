@@ -34,6 +34,7 @@ describe("LibraryService", () => {
   // even though it runs fine (see screenshot-capture.test.ts for the same pattern).
   let fetchCatalog: (token: string) => Promise<CloudCatalogEntry[]>;
   let service: LibraryService;
+  let clock: number;
 
   const cloudEntry = (
     assetId: string,
@@ -61,6 +62,7 @@ describe("LibraryService", () => {
     userData = await mkdtemp(join(tmpdir(), "kaipu-svc-data-"));
     account = { userId: "u1", token: "t" };
     catalog = [];
+    clock = 777;
     fetchCatalog = vi.fn(async () => catalog);
     cache = new CatalogCache(userData);
     service = new LibraryService({
@@ -69,7 +71,7 @@ describe("LibraryService", () => {
       cache,
       account: () => account,
       fetchCatalog,
-      now: () => 777,
+      now: () => clock,
     });
   });
   afterEach(async () => {
@@ -132,7 +134,7 @@ describe("LibraryService", () => {
     const vault = new LibraryVault(vaultDir);
     const rec = (await vault.describe("a"))!;
     catalog = [cloudEntry(rec.assetId), cloudEntry("cloud-only")];
-    expect(await service.refreshCatalog()).toEqual({ ok: true, verifiedAt: 777 });
+    expect(await service.refreshCatalog()).toEqual({ ok: true, verifiedAt: 777, changed: true });
     const result = await service.list();
     expect(result.items.map((i) => [i.assetId, i.availability])).toEqual(
       expect.arrayContaining([
@@ -151,7 +153,10 @@ describe("LibraryService", () => {
     catalog = [cloudEntry("x")];
     await service.refreshCatalog();
     vi.mocked(fetchCatalog).mockRejectedValueOnce({ kind: "unauthorized" });
-    expect(await service.refreshCatalog()).toEqual({ ok: false, reason: "unauthorized" });
+    expect(await service.refreshCatalog({ force: true })).toEqual({
+      ok: false,
+      reason: "unauthorized",
+    });
     expect((await service.list()).items).toHaveLength(1);
   });
 
@@ -234,6 +239,78 @@ describe("LibraryService", () => {
     });
     expect(await service.removeLocalCopy("a")).toEqual({ ok: false, reason: "hash-unknown" });
     await expect(access(join(vaultDir, "a.mp4"))).resolves.toBeUndefined();
+  });
+
+  it("reports changed:false when the server catalog is identical, but still refreshes lastVerifiedAt", async () => {
+    catalog = [cloudEntry("x")];
+    await service.refreshCatalog({ force: true });
+    clock += 1000;
+    expect(await service.refreshCatalog({ force: true })).toEqual({
+      ok: true,
+      verifiedAt: 1777,
+      changed: false,
+    });
+    const cached = await cache.read("u1");
+    expect(cached![0]!.lastVerifiedAt).toBe(1777);
+  });
+
+  it("ignores lastVerifiedAt and lastSeenLocalId when comparing catalogs", async () => {
+    catalog = [cloudEntry("x")];
+    await service.refreshCatalog({ force: true });
+    catalog = [cloudEntry("x", { lastVerifiedAt: 99, lastSeenLocalId: "elsewhere" })];
+    expect(await service.refreshCatalog({ force: true })).toMatchObject({ changed: false });
+  });
+
+  it("reports changed:true when an entry changes, appears or disappears", async () => {
+    catalog = [cloudEntry("x")];
+    await service.refreshCatalog({ force: true });
+    catalog = [cloudEntry("x", { title: "renamed" })];
+    expect(await service.refreshCatalog({ force: true })).toMatchObject({ changed: true });
+    catalog = [cloudEntry("x", { title: "renamed" }), cloudEntry("y")];
+    expect(await service.refreshCatalog({ force: true })).toMatchObject({ changed: true });
+    catalog = [];
+    expect(await service.refreshCatalog({ force: true })).toMatchObject({ changed: true });
+  });
+
+  it("throttles a second refresh inside 30 s unless forced or the account changed", async () => {
+    catalog = [cloudEntry("x")];
+    await service.refreshCatalog();
+    // A throttled call answers with the last verification and changed:false (nothing was fetched).
+    expect(await service.refreshCatalog()).toEqual({ ok: true, verifiedAt: 777, changed: false });
+    expect(fetchCatalog).toHaveBeenCalledTimes(1);
+    await service.refreshCatalog({ force: true });
+    expect(fetchCatalog).toHaveBeenCalledTimes(2);
+    clock += 30_001;
+    await service.refreshCatalog();
+    expect(fetchCatalog).toHaveBeenCalledTimes(3);
+    account = { userId: "other", token: "t2" };
+    await service.refreshCatalog();
+    expect(fetchCatalog).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not throttle after a failed refresh", async () => {
+    vi.mocked(fetchCatalog).mockRejectedValueOnce(new Error("offline"));
+    expect(await service.refreshCatalog()).toEqual({ ok: false, reason: "network" });
+    expect(await service.refreshCatalog()).toMatchObject({ ok: true });
+    expect(fetchCatalog).toHaveBeenCalledTimes(2);
+  });
+
+  it("never throws out of refreshCatalog: a throwing account lookup or cache is a network failure", async () => {
+    const boom = new LibraryService({
+      vault: () => new LibraryVault(vaultDir),
+      vaultDir: () => vaultDir,
+      cache,
+      account: () => {
+        throw new Error("keychain unavailable");
+      },
+      fetchCatalog,
+      now: () => clock,
+    });
+    expect(await boom.refreshCatalog()).toEqual({ ok: false, reason: "network" });
+
+    vi.spyOn(cache, "write").mockRejectedValueOnce(new Error("ENOSPC"));
+    catalog = [cloudEntry("x")];
+    expect(await service.refreshCatalog({ force: true })).toEqual({ ok: false, reason: "network" });
   });
 
   it("list() skips the cache write when the catalog is unchanged", async () => {

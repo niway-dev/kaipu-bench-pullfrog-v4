@@ -23,7 +23,11 @@ import styles from "./editor-page.module.css";
  * (a capture saved a moment ago): an id the list does not have is re-listed once before
  * the page gives up on it, and reports loading until that answer arrives.
  */
-function useItemFromParams(): { item: LibraryVideo | undefined; isLoading: boolean } {
+function useItemFromParams(): {
+  assetId: string | undefined;
+  item: LibraryVideo | undefined;
+  isLoading: boolean;
+} {
   const { assetId } = useParams<{ assetId: string }>();
   const { videos, isLoading, refresh } = useLocalLibrary();
   const item = videos.find((v) => v.assetId === assetId);
@@ -33,7 +37,7 @@ function useItemFromParams(): { item: LibraryVideo | undefined; isLoading: boole
     if (!needsRelist) return;
     void refresh().finally(() => setRelisted(assetId));
   }, [needsRelist, assetId, refresh]);
-  return { item, isLoading: isLoading || needsRelist };
+  return { assetId, item, isLoading: isLoading || needsRelist };
 }
 
 /**
@@ -42,6 +46,10 @@ function useItemFromParams(): { item: LibraryVideo | undefined; isLoading: boole
  * and both editors treat a new `source` object as a new input — the image
  * editor re-reads its bytes on every identity change. Router state, which the
  * editors used to read, was stable per navigation; this restores that.
+ *
+ * Callers key it by the URL's `:assetId`, not by the resolved item: a re-list that
+ * transiently loses the item (a vault error) must not drop the source and kick the
+ * user out of an editor holding unsaved work.
  */
 function useStableSource<T>(key: string | undefined, next: T | null): T | null {
   const ref = useRef<{ key: string | undefined; value: T | null }>({ key: undefined, value: null });
@@ -73,8 +81,8 @@ function Loading(): React.JSX.Element {
 
 /** `/editor/video/:assetId` — the video editor for one recording. */
 export function EditorVideoPage(): React.JSX.Element {
-  const { item, isLoading } = useItemFromParams();
-  const source = useStableSource(item?.assetId, item ? videoSourceFor(item) : null);
+  const { assetId, item, isLoading } = useItemFromParams();
+  const source = useStableSource(assetId, item ? videoSourceFor(item) : null);
   useMarkOpened(source?.id);
   if (isLoading && !source) return <Loading />;
   // Unknown id, cloud-only item or a recording without a duration: back to the
@@ -87,12 +95,12 @@ export function EditorVideoPage(): React.JSX.Element {
 
 /** `/editor/image/:assetId` — the image editor for one saved screenshot. */
 export function EditorImagePage(): React.JSX.Element {
-  const { item, isLoading } = useItemFromParams();
-  const source = useStableSource(item?.assetId, item ? imageSourceFor(item) : null);
+  const { assetId, item, isLoading } = useItemFromParams();
+  const source = useStableSource(assetId, item ? imageSourceFor(item) : null);
   useMarkOpened(source?.kind === "local" ? source.id : null);
   if (isLoading && !source) return <Loading />;
-  if (!item || !source) return <Navigate to={ROUTES.editor} replace />;
-  return <ScreenshotEditor key={item.assetId} source={source} />;
+  if (!source) return <Navigate to={ROUTES.editor} replace />;
+  return <ScreenshotEditor key={assetId} source={source} />;
 }
 
 /**

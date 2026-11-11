@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { captureEvent } from "@renderer/features/analytics";
 
@@ -13,6 +13,8 @@ export interface MissingRecoveryParams {
   found: boolean;
   /** The library list is still being read. */
   isLoading: boolean;
+  /** The last list came back with a vault error: the item is "unknown", not missing. */
+  hasError?: boolean;
   /** Size of the current list — context for the diagnostic event. */
   listSize: number;
   /** True when we arrived straight from a finished recording (see app-shell). */
@@ -38,37 +40,47 @@ export interface MissingRecoveryParams {
 export function useMissingRecordingRecovery(params: MissingRecoveryParams): {
   recovering: boolean;
 } {
-  const { id, found, isLoading, listSize, fromRecording, refresh } = params;
+  const { id, found, isLoading, hasError = false, listSize, fromRecording, refresh } = params;
   const navigate = useNavigate();
-  const phase = useRef<"idle" | "retried" | "done">("idle");
+  // The id whose single re-list has completed. Keyed by id, so navigating between two
+  // detail pages (same component, new param) starts over without any explicit reset,
+  // and a retry that finishes after the id changed cannot redirect for the new one.
+  const [retriedFor, setRetriedFor] = useState<string | undefined>(undefined);
+  // Guards against a second re-list / a second redirect while state is catching up.
+  const startedFor = useRef<string | undefined>(undefined);
+  const reportedFor = useRef<string | undefined>(undefined);
 
-  // Navigating between two detail pages reuses this component (same route, new
-  // param), so reset the state machine whenever the id changes.
-  const trackedId = useRef(id);
-  if (trackedId.current !== id) {
-    trackedId.current = id;
-    phase.current = "idle";
-  }
-
-  const missing = !isLoading && !!id && !found;
+  // An unreadable vault (unplugged drive, EACCES) hides items it still holds: treating
+  // that as "missing" would re-list pointlessly and then redirect away from a real item.
+  const missing = !isLoading && !hasError && !!id && !found;
+  const retried = !!id && retriedFor === id;
 
   useEffect(() => {
-    if (!missing) {
-      if (found) phase.current = "idle"; // the item showed up — arm recovery again
-      return undefined;
+    if (found) {
+      // The item showed up — arm recovery again for a later disappearance.
+      startedFor.current = undefined;
+      reportedFor.current = undefined;
+      setRetriedFor(undefined);
     }
-    if (phase.current === "idle") {
-      phase.current = "retried";
-      const timer = setTimeout(() => void refresh(), RETRY_DELAY_MS);
-      return () => clearTimeout(timer);
-    }
-    if (phase.current === "retried") {
-      phase.current = "done";
-      captureEvent("library-detail-missing", { id, listSize, fromRecording });
-      navigate("/library", { replace: true });
-    }
-    return undefined;
-  }, [missing, found, id, listSize, fromRecording, refresh, navigate]);
+  }, [found, retriedFor]);
 
-  return { recovering: missing && phase.current !== "done" };
+  useEffect(() => {
+    if (!missing || !id || retried || startedFor.current === id) return undefined;
+    const timer = setTimeout(() => {
+      startedFor.current = id;
+      // The redirect follows the retry's completion, not a loading flip: a re-list that
+      // returns the same list changes nothing the hook could otherwise observe.
+      void refresh().finally(() => setRetriedFor(id));
+    }, RETRY_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [missing, id, retried, refresh]);
+
+  useEffect(() => {
+    if (!missing || !retried || reportedFor.current === id) return;
+    reportedFor.current = id;
+    captureEvent("library-detail-missing", { id, listSize, fromRecording });
+    navigate("/library", { replace: true });
+  }, [missing, retried, id, listSize, fromRecording, navigate]);
+
+  return { recovering: missing && !retried };
 }

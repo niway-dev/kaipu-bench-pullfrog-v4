@@ -58,6 +58,20 @@ export interface ReconcileFixOptions {
   skip?: ReadonlySet<string>;
 }
 
+/** A cloud refresh that succeeded less than this long ago is skipped unless forced. */
+export const CLOUD_REFRESH_MIN_INTERVAL_MS = 30_000;
+
+/** True when the two catalogs differ in anything but bookkeeping (when verified, last local id). */
+function catalogDiffers(a: CloudCatalogEntry[], b: CloudCatalogEntry[]): boolean {
+  if (a.length !== b.length) return true;
+  const key = (entry: CloudCatalogEntry): string => {
+    const { lastVerifiedAt: _verified, lastSeenLocalId: _seen, ...rest } = entry;
+    return JSON.stringify(Object.entries(rest).sort(([x], [y]) => (x < y ? -1 : 1)));
+  };
+  const before = new Map(a.map((entry) => [entry.assetId, key(entry)] as const));
+  return b.some((entry) => before.get(entry.assetId) !== key(entry));
+}
+
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -65,6 +79,8 @@ const errorMessage = (error: unknown): string =>
  *  edit-project-probe → video-edit-session) — testable against temp dirs. */
 export class LibraryService {
   private inflightRefresh: Promise<CatalogRefreshResult> | null = null;
+  /** The last successful cloud fetch, for the per-user throttle. */
+  private lastRefresh: { userId: string; at: number } | null = null;
   private readonly now: () => number;
 
   private readonly activity: VaultActivity;
@@ -187,7 +203,28 @@ export class LibraryService {
     return { items, vaultError, catalogVerifiedAt };
   }
 
-  refreshCatalog(): Promise<CatalogRefreshResult> {
+  /**
+   * Re-confirm the cloud catalog. Never rejects: the cloud is optional, so any failure
+   * (signed out, unauthorized, offline, a throwing account or cache) is a result the caller
+   * can ignore, and the local list never depends on it.
+   */
+  refreshCatalog(opts: { force?: boolean } = {}): Promise<CatalogRefreshResult> {
+    try {
+      const account = this.deps.account();
+      const last = this.lastRefresh;
+      if (
+        !opts.force &&
+        account &&
+        last &&
+        last.userId === account.userId &&
+        this.now() - last.at < CLOUD_REFRESH_MIN_INTERVAL_MS
+      ) {
+        // Nothing was fetched, so nothing changed since the last broadcast decision.
+        return Promise.resolve({ ok: true, verifiedAt: last.at, changed: false });
+      }
+    } catch {
+      return Promise.resolve({ ok: false, reason: "network" });
+    }
     if (this.inflightRefresh) return this.inflightRefresh;
     this.inflightRefresh = this.doRefresh().finally(() => {
       this.inflightRefresh = null;
@@ -196,13 +233,15 @@ export class LibraryService {
   }
 
   private async doRefresh(): Promise<CatalogRefreshResult> {
-    const account = this.deps.account();
-    if (!account) return { ok: false, reason: "signed-out" };
     try {
+      const account = this.deps.account();
+      if (!account) return { ok: false, reason: "signed-out" };
       const fresh = await this.deps.fetchCatalog(account.token);
       const previous = (await this.deps.cache.read(account.userId)) ?? [];
       const seen = new Map(previous.map((e) => [e.assetId, e.lastSeenLocalId] as const));
       const verifiedAt = this.now();
+      const changed = catalogDiffers(previous, fresh);
+      // Always written: keeps lastVerifiedAt fresh even when nothing changed.
       await this.deps.cache.write(
         account.userId,
         fresh.map((e) => ({
@@ -211,7 +250,8 @@ export class LibraryService {
           lastSeenLocalId: seen.get(e.assetId) ?? null,
         })),
       );
-      return { ok: true, verifiedAt };
+      this.lastRefresh = { userId: account.userId, at: verifiedAt };
+      return { ok: true, verifiedAt, changed };
     } catch (err) {
       if (
         err &&

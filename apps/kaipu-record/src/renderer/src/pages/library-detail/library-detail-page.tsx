@@ -99,7 +99,7 @@ export function LibraryDetailPage(): React.JSX.Element {
   const { assetId } = useParams<{ assetId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { videos, isLoading, refresh, rename, setTags, remove, reveal, removeLocalCopy } =
+  const { videos, isLoading, hasError, refresh, rename, setTags, remove, reveal, removeLocalCopy } =
     useLocalLibrary();
 
   const video = videos.find((v) => v.assetId === assetId);
@@ -114,6 +114,7 @@ export function LibraryDetailPage(): React.JSX.Element {
     id: assetId,
     found: Boolean(video),
     isLoading,
+    hasError,
     listSize: videos.length,
     fromRecording: Boolean(fromRecording),
     refresh,

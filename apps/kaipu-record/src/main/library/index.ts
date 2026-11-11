@@ -142,9 +142,11 @@ export function registerLibraryVaultHandlers(deps: {
     IPC_CHANNELS.listLibraryItems,
     scopedAdmitted("library", () => service.list()),
   );
-  ipcMain.handle(IPC_CHANNELS.refreshCloudCatalog, async () => {
-    const result = await service.refreshCatalog();
-    if (result.ok) broadcastLibraryChanged();
+  // The cloud is optional: this never rejects (the service folds every failure into a
+  // result). Only a catalog that really differs re-lists the Library in every window.
+  ipcMain.handle(IPC_CHANNELS.refreshCloudCatalog, async (_event, force?: unknown) => {
+    const result = await service.refreshCatalog({ force: force === true });
+    if (result.ok && result.changed) broadcastLibraryChanged();
     return result;
   });
   // One lease around describe → hash → delete.
@@ -160,7 +162,12 @@ export function registerLibraryVaultHandlers(deps: {
   // items disappear at once, and kick a refresh for the new one.
   deps.auth.onAccountChanged((userId) => {
     broadcastLibraryChanged();
-    if (userId) void service.refreshCatalog().then((r) => r.ok && broadcastLibraryChanged());
+    if (userId) {
+      // A new account must not wait out the throttle of the previous one.
+      void service
+        .refreshCatalog({ force: true })
+        .then((r) => r.ok && r.changed && broadcastLibraryChanged());
+    }
   });
 
   ipcMain.handle(
@@ -273,8 +280,14 @@ export function registerLibraryVaultHandlers(deps: {
   let deviceId = "unknown";
   void loadDeviceId(app.getPath("userData")).then((id) => (deviceId = id));
   const tags: TagRepository = new VaultTagRepository(currentVault, () => deviceId);
-  const summary = async (id: string): Promise<TagSummary> =>
-    (await tags.list()).find((t) => t.id === id)!;
+  // A brand-new tag carries no item yet, so its summary needs no counting scan of the vault.
+  const fresh = (tag: Omit<TagSummary, "count">): TagSummary => ({
+    id: tag.id,
+    name: tag.name,
+    slug: tag.slug,
+    color: tag.color,
+    count: 0,
+  });
   const changed = async <T>(work: Promise<T>): Promise<T> => {
     const result = await work;
     broadcastLibraryChanged();
@@ -284,14 +297,15 @@ export function registerLibraryVaultHandlers(deps: {
   // out of that window, so a write never lands in another workspace's tags.json.
   handleVault(IPC_CHANNELS.listTags, () => tags.list());
   handleVault(IPC_CHANNELS.createTag, async (name: unknown, color: unknown) =>
-    summary((await changed(tags.create(String(name), isTagColor(color) ? color : undefined))).id),
+    fresh(await changed(tags.create(String(name), isTagColor(color) ? color : undefined))),
   );
-  handleVault(IPC_CHANNELS.renameTag, async (id: unknown, name: unknown) =>
-    summary((await changed(tags.rename(String(id), String(name)))).id),
-  );
+  // Rename and recolor answer nothing: the broadcast re-lists every window's tags.
+  handleVault(IPC_CHANNELS.renameTag, async (id: unknown, name: unknown) => {
+    await changed(tags.rename(String(id), String(name)));
+  });
   handleVault(IPC_CHANNELS.recolorTag, async (id: unknown, color: unknown) => {
     if (!isTagColor(color)) throw new Error("tags: not a palette color");
-    return summary((await changed(tags.recolor(String(id), color))).id);
+    await changed(tags.recolor(String(id), color));
   });
   handleVault(IPC_CHANNELS.deleteTag, (id: unknown) => changed(tags.remove(String(id))));
   handleVault(IPC_CHANNELS.setItemTags, (itemId: unknown, tagIds: unknown) =>

@@ -139,13 +139,175 @@ describe("useLocalLibrary", () => {
   });
 
   it("kicks off a cloud catalog refresh on mount", async () => {
-    const refreshCloudCatalog = vi.fn(async () => ({ ok: true as const, verifiedAt: 1 }));
+    const refreshCloudCatalog = vi.fn(async () => ({
+      ok: true as const,
+      verifiedAt: 1,
+      changed: false,
+    }));
     window.electronAPI.refreshCloudCatalog = refreshCloudCatalog;
 
     const { result } = renderHook(() => useLocalLibrary());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(refreshCloudCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the list visible and isLoading false during a background re-list", async () => {
+    let notify: (() => void) | null = null;
+    window.electronAPI.onLibraryChanged = (cb: () => void) => {
+      notify = cb;
+      return () => {};
+    };
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.videos).toHaveLength(2));
+    expect(result.current.isLoading).toBe(false);
+
+    let resolve!: (value: Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>) => void;
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise((r) => (resolve = r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    await act(async () => notify?.());
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isRefreshing).toBe(true);
+    expect(result.current.videos).toHaveLength(2);
+
+    await act(async () => resolve({ items: [], vaultError: null, catalogVerifiedAt: null }));
+    expect(result.current.isRefreshing).toBe(false);
+    expect(result.current.videos).toHaveLength(0);
+  });
+
+  it("an older list resolving last cannot overwrite a newer one", async () => {
+    type ListResult = Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>;
+    const resolvers: Array<(value: ListResult) => void> = [];
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise<ListResult>((r) => resolvers.push(r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    // A second re-list starts while the first is still scanning.
+    await act(async () => void result.current.refresh());
+    expect(resolvers).toHaveLength(2);
+
+    // The newer list lands first, then the stale one resolves last.
+    await act(async () =>
+      resolvers[1]!({ items: [items[0]!], vaultError: null, catalogVerifiedAt: 7 }),
+    );
+    expect(result.current.isLoading).toBe(false);
+    await act(async () => resolvers[0]!({ items, vaultError: null, catalogVerifiedAt: null }));
+
+    expect(result.current.videos).toHaveLength(1);
+    expect(result.current.catalogVerifiedAt).toBe(7);
+    expect(result.current.isRefreshing).toBe(false);
+  });
+
+  it("a superseded refresh() resolves only once the newer list is on screen", async () => {
+    type ListResult = Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>;
+    const resolvers: Array<(value: ListResult) => void> = [];
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise<ListResult>((r) => resolvers.push(r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    await act(async () => resolvers[0]!({ items: [], vaultError: null, catalogVerifiedAt: null }));
+
+    // A caller awaits its re-list (the detail page's retry); a broadcast starts a newer one.
+    let older: Promise<void> | undefined;
+    let olderDone = false;
+    await act(async () => {
+      older = result.current.refresh().then(() => void (olderDone = true));
+    });
+    await act(async () => void result.current.refresh());
+    expect(resolvers).toHaveLength(3);
+
+    // The older call's own list resolves first and is dropped: it must not resolve yet.
+    await act(async () => resolvers[1]!({ items, vaultError: null, catalogVerifiedAt: null }));
+    expect(olderDone).toBe(false);
+
+    await act(async () =>
+      resolvers[2]!({ items: [items[0]!], vaultError: null, catalogVerifiedAt: null }),
+    );
+    await act(async () => older);
+    expect(olderDone).toBe(true);
+    expect(result.current.videos).toHaveLength(1);
+  });
+
+  it("stays loading when the first list is superseded until the newer one lands", async () => {
+    type ListResult = Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>;
+    const resolvers: Array<(value: ListResult) => void> = [];
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise<ListResult>((r) => resolvers.push(r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    await act(async () => void result.current.refresh());
+
+    await act(async () => resolvers[0]!({ items, vaultError: null, catalogVerifiedAt: null }));
+    expect(result.current.isLoading).toBe(true);
+    await act(async () =>
+      resolvers[1]!({ items: [items[1]!], vaultError: null, catalogVerifiedAt: null }),
+    );
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.videos).toHaveLength(1);
+  });
+
+  it("sync() forces the cloud refresh and re-lists locally", async () => {
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const listed = vi.mocked(window.electronAPI.listLibraryItems).mock.calls.length;
+
+    await act(async () => {
+      await result.current.sync();
+    });
+
+    expect(window.electronAPI.refreshCloudCatalog).toHaveBeenCalledWith(true);
+    expect(vi.mocked(window.electronAPI.listLibraryItems).mock.calls.length).toBe(listed + 1);
+  });
+
+  it("refreshCloud() is not forced unless asked", async () => {
+    const refreshCloudCatalog = vi.fn(async () => ({
+      ok: false as const,
+      reason: "signed-out" as const,
+    }));
+    window.electronAPI.refreshCloudCatalog = refreshCloudCatalog;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(refreshCloudCatalog).toHaveBeenLastCalledWith(false);
+    await act(async () => {
+      await result.current.refreshCloud(true);
+    });
+    expect(refreshCloudCatalog).toHaveBeenLastCalledWith(true);
+  });
+
+  it("a rejecting cloud refresh never blanks or blocks the local list", async () => {
+    window.electronAPI.refreshCloudCatalog = vi.fn(async () => {
+      throw new Error("ipc blew up");
+    });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const { result } = renderHook(() => useLocalLibrary());
+      await waitFor(() => expect(result.current.videos).toHaveLength(2));
+      expect(result.current.isLoading).toBe(false);
+
+      // Sync: the cloud half fails, the local re-list still lands and nothing rejects.
+      await act(async () => {
+        await result.current.sync();
+      });
+      expect(result.current.videos).toHaveLength(2);
+      expect(reportError).not.toHaveBeenCalled();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
+  it("does not wait for the cloud before listing the local items", async () => {
+    window.electronAPI.refreshCloudCatalog = vi.fn(() => new Promise<never>(() => {}));
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.videos).toHaveLength(2));
+    expect(result.current.isLoading).toBe(false);
   });
 
   it("removes a recording from state after delete resolves", async () => {

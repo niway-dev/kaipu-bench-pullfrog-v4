@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { notifyVaultRefusal } from "@renderer/features/library/vault-errors";
 import { useTranslations } from "@kaipu/i18n";
 import type { LibraryVideo } from "@renderer/features/library/types";
@@ -15,7 +15,10 @@ import { useOrphanHeal } from "./use-orphan-heal";
 
 export interface LocalLibrary {
   videos: LibraryVideo[];
+  /** True only until the first list lands; a later re-list never sets it again. */
   isLoading: boolean;
+  /** True while a re-list is in flight after the first one; the current list stays visible. */
+  isRefreshing: boolean;
   /** True when the vault couldn't be read — distinct from "vault is empty". Cloud
    *  items from the cached catalog still show, so this drives a banner, not a
    *  blank page (see the Library page). */
@@ -24,8 +27,13 @@ export interface LocalLibrary {
    *  when signed out. */
   catalogVerifiedAt: number | null;
   refresh(): Promise<void>;
-  /** Ask main to re-confirm the cloud catalog against the server now. */
-  refreshCloud(): Promise<CatalogRefreshResult>;
+  /**
+   * Ask main to re-confirm the cloud catalog. Never rejects: a failure resolves as
+   * `{ ok: false }`. Main skips a fetch made less than 30 s ago unless `force` is set.
+   */
+  refreshCloud(force?: boolean): Promise<CatalogRefreshResult>;
+  /** The Sync button: a forced cloud check plus a local re-list. */
+  sync(): Promise<void>;
   /** Rename by id **and** identity: main follows the item if it moved, never renames another. */
   rename(id: string, assetId: string, title: string): Promise<void>;
   /** Replace a local item's tags by id (main drops unknown ids before writing). */
@@ -44,33 +52,62 @@ export function useLocalLibrary(): LocalLibrary {
   const tCommon = useTranslations("common");
   const [videos, setVideos] = useState<LibraryVideo[]>([]);
   const [isLoading, setLoading] = useState(true);
+  const [isRefreshing, setRefreshing] = useState(false);
+  const inFlight = useRef(0);
+  // Request order: a re-list that started later always read newer state, so only the
+  // latest started refresh may write results (an older one resolving last would
+  // overwrite a fresh list with a stale one).
+  const latest = useRef(0);
+  // The latest started re-list. A superseded call awaits it, so `await refresh()` still
+  // means "a list at least as new as my call is on screen" (the detail page's retry and
+  // the editor routes' re-list rely on that).
+  const latestRun = useRef<Promise<void>>(Promise.resolve());
   const [hasError, setHasError] = useState(false);
   const [catalogVerifiedAt, setCatalogVerifiedAt] = useState<number | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await window.electronAPI.listLibraryItems();
-      // Do NOT blank the list to [] on a vault error — cloud items from the
-      // cached catalog are still real data, and blanking would render as the
-      // "No recordings yet" empty state, indistinguishable from real data loss.
-      setVideos(result.items.map(toLibraryVideo));
-      setCatalogVerifiedAt(result.catalogVerifiedAt);
-      setHasError(result.vaultError !== null);
-      if (result.vaultError !== null) {
-        reportError(t("errorRead"), new Error(result.vaultError), {
+  const refresh = useCallback((): Promise<void> => {
+    const seq = ++latest.current;
+    const run = relist(seq);
+    latestRun.current = run;
+    return run;
+
+    async function relist(seq: number): Promise<void> {
+      // Stale-while-revalidate: only the first list shows "loading"; a re-list keeps the
+      // current videos on screen so open pages (detail, editor home) do not blank.
+      inFlight.current += 1;
+      setRefreshing(true);
+      let applied = false;
+      try {
+        const result = await window.electronAPI.listLibraryItems();
+        if (seq !== latest.current) return await latestRun.current; // superseded: wait for the newer list
+        applied = true;
+        // Do NOT blank the list to [] on a vault error — cloud items from the
+        // cached catalog are still real data, and blanking would render as the
+        // "No recordings yet" empty state, indistinguishable from real data loss.
+        setVideos(result.items.map(toLibraryVideo));
+        setCatalogVerifiedAt(result.catalogVerifiedAt);
+        setHasError(result.vaultError !== null);
+        if (result.vaultError !== null) {
+          reportError(t("errorRead"), new Error(result.vaultError), {
+            context: { phase: "library-list" },
+            retry: () => void refresh(),
+          });
+        }
+      } catch (error) {
+        if (seq !== latest.current) return await latestRun.current;
+        applied = true;
+        setHasError(true);
+        reportError(t("errorRead"), error, {
           context: { phase: "library-list" },
           retry: () => void refresh(),
         });
+      } finally {
+        inFlight.current -= 1;
+        if (inFlight.current === 0) setRefreshing(false);
+        // A dropped result must not end "loading": the newer request is still in flight and
+        // will, so the first paint is never an empty list read as "no recordings".
+        if (applied) setLoading(false);
       }
-    } catch (error) {
-      setHasError(true);
-      reportError(t("errorRead"), error, {
-        context: { phase: "library-list" },
-        retry: () => void refresh(),
-      });
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -141,7 +178,19 @@ export function useLocalLibrary(): LocalLibrary {
     void window.electronAPI.revealLocalRecording(id);
   }, []);
 
-  const refreshCloud = useCallback(() => window.electronAPI.refreshCloudCatalog(), []);
+  // The cloud is optional (not enabled for users yet): a rejected call must never reach an
+  // unhandled-rejection handler, and the local list never waits on it.
+  const refreshCloud = useCallback(async (force = false): Promise<CatalogRefreshResult> => {
+    try {
+      return await window.electronAPI.refreshCloudCatalog(force);
+    } catch {
+      return { ok: false, reason: "network" };
+    }
+  }, []);
+
+  const sync = useCallback(async () => {
+    await Promise.all([refreshCloud(true), refresh()]);
+  }, [refreshCloud, refresh]);
 
   const removeLocalCopy = useCallback(
     async (id: string): Promise<RemoveLocalCopyResult> => {
@@ -168,21 +217,23 @@ export function useLocalLibrary(): LocalLibrary {
     void refresh();
     // Fire-and-forget: re-confirm the cloud catalog against the server on mount, so
     // signing in (or reopening the app) doesn't leave a stale/empty cached catalog
-    // showing until the user manually refreshes. On success main broadcasts
-    // `library:changed`, which the listener below turns into a re-list.
-    void window.electronAPI.refreshCloudCatalog();
+    // showing until the user manually refreshes. Main throttles it (30 s) and, when the
+    // catalog really changed, broadcasts `library:changed`, which the listener below turns into a re-list.
+    void refreshCloud(false);
     // Re-list when the vault folder changes (Settings → Files), so an open
     // Library page doesn't keep showing the old folder's contents.
     return window.electronAPI.onLibraryChanged(() => void refresh());
-  }, [refresh]);
+  }, [refresh, refreshCloud]);
 
   return {
     videos,
     isLoading,
+    isRefreshing,
     hasError,
     catalogVerifiedAt,
     refresh,
     refreshCloud,
+    sync,
     rename,
     setTags,
     remove,

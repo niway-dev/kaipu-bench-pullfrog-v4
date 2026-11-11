@@ -21,7 +21,7 @@ description: "Closes LIB-A7 and LIB-B9: the orphan heal reads whole recordings i
 - Range support on `kaipu-media://recording/<id>` is assumed from `probe-source.ts` using the same URL; plan 28 adds the CORS `access-control-expose-headers` for `content-range`/`content-length` so mediabunny learns the file size — land plan 28 first or include that one-line header here.
 - Sub-second clips: the renderer only knows `durationSeconds === 0`; do not persist `Math.max(1, …)` (changes the recorder's flooring convention). With Range reads and once-per-launch, the endless retry is closed without a special case.
 - Behaviour changes to state in the PR: orphans heal only when the user visits the Library; a transient failure waits for the next launch (before: the next list change).
-- If plan 10 (singleton store) has landed, `useOrphanHeal` is called from the `useLocalLibrary` adapter; the `heal` option still gates it there.
+- Plan 10's singleton store was not built: NIW2-393 shipped Part A only (throttle, `changed`, `isRefreshing`). `useOrphanHeal` is still called from `useLocalLibrary` itself; the `heal` option gates it there.
 - Commit messages in English, conventional-commit style.
 
 ## Review Focus
