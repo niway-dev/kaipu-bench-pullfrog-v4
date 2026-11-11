@@ -1720,24 +1720,12 @@
     "stopRecordingDesc": "End the current recording from anywhere",
     "bringToFrontLabel": "Bring Kaipu to front",
     "bringToFrontDesc": "Show the app window if it slips behind or out of reach",
-    "captureScreenshotLabel": "Capture screenshot",
-    "captureScreenshotDesc": "Capture with your current mode",
-    "captureScreenLabel": "Capture screen",
-    "captureScreenDesc": "Capture one whole display",
-    "captureFrameLabel": "Capture frame",
-    "captureFrameDesc": "Capture what is inside a remembered frame",
+    "captureScreenshotLabel": "Open capture",
+    "captureScreenshotDesc": "Open the capture widget to choose what to capture",
     "captureWindowLabel": "Capture window",
     "captureWindowDesc": "Capture one window, not the screen around it",
     "captureInstantLabel": "Instant capture",
     "captureInstantDesc": "Capture the screen under the cursor at once, no selector",
-    "recordAreaLabel": "Record an area",
-    "recordAreaDesc": "Choose part of the screen to record",
-    "toggleMicrophoneLabel": "Mute / unmute microphone",
-    "toggleMicrophoneDesc": "Turn your voice on or off, also mid-recording",
-    "toggleSystemAudioLabel": "System audio on / off",
-    "toggleSystemAudioDesc": "Turn what the computer plays on or off, also mid-recording",
-    "toggleCameraLabel": "Show / hide camera",
-    "toggleCameraDesc": "Show or hide the camera bubble, also mid-recording",
     "statusStart": "start",
     "statusStop": "stop",
     "statusShowApp": "show app",
@@ -2380,14 +2368,12 @@
         "k1": "Start",
         "k2": "Stop",
         "k3": "Screenshot",
-        "k4": "Show app"
+        "k4": "Show app",
+        "k5": "Instant capture"
       },
       "liveControls": {
         "title": "Change your mind mid-take",
-        "body": "Mute the mic, turn system audio off or hide the camera while you record, from the capture panel or a shortcut. The take keeps going.",
-        "k1": "Mic",
-        "k2": "System audio",
-        "k3": "Camera"
+        "body": "Mute the mic, turn system audio off or hide the camera while you record, from the capture panel. The take keeps going."
       },
       "micPicker": {
         "title": "Microphone picker",
@@ -2414,9 +2400,7 @@
       "captureModes": {
         "title": "Frame or Screen",
         "body": "Drag a frame over what you need, or keep last time’s. Screen takes a whole display. Switch modes on the selection itself; Kaipu remembers the last one.",
-        "k1": "Current mode",
-        "k2": "Frame",
-        "k3": "Screen"
+        "k1": "Current mode"
       },
       "quietCapture": {
         "title": "Copy and keep going",

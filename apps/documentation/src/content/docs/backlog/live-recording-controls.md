@@ -11,6 +11,10 @@ description: "Proposal: let the user mute the microphone, turn system audio on o
 > [Recording pipeline](/desktop/recording-pipeline/) · sibling:
 > [Roadmap → Video editor v2 wave](./roadmap#video-editor-v2-wave-2026-09-22--23).
 
+> **Update (instant-capture PR #570):** the three global shortcuts (`toggleMicrophone`,
+> `toggleSystemAudio`, `toggleCamera`) were removed to keep the global set to five. The toggles
+> stay on the control bar, the capture panel and the Record page; only the global bindings went.
+
 ## Problem
 
 Once a take starts, every input is frozen. The main window hides, the floating

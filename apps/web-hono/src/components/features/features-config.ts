@@ -139,6 +139,7 @@ export const FEATURE_CHAPTERS = [
           { kind: "kbd", prefix: keys("startRecording"), key: "items.startAnywhere.k1" },
           { kind: "kbd", prefix: keys("stopRecording"), key: "items.startAnywhere.k2" },
           { kind: "kbd", prefix: keys("captureScreenshot"), key: "items.startAnywhere.k3" },
+          { kind: "kbd", prefix: keys("captureInstant"), key: "items.startAnywhere.k5" },
           { kind: "kbd", prefix: keys("bringToFront"), key: "items.startAnywhere.k4" },
         ],
       },
@@ -147,11 +148,6 @@ export const FEATURE_CHAPTERS = [
         icon: ToggleRight,
         title: "items.liveControls.title",
         body: "items.liveControls.body",
-        chips: [
-          { kind: "kbd", prefix: keys("toggleMicrophone"), key: "items.liveControls.k1" },
-          { kind: "kbd", prefix: keys("toggleSystemAudio"), key: "items.liveControls.k2" },
-          { kind: "kbd", prefix: keys("toggleCamera"), key: "items.liveControls.k3" },
-        ],
       },
       {
         id: "micPicker",
@@ -205,11 +201,7 @@ export const FEATURE_CHAPTERS = [
         body: "items.captureModes.body",
         // Window mode exists in the app but is switched off (WINDOW_MODE_ENABLED), so
         // it has no chip and no copy here until it ships.
-        chips: [
-          { kind: "kbd", prefix: keys("captureScreenshot"), key: "items.captureModes.k1" },
-          { kind: "kbd", prefix: keys("captureFrame"), key: "items.captureModes.k2" },
-          { kind: "kbd", prefix: keys("captureScreen"), key: "items.captureModes.k3" },
-        ],
+        chips: [{ kind: "kbd", prefix: keys("captureScreenshot"), key: "items.captureModes.k1" }],
       },
       {
         id: "quietCapture",

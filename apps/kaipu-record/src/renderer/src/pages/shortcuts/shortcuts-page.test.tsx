@@ -3,18 +3,30 @@ import { render, screen } from "@testing-library/react";
 import { CAPTURE_MODES } from "@shared/types/screenshot-capture";
 import { ShortcutsPage } from "./shortcuts-page";
 
+const REMOVED = [
+  "Capture screen",
+  "Capture frame",
+  "Record an area",
+  "Mute / unmute microphone",
+  "System audio on / off",
+  "Show / hide camera",
+];
+
 describe("ShortcutsPage", () => {
-  it("lists a rebindable shortcut for every capture mode when Window is enabled", async () => {
-    render(<ShortcutsPage enabledModes={CAPTURE_MODES} />);
-    expect(await screen.findByText("Capture window")).toBeInTheDocument();
-    expect(screen.getByText("Capture screen")).toBeInTheDocument();
-    expect(screen.getByText("Capture frame")).toBeInTheDocument();
+  it("lists only the five shortcuts with the flag as shipped (Window off)", async () => {
+    render(<ShortcutsPage />);
+    expect(await screen.findByText("Open capture")).toBeInTheDocument();
+    expect(screen.getByText("Start recording")).toBeInTheDocument();
+    expect(screen.getByText("Stop recording")).toBeInTheDocument();
+    expect(screen.getByText("Bring Kaipu to front")).toBeInTheDocument();
+    expect(screen.getByText("Instant capture")).toBeInTheDocument();
+    expect(screen.queryByText("Capture window")).not.toBeInTheDocument();
+    for (const label of REMOVED) expect(screen.queryByText(label)).not.toBeInTheDocument();
   });
 
-  it("does not list Capture window with the flag as shipped (Window off)", async () => {
-    render(<ShortcutsPage />);
-    expect(await screen.findByText("Capture screen")).toBeInTheDocument();
-    expect(screen.getByText("Capture frame")).toBeInTheDocument();
-    expect(screen.queryByText("Capture window")).not.toBeInTheDocument();
+  it("adds Capture window when Window is enabled, and still none of the removed ones", async () => {
+    render(<ShortcutsPage enabledModes={CAPTURE_MODES} />);
+    expect(await screen.findByText("Capture window")).toBeInTheDocument();
+    for (const label of REMOVED) expect(screen.queryByText(label)).not.toBeInTheDocument();
   });
 });

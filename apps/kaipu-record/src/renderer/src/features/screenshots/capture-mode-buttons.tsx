@@ -77,12 +77,9 @@ export function CaptureModeButtons({
   const available = (mode: CaptureMode): boolean => supported === null || supported.includes(mode);
   const busy = recording !== null;
   const name = (mode: CaptureMode): string => t(MODE_LABEL[mode]);
+  // Only Window keeps a mode-specific shortcut (flag-gated); Frame and Screen have none.
   const shortcutFor = (mode: CaptureMode): string | undefined =>
-    mode === "frame"
-      ? shortcuts?.captureFrame
-      : mode === "window"
-        ? shortcuts?.captureWindow
-        : shortcuts?.captureScreen;
+    mode === "window" ? shortcuts?.captureWindow : undefined;
 
   const elapsed = recording ? formatElapsed(recording.elapsedSeconds * 1000) : "";
 

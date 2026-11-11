@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { IPC_CHANNELS } from "@shared/types";
 import type { AppSettings } from "@shared/types";
 import type { SettingsOverrides } from "@shared/settings-scope";
-import { mergeSettings } from "../services/settings.service";
+import { mergeSettings, migrateLegacyShortcuts } from "../services/settings.service";
 import { resolveEffective } from "../workspaces/settings-overrides";
 
 /**
@@ -42,7 +42,14 @@ function load(): void {
   } catch {
     parsed = null;
   }
+  // A file written before the shortcut trim: drop the removed actions and move a user still
+  // on an old default to the new one. Persisted below, so it happens once.
+  const upgraded = migrateLegacyShortcuts(parsed?.shortcuts);
+  if (parsed && upgraded.migrated) {
+    parsed = { ...parsed, shortcuts: upgraded.shortcuts as AppSettings["shortcuts"] };
+  }
   settings = mergeSettings(parsed);
+  if (upgraded.migrated) persist();
 
   // The locale is NOT seeded from `app.getLocale()`: a first run opens in English
   // (`DEFAULT_LOCALE`) and the onboarding welcome step is where the user picks their
@@ -212,7 +219,7 @@ function applySideEffects(): void {
 /**
  * Merge `patch` into the persisted settings, then persist, apply side effects, notify
  * main listeners and broadcast to every window: the same path the renderer's
- * `updateSettings` takes, for main-side writers (a mode-specific capture shortcut).
+ * `updateSettings` takes, for main-side writers (a capture shortcut).
  */
 export function updateAppSettings(patch: Partial<AppSettings>): AppSettings {
   settings = mergeSettings({ ...settings, ...patch });

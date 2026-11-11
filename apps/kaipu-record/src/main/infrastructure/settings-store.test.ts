@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { IPC_CHANNELS } from "@shared/types/ipc";
@@ -354,5 +354,48 @@ describe("effective settings of the active workspace (ADR 0034)", () => {
     expect(result.screenshotCopy).toBe("manual");
     expect(result.exportQuality).toBe("maximum");
     expect(store.getAllLevelSettings().screenshotCopy).toBe("auto");
+  });
+});
+
+describe("shortcuts written before the trim", () => {
+  beforeEach(async () => {
+    mockState.userDataDir = await mkdtemp(join(tmpdir(), "kaipu-settings-"));
+    mockState.handlers.clear();
+    setPlatform("darwin");
+  });
+
+  afterEach(async () => {
+    setPlatform(realPlatform);
+    await rm(mockState.userDataDir, { recursive: true, force: true });
+  });
+
+  it("loads cleanly, moves old defaults, keeps custom bindings and persists the clean file", async () => {
+    await writeFile(
+      join(mockState.userDataDir, "settings.json"),
+      JSON.stringify({
+        shortcuts: {
+          startRecording: "Command+Control+G",
+          captureScreenshot: "Command+Control+X",
+          captureInstant: "Command+Control+Shift+2",
+          captureFrame: "Command+Control+Shift+F",
+          toggleMicrophone: "Command+Control+M",
+        },
+      }),
+    );
+    const store = await loadStore();
+    store.registerSettings();
+
+    const { shortcuts } = store.getAppSettings();
+    expect(shortcuts.startRecording).toBe("Command+Control+G");
+    expect(shortcuts.captureScreenshot).toBe("Command+Shift+1");
+    expect(shortcuts.captureInstant).toBe("Command+Control+Shift+2");
+    expect(shortcuts).not.toHaveProperty("captureFrame");
+    expect(shortcuts).not.toHaveProperty("toggleMicrophone");
+
+    const onDisk = JSON.parse(
+      await readFile(join(mockState.userDataDir, "settings.json"), "utf-8"),
+    );
+    expect(onDisk.shortcuts).not.toHaveProperty("captureFrame");
+    expect(onDisk.shortcuts.captureScreenshot).toBe("Command+Shift+1");
   });
 });

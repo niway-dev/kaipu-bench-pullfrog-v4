@@ -22,24 +22,26 @@ describe("DEFAULT_ACCELERATORS", () => {
     }
   });
 
-  it("binds Frame, Window and Screen capture on both platforms", () => {
+  it("binds the capture shortcuts on both platforms", () => {
     expect(DEFAULT_ACCELERATORS.mac).toMatchObject({
-      captureScreenshot: "Command+Control+X",
-      captureScreen: "Command+Control+Shift+X",
-      captureFrame: "Command+Control+Shift+F",
+      captureScreenshot: "Command+Shift+1",
+      captureInstant: "Command+Shift+2",
       captureWindow: "Command+Control+W",
     });
     expect(DEFAULT_ACCELERATORS.windows).toMatchObject({
-      captureScreenshot: "Control+Alt+X",
-      captureScreen: "Control+Alt+Shift+X",
-      captureFrame: "Control+Alt+Shift+F",
+      captureScreenshot: "Control+Alt+1",
+      captureInstant: "Control+Alt+2",
       captureWindow: "Control+Alt+W",
     });
   });
 
-  it("binds recording an area on both platforms", () => {
-    expect(DEFAULT_ACCELERATORS.mac.recordArea).toBe("Command+Control+Shift+R");
-    expect(DEFAULT_ACCELERATORS.windows.recordArea).toBe("Control+Alt+Shift+R");
+  it("no longer carries the removed per-mode and live-toggle shortcuts", () => {
+    for (const platform of ["mac", "windows"] as const) {
+      expect(Object.keys(DEFAULT_ACCELERATORS[platform]).sort()).toEqual(
+        [...SHORTCUT_ACTIONS].sort(),
+      );
+    }
+    expect(SHORTCUT_ACTIONS).toHaveLength(6);
   });
 
   it("keeps Command off the Windows column", () => {

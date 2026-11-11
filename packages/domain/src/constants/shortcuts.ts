@@ -20,14 +20,8 @@ export const SHORTCUT_ACTIONS = [
   "stopRecording",
   "bringToFront",
   "captureScreenshot",
-  "captureScreen",
-  "captureFrame",
   "captureWindow",
   "captureInstant",
-  "recordArea",
-  "toggleMicrophone",
-  "toggleSystemAudio",
-  "toggleCamera",
 ] as const;
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
@@ -42,10 +36,14 @@ export type ShortcutPlatform = "mac" | "windows";
  * Electron accelerator strings. The desktop app registers these; the landing
  * renders them.
  *
- * The macOS family uses `Command+Control` because it avoids the combinations
- * macOS reserves (screenshots, VoiceOver's Control+Option) and the crowded
- * Command+Shift space browsers and editors lean on — which matters more than
- * usual here, since a global shortcut overrides whatever app is being recorded.
+ * The macOS recording family uses `Command+Control` because it avoids the
+ * combinations macOS reserves (screenshots, VoiceOver's Control+Option) and the
+ * crowded Command+Shift space browsers and editors lean on — which matters more
+ * than usual here, since a global shortcut overrides whatever app is being
+ * recorded. The two screenshot shortcuts are the deliberate exception: they use
+ * `Command+Shift+1` and `Command+Shift+2`, next to the system's own screenshot
+ * keys. macOS owns Cmd+Shift+3, 4 and 5; 1 and 2 are free, and the digits read
+ * as "the capture keys" beside them.
  *
  * Windows uses `Control+Alt` for the same intent. `CommandOrControl` was
  * rejected: it collapses to plain `Ctrl` on Windows, which would put Ctrl+C —
@@ -61,29 +59,17 @@ export const DEFAULT_ACCELERATORS: Record<ShortcutPlatform, Record<ShortcutActio
     startRecording: "Command+Control+C",
     stopRecording: "Command+Control+S",
     bringToFront: "Command+Control+O",
-    captureScreenshot: "Command+Control+X",
-    captureScreen: "Command+Control+Shift+X",
-    captureFrame: "Command+Control+Shift+F",
+    captureScreenshot: "Command+Shift+1",
     captureWindow: "Command+Control+W",
-    captureInstant: "Command+Control+I",
-    recordArea: "Command+Control+Shift+R",
-    toggleMicrophone: "Command+Control+M",
-    toggleSystemAudio: "Command+Control+A",
-    toggleCamera: "Command+Control+K",
+    captureInstant: "Command+Shift+2",
   },
   windows: {
     startRecording: "Control+Alt+C",
     stopRecording: "Control+Alt+S",
     bringToFront: "Control+Alt+O",
-    captureScreenshot: "Control+Alt+X",
-    captureScreen: "Control+Alt+Shift+X",
-    captureFrame: "Control+Alt+Shift+F",
+    captureScreenshot: "Control+Alt+1",
     captureWindow: "Control+Alt+W",
-    captureInstant: "Control+Alt+I",
-    recordArea: "Control+Alt+Shift+R",
-    toggleMicrophone: "Control+Alt+M",
-    toggleSystemAudio: "Control+Alt+A",
-    toggleCamera: "Control+Alt+K",
+    captureInstant: "Control+Alt+2",
   },
 };
 

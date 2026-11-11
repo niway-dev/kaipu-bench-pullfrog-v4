@@ -65,7 +65,7 @@ export function AppRoot(): React.JSX.Element {
     [navigate],
   );
 
-  // Global ⌘⌃X hotkey: main brings the window to front and broadcasts this event;
+  // Global ⌘⇧1 hotkey: main brings the window to front and broadcasts this event;
   // we run the region-capture flow here so navigation (useNavigate) is available.
   useEffect(
     () =>

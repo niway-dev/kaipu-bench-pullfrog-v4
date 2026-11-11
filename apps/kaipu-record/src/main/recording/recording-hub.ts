@@ -93,9 +93,10 @@ export interface RecordingHubHandle {
   lastTakeDisplayId(): number | null;
   /**
    * Flip one of the three input toggles, exactly as clicking it in a window
-   * does (the global shortcuts use this). Mid-take the recorder picks the
-   * change up from the settings broadcast; outside a take it is just the
-   * pre-recording setting.
+   * does. No global shortcut calls it any more (they were removed); the
+   * recording-hub tests drive the camera path through it. Mid-take the recorder
+   * picks the change up from the settings broadcast; outside a take it is just
+   * the pre-recording setting.
    */
   toggleRecordingSetting(key: LiveRecordingToggle): void;
   /**

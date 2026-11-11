@@ -44,7 +44,7 @@ export function toEnabledCaptureMode(
 
 /**
  * Why the overlay opened: to take a screenshot (`capture`, every entry point until now) or
- * to choose what to record (`record`: the `recordArea` shortcut). The intent only changes
+ * to choose what to record (`record`: the tray's Record area item). The intent only changes
  * which action Enter fires and which frame memory the overlay uses; both bars offer both.
  *
  * `instant` (the `captureInstant` shortcut) is the exception: no overlay opens at all. The

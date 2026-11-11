@@ -69,6 +69,63 @@ export function mergeShortcuts(
   return result;
 }
 
+/**
+ * Shortcuts that were global bindings once and no longer are. A settings file written by a
+ * build that still had them carries these keys; `mergeShortcuts` already ignores any key
+ * outside `SHORTCUT_ACTIONS`, so they vanish on the next write; the list lets the load notice
+ * the file predates the trim and persist the clean one right away.
+ */
+const REMOVED_SHORTCUT_ACTIONS = [
+  "captureScreen",
+  "captureFrame",
+  "recordArea",
+  "toggleMicrophone",
+  "toggleSystemAudio",
+  "toggleCamera",
+] as const;
+
+/**
+ * The previous default of an action whose default moved (captureScreenshot ⌘⇧1, captureInstant
+ * ⌘⌃I, and their Windows pairs). A user still on the old default gets the new one; a custom
+ * binding is never touched. Literals, on purpose: they are history, not the current defaults.
+ */
+const MOVED_SHORTCUT_DEFAULTS: Partial<Record<ShortcutAction, readonly string[]>> = {
+  captureScreenshot: ["Command+Control+X", "Control+Alt+X"],
+  captureInstant: ["Command+Control+I", "Control+Alt+I"],
+};
+
+/**
+ * Upgrade a persisted `shortcuts` object written before the trim: drop the removed actions'
+ * keys and, for an action still on its old default, drop that value too so `mergeShortcuts`
+ * falls back to this platform's new default. A custom binding is never touched.
+ *
+ * Runs at load only, never inside `mergeSettings` (which runs on every write). The load
+ * persists the result when `migrated` is true, so it is a one-off in practice; the one case
+ * it cannot tell apart is a user who deliberately picks the old default afterwards, who gets
+ * the new one at the next launch. Returns the input untouched for anything that is not an object.
+ */
+export function migrateLegacyShortcuts(stored: unknown): { shortcuts: unknown; migrated: boolean } {
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
+    return { shortcuts: stored, migrated: false };
+  }
+  const next: Record<string, unknown> = { ...(stored as Record<string, unknown>) };
+  let migrated = false;
+  for (const action of REMOVED_SHORTCUT_ACTIONS) {
+    if (action in next) {
+      delete next[action];
+      migrated = true;
+    }
+  }
+  for (const [action, oldDefaults] of Object.entries(MOVED_SHORTCUT_DEFAULTS)) {
+    const value = next[action];
+    if (typeof value === "string" && oldDefaults?.includes(value)) {
+      delete next[action];
+      migrated = true;
+    }
+  }
+  return { shortcuts: migrated ? next : stored, migrated };
+}
+
 function isFrameRect(value: unknown): value is CaptureRect {
   if (!value || typeof value !== "object") return false;
   const { x, y, width, height } = value as Record<string, unknown>;
