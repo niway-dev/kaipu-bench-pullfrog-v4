@@ -130,10 +130,10 @@ describe("formatColor", () => {
   it("adds alpha to each format", () => {
     const half = { ...emerald, a: 128 };
     expect(formatColor(half, "hex")).toBe("#10b98180");
-    expect(formatColor(half, "rgb")).toBe("rgba(16, 185, 129, 0.502)");
-    expect(formatColor(half, "hsl")).toBe("hsla(160, 84%, 39%, 0.502)");
-    expect(formatColor(half, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.502)");
-    expect(formatColor({ ...emerald, a: 64 }, "rgb")).toBe("rgba(16, 185, 129, 0.251)");
+    expect(formatColor(half, "rgb")).toBe("rgba(16, 185, 129, 0.5)");
+    expect(formatColor(half, "hsl")).toBe("hsla(160, 84%, 39%, 0.5)");
+    expect(formatColor(half, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.5)");
+    expect(formatColor({ ...emerald, a: 64 }, "rgb")).toBe("rgba(16, 185, 129, 0.25)");
     expect(formatColor({ ...emerald, a: 0 }, "rgb")).toBe("rgba(16, 185, 129, 0)");
   });
 

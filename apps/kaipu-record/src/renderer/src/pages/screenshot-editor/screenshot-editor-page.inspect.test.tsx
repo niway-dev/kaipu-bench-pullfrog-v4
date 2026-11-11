@@ -62,6 +62,7 @@ const fakeContext = {
 };
 
 beforeEach(async () => {
+  reportError.mockClear();
   const base = await window.electronAPI.getSettings();
   window.electronAPI.getSettings = vi.fn(async () => ({
     ...base,
@@ -332,6 +333,7 @@ describe.each([
     fireEvent.pointerMove(layer(), POINTER);
     await screen.findByText(PIXEL_HEX);
     expect(screen.queryByText("Pixel reading unavailable")).toBeNull();
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   it("does not carry a failed As captured probe over to the next image", async () => {
