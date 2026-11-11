@@ -16,6 +16,8 @@ interface Clip {
 }
 
 const FLAG_ON = { KAIPU_FLAG_OVERRIDES: JSON.stringify({ "image-canvas": true }) };
+// Pinned explicitly: an inherited `KAIPU_FLAG_OVERRIDES` must not turn the baseline into canvas mode.
+const FLAG_OFF = { KAIPU_FLAG_OVERRIDES: JSON.stringify({ "image-canvas": false }) };
 
 async function openImageEditor(s: Scenario): Promise<void> {
   await dismissOnboarding(s.page);
@@ -111,7 +113,7 @@ test("image-canvas: export parity with the flag off, content outside the image, 
   // Launch 1: flag off. The editor and the exports the flag must not change.
   let offPlain: Clip;
   let offBeautified: Clip;
-  const off = await startScenario("image-canvas", { videoName: "video-flag-off" });
+  const off = await startScenario("image-canvas", { env: FLAG_OFF, videoName: "video-flag-off" });
   try {
     await openImageEditor(off);
     await off.shot("flag-off-editor");
