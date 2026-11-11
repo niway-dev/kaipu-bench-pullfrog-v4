@@ -117,7 +117,8 @@ export type Step =
   /** Hash navigation in the main window: `{ navigate: "/library" }`. */
   | ({ readonly navigate: string } & On)
   | ({ readonly click: Target } & On)
-  | ({ readonly hover: Target } & On)
+  /** Hover the target's centre, or `at` (fractions of its box, like a drag point). */
+  | ({ readonly hover: Target; readonly at?: DragPoint } & On)
   /**
    * Press at `from`, move to `to` and release. Both points are fractions (0-1) of the target's
    * box, so a drag does not depend on the window size.
@@ -317,11 +318,15 @@ export function describeStep(step: Step): string {
     const which = t.hasText ? ` "${t.hasText}"` : "";
     return `\`${t.area}\`${which}${part}${t.nth ? ` #${t.nth + 1}` : ""}`;
   };
+  const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
   if ("navigate" in step) return `Go to \`#${step.navigate}\``;
   if ("click" in step) return `Click ${target(step.click)}`;
-  if ("hover" in step) return `Hover ${target(step.hover)}`;
+  if ("hover" in step) {
+    return step.at
+      ? `Hover ${target(step.hover)} at ${pt(step.at)}`
+      : `Hover ${target(step.hover)}`;
+  }
   if ("drag" in step) {
-    const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
     return `Drag across ${target(step.drag)} from ${pt(step.from)} to ${pt(step.to)}`;
   }
   if ("press" in step)
