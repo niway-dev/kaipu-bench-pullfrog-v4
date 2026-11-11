@@ -4,6 +4,7 @@ import type { Annotation } from "../annotations/scene";
 import {
   blockRedactionRect,
   nearestBlock,
+  pixelRectToNorm,
   redactionRectsInPixels,
   textBlocks,
   type PixelRect,
@@ -32,14 +33,8 @@ const WORDS = [A1, A2, B1, B2];
 
 /** The rect as the editor stores it (normalized), then back to pixels the way a save bakes it. */
 const asSaved = (rect: PixelRect): PixelRect[] => {
-  const blur: Annotation = {
-    id: "r",
-    kind: "blur",
-    x: rect.x / NATURAL.w,
-    y: rect.y / NATURAL.h,
-    w: rect.w / NATURAL.w,
-    h: rect.h / NATURAL.h,
-  };
+  // The way the click stores it (annotation-layer `hideBlock`).
+  const blur: Annotation = { id: "r", kind: "blur", ...pixelRectToNorm(rect, NATURAL) };
   return redactionRectsInPixels([blur], NATURAL);
 };
 
@@ -110,6 +105,25 @@ describe("blockRedactionRect", () => {
     const words = [A1, A2, touching];
     const [first] = textBlocks(words);
     expect(blockRedactionRect(first, words, NATURAL)).toEqual(first.rect);
+  });
+
+  it("a whole-pixel rect survives the trip to an annotation and back, on any image size", () => {
+    // A plain `x / w` fails this: (20/1000 + 31/1000) * 1000 rounds out to 52, one pixel wide.
+    for (const size of [
+      { w: 1000, h: 500 },
+      { w: 1366, h: 768 },
+      { w: 49, h: 7 },
+      { w: 6016, h: 3384 },
+    ]) {
+      for (let i = 0; i < 400; i++) {
+        const x = (i * 37) % size.w;
+        const y = (i * 13) % size.h;
+        const r = { x, y, w: 1 + ((i * 29) % (size.w - x)), h: 1 + ((i * 7) % (size.h - y)) };
+        const n = pixelRectToNorm(r, size);
+        const blur = { id: "b", kind: "blur", ...n } as Annotation;
+        expect(redactionRectsInPixels([blur], size)).toEqual([r]);
+      }
+    }
   });
 
   it("stays inside the image", () => {

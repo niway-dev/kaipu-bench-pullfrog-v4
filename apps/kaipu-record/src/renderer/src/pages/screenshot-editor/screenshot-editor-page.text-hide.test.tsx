@@ -150,7 +150,8 @@ const save = async () => {
 const geometry = (a: Annotation) => (a.kind === "blur" ? { x: a.x, y: a.y, w: a.w, h: a.h } : null);
 const expectRect = (got: ReturnType<typeof geometry>, want: typeof FIRST_LINE_REDACTION) => {
   expect(got).not.toBeNull();
-  for (const k of ["x", "y", "w", "h"] as const) expect(got![k]).toBeCloseTo(want[k], 9);
+  // Each edge sits a thousandth of a pixel inside the whole-pixel rect (`pixelRectToNorm`).
+  for (const k of ["x", "y", "w", "h"] as const) expect(got![k]).toBeCloseTo(want[k], 5);
 };
 
 describe("text hide — one click", () => {
@@ -229,6 +230,17 @@ describe("text hide — one click", () => {
     // 4 display px right of "world" (which ends at x 110).
     click(hideLayer()!, 114, 25);
     expect(shapes()).toHaveLength(1);
+  });
+
+  it("a press that wanders off the line and comes back hides nothing", async () => {
+    mountPaste();
+    await openRedact();
+    const el = hideLayer()!;
+    fireEvent.pointerDown(el, at(40, 25));
+    fireEvent.pointerMove(el, at(90, 26));
+    fireEvent.pointerMove(el, at(41, 25));
+    fireEvent.pointerUp(el, at(41, 25));
+    expect(shapes()).toHaveLength(0);
   });
 
   it("a drag that starts on text still draws the region dragged, and selects it", async () => {

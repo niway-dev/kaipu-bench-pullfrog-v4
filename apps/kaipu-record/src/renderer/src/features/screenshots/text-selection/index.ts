@@ -1,5 +1,6 @@
 export {
   blockRedactionRect,
+  pixelRectToNorm,
   nearestBlock,
   nearestWord,
   textBlocks,

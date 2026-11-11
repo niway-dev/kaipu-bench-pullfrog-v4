@@ -161,6 +161,26 @@ function rectsIntersect(a: PixelRect, b: PixelRect): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
+/** Far above float error at any image size, far below a pixel. */
+const ROUND_TRIP_INSET_PX = 1e-3;
+
+/**
+ * A whole-pixel rect as the normalized geometry of an annotation, so that the save, the
+ * preview and the text cache (`redactionRectsInPixels`, which round OUT to whole pixels) land
+ * on exactly these pixels. A plain `x / w` does not: `(20/1000 + 31/1000) * 1000` is
+ * `51.00000000000001`, which rounds out to 52 and reaches one pixel into a neighbour. Each
+ * edge moves a thousandth of a pixel inward, so the outward rounding returns to it.
+ */
+export function pixelRectToNorm(r: PixelRect, natural: PixelSize): PixelRect {
+  const e = ROUND_TRIP_INSET_PX;
+  return {
+    x: (r.x + e) / natural.w,
+    y: (r.y + e) / natural.h,
+    w: (r.w - 2 * e) / natural.w,
+    h: (r.h - 2 * e) / natural.h,
+  };
+}
+
 /**
  * The rect a one-click redaction covers, in base-image pixels: the block's box grown by a
  * small margin (antialiased edges and descenders sit just outside the recognized box), on
@@ -168,8 +188,10 @@ function rectsIntersect(a: PixelRect, b: PixelRect): boolean {
  *
  * "Hides exactly that block": the margin shrinks (half, then none) when it would reach a word
  * of another block, so the click never blurs a neighbour's word, and the save never drops one
- * from the text cache. Boxes that already overlap a neighbour's keep no margin; the cache then
- * drops that neighbour too, because a redaction removes every word it touches.
+ * from the text cache. Boxes that already overlap a neighbour's, or only share a pixel row with
+ * it once rounded out to whole pixels, keep no margin and still cover that pixel: hiding the
+ * clicked line fully comes first. The cache then drops that neighbour too, because a redaction
+ * removes every word it touches.
  */
 export function blockRedactionRect(
   block: TextBlock,

@@ -27,6 +27,7 @@ import {
   blockRedactionRect,
   nearestBlock,
   nearestWord,
+  pixelRectToNorm,
   textBlocks,
   wordBoxNorm,
   type TextBlock,
@@ -383,6 +384,10 @@ function AnnotationLayerImpl({
       return;
     }
     if (d.mode === "draw-blur") {
+      // Once the pointer leaves the click tolerance the gesture is a drag, even if it comes
+      // back: only a press that stays put hides the line under it.
+      const away = Math.hypot((p.x - d.start.x) * size.w, (p.y - d.start.y) * size.h);
+      if (d.block && away > TEXT_HIT_PX) drag.current = { mode: "draw-blur", start: d.start };
       setDraft({
         id: "draft",
         kind: "blur",
@@ -469,10 +474,7 @@ function AnnotationLayerImpl({
     scene.addAnnotation({
       id,
       kind: "blur",
-      x: r.x / natural.w,
-      y: r.y / natural.h,
-      w: r.w / natural.w,
-      h: r.h / natural.h,
+      ...pixelRectToNorm(r, natural),
       ...(tools.redactionStyle === "solid" ? { style: "solid" as const } : {}),
     });
     scene.select(null);
