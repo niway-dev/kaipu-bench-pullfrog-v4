@@ -13,6 +13,7 @@ import type {
   TextRecognitionResult,
 } from "@shared/types/text-recognition";
 import { atomicWriteFile, withLock } from "../library/atomic-write";
+import { withItemLock } from "../library/item-lock";
 import { isPlainItemId, type LibraryVault } from "../library/library-vault";
 
 /**
@@ -46,7 +47,7 @@ const itemKey = (vault: LibraryVault, id: string): string =>
 
 /**
  * Per-item generation: bumped by every save, so an older recognition is stale. A rename, move
- * or delete is covered by the `hasMedia` check and the sha256 key, not by this counter.
+ * or delete is covered by the item lock in `cacheRecognition`, not by this counter.
  */
 const generations = new Map<string, number>();
 
@@ -200,6 +201,16 @@ async function onDiskSha256(
   }
 }
 
+/**
+ * Stores a recognition's words. The whole check-then-write runs under the item lock, the one
+ * a delete, a rename, a move and a screenshot overwrite also hold (ADR 0033, decision 12), so
+ * none of them can complete between "the item exists and the bytes match" and the write:
+ * a recognition can never recreate `.kaipu/<old-id>.text.json` for an item that is gone, and
+ * never writes over an asset a save replaced meanwhile. Lock order is item lock, then the
+ * text lock (the same order as an overwrite save, which takes the text lock inside its item
+ * lock); the text lock stays because a new screenshot's save takes it without the item lock.
+ * The recognizer itself runs before this, outside every lock.
+ */
 async function cacheRecognition(
   vault: LibraryVault,
   id: string,
@@ -208,19 +219,21 @@ async function cacheRecognition(
   words: RecognizedWord[],
   startedAt: number,
 ): Promise<void> {
-  await withLock(lockKey(vault, id), async () => {
-    // A save since the start means these words may be stale or hidden ones.
-    if (textGeneration(vault, id) !== startedAt) return;
-    // A rename, move or delete may have taken the item away: never write under its old id.
-    if (!(await vault.hasMedia(id))) return;
-    // The words belong to the bytes the caller held, which may be older than the asset: a
-    // window that kept the unredacted image open can ask after another window saved a
-    // redaction. Only the image on disk right now may be cached.
-    if ((await onDiskSha256(vault, id, assetId)) !== sha256) return;
-    const assets = await readTextCache(vault, id);
-    assets[assetId] = { sha256, words };
-    await writeAssets(vault, id, assets);
-  });
+  await withItemLock(vault.workspaceId ?? vault.directory, id, () =>
+    withLock(lockKey(vault, id), async () => {
+      // A save since the start means these words may be stale or hidden ones.
+      if (textGeneration(vault, id) !== startedAt) return;
+      // A rename, move or delete took the item away: never write under its old id.
+      if (!(await vault.hasMedia(id))) return;
+      // The words belong to the bytes the caller held, which may be older than the asset: a
+      // window that kept the unredacted image open can ask after another window saved a
+      // redaction. Only the image on disk right now may be cached.
+      if ((await onDiskSha256(vault, id, assetId)) !== sha256) return;
+      const assets = await readTextCache(vault, id);
+      assets[assetId] = { sha256, words };
+      await writeAssets(vault, id, assets);
+    }),
+  );
 }
 
 /**

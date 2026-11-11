@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecognizedWord, TextRecognizer } from "@kaipu/domain/schemas";
+import { withItemLock } from "../library/item-lock";
 import { LibraryVault } from "../library/library-vault";
 import { readTextCache, recognizeScreenshotText, saveTextCache } from "./screenshot-text";
 
@@ -265,6 +266,34 @@ describe("recognizeScreenshotText", () => {
       { vault, recognizer },
       { id, assetId: "base", png: bytes("old") },
     );
+    await expect(readFile(cachePath(id))).rejects.toThrow();
+  });
+
+  it("waits for the item lock, so a delete in progress never sees its cache recreated", async () => {
+    const id = await seedItem();
+    const { recognizer } = fakeRecognizer();
+    // Stands for a delete, rename or move: they all hold this lock for their whole run.
+    let finishDelete!: () => void;
+    const deleteMayFinish = new Promise<void>((resolve) => (finishDelete = resolve));
+    let holding!: () => void;
+    const lockHeld = new Promise<void>((resolve) => (holding = resolve));
+    const deleting = withItemLock(vault.workspaceId ?? directory, id, async () => {
+      holding();
+      await deleteMayFinish;
+      await vault.remove(id);
+    });
+    await lockHeld;
+    const recognizing = recognizeScreenshotText(
+      { vault, recognizer },
+      { id, assetId: "base", png: bytes("a") },
+    );
+    // The recognizer has long finished; the matching, existing item is still not written.
+    await new Promise((r) => setTimeout(r, 50));
+    await expect(readFile(cachePath(id))).rejects.toThrow();
+    finishDelete();
+    await deleting;
+    expect((await recognizing).status).toBe("ready");
+    await expect(readFile(join(directory, `${id}.png`))).rejects.toThrow();
     await expect(readFile(cachePath(id))).rejects.toThrow();
   });
 
