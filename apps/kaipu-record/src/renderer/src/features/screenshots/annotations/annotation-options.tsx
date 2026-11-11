@@ -1,9 +1,10 @@
 import React from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
+import { uiArea } from "@renderer/lib/ui-area";
 import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
 import { ANNOTATION_COLORS, STROKE_WIDTHS, TEXT_SIZES } from "./tools";
-import type { Annotation } from "./scene";
+import type { Annotation, RedactionStyle } from "./scene";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import styles from "./annotation-options.module.css";
@@ -95,17 +96,29 @@ function resolveControls(
 export function AnnotationOptions({
   tools,
   scene,
+  canvasMode = false,
 }: {
   tools: AnnotationToolsController;
   scene: EditorScene;
+  /** Redaction mode (`image-canvas`): shows the Blur / Solid style control. */
+  canvasMode?: boolean;
 }): React.JSX.Element | null {
   const t = useTranslations("screenshots");
   const selected = scene.annotations.find((a) => a.id === scene.selectedId) ?? null;
   const controls = resolveControls(tools, scene, selected);
   const isCrop = tools.tool === "crop";
+  // Canvas mode: the style control shows for the blur tool or a selected blur, and edits
+  // that blur (one undoable change) or the style the next redaction takes.
+  const styleTarget = selected?.kind === "blur" ? selected : null;
+  const showRedactionStyle = canvasMode && (styleTarget !== null || tools.tool === "blur");
+  const redactionStyle = styleTarget ? (styleTarget.style ?? "blur") : tools.redactionStyle;
+  const pickRedactionStyle = (style: RedactionStyle): void => {
+    if (styleTarget) scene.commitAnnotation(styleTarget.id, { style });
+    tools.setRedactionStyle(style);
+  };
   // A selected blur has no colour/stroke controls, but should still be deletable —
   // so the panel shows whenever there are controls OR something is selected OR crop is active.
-  if (!controls && !selected && !isCrop) return null;
+  if (!controls && !selected && !isCrop && !showRedactionStyle) return null;
 
   return (
     <div className={styles.panel}>
@@ -192,6 +205,26 @@ export function AnnotationOptions({
             </>
           )}
         </>
+      )}
+
+      {showRedactionStyle && (
+        <div className={styles.redaction} {...uiArea("editorImage.redactionStyle")}>
+          <span className={styles.label}>{t("redactionStyleLabel")}</span>
+          <div className={styles.picker}>
+            {(["blur", "solid"] as const).map((style) => (
+              <button
+                key={style}
+                type="button"
+                aria-pressed={redactionStyle === style}
+                className={`${styles.pickerItem} ${styles.styleItem} ${redactionStyle === style ? styles.pickerOn : ""}`}
+                onClick={() => pickRedactionStyle(style)}
+              >
+                {t(style === "blur" ? "redactionBlur" : "redactionSolid")}
+              </button>
+            ))}
+          </div>
+          <p className={styles.note}>{t("redactionNote")}</p>
+        </div>
       )}
 
       {selected && (

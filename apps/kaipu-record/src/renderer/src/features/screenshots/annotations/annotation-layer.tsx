@@ -12,6 +12,7 @@ import {
 import { roughArrow, roughRect } from "./rough";
 import { smoothPath } from "./smooth";
 import { nextAnnotationId, type Annotation } from "./scene";
+import { useRedactionTile } from "./redaction-preview";
 import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } from "./handles";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
@@ -45,6 +46,12 @@ interface LayerProps {
    * pointer-downs anywhere on the canvas through an invisible hit surface around it.
    */
   canvas?: boolean;
+  /**
+   * Redaction mode (NIW2-700, behind `image-canvas`): an unlocked blur previews the real
+   * destructive redaction as a raster tile, and a locked one (already baked into the
+   * stored image) draws nothing and cannot be hit. false (default) = today's gaussian.
+   */
+  canvasMode?: boolean;
 }
 
 /**
@@ -53,7 +60,13 @@ interface LayerProps {
  * size and renders in px (so stroke/text sizes match the design regardless of
  * the image's natural resolution).
  */
-function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps): React.JSX.Element {
+function AnnotationLayerImpl({
+  scene,
+  tools,
+  src,
+  canvas = false,
+  canvasMode = false,
+}: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
@@ -110,6 +123,8 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
     return () => obs.disconnect();
   }, []);
 
+  const canvasModeRef = useRef(canvasMode);
+  canvasModeRef.current = canvasMode;
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       // Don't hijack keys while the user is typing in a field or a
@@ -117,6 +132,9 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
       if (isEditingText(e.target) || document.querySelector('[aria-modal="true"]')) return;
       const scn = sceneRef.current;
       if ((e.key === "Delete" || e.key === "Backspace") && scn.selectedId) {
+        // A locked redaction is part of the stored image: it cannot be deleted.
+        const sel = scn.annotations.find((a) => a.id === scn.selectedId);
+        if (canvasModeRef.current && sel?.kind === "blur" && sel.locked) return;
         e.preventDefault();
         scn.removeSelected();
       }
@@ -154,7 +172,7 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
   // Select tool only, so it never clashes with the drawing tools' single-click.
   const onDoubleClick = (e: React.MouseEvent): void => {
     if (tools.tool !== "select") return;
-    const hit = hitTest(scene.annotations, toNorm(e), size);
+    const hit = hitTest(scene.annotations, toNorm(e), size, canvasMode);
     if (hit?.kind !== "text") return;
     scene.select(hit.id);
     editDone.current = false;
@@ -192,7 +210,7 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
           return;
         }
       }
-      const hit = hitTest(scene.annotations, p, size);
+      const hit = hitTest(scene.annotations, p, size, canvasMode);
       scene.select(hit?.id ?? null);
       // The label whose inline editor is open belongs to that editor. The hit-test
       // keeps an 8px margin around it, and the textarea only covers the box itself,
@@ -263,6 +281,8 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
         y: Math.min(d.start.y, p.y),
         w: Math.abs(p.x - d.start.x),
         h: Math.abs(p.y - d.start.y),
+        // Absent = the strong blur; only "solid" is stored.
+        ...(canvasMode && tools.redactionStyle === "solid" ? { style: "solid" as const } : {}),
       });
       return;
     }
@@ -402,10 +422,19 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
         {shown.map((a) =>
           // Hide the label being re-edited — the inline editor sits on top of it.
           a.id === editing?.id ? null : (
-            <Shape key={a.id} a={a} size={size} selected={scene.selectedId === a.id} src={src} />
+            <Shape
+              key={a.id}
+              a={a}
+              size={size}
+              selected={scene.selectedId === a.id}
+              src={src}
+              canvasMode={canvasMode}
+            />
           ),
         )}
-        {draft && <Shape a={draft} size={size} selected={false} src={src} />}
+        {draft && (
+          <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+        )}
         {selectedAnnotation && <Handles a={selectedAnnotation} size={size} />}
       </svg>
       {editing && (
@@ -483,7 +512,9 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.tool === n.tools.tool &&
     p.tools.color === n.tools.color &&
     p.tools.stroke === n.tools.stroke &&
-    p.tools.textSize === n.tools.textSize
+    p.tools.textSize === n.tools.textSize &&
+    p.tools.redactionStyle === n.tools.redactionStyle &&
+    p.canvasMode === n.canvasMode
   );
 }
 
@@ -517,13 +548,19 @@ const Shape = React.memo(function Shape({
   size,
   selected,
   src,
+  canvasMode,
 }: {
   a: Annotation;
   size: Size;
   selected: boolean;
   src: string;
+  canvasMode: boolean;
 }): React.JSX.Element {
   const { w: W, h: H } = size;
+
+  if (a.kind === "blur" && canvasMode) {
+    return <RedactionTile a={a} size={size} selected={selected} src={src} />;
+  }
 
   if (a.kind === "blur") {
     const bx = a.x * W;
@@ -687,6 +724,48 @@ const Shape = React.memo(function Shape({
 });
 
 /** True when the keyboard event originated in a text field (so the canvas shouldn't grab it). */
+/** Canvas-mode blur: the real redaction as a raster tile over the rect; locked = nothing. */
+function RedactionTile({
+  a,
+  size,
+  selected,
+  src,
+}: {
+  a: Extract<Annotation, { kind: "blur" }>;
+  size: Size;
+  selected: boolean;
+  src: string;
+}): React.JSX.Element | null {
+  const tile = useRedactionTile(src, a, a.style ?? "blur", !a.locked);
+  if (a.locked) return null;
+  const bx = a.x * size.w;
+  const by = a.y * size.h;
+  return (
+    <g data-annotation={a.id}>
+      {tile && (
+        <image
+          data-testid="redaction-tile"
+          href={tile.url}
+          x={(tile.rect.x / tile.naturalW) * size.w}
+          y={(tile.rect.y / tile.naturalH) * size.h}
+          width={(tile.rect.w / tile.naturalW) * size.w}
+          height={(tile.rect.h / tile.naturalH) * size.h}
+          preserveAspectRatio="none"
+        />
+      )}
+      {selected && (
+        <rect
+          className={styles.selOutline}
+          x={bx}
+          y={by}
+          width={a.w * size.w}
+          height={a.h * size.h}
+        />
+      )}
+    </g>
+  );
+}
+
 function isEditingText(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
@@ -711,9 +790,16 @@ function moveBy(a: Annotation, dx: number, dy: number): Partial<Annotation> {
   return { x: a.x + dx, y: a.y + dy } as Partial<Annotation>;
 }
 
-function hitTest(annotations: Annotation[], p: Pt, size: Size): Annotation | null {
+function hitTest(
+  annotations: Annotation[],
+  p: Pt,
+  size: Size,
+  canvasMode = false,
+): Annotation | null {
   for (let i = annotations.length - 1; i >= 0; i -= 1) {
     const a = annotations[i];
+    // A locked redaction is already part of the stored image: nothing to grab.
+    if (canvasMode && a.kind === "blur" && a.locked) continue;
     if (a.kind === "box" || a.kind === "blur") {
       if (
         p.x >= a.x - 0.01 &&

@@ -273,6 +273,10 @@ export const UI_MAP = {
         states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      redactionStyle: {
+        states: ["blur", "solid"],
+        gatedBy: [{ flag: "image-canvas" }],
+      },
       beautify: { states: ["default"] },
     },
   },

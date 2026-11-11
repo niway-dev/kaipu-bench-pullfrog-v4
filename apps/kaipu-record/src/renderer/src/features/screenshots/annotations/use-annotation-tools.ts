@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { RedactionStyle } from "./scene";
 import { ANNOTATION_COLORS, type AnnotationTool } from "./tools";
 
 export interface AnnotationToolsController {
@@ -13,6 +14,9 @@ export interface AnnotationToolsController {
   /** Text-size level — an index into TEXT_SIZES (0–2). */
   textSize: number;
   setTextSize(level: number): void;
+  /** Style a new redaction takes (canvas mode). "blur" = the strong blur. */
+  redactionStyle: RedactionStyle;
+  setRedactionStyle(style: RedactionStyle): void;
 }
 
 /** Toolbar state for the annotation tools. (Drawing the shapes is a later slice.) */
@@ -22,5 +26,18 @@ export function useAnnotationTools(): AnnotationToolsController {
   const [stroke, setStroke] = useState<number>(1);
   const [textSize, setTextSize] = useState<number>(1);
 
-  return { tool, setTool, color, setColor, stroke, setStroke, textSize, setTextSize };
+  const [redactionStyle, setRedactionStyle] = useState<RedactionStyle>("blur");
+
+  return {
+    tool,
+    setTool,
+    color,
+    setColor,
+    stroke,
+    setStroke,
+    textSize,
+    setTextSize,
+    redactionStyle,
+    setRedactionStyle,
+  };
 }

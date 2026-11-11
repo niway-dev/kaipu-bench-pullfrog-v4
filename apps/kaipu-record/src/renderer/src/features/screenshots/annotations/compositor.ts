@@ -17,6 +17,7 @@ import {
   worldToFrame,
   type Extents,
 } from "./canvas-geometry";
+import { bakeRedactions } from "./redaction";
 import type { Annotation, Scene } from "./scene";
 
 /**
@@ -96,7 +97,10 @@ export async function compositeSceneAt(
   displayedW: number,
   options: CompositeOptions = {},
 ): Promise<CompositeResult> {
-  const href = await bytesToDataUrl(bytes);
+  // Canvas mode: redactions are destructive, so their pixels go into the base image here
+  // (locked ones are already in it) and buildSvg draws no blur. Untouched = same bytes.
+  const base = options.canvas ? await bakeRedactions(bytes, scene.annotations) : bytes;
+  const href = await bytesToDataUrl(base);
   // Decode the PNG for its TRUE pixel size (Retina-safe — `getSize` can differ).
   const { width: naturalW, height: naturalH } = await imageSize(href);
   const scale = displayedW > 0 ? naturalW / displayedW : 1;
@@ -263,7 +267,9 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // beautify padding is shown there — clipping to the shot truncated it in the
   // export only. The output viewBox (the crop window, or the whole frame) is the
   // natural bound, so they render exactly as previewed.
-  const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
+  // Canvas mode (`ext` set): blurs were baked into the base bytes, so none is drawn here.
+  const drawn = ext ? scene.annotations.filter((a) => a.kind !== "blur") : scene.annotations;
+  const anno = `<g transform="translate(${ox},${oy})">${drawn
     .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale))
     .join("")}</g>`;
 
