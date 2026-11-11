@@ -91,7 +91,7 @@ async function shotBox(
 /** Open the seeded screenshot's editor from the Library detail page, through its Edit button. */
 async function openFromLibrary(s: Scenario): Promise<void> {
   await s.page.evaluate((assetId) => (location.hash = `#/library/${assetId}`), SCREENSHOT_ASSET_ID);
-  await s.page.getByRole("button", { name: "Edit", exact: true }).click();
+  await s.page.getByRole("button", { name: "Edit image", exact: true }).click();
   await expect(s.page.getByRole("button", { name: /^Save/ })).toBeEnabled({ timeout: 15_000 });
   await expect(s.page.locator('[data-canvas="true"]')).toBeVisible();
 }
@@ -99,7 +99,7 @@ async function openFromLibrary(s: Scenario): Promise<void> {
 /** Leave the editor to the Library. A vault shot saves its pending edits before it leaves. */
 async function leaveEditor(s: Scenario): Promise<void> {
   await s.page.evaluate((assetId) => (location.hash = `#/library/${assetId}`), SCREENSHOT_ASSET_ID);
-  await expect(s.page.getByRole("button", { name: "Edit", exact: true })).toBeVisible({
+  await expect(s.page.getByRole("button", { name: "Edit image", exact: true })).toBeVisible({
     timeout: 15_000,
   });
 }
