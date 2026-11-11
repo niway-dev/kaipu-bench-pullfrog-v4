@@ -52,6 +52,12 @@ interface LayerProps {
    * stored image) draws nothing and cannot be hit. false (default) = today's gaussian.
    */
   canvasMode?: boolean;
+  /**
+   * Canvas mode (NIW2-703): display URL of each added image's asset, by asset id. An image
+   * annotation whose asset has no URL here draws nothing. Kept referentially stable by the
+   * editor (a new object only when an asset is added), since the layer is memoized on it.
+   */
+  imageUrls?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -514,7 +520,8 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.stroke === n.tools.stroke &&
     p.tools.textSize === n.tools.textSize &&
     p.tools.redactionStyle === n.tools.redactionStyle &&
-    p.canvasMode === n.canvasMode
+    p.canvasMode === n.canvasMode &&
+    p.imageUrls === n.imageUrls
   );
 }
 
