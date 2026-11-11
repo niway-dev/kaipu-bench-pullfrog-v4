@@ -268,6 +268,24 @@ describe("hitHandle", () => {
     // se corner is at (0.6, 0.5).
     expect(hitHandle(handles, { x: 0.605, y: 0.495 }, tol)).toBe("se");
   });
+  it("picks the nearest handle when both ends of a short measure are in reach", () => {
+    // 100 -> 105 on a 1000 px image: both ends sit within a 12 px tolerance.
+    const m = {
+      id: "m",
+      kind: "measure" as const,
+      axis: "x" as const,
+      from: 100,
+      to: 105,
+      at: 50,
+      imageW: 1000,
+      imageH: 100,
+      color: "#f6055c",
+    };
+    const handles = handlesFor(m, { w: 1000, h: 100 });
+    const tol = { x: 0.012, y: 0.12 };
+    expect(hitHandle(handles, { x: 0.105, y: 0.505 }, tol)).toBe("p2");
+    expect(hitHandle(handles, { x: 0.1, y: 0.505 }, tol)).toBe("p1");
+  });
   it("returns null when no handle is close", () => {
     const handles = handlesFor(box, size);
     expect(hitHandle(handles, { x: 0.4, y: 0.35 }, { x: 0.02, y: 0.02 })).toBeNull();
@@ -346,5 +364,42 @@ describe("step badge", () => {
   });
   it("resizeAnnotation never patches a step", () => {
     expect(resizeAnnotation(step, "se", { x: 0.9, y: 0.9 }, size)).toEqual({});
+  });
+});
+
+describe("measure handles (NIW2-702)", () => {
+  const ruler: Annotation = {
+    id: "m",
+    kind: "measure",
+    axis: "y",
+    from: 100,
+    to: 300,
+    at: 99,
+    imageW: 200,
+    imageH: 400,
+    color: "#fff",
+  };
+
+  it("has two handles at the line ends and no box handles", () => {
+    expect(handlesFor(ruler, size)).toEqual([
+      { id: "p1", x: 0.4975, y: 0.25 },
+      { id: "p2", x: 0.4975, y: 0.75 },
+    ]);
+  });
+
+  it("dragging p2 moves only the to end, snapped to a pixel edge", () => {
+    expect(resizeAnnotation(ruler, "p2", { x: 0.9, y: 0.5 }, size)).toEqual({ from: 100, to: 200 });
+  });
+
+  it("dragging p1 moves only the from end and never crosses the other end", () => {
+    expect(resizeAnnotation(ruler, "p1", { x: 0.1, y: 0.2 }, size)).toEqual({ from: 80, to: 300 });
+    expect(resizeAnnotation(ruler, "p1", { x: 0.1, y: 0.99 }, size)).toEqual({
+      from: 299,
+      to: 300,
+    });
+  });
+
+  it("its box is the segment", () => {
+    expect(annotationBox(ruler, size)).toEqual({ x: 0.4975, y: 0.25, w: 0, h: 0.5 });
   });
 });

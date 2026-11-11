@@ -6,12 +6,14 @@
  *   - box / blur : 8 handles (4 corners + 4 edges) that move the corresponding edges.
  *   - path       : the same 8 handles, scaling every point within the new bounding box.
  *   - arrow      : 2 handles, one per endpoint.
+ *   - measure    : 2 handles, one per end (p1 = from, p2 = to), snapped to pixel edges.
  *   - text       : 2 handles — the SE corner scales the font (snapping to the nearest
  *                  size level), the E edge sets the wrap width.
  */
 
 import { clampFontPx, resolveFontPx, stepDiameterPx, TEXT_LINE_HEIGHT, textBoxPx } from "./tools";
 import type { Annotation } from "./scene";
+import { dragMeasureEnd, measureEndpoints } from "./measure";
 
 export type HandleId = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "p1" | "p2";
 
@@ -84,6 +86,15 @@ export function annotationBox(a: Annotation, size: Size): Box | null {
     const minY = Math.min(...ys);
     return { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
   }
+  if (a.kind === "measure") {
+    const { p1, p2 } = measureEndpoints(a);
+    return {
+      x: Math.min(p1.x, p2.x),
+      y: Math.min(p1.y, p2.y),
+      w: Math.abs(p2.x - p1.x),
+      h: Math.abs(p2.y - p1.y),
+    };
+  }
   // text — mirror the rendered selection outline (see Shape): when a wrap width is
   // set the box IS that width (height from the wrapped line count); otherwise width
   // from the longest line. Both in normalized space.
@@ -107,6 +118,13 @@ export function handlesFor(a: Annotation, size: Size): Handle[] {
     return [
       { id: "p1", x: a.x1, y: a.y1 },
       { id: "p2", x: a.x2, y: a.y2 },
+    ];
+  }
+  if (a.kind === "measure") {
+    const { p1, p2 } = measureEndpoints(a);
+    return [
+      { id: "p1", x: p1.x, y: p1.y },
+      { id: "p2", x: p2.x, y: p2.y },
     ];
   }
   const b = annotationBox(a, size);
@@ -181,6 +199,7 @@ export function resizeAnnotation(
       ? { x1: clamp(p.x), y1: clamp(p.y) }
       : { x2: clamp(p.x), y2: clamp(p.y) };
   }
+  if (a.kind === "measure") return dragMeasureEnd(a, handle === "p1" ? "from" : "to", p);
   // A badge has no handles; nothing to patch if one is asked for anyway.
   if (a.kind === "step") return {};
   if (a.kind === "text") {
@@ -231,11 +250,22 @@ export function resizeAnnotation(
   return { x: nb.x, y: nb.y, w: nb.w, h: nb.h };
 }
 
-/** The handle under point `p` (within `tol` normalized units), or null. Handles are
- *  tested in order, so corners/endpoints (listed first) win ties over edges. */
+/** The handle under point `p` (within `tol` normalized units), or null. The nearest one
+ *  in reach wins, for every kind; list order (corners/endpoints first) only breaks exact ties. */
 export function hitHandle(handles: Handle[], p: Pt, tol: Pt): HandleId | null {
+  // The nearest handle wins: on a short measure or arrow both ends fall inside the
+  // tolerance, and taking the first one dragged the end the user did not press.
+  let best: HandleId | null = null;
+  let bestD = Infinity;
   for (const h of handles) {
-    if (Math.abs(p.x - h.x) <= tol.x && Math.abs(p.y - h.y) <= tol.y) return h.id;
+    const dx = Math.abs(p.x - h.x) / (tol.x || 1);
+    const dy = Math.abs(p.y - h.y) / (tol.y || 1);
+    if (dx > 1 || dy > 1) continue;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) {
+      bestD = d;
+      best = h.id;
+    }
   }
-  return null;
+  return best;
 }
