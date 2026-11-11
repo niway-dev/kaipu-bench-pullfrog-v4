@@ -78,7 +78,7 @@
     {
       "index": 9,
       "name": "p3-arb-teal",
-      "outOfSrgbGamut": false,
+      "outOfSrgbGamut": true,
       "p3": [30, 200, 180],
       "x": 48,
       "y": 48

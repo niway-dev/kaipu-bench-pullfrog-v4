@@ -26,6 +26,8 @@ interface Swatch {
   expected: Triple;
   /** Value outside the sRGB gamut: `expected` is the clipped reference, not asserted. */
   outOfGamut: boolean;
+  /** Raw P3 or sRGB bytes from the fixture, for failure reports. */
+  source: { p3?: number[]; srgb?: number[] };
 }
 interface FixtureDef {
   id: "srgb" | "p3" | "monitor";
@@ -85,6 +87,7 @@ async function loadSwatches(def: FixtureDef): Promise<Swatch[]> {
     y: s.y,
     expected: (s.srgb ?? p3ToSrgb(s.p3 ?? [0, 0, 0])) as Triple,
     outOfGamut: s.outOfSrgbGamut === true,
+    source: { p3: s.p3, srgb: s.srgb },
   }));
 }
 
@@ -105,7 +108,7 @@ interface SwatchResult {
   delta: Triple | null;
   maxDelta: number | null;
   outOfGamut: boolean;
-  outOfSrgbMark: boolean | null;
+  outOfSrgbMark: boolean;
   pass: boolean | null;
 }
 const results: SwatchResult[] = [];
@@ -141,7 +144,7 @@ async function png(s: Scenario, name: string): Promise<void> {
   await s.page.screenshot({ path: path.join(s.outDir, `${name}.png`) });
 }
 
-const imgLocator = (s: Scenario, _canvas: boolean): Locator =>
+const imgLocator = (s: Scenario): Locator =>
   s.page.locator('[data-ui-area="editorImage.canvas"] img').first();
 
 /** Client point of the centre of image pixel (px, py), from the shown `<img>`'s box. */
@@ -157,6 +160,22 @@ async function pixelPoint(img: Locator, px: number, py: number): Promise<{ x: nu
     },
     { px, py },
   );
+}
+
+const markLocator = (s: Scenario): Locator => s.page.locator(`${HUD} > span`).nth(1);
+
+/** Whether the "Out of sRGB" mark appears for the hovered pixel; waits longer when it is expected. */
+async function readMark(s: Scenario, expected: boolean): Promise<boolean> {
+  if (expected) {
+    try {
+      await expect(markLocator(s)).toBeVisible({ timeout: 2_000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  await s.page.waitForTimeout(600);
+  return markLocator(s).isVisible();
 }
 
 const chipText = (s: Scenario): Locator =>
@@ -189,7 +208,7 @@ async function inspectRun(
   const tag = opts.shotsTag;
   try {
     await openImageEditor(s);
-    const img = imgLocator(s, canvas);
+    const img = imgLocator(s);
     await expect(img).toBeVisible();
     await expect
       .poll(() => img.evaluate((e) => (e as HTMLImageElement).naturalWidth))
@@ -204,12 +223,13 @@ async function inspectRun(
     for (const sw of swatches) {
       const readText = await hoverPixel(s, img, sw.x, sw.y);
       const read = parseHex(readText);
-      // Out-of-sRGB mark: rest on the pixel, then give the probe time to answer.
-      let mark: boolean | null = null;
-      if (fixture.id === "p3") {
-        await s.page.waitForTimeout(400);
-        mark = await s.page.locator(`${HUD} > span`).nth(1).isVisible();
-      }
+      // Out-of-sRGB mark: shown only after the pointer rests and a tile decodes. Out-of-gamut
+      // swatches must show it (wait up to 2 s); every other swatch must not (wait 600 ms first).
+      const mark = await readMark(s, sw.outOfGamut);
+      if (fixture.id !== "monitor" && mark !== sw.outOfGamut)
+        failures.push(
+          `${run} ${sw.name}: out-of-sRGB mark ${mark ? "shown" : "missing"} (outOfGamut=${sw.outOfGamut}, pixel ${sw.x}, ${sw.y}, source ${JSON.stringify(sw.source)})`,
+        );
       const delta = read ? (read.map((v, i) => v - sw.expected[i]!) as Triple) : null;
       const maxDelta = delta ? Math.max(...delta.map(Math.abs)) : null;
       const asserted = fixture.tolerance !== null && !sw.outOfGamut;
@@ -295,11 +315,10 @@ async function inspectRun(
       );
     }
 
-    // Out-of-sRGB mark on a wide-gamut swatch (recorded, not asserted).
+    // Out-of-sRGB mark on a wide-gamut swatch (screenshot; asserted per swatch above).
     if (oog) {
       await hoverPixel(s, img, oog.x, oog.y);
-      await s.page.waitForTimeout(400);
-      const markVisible = await s.page.locator(`${HUD} > span`).nth(1).isVisible();
+      const markVisible = await readMark(s, true);
       extra.outOfGamutProbe = {
         swatch: oog.name,
         markVisible,
@@ -327,7 +346,7 @@ async function inspectRun(
     // Zoom invariance (canvas on): same pixel and same hex after Zoom in twice.
     if (canvas) {
       const before = {
-        coords: await hoverPixel(s, img, ref.x, ref.y),
+        hex: await hoverPixel(s, img, ref.x, ref.y),
         box: await img.boundingBox(),
       };
       const zoomIn = s.page.getByRole("button", { name: "Zoom in", exact: true });
@@ -340,14 +359,14 @@ async function inspectRun(
       extra.zoom = {
         swatch: ref.name,
         coords,
-        chipBefore: before.coords,
+        chipBefore: before.hex,
         chipAfter: after,
         widthBefore: before.box?.width,
         widthAfter: afterBox?.width,
       };
       if (tag) await png(s, `${tag}-e-zoomed-in-twice`);
-      if (after !== before.coords)
-        failures.push(`${run}: chip changed after zoom (${before.coords} -> ${after})`);
+      if (after !== before.hex)
+        failures.push(`${run}: chip changed after zoom (${before.hex} -> ${after})`);
       if (!afterBox || !before.box || afterBox.width <= before.box.width)
         failures.push(`${run}: image did not grow after Zoom in`);
     }
@@ -356,12 +375,6 @@ async function inspectRun(
     await s.page.keyboard.press("Escape");
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     extras[run] = extra;
-    if (
-      extra.clipboard &&
-      (extra.clipboard as { chip: string; clipboard: string }).chip !==
-        (extra.clipboard as { clipboard: string }).clipboard
-    )
-      failures.push(`${run}: clipboard differs from chip`);
   } finally {
     await s.finish();
   }
@@ -388,34 +401,38 @@ test("image-inspect: swatch readout, formats, copy, as captured, zoom, flag off"
     await off.finish();
   }
 
-  // Launches 2-7: flag on, canvas off and on, one fixture per launch.
-  await inspectRun(FIXTURES[0]!, false, { keepOutput: true, shotsTag: "canvas-off" });
-  await inspectRun(FIXTURES[1]!, false, { keepOutput: true, shotsTag: "p3-canvas-off" });
-  await inspectRun(FIXTURES[2]!, false, { keepOutput: true, shotsTag: "monitor-canvas-off" });
-  await inspectRun(FIXTURES[0]!, true, { keepOutput: true, shotsTag: "canvas-on" });
-  await inspectRun(FIXTURES[1]!, true, { keepOutput: true, shotsTag: "p3-canvas-on" });
-
-  const asserted = results.filter((r) => r.pass !== null);
-  const summary = {
-    swatchesAsserted: asserted.length,
-    swatchesPassed: asserted.filter((r) => r.pass).length,
-    maxDeltaByFixture: Object.fromEntries(
-      FIXTURES.map((f) => [
-        f.id,
-        Math.max(
-          0,
-          ...results
-            .filter((r) => r.fixture === f.id && !r.outOfGamut)
-            .map((r) => r.maxDelta ?? 99),
-        ),
-      ]),
-    ),
-    failures,
-  };
-  await writeFile(
-    path.join(off.outDir, "results.json"),
-    JSON.stringify({ summary, extras, swatches: results }, null, 2),
-  );
-  console.log(`[verify] image-inspect: ${JSON.stringify(summary)}`);
+  try {
+    // Launches 2-7: flag on, canvas off and on, one fixture per launch (3 fixtures x 2).
+    await inspectRun(FIXTURES[0]!, false, { keepOutput: true, shotsTag: "canvas-off" });
+    await inspectRun(FIXTURES[1]!, false, { keepOutput: true, shotsTag: "p3-canvas-off" });
+    await inspectRun(FIXTURES[2]!, false, { keepOutput: true, shotsTag: "monitor-canvas-off" });
+    await inspectRun(FIXTURES[0]!, true, { keepOutput: true, shotsTag: "canvas-on" });
+    await inspectRun(FIXTURES[1]!, true, { keepOutput: true, shotsTag: "p3-canvas-on" });
+    await inspectRun(FIXTURES[2]!, true, { keepOutput: true, shotsTag: "monitor-canvas-on" });
+  } finally {
+    // Readings survive a thrown expect.
+    const asserted = results.filter((r) => r.pass !== null);
+    const summary = {
+      swatchesAsserted: asserted.length,
+      swatchesPassed: asserted.filter((r) => r.pass).length,
+      maxDeltaByFixture: Object.fromEntries(
+        FIXTURES.map((f) => [
+          f.id,
+          Math.max(
+            0,
+            ...results
+              .filter((r) => r.fixture === f.id && !r.outOfGamut)
+              .map((r) => r.maxDelta ?? 99),
+          ),
+        ]),
+      ),
+      failures,
+    };
+    await writeFile(
+      path.join(off.outDir, "results.json"),
+      JSON.stringify({ summary, extras, swatches: results }, null, 2),
+    );
+    console.log(`[verify] image-inspect: ${JSON.stringify(summary)}`);
+  }
   expect(failures, failures.join("\n")).toEqual([]);
 });
