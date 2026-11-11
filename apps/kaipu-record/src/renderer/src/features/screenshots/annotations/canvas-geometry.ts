@@ -1,4 +1,12 @@
-import { STROKE_WIDTHS, TEXT_LINE_HEIGHT, resolveFontPx, textBoxPx, textLines } from "./tools";
+import {
+  HAND_FONT,
+  STROKE_WIDTHS,
+  TEXT_LINE_HEIGHT,
+  resolveFontPx,
+  textBoxPx,
+  textLines,
+} from "./tools";
+import { pathControlPoints } from "./smooth";
 import type { Annotation, CropRect } from "./scene";
 
 /**
@@ -29,8 +37,39 @@ export const ZERO_EXTENTS: Extents = { left: 0, top: 0, right: 0, bottom: 0 };
 /** Width in px of one line of text at a font size. */
 export type TextMeasure = (text: string, fontPx: number) => number;
 
-/** Default measure: the same glyph-advance estimate `textLines` / `textBoxPx` use. */
-export const defaultTextMeasure: TextMeasure = (text, fontPx) => textBoxPx(text, fontPx).w;
+/** The cached 2D context used to measure text; `null` once we know there is none (jsdom). */
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+
+function textContext(): CanvasRenderingContext2D | null {
+  if (measureCtx !== undefined) return measureCtx;
+  try {
+    measureCtx =
+      typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
+  } catch {
+    measureCtx = null;
+  }
+  return measureCtx;
+}
+
+/** Safety margin over a measured width: the SVG export may lay glyphs out a hair wider. */
+const MEASURE_MARGIN = 1.04;
+/** Fixed part of the margin, as a share of the font size (about 2 px at the preset sizes). */
+const MEASURE_PAD_EM = 0.08;
+
+/**
+ * Default measure: the real width of the line in the font the export draws it in (same
+ * font string as the compositor's text branch: weight 600, `HAND_FONT`), plus a small
+ * safety margin. A character-count estimate cuts wide glyphs off in the export, which is
+ * sized from this box. Falls back to the `textBoxPx` estimate when there is no 2D
+ * context (jsdom). No font-load step: `HAND_FONT` is a system stack (the Caveat face is
+ * not bundled), so the canvas resolves it exactly as the SVG does.
+ */
+export const defaultTextMeasure: TextMeasure = (text, fontPx) => {
+  const ctx = textContext();
+  if (!ctx) return textBoxPx(text, fontPx).w;
+  ctx.font = `600 ${fontPx}px ${HAND_FONT}`;
+  return ctx.measureText(text).width * MEASURE_MARGIN + fontPx * MEASURE_PAD_EM;
+};
 
 /** Jitter amplitude of roughRect (px, not scaled), see rough.ts. */
 const ROUGH_JITTER = 1.7;
@@ -105,9 +144,13 @@ export function annotationBounds(
   if (a.kind === "path") {
     if (a.points.length === 0) return null;
     const m = ((STROKE_WIDTHS[a.stroke] ?? STROKE_WIDTHS[0]) * scale) / 2;
+    // The stroke is drawn through `smoothPath`, whose curves can overshoot the stored
+    // points: bound the Bézier control points instead (a cubic stays inside their hull).
     let b: Bounds | null = null;
-    for (const p of a.points) {
-      const pb = { x1: p.x * naturalW, y1: p.y * naturalH, x2: p.x * naturalW, y2: p.y * naturalH };
+    for (const p of pathControlPoints(
+      a.points.map((q) => ({ x: q.x * naturalW, y: q.y * naturalH })),
+    )) {
+      const pb = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
       b = b ? union(b, pb) : pb;
     }
     return b ? grow(b, m) : null;
@@ -116,7 +159,9 @@ export function annotationBounds(
   const fs = resolveFontPx(a.size, a.fontPx) * scale;
   const widthPx = a.width ? a.width * naturalW : undefined;
   const lines = textLines(a.text, fs, widthPx);
-  const w = widthPx ?? lines.reduce((max, line) => Math.max(max, measure(line, fs)), 0);
+  const measured = lines.reduce((max, line) => Math.max(max, measure(line, fs)), 0);
+  // A wrap width is the box, but a line of wide glyphs can still run past it.
+  const w = widthPx ? Math.max(widthPx, measured) : measured;
   const h = lines.length * fs * TEXT_LINE_HEIGHT;
   const x = a.x * naturalW;
   const y = a.y * naturalH;

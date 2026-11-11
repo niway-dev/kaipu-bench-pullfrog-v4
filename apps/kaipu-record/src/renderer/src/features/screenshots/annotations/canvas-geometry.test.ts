@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   annotationBounds,
   canvasLayout,
   contentExtents,
+  defaultTextMeasure,
   extentsToDisplay,
   frameToWorld,
   worldToFrame,
@@ -85,6 +86,31 @@ describe("annotationBounds", () => {
     expect(b).toEqual({ x1: 200 - m, y1: 120 - m, x2: 600 + m, y2: 300 + m });
   });
 
+  it("path: a smoothed stroke's overshoot counts, not just the stored points", () => {
+    // Catmull-Rom through (1200,0),(1300,0) bows up to about y = -60 (control points at -80).
+    const e = contentExtents(
+      [
+        {
+          id: "p",
+          kind: "path",
+          points: [
+            { x: 1.1, y: 0.8 },
+            { x: 1.2, y: 0 },
+            { x: 1.3, y: 0 },
+            { x: 1.4, y: 0.8 },
+          ],
+          color: "#000",
+          stroke: 0,
+        },
+      ],
+      W,
+      H,
+      1,
+    );
+    expect(e.top).toBeGreaterThanOrEqual(60);
+    expect(e.right).toBeGreaterThanOrEqual(400);
+  });
+
   it("path with no points paints nothing", () => {
     expect(
       annotationBounds({ id: "p", kind: "path", points: [], color: "#000", stroke: 0 }, W, H, 1),
@@ -115,6 +141,17 @@ describe("annotationBounds", () => {
     expect(b.y2).toBeCloseTo(60 + 2 * fs * TEXT_LINE_HEIGHT);
   });
 
+  it("text with width: a measured line wider than the box widens it", () => {
+    const b = annotationBounds(
+      text({ text: "WWWW", width: 0.01, fontPx: 20 }),
+      W,
+      H,
+      1,
+      () => 300,
+    )!;
+    expect(b.x2 - b.x1).toBe(300);
+  });
+
   it("text with width wraps to width x naturalW", () => {
     const b = annotationBounds(
       text({ text: "aaa bbb ccc ddd eee fff", width: 0.1, fontPx: 20 }),
@@ -125,6 +162,32 @@ describe("annotationBounds", () => {
     )!;
     expect(b.x2 - b.x1).toBe(100);
     expect(b.y2 - b.y1).toBeGreaterThan(20 * TEXT_LINE_HEIGHT);
+  });
+});
+
+describe("defaultTextMeasure", () => {
+  it("falls back to the character estimate when there is no 2D context (jsdom)", () => {
+    // 5 chars x 0.55 x 20 px: the textBoxPx estimate, with no margin.
+    expect(defaultTextMeasure("hello", 20)).toBeCloseTo(55);
+  });
+
+  it("measures with the export's font string and adds a margin when a context exists", async () => {
+    vi.resetModules();
+    const ctx = { font: "", measureText: () => ({ width: 384 }) };
+    const spy = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    try {
+      const fresh = await import("./canvas-geometry");
+      const { HAND_FONT } = await import("./tools");
+      const w = fresh.defaultTextMeasure("WWWWWWWWWW", 37);
+      expect(ctx.font).toBe(`600 37px ${HAND_FONT}`);
+      // Measured 384 px (the estimate says 203): margin on top, never below the real width.
+      expect(w).toBeGreaterThan(384);
+      expect(w).toBeLessThan(384 * 1.04 + 37 * 0.1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 
