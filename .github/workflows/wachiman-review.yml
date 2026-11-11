@@ -23,7 +23,7 @@ on:
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@0536f89466cb3c0c981848acae1c9df52bfb8c4a # v1.10.1
+    uses: niway-dev/wachiman/.github/workflows/review.yml@e9d0f5d4c2a9cf6a15186d452a56b5d8c070f27d # v1.11.0
     with:
       operator: csdev19
       model: claude-opus-5-5
