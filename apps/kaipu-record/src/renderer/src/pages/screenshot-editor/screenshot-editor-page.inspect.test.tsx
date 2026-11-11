@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import type { ImageSource } from "@renderer/features/screenshots/image-source";
-import { ScreenshotEditorPage } from "./screenshot-editor-page";
+import { ScreenshotEditor, ScreenshotEditorPage } from "./screenshot-editor-page";
 
 // Inspect mode (NIW2-699) is behind `image-inspect`; image-canvas is the other latch it must
 // work with. Each test picks its sides.
@@ -61,7 +62,8 @@ beforeEach(async () => {
     ...base,
     screenshotCopy: "manual" as const,
   }));
-  URL.createObjectURL = vi.fn(() => "blob:shot");
+  let urls = 0;
+  URL.createObjectURL = vi.fn(() => `blob:shot-${++urls}`);
   URL.revokeObjectURL = vi.fn();
   window.electronAPI.saveScreenshot = vi.fn(async (_png: ArrayBuffer, opts: { title: string }) => ({
     id: "s1",
@@ -111,6 +113,23 @@ function mount(source: ImageSource) {
   );
   return render(<RouterProvider router={router} />);
 }
+const PASTE_B: ImageSource = { kind: "blob", bytes, width: 4, height: 4, origin: "paste" };
+
+/** The editor with a button that swaps the open image in place (a new displayUrl, same mount). */
+function mountSwappable() {
+  function Swappable() {
+    const [source, setSource] = useState(PASTE);
+    return (
+      <>
+        <button onClick={() => setSource(PASTE_B)}>swap-image</button>
+        <ScreenshotEditor source={source} fresh />
+      </>
+    );
+  }
+  const router = createMemoryRouter([{ path: "/", element: <Swappable /> }]);
+  return render(<RouterProvider router={router} />);
+}
+const swapImage = () => fireEvent.click(screen.getByRole("button", { name: "swap-image" }));
 const loadImage = async () => fireEvent.load(await screen.findByRole("img"));
 const canvasEl = (): HTMLElement =>
   document.querySelector('[data-ui-area="editorImage.canvas"] > div')!;
@@ -290,6 +309,81 @@ describe.each([
     // Inspect stays usable (Esc still leaves) even though nothing can be read
     press("Escape");
     expect(canvasEl()).toHaveAttribute("data-inspect", "false");
+  });
+
+  it("decodes the new image when the old image's decode fails after the swap", async () => {
+    let rejectOld: (error: Error) => void = () => {};
+    decodeSrgbBuffer.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => (rejectOld = reject)),
+    );
+    mountSwappable();
+    await loadImage();
+    press("i");
+    await waitFor(() => expect(decodeSrgbBuffer).toHaveBeenCalledTimes(1));
+    swapImage();
+    rejectOld(new Error("old decode failed"));
+    await waitFor(() => expect(decodeSrgbBuffer).toHaveBeenCalledTimes(2));
+    await screen.findByTestId("inspect-layer");
+    fireEvent.pointerMove(layer(), POINTER);
+    await screen.findByText(PIXEL_HEX);
+    expect(screen.queryByText("Pixel reading unavailable")).toBeNull();
+  });
+
+  it("does not carry a failed As captured probe over to the next image", async () => {
+    probeCaptured.mockRejectedValueOnce(new Error("no p3 canvas"));
+    mountSwappable();
+    await loadImage();
+    press("i");
+    await screen.findByTestId("inspect-layer");
+    fireEvent.pointerMove(layer(), POINTER);
+    await screen.findByText(PIXEL_HEX);
+    fireEvent.click(screen.getByRole("button", { name: "As captured" }));
+    await screen.findByText('"As captured" is unavailable for this image');
+    swapImage();
+    await waitFor(() =>
+      expect(screen.queryByText('"As captured" is unavailable for this image')).toBeNull(),
+    );
+    // The new image is probed again: its raw bytes show up under the still pointer.
+    expect(await screen.findByText("#010203")).toBeInTheDocument();
+  });
+
+  it("re-reads the pixel when the image moves under a still pointer", async () => {
+    await enterAndHover();
+    expect(screen.getByText("3, 1")).toBeInTheDocument();
+    // Let the probe finish first: its own re-flush would otherwise hide a missing watcher.
+    await screen.findByText("Out of sRGB");
+    // Zoomed or panned: the picture is now 400 px wide, the pointer did not move.
+    Element.prototype.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 400,
+        height: 400,
+        right: 400,
+        bottom: 400,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    expect(await screen.findByText("1, 0")).toBeInTheDocument();
+    press("c");
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith("#320064"));
+  });
+
+  it("the Copy button still copies the last pixel after the pointer left for the bar", async () => {
+    await enterAndHover();
+    fireEvent.pointerLeave(layer());
+    await waitFor(() => expect(screen.queryByText(PIXEL_HEX)).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Copy color" }));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(PIXEL_HEX));
+
+    fireEvent.click(screen.getByRole("button", { name: "RGB" }));
+    // The label reads "Copied" for a moment after the first copy.
+    fireEvent.click(screen.getByRole("button", { name: /^(Copy color|Copied)$/ }));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith("rgb(150, 50, 100)"));
+    // C keeps meaning "what the chip shows": nothing, with the pointer off the image.
+    writeText.mockClear();
+    press("c");
+    expect(writeText).not.toHaveBeenCalled();
   });
 
   it("entering Inspect does not stop the wheel from reaching the canvas", async () => {

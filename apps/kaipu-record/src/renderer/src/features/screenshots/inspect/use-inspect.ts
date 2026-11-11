@@ -103,6 +103,10 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const probing = useRef(false);
   const hoverRef = useRef<InspectHover | null>(null);
+  // The last pixel the pointer rested on: survives pointer leave so the bar's Copy still has it.
+  const lastHoverRef = useRef<InspectHover | null>(null);
+  const watchFrame = useRef<number | null>(null);
+  const watchRect = useRef<string>("");
   const imageRef = useRef(image);
   imageRef.current = image;
   const onEnterRef = useRef(onEnter);
@@ -115,15 +119,50 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
   const readout = readoutFor(hover, format, asCaptured);
   const readoutRef = useRef(readout);
   readoutRef.current = readout;
+  const formatRef = useRef(format);
+  formatRef.current = format;
+  const asCapturedRef = useRef(asCaptured);
+  asCapturedRef.current = asCaptured;
 
   const publish = useCallback((next: InspectHover | null) => {
     hoverRef.current = next;
+    if (next) lastHoverRef.current = next;
     setHover(next);
   }, []);
 
   const scheduleFlush = useCallback(() => {
     if (frame.current !== null) return;
     frame.current = window.requestAnimationFrame(() => flushRef.current());
+  }, []);
+
+  const rectKey = useCallback((): string => {
+    const r = imgRef.current?.getBoundingClientRect();
+    return r ? `${r.left},${r.top},${r.width},${r.height}` : "";
+  }, [imgRef]);
+
+  /**
+   * While the pointer rests on the image, re-sample when the image moves or resizes under it
+   * (pan, scroll, zoom): no pointer event fires then. Runs only while a pointer position is known.
+   */
+  const startWatch = useCallback((): void => {
+    if (watchFrame.current !== null) return;
+    watchRect.current = rectKey();
+    const tick = (): void => {
+      watchFrame.current = null;
+      if (!alive.current || !activeRef.current || !lastPointer.current) return;
+      const key = rectKey();
+      if (key !== watchRect.current) {
+        watchRect.current = key;
+        scheduleFlush();
+      }
+      watchFrame.current = window.requestAnimationFrame(tick);
+    };
+    watchFrame.current = window.requestAnimationFrame(tick);
+  }, [rectKey, scheduleFlush]);
+
+  const stopWatch = useCallback((): void => {
+    if (watchFrame.current !== null) window.cancelAnimationFrame(watchFrame.current);
+    watchFrame.current = null;
   }, []);
 
   /** Run the probe for the pixel the pointer rests on; one at a time, stale results dropped. */
@@ -221,6 +260,9 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       scheduleFlush();
     } catch (error) {
       if (!alive.current) return;
+      // A decode of the previous image that fails says nothing about the current one.
+      stale = imageRef.current?.displayUrl !== current.displayUrl;
+      if (stale) return;
       setStatus("error");
       reportError(t("inspectUnavailable"), error, { context: { phase: "inspect-decode" } });
     } finally {
@@ -247,17 +289,18 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
         if (restTimer.current !== null) clearTimeout(restTimer.current);
         restTimer.current = null;
         lastPointer.current = null;
+        stopWatch();
+        lastHoverRef.current = null;
         publish(null);
         setLoupe(null);
       }
     },
-    [enabled, ensureDecoded, publish],
+    [enabled, ensureDecoded, publish, stopWatch],
   );
 
   const toggle = useCallback(() => setActive(!activeRef.current), [setActive]);
 
-  const copy = useCallback(async (): Promise<boolean> => {
-    const text = readoutRef.current;
+  const copyText = useCallback(async (text: string | null): Promise<boolean> => {
     if (!text) return false;
     try {
       await navigator.clipboard.writeText(text);
@@ -270,23 +313,39 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
     return true;
   }, []);
-  const copyRef = useRef(copy);
-  copyRef.current = copy;
+
+  /** The bar's Copy: the pixel under the pointer, or the last one if the pointer moved to the bar. */
+  const copy = useCallback(
+    (): Promise<boolean> =>
+      copyText(
+        readoutFor(
+          hoverRef.current ?? lastHoverRef.current,
+          formatRef.current,
+          asCapturedRef.current,
+        ),
+      ),
+    [copyText],
+  );
+  // The C key keeps copying only what the chip shows.
+  const copyKeyRef = useRef(() => copyText(readoutRef.current));
+  copyKeyRef.current = () => copyText(readoutRef.current);
 
   const onPointerMove = useCallback(
     (e: { clientX: number; clientY: number }): void => {
       if (!activeRef.current) return;
       lastPointer.current = { clientX: e.clientX, clientY: e.clientY };
+      startWatch();
       scheduleFlush();
     },
-    [scheduleFlush],
+    [scheduleFlush, startWatch],
   );
 
   const onPointerLeave = useCallback((): void => {
     lastPointer.current = null;
+    stopWatch();
     publish(null);
     setLoupe(null);
-  }, [publish]);
+  }, [publish, stopWatch]);
 
   // Keys: a window listener, only while the flag is on.
   useEffect(() => {
@@ -301,7 +360,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       e.preventDefault();
       if (action === "toggle") setActive(!activeRef.current);
       else if (action === "exit") setActive(false);
-      else void copyRef.current();
+      else void copyKeyRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -313,6 +372,9 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     bufferRef.current = null;
     bytesRef.current = null;
     tileRef.current = null;
+    lastHoverRef.current = null;
+    probeBroken.current = false;
+    setCapturedUnavailable(false);
     if (activeRef.current) void ensureDecodedRef.current();
   }, [displayUrl]);
 
@@ -325,6 +387,8 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       bytesRef.current = null;
       tileRef.current = null;
       if (frame.current !== null) window.cancelAnimationFrame(frame.current);
+      if (watchFrame.current !== null) window.cancelAnimationFrame(watchFrame.current);
+      watchFrame.current = null;
       if (restTimer.current !== null) clearTimeout(restTimer.current);
       if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
     };
