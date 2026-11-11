@@ -13,6 +13,8 @@ export interface MissingRecoveryParams {
   found: boolean;
   /** The library list is still being read. */
   isLoading: boolean;
+  /** The last list came back with a vault error: the item is "unknown", not missing. */
+  hasError?: boolean;
   /** Size of the current list — context for the diagnostic event. */
   listSize: number;
   /** True when we arrived straight from a finished recording (see app-shell). */
@@ -38,7 +40,7 @@ export interface MissingRecoveryParams {
 export function useMissingRecordingRecovery(params: MissingRecoveryParams): {
   recovering: boolean;
 } {
-  const { id, found, isLoading, listSize, fromRecording, refresh } = params;
+  const { id, found, isLoading, hasError = false, listSize, fromRecording, refresh } = params;
   const navigate = useNavigate();
   const phase = useRef<"idle" | "retried" | "done">("idle");
 
@@ -50,7 +52,9 @@ export function useMissingRecordingRecovery(params: MissingRecoveryParams): {
     phase.current = "idle";
   }
 
-  const missing = !isLoading && !!id && !found;
+  // An unreadable vault (unplugged drive, EACCES) hides items it still holds: treating
+  // that as "missing" would re-list pointlessly and then redirect away from a real item.
+  const missing = !isLoading && !hasError && !!id && !found;
 
   useEffect(() => {
     if (!missing) {

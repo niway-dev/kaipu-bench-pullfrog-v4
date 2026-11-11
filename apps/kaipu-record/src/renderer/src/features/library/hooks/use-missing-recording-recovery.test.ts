@@ -48,6 +48,15 @@ describe("useMissingRecordingRecovery", () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
+  it("ignores a vault error: no re-list, no redirect, no loader", () => {
+    const { result, refresh } = setup(loaded({ hasError: true }));
+    expect(result.current.recovering).toBe(false);
+    act(() => vi.advanceTimersByTime(2000));
+    expect(refresh).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(captureEventMock).not.toHaveBeenCalled();
+  });
+
   it("does nothing when the recording is present", () => {
     const { result, refresh } = setup(loaded({ found: true }));
     expect(result.current.recovering).toBe(false);
