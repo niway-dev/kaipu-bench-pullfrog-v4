@@ -9,7 +9,14 @@ import {
   resolveFontPx,
   textLines,
 } from "./tools";
-import { canvasLayout, contentExtents, hasExtents, type Extents } from "./canvas-geometry";
+import {
+  canvasLayout,
+  contentExtents,
+  hasExtents,
+  intersectFrame,
+  worldToFrame,
+  type Extents,
+} from "./canvas-geometry";
 import type { Annotation, Scene } from "./scene";
 
 /**
@@ -147,19 +154,27 @@ export function frameWindow(
       pad: g.pad,
       extents: g.extents,
     });
-    const f = scene.exportFrame;
-    if (!f) return { vbX: 0, vbY: 0, outW: l.fullW, outH: l.fullH, fullW: l.fullW, fullH: l.fullH };
-    // The frame is in world units and can outlive a shrinking content box, so intersect
-    // it with the composed frame: the viewBox never runs past what is painted.
-    const x1 = Math.max(0, Math.round(l.originX + f.x * g.naturalW));
-    const y1 = Math.max(0, Math.round(l.originY + f.y * g.naturalH));
-    const x2 = Math.min(l.fullW, Math.round(l.originX + (f.x + f.w) * g.naturalW));
-    const y2 = Math.min(l.fullH, Math.round(l.originY + (f.y + f.h) * g.naturalH));
+    const whole = { vbX: 0, vbY: 0, outW: l.fullW, outH: l.fullH, fullW: l.fullW, fullH: l.fullH };
+    if (!scene.exportFrame) return whole;
+    // The frame is in world units and can outlive a shrinking content box. The same rule
+    // as the live preview (`intersectFrame`) clips it to the composed frame; nothing left
+    // means no frame: the whole composed frame is exported.
+    const c = intersectFrame(
+      worldToFrame(scene.exportFrame, {
+        naturalW: g.naturalW,
+        naturalH: g.naturalH,
+        pad: g.pad,
+        extents: g.extents,
+      }),
+    );
+    if (!c) return whole;
+    const x1 = Math.round(c.x * l.fullW);
+    const y1 = Math.round(c.y * l.fullH);
     return {
       vbX: x1,
       vbY: y1,
-      outW: Math.max(1, x2 - x1),
-      outH: Math.max(1, y2 - y1),
+      outW: Math.max(1, Math.round((c.x + c.w) * l.fullW) - x1),
+      outH: Math.max(1, Math.round((c.y + c.h) * l.fullH) - y1),
       fullW: l.fullW,
       fullH: l.fullH,
     };

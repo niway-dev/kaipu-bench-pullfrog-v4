@@ -217,3 +217,18 @@ export function frameToWorld(crop: CropRect, g: CanvasGeom): CropRect {
     h: (crop.h * l.fullH) / g.naturalH,
   };
 }
+
+/**
+ * The one rule for an export frame that ran past the composed frame: clip a
+ * frame-normalized rect to [0,1]². Returns undefined when nothing is left (empty or
+ * degenerate), meaning the frame is treated as absent and the whole frame is used.
+ * Shared by the preview and the export so both show the same window.
+ */
+export function intersectFrame(c: CropRect): CropRect | undefined {
+  const x1 = Math.max(0, c.x);
+  const y1 = Math.max(0, c.y);
+  const x2 = Math.min(1, c.x + c.w);
+  const y2 = Math.min(1, c.y + c.h);
+  if (!(x2 - x1 > 1e-6) || !(y2 - y1 > 1e-6)) return undefined;
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}

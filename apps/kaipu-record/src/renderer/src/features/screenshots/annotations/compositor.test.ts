@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { intersectFrame, worldToFrame } from "./canvas-geometry";
 import { buildSvg, frameWindow, type Geom } from "./compositor";
 import { TEXT_SIZES } from "./tools";
 import type { Annotation, Scene } from "./scene";
@@ -246,6 +247,24 @@ describe("compositor canvas mode", () => {
     const v = frameWindow(t, { ...geom, extents: ZERO });
     expect(v.vbX + v.outW).toBeLessThanOrEqual(v.fullW);
     expect(v.vbY + v.outH).toBeLessThanOrEqual(v.fullH);
+  });
+
+  it("one-sided overflow gives the same window in the preview rule and in frameWindow", () => {
+    const g = { ...geom, extents: ZERO };
+    const frame = { x: 0.7, y: 0, w: 0.5, h: 1 };
+    const w = frameWindow({ ...scene([]), exportFrame: frame }, g);
+    const c = intersectFrame(worldToFrame(frame, g))!;
+    expect(w.vbX).toBe(Math.round(c.x * w.fullW));
+    expect(w.vbX + w.outW).toBe(w.fullW);
+    expect(w.outW).toBeLessThan(Math.round(0.5 * w.fullW));
+  });
+
+  it("an export frame fully outside the composed frame exports the whole frame, like the preview", () => {
+    const g = { ...geom, extents: ZERO };
+    const frame = { x: 5, y: 5, w: 1, h: 1 };
+    expect(intersectFrame(worldToFrame(frame, g))).toBeUndefined();
+    const w = frameWindow({ ...scene([]), exportFrame: frame }, g);
+    expect(w).toMatchObject({ vbX: 0, vbY: 0, outW: w.fullW, outH: w.fullH });
   });
 
   it("ignores scene.crop in canvas mode", () => {

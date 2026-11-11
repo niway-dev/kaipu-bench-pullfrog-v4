@@ -46,8 +46,8 @@ import {
   ZERO_EXTENTS,
   contentExtents,
   extentsToDisplay,
-  clampCrop,
   frameToWorld,
+  intersectFrame,
   useAnnotationTools,
   useEditorScene,
   worldToFrame,
@@ -328,7 +328,7 @@ export function ScreenshotEditor({
       : null;
   const exportFrameCrop: CropRect | undefined =
     canvasGeom && scene.exportFrame
-      ? clampCrop(worldToFrame(scene.exportFrame, canvasGeom))
+      ? intersectFrame(worldToFrame(scene.exportFrame, canvasGeom))
       : undefined;
   // In canvas mode the Crop tool edits the export frame: the same overlay and Reset button,
   // fed a scene whose `crop` is the frame and whose `setCrop` writes the frame.

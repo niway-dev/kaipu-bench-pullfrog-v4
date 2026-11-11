@@ -12,7 +12,6 @@ export {
   type CompositeResult,
 } from "./compositor";
 export type { Scene, Annotation, CropRect } from "./scene";
-export { clampCrop } from "./crop";
 export {
   annotationBounds,
   contentExtents,
@@ -21,6 +20,7 @@ export {
   canvasLayout,
   frameToWorld,
   worldToFrame,
+  intersectFrame,
   defaultTextMeasure,
   ZERO_EXTENTS,
   type Bounds,
