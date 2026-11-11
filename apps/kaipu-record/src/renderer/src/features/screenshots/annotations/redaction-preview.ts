@@ -48,7 +48,11 @@ function loadImage(src: string): Promise<ImageBitmap | null> {
     .then((blob) =>
       createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" }),
     )
-    .catch(() => null);
+    .catch(() => {
+      // Not cached: the next preview of this shot tries again.
+      if (cached?.src === src) cached = null;
+      return null;
+    });
   cached = { src, image };
   return image;
 }
