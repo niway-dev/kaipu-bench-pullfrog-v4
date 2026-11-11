@@ -273,3 +273,37 @@ describe("compositor canvas mode", () => {
     expect(svg).toContain(`viewBox="0 0 1080 680"`);
   });
 });
+
+describe("compositor step badges", () => {
+  const step = (id: string, x: number, color: string): Annotation => ({
+    id,
+    kind: "step",
+    x,
+    y: 0.5,
+    color,
+    size: 1,
+  });
+
+  it("emits a circle and the number for each badge, scaled by `scale`", () => {
+    const svg = buildSvg(scene([step("a", 0.25, "#f6055c"), step("b", 0.75, "#f6055c")]), geom);
+    expect(svg.match(/<circle /g)).toHaveLength(2);
+    // Diameter STEP_PX[1] = 28 -> radius 14, times scale 2.
+    expect(svg).toContain('r="28"');
+    expect(svg).toMatch(/dominant-baseline="central">1<\/text>/);
+    expect(svg).toMatch(/dominant-baseline="central">2<\/text>/);
+    expect(svg).not.toContain("NaN");
+  });
+
+  it("renumbers in the export when a badge is missing", () => {
+    const svg = buildSvg(scene([step("a", 0.25, "#f6055c"), step("c", 0.75, "#f6055c")]), geom);
+    expect(svg).not.toContain(">3</text>");
+    expect(svg).toMatch(/>2<\/text>/);
+  });
+
+  it("uses dark ink on a light fill and white on a dark one", () => {
+    const light = buildSvg(scene([step("a", 0.5, "#f5f5f5")]), geom);
+    expect(light).toContain('fill="#1a1a1a"');
+    const dark = buildSvg(scene([step("a", 0.5, "#f6055c")]), geom);
+    expect(dark).toContain('stroke="#ffffff"');
+  });
+});

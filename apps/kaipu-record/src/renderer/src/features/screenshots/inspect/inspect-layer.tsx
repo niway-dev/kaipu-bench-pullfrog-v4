@@ -69,7 +69,13 @@ export function InspectLayer({ inspect }: { inspect: InspectController }): React
       onPointerLeave={inspect.onPointerLeave}
     >
       {hover && (
-        <div {...uiArea("editorImage.inspectHud")} className={styles.hud} style={{ left, top }}>
+        <div
+          {...uiArea("editorImage.inspectHud")}
+          // "true" once the captured tile for this pixel is read: the gamut mark is final then.
+          data-probed={hover.outOfGamut !== undefined}
+          className={styles.hud}
+          style={{ left, top }}
+        >
           <Loupe pixels={inspect.loupe} />
           <div className={styles.chip}>
             <span
