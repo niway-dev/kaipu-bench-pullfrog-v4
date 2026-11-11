@@ -60,9 +60,11 @@ export function wordsInReadingOrder(words: RecognizedWord[]): RecognizedWord[] {
  */
 export function textOfWords(ordered: RecognizedWord[]): string {
   let out = "";
-  for (let i = 0; i < ordered.length; i++) {
-    if (i > 0) out += ordered[i].line === ordered[i - 1].line ? " " : "\n";
-    out += ordered[i].text;
+  let previous: RecognizedWord | undefined;
+  for (const word of ordered) {
+    if (previous) out += word.line === previous.line ? " " : "\n";
+    out += word.text;
+    previous = word;
   }
   return out;
 }
