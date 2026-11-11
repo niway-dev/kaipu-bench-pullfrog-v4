@@ -447,6 +447,16 @@ function AnnotationLayerImpl({
     >
       {canvas && <div className={styles.hitSurface} data-testid="canvas-hit-surface" aria-hidden />}
       <svg className={styles.svg} width={size.w} height={size.h}>
+        {/* Canvas mode bakes a redaction into the base image, which sits under every item,
+            so its preview tile is drawn first, under all annotations and added images, as the
+            export composes it. Drawn at the blur's z-position, it would cover an image or a
+            box placed later over the redacted area in the live view only. */}
+        {canvasMode &&
+          [...shown, ...(draft ? [draft] : [])]
+            .filter((a): a is BlurAnnotation => a.kind === "blur" && !a.locked)
+            .map((a) => (
+              <RedactionTile key={`tile-${a.id}`} a={a} size={size} selected={false} src={src} />
+            ))}
         {shown.map((a) =>
           // Hide the label being re-edited — the inline editor sits on top of it.
           a.id === editing?.id ? null : a.kind === "image" ? (
@@ -605,8 +615,22 @@ const Shape = React.memo(function Shape({
   // redactions over it; the layer never routes one here.
   if (a.kind === "image") return <g />;
 
+  // Canvas mode: the tile is drawn at the bottom of the layer (see `baseTiles`); at the
+  // blur's own z-position only its selection outline is left.
   if (a.kind === "blur" && canvasMode) {
-    return <RedactionTile a={a} size={size} selected={selected} src={src} />;
+    if (a.locked) return <></>;
+    if (!selected) return <g data-annotation={a.id} />;
+    return (
+      <g data-annotation={a.id}>
+        <rect
+          className={styles.selOutline}
+          x={a.x * W}
+          y={a.y * H}
+          width={a.w * W}
+          height={a.h * H}
+        />
+      </g>
+    );
   }
 
   if (a.kind === "blur") {

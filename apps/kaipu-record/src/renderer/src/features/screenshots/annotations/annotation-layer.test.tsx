@@ -688,6 +688,30 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
       expect(tile.parentElement?.getAttribute("clip-path")).toMatch(/^url\(#iclip-i1\)$/);
     });
 
+    it("draws the base's tile under every item, whatever the blur's z-position", () => {
+      tileMock.mockImplementation((url: string) =>
+        url === "blob:base"
+          ? {
+              url: "data:base-tile",
+              rect: { x: 0, y: 0, w: 10, h: 10 },
+              naturalW: 100,
+              naturalH: 100,
+            }
+          : null,
+      );
+      // The blur comes AFTER the image: the save bakes it into the base, under the image,
+      // so the live tile must not be drawn over the image either.
+      const { container } = renderImageLayer(makeScene([image, blur], null), makeTools(), {
+        canvasMode: true,
+        src: "blob:base",
+      });
+      const baseTile = container.querySelector('[data-testid="redaction-tile"]')!;
+      const added = container.querySelector('image[href="blob:added"]')!;
+      expect(
+        baseTile.compareDocumentPosition(added) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
     it("passes the solid style through", () => {
       renderImageLayer(makeScene([image, { ...blur, style: "solid" }], null), makeTools(), {
         canvasMode: true,
