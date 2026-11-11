@@ -1,0 +1,74 @@
+name: Text recognition (Windows)
+
+# Runs the Windows text recognition backend (Windows.Media.Ocr through Windows PowerShell,
+# ADR 0055) for real on a Windows runner: the only place this repository can execute it,
+# since every development machine is a Mac. It recognizes two 1920×1080 fixtures, checks
+# the words and their boxes, and reports the cold and warm latency.
+#
+# Trigger: unlike the other test workflows (ADR 0004, workflow_dispatch only), it also runs
+# on pull requests, but only when the backend, its fixtures, its script or this file
+# change. A new workflow cannot be dispatched before it reaches the default branch, and
+# nothing else checks this code on Windows. Windows minutes bill at twice the Linux rate;
+# the job takes a few minutes and these paths change rarely.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - apps/kaipu-record/src/main/screenshots/text-recognition/windows-ocr.ts
+      - apps/kaipu-record/src/main/screenshots/text-recognition/helper-process.ts
+      - apps/kaipu-record/src/main/screenshots/text-recognition/fixtures/**
+      - apps/kaipu-record/scripts/measure-windows-ocr.ts
+      - .github/workflows/text-recognition-windows.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: Recognize and measure (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash # Git Bash is on the runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.4
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # First, before anything else touches OCR on this VM, so the first call is the cold one.
+      - name: Recognize the fixtures and measure
+        run: bun apps/kaipu-record/scripts/measure-windows-ocr.ts "$RUNNER_TEMP/windows-ocr-report.json"
+
+      # The process contract (stdin, exit code, stderr, timeout) on Windows process semantics.
+      - name: Backend unit tests
+        working-directory: apps/kaipu-record
+        run: ./node_modules/.bin/vitest run src/main/screenshots/text-recognition
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ocr-report
+          path: ${{ runner.temp }}/windows-ocr-report.json
+          if-no-files-found: warn
+          retention-days: 14

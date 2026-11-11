@@ -1,0 +1,160 @@
+/**
+ * Runs the real Windows text recognition backend (`windows-ocr.ts`, ADR 0055) on two
+ * 1920×1080 fixtures, checks what it recognized, and times every call end to end (PowerShell
+ * start, WinRT load, decode, OCR, JSON). Windows only.
+ *
+ *   bun apps/kaipu-record/scripts/measure-windows-ocr.ts [report.json]
+ *
+ * Run by .github/workflows/text-recognition-windows.yml. "Cold" is the first call in the
+ * process tree of this run: the first OCR since the runner VM booted, not a first install on
+ * a consumer machine. Exit code 1 when a check fails; the 1.5 s target is reported, not
+ * enforced.
+ */
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { cpus, release, totalmem } from "node:os";
+import { join } from "node:path";
+import { textOfWords, wordsInReadingOrder } from "@kaipu/domain/schemas";
+import type { RecognizedWord } from "@kaipu/domain/schemas";
+import {
+  WindowsOcrTextRecognizer,
+  windowsPowerShellPath,
+} from "../src/main/screenshots/text-recognition/windows-ocr";
+
+const TARGET_COLD_MS = 1500;
+const WARM_RUNS = 4;
+const fixtures = join(
+  import.meta.dir,
+  "..",
+  "src",
+  "main",
+  "screenshots",
+  "text-recognition",
+  "fixtures",
+);
+
+if (process.platform !== "win32") {
+  console.error("measure-windows-ocr runs on Windows only.");
+  process.exit(2);
+}
+
+const failures: string[] = [];
+const check = (ok: boolean, message: string) => {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${message}`);
+  if (!ok) failures.push(message);
+};
+
+function powershell(command: string): string {
+  return execFileSync(
+    windowsPowerShellPath(),
+    ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
+    { encoding: "utf8" },
+  ).trim();
+}
+
+const machine = {
+  os: release(),
+  caption: powershell("(Get-CimInstance Win32_OperatingSystem).Caption"),
+  cpu: cpus()[0]?.model ?? "unknown",
+  cores: cpus().length,
+  memoryGiB: Math.round(totalmem() / 2 ** 30),
+  powershell: powershell("$PSVersionTable.PSVersion.ToString()"),
+  profileLanguages: powershell("(Get-WinUserLanguageList).LanguageTag -join ','"),
+  ocrLanguages: powershell(
+    "$null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]; ([Windows.Media.Ocr.OcrEngine]::AvailableRecognizerLanguages | ForEach-Object { $_.LanguageTag }) -join ','",
+  ),
+};
+console.log("machine", JSON.stringify(machine));
+
+// PowerShell start alone, to read how much of each call is the shell rather than OCR.
+const shellStart: number[] = [];
+for (let i = 0; i < 3; i++) {
+  const started = performance.now();
+  powershell("exit 0");
+  shellStart.push(Math.round(performance.now() - started));
+}
+console.log("powershell start (ms)", shellStart.join(", "));
+
+const recognizer = new WindowsOcrTextRecognizer();
+
+async function timed(png: Uint8Array): Promise<{ ms: number; words: RecognizedWord[] }> {
+  const started = performance.now();
+  const result = await recognizer.recognize(png);
+  const ms = Math.round(performance.now() - started);
+  if (result === "unavailable") throw new Error("the backend answered unavailable");
+  return { ms, words: result };
+}
+
+const runs: Record<string, number[]> = {};
+const samples: Record<string, RecognizedWord[]> = {};
+for (const name of ["settings-text-1080p.png", "settings-text-1080p-dense.png"]) {
+  const png = new Uint8Array(readFileSync(join(fixtures, name)));
+  runs[name] = [];
+  for (let i = 0; i <= WARM_RUNS; i++) {
+    try {
+      const { ms, words } = await timed(png);
+      runs[name].push(ms);
+      samples[name] = words;
+    } catch (error) {
+      check(false, `${name} run ${i + 1}: ${(error as Error).message}`);
+      break;
+    }
+  }
+  console.log(`${name} (ms)`, runs[name].join(", "));
+}
+
+// The sparse fixture is settings-text.png (560×340) centered in 1920×1080: offset (680, 370).
+const sparse = samples["settings-text-1080p.png"] ?? [];
+const text = textOfWords(wordsInReadingOrder(sparse));
+console.log("recognized text:\n" + text);
+for (const line of [
+  "Display settings",
+  "Language: English",
+  "Theme: Dark mode",
+  "Frame rate: 60 fps",
+  "Changes apply the next time you record",
+  "Save changes",
+]) {
+  check(text.split("\n").includes(line), `line "${line}" recognized as one line`);
+}
+const display = sparse.find((word) => word.text === "Display");
+check(
+  display !== undefined &&
+    Math.abs(display.rect.x - 708) <= 12 &&
+    Math.abs(display.rect.y + display.rect.h / 2 - 394) <= 12,
+  `"Display" box in source pixels near (708, 394 centre): ${JSON.stringify(display?.rect)}`,
+);
+check(
+  sparse.every(
+    (word) =>
+      word.rect.x >= 680 &&
+      word.rect.x + word.rect.w <= 1240 &&
+      word.rect.y >= 370 &&
+      word.rect.y + word.rect.h <= 710,
+  ),
+  "every box lies inside the card (680..1240 × 370..710)",
+);
+const dense = samples["settings-text-1080p-dense.png"] ?? [];
+check(
+  dense.filter((word) => word.text === "Display").length === 9,
+  `dense fixture: 9 "Display" words (got ${dense.filter((word) => word.text === "Display").length})`,
+);
+
+const cold = runs["settings-text-1080p.png"]?.[0];
+console.log(
+  `cold ${cold ?? "n/a"} ms against the ${TARGET_COLD_MS} ms target: ${
+    cold !== undefined && cold < TARGET_COLD_MS ? "under" : "OVER"
+  }`,
+);
+
+const report = {
+  machine,
+  shellStartMs: shellStart,
+  runsMs: runs,
+  targetColdMs: TARGET_COLD_MS,
+  failures,
+  samples,
+};
+const out = process.argv[2];
+if (out) writeFileSync(out, JSON.stringify(report, null, 2));
+process.exit(failures.length === 0 ? 0 : 1);

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTextRecognizer, textRecognitionHelperPath } from "./index";
 import { MacVisionTextRecognizer } from "./macos-vision";
+import { WindowsOcrTextRecognizer } from "./windows-ocr";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -33,8 +34,14 @@ it("returns a Vision recognizer on darwin", () => {
   );
 });
 
+it("returns a Windows.Media.Ocr recognizer on win32", () => {
+  expect(createTextRecognizer({ resourcesPath: "/Res", platform: "win32" })).toBeInstanceOf(
+    WindowsOcrTextRecognizer,
+  );
+});
+
 it("is unavailable on every other platform", async () => {
-  for (const platform of ["win32", "linux"] as const) {
+  for (const platform of ["linux", "freebsd"] as const) {
     const recognizer = createTextRecognizer({ resourcesPath: "/Res", platform });
     expect(await recognizer.recognize(new Uint8Array([1]))).toBe("unavailable");
   }

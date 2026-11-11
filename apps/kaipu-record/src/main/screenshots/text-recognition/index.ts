@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { RecognizedWord, TextRecognizer } from "@kaipu/domain/schemas";
 import { MacVisionTextRecognizer } from "./macos-vision";
+import { WindowsOcrTextRecognizer } from "./windows-ocr";
 
 const HELPER_NAME = "kaipu-text-recognition";
 
@@ -28,9 +29,12 @@ export function createTextRecognizer(opts: {
   platform?: NodeJS.Platform;
 }): TextRecognizer {
   const platform = opts.platform ?? process.platform;
-  // Windows.Media.Ocr arrives with milestone M10 (NIW2-707); until then it is unavailable.
-  if (platform !== "darwin") return unavailableRecognizer;
-  return new MacVisionTextRecognizer({
-    helperPath: textRecognitionHelperPath(opts.resourcesPath, opts.appPath),
-  });
+  if (platform === "darwin") {
+    return new MacVisionTextRecognizer({
+      helperPath: textRecognitionHelperPath(opts.resourcesPath, opts.appPath),
+    });
+  }
+  // Windows.Media.Ocr through Windows PowerShell; no helper to resolve (ADR 0055).
+  if (platform === "win32") return new WindowsOcrTextRecognizer();
+  return unavailableRecognizer;
 }
