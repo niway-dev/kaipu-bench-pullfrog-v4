@@ -39,6 +39,12 @@ interface LayerProps {
   tools: AnnotationToolsController;
   /** The shot's display URL — a blur box re-draws a blurred copy of it under the rect. */
   src: string;
+  /**
+   * Canvas mode (NIW2-698): annotations may be drawn, moved and resized outside the image.
+   * The layer still measures the SHOT (coordinates stay normalized to it), but takes
+   * pointer-downs anywhere on the canvas through an invisible hit surface around it.
+   */
+  canvas?: boolean;
 }
 
 /**
@@ -47,7 +53,7 @@ interface LayerProps {
  * size and renders in px (so stroke/text sizes match the design regardless of
  * the image's natural resolution).
  */
-function AnnotationLayerImpl({ scene, tools, src }: LayerProps): React.JSX.Element {
+function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
@@ -165,6 +171,9 @@ function AnnotationLayerImpl({ scene, tools, src }: LayerProps): React.JSX.Eleme
   };
 
   const onPointerDown = (e: React.PointerEvent): void => {
+    // The crop tool's overlay owns presses on the frame; one that reaches the hit surface
+    // outside it must not start a drawing.
+    if (canvas && tools.tool === "crop") return;
     const p = toNorm(e);
     if (tools.tool === "select") {
       // A selected shape's resize handles take priority over the shape hit-test, so
@@ -233,7 +242,7 @@ function AnnotationLayerImpl({ scene, tools, src }: LayerProps): React.JSX.Eleme
     }
     if (d.mode === "resize") {
       // Resize from the ORIGINAL geometry each frame (fixed edges stay put, no drift).
-      setLiveBoth({ id: d.id, patch: resizeAnnotation(d.orig, d.handle, p, size) });
+      setLiveBoth({ id: d.id, patch: resizeAnnotation(d.orig, d.handle, p, size, canvas) });
       return;
     }
     if (d.mode === "draw-pen") {
@@ -388,6 +397,7 @@ function AnnotationLayerImpl({ scene, tools, src }: LayerProps): React.JSX.Eleme
       onLostPointerCapture={onPointerAbort}
       onDoubleClick={onDoubleClick}
     >
+      {canvas && <div className={styles.hitSurface} data-testid="canvas-hit-surface" aria-hidden />}
       <svg className={styles.svg} width={size.w} height={size.h}>
         {shown.map((a) =>
           // Hide the label being re-edited — the inline editor sits on top of it.
@@ -466,6 +476,7 @@ function AnnotationLayerImpl({ scene, tools, src }: LayerProps): React.JSX.Eleme
 function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
   return (
     p.src === n.src &&
+    p.canvas === n.canvas &&
     p.scene.annotations === n.scene.annotations &&
     p.scene.selectedId === n.scene.selectedId &&
     p.scene.removeSelected === n.scene.removeSelected &&

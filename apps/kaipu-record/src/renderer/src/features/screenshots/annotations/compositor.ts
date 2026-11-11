@@ -72,8 +72,9 @@ export async function compositeScene(
   scene: Scene,
   bytes: ArrayBuffer,
   displayedW: number,
+  options?: CompositeOptions,
 ): Promise<ArrayBuffer> {
-  return (await compositeSceneAt(scene, bytes, displayedW)).png;
+  return (await compositeSceneAt(scene, bytes, displayedW, options)).png;
 }
 
 /**

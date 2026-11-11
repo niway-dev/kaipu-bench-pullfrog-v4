@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -43,10 +43,25 @@ import {
   AnnotationLayer,
   AnnotationOptions,
   AnnotationToolbar,
+  ZERO_EXTENTS,
+  contentExtents,
+  extentsToDisplay,
+  frameToWorld,
   useAnnotationTools,
   useEditorScene,
+  worldToFrame,
+  type CanvasGeom,
+  type CropRect,
+  type EditorScene,
   type Scene,
 } from "@renderer/features/screenshots/annotations";
+import {
+  CANVAS_ZOOM,
+  isIdentityView,
+  useCanvasViewport,
+  useShotMetrics,
+} from "@renderer/features/screenshots/canvas";
+import { useFlag } from "@renderer/features/analytics/use-flag";
 import {
   clearExportCache,
   exportScene,
@@ -119,6 +134,9 @@ export function ScreenshotEditor({
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  // Infinite canvas (NIW2-698): content may leave the image, the view pans, export is the
+  // content box. Read once; everything below branches on this boolean. Off = today's editor.
+  const canvasMode = useFlag("image-canvas");
   const [zoom, setZoom] = useState(1);
   // One transient "last action" indicator — copied or saved-with-name — that
   // auto-clears; avoids the illegal "both shown" state two flags allowed.
@@ -236,6 +254,7 @@ export function ScreenshotEditor({
     beautify: scene.beautify.state,
     annotations: scene.annotations,
     crop: scene.crop,
+    exportFrame: scene.exportFrame,
   });
   // The scene and title field as of the latest render, for queued jobs to read.
   const latest = useRef({ scene: currentScene(), draft: captureTitle.draft });
@@ -247,7 +266,7 @@ export function ScreenshotEditor({
     }
     sceneRevision.current += 1;
     setDirty(true);
-  }, [scene.beautify.state, scene.annotations, scene.crop]);
+  }, [scene.beautify.state, scene.annotations, scene.crop, scene.exportFrame]);
 
   // Hold in-app navigation (sidebar clicks, ⌘⌃V start-recording, ⌘⇧1 new
   // capture — all go through the router) while there are unsaved changes. A shot that
@@ -269,9 +288,11 @@ export function ScreenshotEditor({
   // `image` object (which is fresh each render), so it doesn't re-subscribe. Plain
   // scroll still pans.
   const hasImage = image != null;
+  // Canvas mode has its own wheel handling (`useCanvasViewport`): pan, and zoom around the
+  // pointer. This one is the classic editor's.
   useEffect(() => {
     const el = canvasRef.current;
-    if (!el) return;
+    if (!el || canvasMode) return;
     const onWheel = (e: WheelEvent): void => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
@@ -279,9 +300,48 @@ export function ScreenshotEditor({
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [hasImage]);
+  }, [hasImage, canvasMode]);
 
   const zoomBy = (delta: number): void => setZoom((z) => clampZoom(z + delta));
+
+  // Canvas mode. The view (zoom + pan) is view-only: it never reaches the scene or the export.
+  const viewport = useCanvasViewport(canvasRef, canvasMode, hasImage);
+  const metrics = useShotMetrics(imgRef, canvasMode, imageReady);
+  // How far the content sticks out past each side of the shot, in display px, from the
+  // live annotations (the same measure the export uses, at the same scale).
+  const extents = useMemo(() => {
+    if (!canvasMode || !metrics || metrics.w <= 0 || metrics.naturalW <= 0) return ZERO_EXTENTS;
+    const scale = metrics.naturalW / metrics.w;
+    return extentsToDisplay(
+      contentExtents(scene.annotations, metrics.naturalW, metrics.naturalH, scale),
+      scale,
+    );
+  }, [canvasMode, metrics, scene.annotations]);
+  const hasContentOutside =
+    extents.left > 0 || extents.top > 0 || extents.right > 0 || extents.bottom > 0;
+  // The composed frame in display px, to move the crop tool's 0–1 rect to and from the
+  // export frame (world units). Both sides use display px, so only the ratios matter.
+  const canvasGeom: CanvasGeom | null =
+    canvasMode && metrics && metrics.w > 0 && metrics.h > 0
+      ? { naturalW: metrics.w, naturalH: metrics.h, pad: scene.beautify.state.padding, extents }
+      : null;
+  const exportFrameCrop: CropRect | undefined =
+    canvasGeom && scene.exportFrame ? worldToFrame(scene.exportFrame, canvasGeom) : undefined;
+  // In canvas mode the Crop tool edits the export frame: the same overlay and Reset button,
+  // fed a scene whose `crop` is the frame and whose `setCrop` writes the frame.
+  const cropScene: EditorScene = canvasMode
+    ? {
+        ...scene,
+        crop: exportFrameCrop,
+        setCrop: (crop) => {
+          if (!canvasGeom) return;
+          scene.setExportFrame(crop ? frameToWorld(crop, canvasGeom) : undefined);
+        },
+      }
+    : scene;
+  const shownZoom = canvasMode ? viewport.view.zoom : zoom;
+  const zoomMin = canvasMode ? CANVAS_ZOOM.min : ZOOM_MIN;
+  const zoomMax = canvasMode ? CANVAS_ZOOM.max : ZOOM_MAX;
 
   // Composite the beautify frame + annotations and encode them as `format`: PNG is
   // what Copy and Save use, PDF what Export writes. Only ever invoked once
@@ -292,6 +352,7 @@ export function ScreenshotEditor({
       scene: snap,
       bytes: await image!.getBytes(),
       displayedW: imgRef.current?.clientWidth ?? 0,
+      ...(canvasMode ? { canvas: true } : {}),
     });
 
   /**
@@ -494,7 +555,16 @@ export function ScreenshotEditor({
     const timer = setTimeout(() => void autosaveEdits(), AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the scene change re-arms it
-  }, [dirty, savedId, imageReady, discarding, scene.beautify.state, scene.annotations, scene.crop]);
+  }, [
+    dirty,
+    savedId,
+    imageReady,
+    discarding,
+    scene.beautify.state,
+    scene.annotations,
+    scene.crop,
+    scene.exportFrame,
+  ]);
 
   // Leaving a shot that is in the vault: save what is pending, then go. A failed save
   // stays here (`persist` reported it with a retry) instead of dropping the edits.
@@ -648,22 +718,46 @@ export function ScreenshotEditor({
       </div>
       <div className={styles.body}>
         <div {...uiArea("editorImage.canvas")} className={styles.canvasArea}>
-          <div ref={canvasRef} className={styles.canvas} data-zoomed={zoom > 1}>
+          <div
+            ref={canvasRef}
+            className={styles.canvas}
+            data-zoomed={shownZoom > 1}
+            {...(canvasMode
+              ? {
+                  ...viewport.bindings,
+                  "data-canvas": "true",
+                  "data-panned": String(viewport.view.panX !== 0 || viewport.view.panY !== 0),
+                  "data-zoomed-out": String(shownZoom < 1),
+                  "data-pan": viewport.panMode,
+                  "data-export-frame": String(scene.exportFrame != null),
+                  "data-has-content-outside": String(hasContentOutside),
+                }
+              : {})}
+          >
             <BeautifiedFrame
               src={image.displayUrl}
               beautify={scene.beautify.state}
-              crop={tools.tool === "crop" ? undefined : scene.crop}
-              overlay={<AnnotationLayer scene={scene} tools={tools} src={image.displayUrl} />}
-              frameOverlay={tools.tool === "crop" ? <CropOverlay scene={scene} /> : undefined}
+              crop={tools.tool === "crop" ? undefined : canvasMode ? exportFrameCrop : scene.crop}
+              overlay={
+                <AnnotationLayer
+                  scene={scene}
+                  tools={tools}
+                  src={image.displayUrl}
+                  canvas={canvasMode}
+                />
+              }
+              frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}
               imgRef={imgRef}
-              zoom={zoom}
+              zoom={shownZoom}
+              pan={canvasMode ? { x: viewport.view.panX, y: viewport.view.panY } : undefined}
+              extents={canvasMode ? extents : undefined}
               onImageLoad={() => setImageReady(true)}
             />
           </div>
 
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
-            <AnnotationOptions tools={tools} scene={scene} />
+            <AnnotationOptions tools={tools} scene={cropScene} />
           </div>
 
           {/* Zoom pinned at the foot of the canvas — a familiar editor convention. */}
@@ -672,8 +766,8 @@ export function ScreenshotEditor({
               type="button"
               className={styles.zoomBtn}
               title={t("zoomOut")}
-              disabled={zoom <= ZOOM_MIN}
-              onClick={() => zoomBy(-ZOOM_STEP)}
+              disabled={shownZoom <= zoomMin}
+              onClick={() => (canvasMode ? viewport.zoomStep(-1) : zoomBy(-ZOOM_STEP))}
             >
               <ZoomOut size={16} />
             </button>
@@ -681,17 +775,17 @@ export function ScreenshotEditor({
               type="button"
               className={styles.zoomLabel}
               title={t("zoomReset")}
-              disabled={zoom === 1}
-              onClick={() => setZoom(1)}
+              disabled={canvasMode ? isIdentityView(viewport.view) : zoom === 1}
+              onClick={() => (canvasMode ? viewport.reset() : setZoom(1))}
             >
-              {Math.round(zoom * 100)}%
+              {Math.round(shownZoom * 100)}%
             </button>
             <button
               type="button"
               className={styles.zoomBtn}
               title={t("zoomIn")}
-              disabled={zoom >= ZOOM_MAX}
-              onClick={() => zoomBy(ZOOM_STEP)}
+              disabled={shownZoom >= zoomMax}
+              onClick={() => (canvasMode ? viewport.zoomStep(1) : zoomBy(ZOOM_STEP))}
             >
               <ZoomIn size={16} />
             </button>

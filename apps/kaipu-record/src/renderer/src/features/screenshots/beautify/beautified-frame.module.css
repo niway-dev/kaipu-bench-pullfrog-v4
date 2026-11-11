@@ -55,3 +55,17 @@
   overflow: hidden;
   transform-origin: top left;
 }
+
+/* Canvas mode: the view's pan moves with the pointer, so the transform must not ease. */
+.panned {
+  transition:
+    padding 0.12s ease,
+    border-radius 0.12s ease,
+    background 0.12s ease;
+}
+
+/* Canvas mode, no background: a neutral block under the shot over the content box. */
+.boxFill {
+  position: absolute;
+  background: #fff;
+}

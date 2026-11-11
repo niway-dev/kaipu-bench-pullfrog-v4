@@ -18,6 +18,7 @@ function makeScene(crop?: CropRect): EditorScene {
     removeSelected: vi.fn(),
     crop,
     setCrop: vi.fn(),
+    setExportFrame: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
     canUndo: false,

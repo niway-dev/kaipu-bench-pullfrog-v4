@@ -1,0 +1,141 @@
+/**
+ * Pan and zoom math for the image editor's infinite canvas (NIW2-698). Pure: no React,
+ * no DOM, so a later restyle of the canvas touches only JSX and CSS.
+ *
+ * The view is a transform applied to the frame: `translate(panX, panY) scale(zoom)` with
+ * the frame's top-left as the transform origin. Pan is in screen px and is VIEW-ONLY — it
+ * never reaches the scene, the export or any stored coordinate.
+ *
+ * Points handed to these functions are in screen px relative to the frame's REST origin:
+ * where the frame's top-left sits at zoom 1, pan 0 (its layout position, which a CSS
+ * transform does not move).
+ */
+
+export interface View {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Size {
+  w: number;
+  h: number;
+}
+
+export interface ZoomLimits {
+  min: number;
+  max: number;
+}
+
+export const IDENTITY_VIEW: View = { zoom: 1, panX: 0, panY: 0 };
+
+/** The canvas zoom range: wider than the classic editor's 0.5–3 so the content box fits. */
+export const CANVAS_ZOOM: ZoomLimits = { min: 0.25, max: 3 };
+
+/** The classic +/- buttons step the zoom by this much. */
+export const ZOOM_STEP = 0.25;
+
+/** How many px of the content must stay on screen, so the canvas can never be lost. */
+export const PAN_KEEP_PX = 64;
+
+/** Wheel sensitivity: `exp(-deltaY * k)` is the zoom factor of one event (the existing 0.0015). */
+const WHEEL_ZOOM_K = 0.0015;
+/** A line-mode wheel (some mice) reports lines, not pixels. */
+const LINE_PX = 16;
+
+export const isIdentityView = (v: View): boolean => v.zoom === 1 && v.panX === 0 && v.panY === 0;
+
+export function clampZoom(zoom: number, limits: ZoomLimits = CANVAS_ZOOM): number {
+  return Math.min(limits.max, Math.max(limits.min, zoom));
+}
+
+/**
+ * Zoom to `nextZoom` (clamped) keeping `anchor` — a point in px relative to the rest
+ * origin — under the same screen position: the pointer stays on the content it pointed at.
+ */
+export function zoomAt(
+  view: View,
+  anchor: Point,
+  nextZoom: number,
+  limits: ZoomLimits = CANVAS_ZOOM,
+): View {
+  const zoom = clampZoom(nextZoom, limits);
+  const k = zoom / view.zoom;
+  return {
+    zoom,
+    panX: anchor.x - (anchor.x - view.panX) * k,
+    panY: anchor.y - (anchor.y - view.panY) * k,
+  };
+}
+
+/** Zoom by one wheel event (`deltaY` > 0 zooms out), around `anchor`. */
+export function zoomByWheel(
+  view: View,
+  anchor: Point,
+  deltaY: number,
+  limits: ZoomLimits = CANVAS_ZOOM,
+): View {
+  return zoomAt(view, anchor, view.zoom * Math.exp(-deltaY * WHEEL_ZOOM_K), limits);
+}
+
+/** Move the view by `dx`, `dy` screen px (a drag: the content follows the pointer). */
+export function panBy(view: View, dx: number, dy: number): View {
+  return { ...view, panX: view.panX + dx, panY: view.panY + dy };
+}
+
+/** A wheel event's delta in px, whatever its `deltaMode` (0 = px, 1 = lines, 2 = pages). */
+export function wheelPx(
+  e: { deltaX: number; deltaY: number; deltaMode: number },
+  pageSize: Size,
+): Point {
+  if (e.deltaMode === 1) return { x: e.deltaX * LINE_PX, y: e.deltaY * LINE_PX };
+  if (e.deltaMode === 2) return { x: e.deltaX * pageSize.w, y: e.deltaY * pageSize.h };
+  return { x: e.deltaX, y: e.deltaY };
+}
+
+/** Pan by a wheel / two-finger scroll: scrolling down moves the content up. */
+export function panByWheel(view: View, deltaX: number, deltaY: number): View {
+  return panBy(view, -deltaX, -deltaY);
+}
+
+export interface PanBounds {
+  /** The visible area, px. */
+  viewport: Size;
+  /** The frame's rest origin in the viewport, px. */
+  origin: Point;
+  /** The frame's UNSCALED size, px. */
+  content: Size;
+}
+
+/**
+ * Keep at least `keep` px of the content (or all of it, if smaller) inside the viewport
+ * on each axis, so a fling can never push the canvas out of reach. An unmeasured bounds
+ * (no size yet, e.g. before first layout) leaves the view as is.
+ */
+export function clampPan(view: View, b: PanBounds, keep: number = PAN_KEEP_PX): View {
+  if (b.viewport.w <= 0 || b.viewport.h <= 0 || b.content.w <= 0 || b.content.h <= 0) return view;
+  const axis = (pan: number, origin: number, content: number, viewport: number): number => {
+    const scaled = content * view.zoom;
+    const k = Math.min(keep, scaled);
+    const min = k - scaled - origin; // content's far edge no further left than `k`
+    const max = viewport - k - origin; // content's near edge no further right than `viewport - k`
+    return Math.min(max, Math.max(min, pan));
+  };
+  return {
+    ...view,
+    panX: axis(view.panX, b.origin.x, b.content.w, b.viewport.w),
+    panY: axis(view.panY, b.origin.y, b.content.h, b.viewport.h),
+  };
+}
+
+/** The CSS transform for a view, or undefined for the identity (no transform at all). */
+export function viewTransform(view: View): string | undefined {
+  if (isIdentityView(view)) return undefined;
+  if (view.panX === 0 && view.panY === 0) return `scale(${view.zoom})`;
+  return `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`;
+}

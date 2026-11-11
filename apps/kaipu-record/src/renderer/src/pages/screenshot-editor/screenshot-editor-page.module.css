@@ -308,6 +308,25 @@
   justify-content: flex-start;
 }
 
+/* Canvas mode (NIW2-698): the view pans by transform, so the canvas never scrolls, and the
+   frame stays centred at any zoom (its rest position is what the pan is measured from). */
+.canvas[data-canvas="true"] {
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Space held / middle-button drag: the hand, over every child's own cursor. */
+.canvas[data-pan="ready"],
+.canvas[data-pan="ready"] * {
+  cursor: grab !important;
+}
+
+.canvas[data-pan="active"],
+.canvas[data-pan="active"] * {
+  cursor: grabbing !important;
+}
+
 /* Floating per-tool options panel, pinned to the canvas (doesn't scroll away). */
 .optionsFloat {
   position: absolute;

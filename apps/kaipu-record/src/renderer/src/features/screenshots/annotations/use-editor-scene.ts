@@ -22,6 +22,13 @@ export interface EditorScene {
   crop?: CropRect;
   /** Set the crop as one undoable change (Reset/Esc, or an external set). */
   setCrop(crop: CropRect | undefined): void;
+  /**
+   * Canvas mode: the export window, world-normalized (see `Scene.exportFrame`). Undefined =
+   * the whole content box.
+   */
+  exportFrame?: CropRect;
+  /** Set the export frame as one undoable change (Reset/Esc, or a crop drag release). */
+  setExportFrame(frame: CropRect | undefined): void;
   undo(): void;
   redo(): void;
   canUndo: boolean;
@@ -103,6 +110,13 @@ export function useEditorScene(initialBeautify: BeautifyState = DEFAULT_BEAUTIFY
     [commit],
   );
 
+  const setExportFrame = useCallback(
+    (exportFrame: CropRect | undefined) => {
+      commit({ ...sceneRef.current, exportFrame });
+    },
+    [commit],
+  );
+
   const removeAnnotation = useCallback(
     (id: string) => {
       if (!sceneRef.current.annotations.some((a) => a.id === id)) return;
@@ -145,6 +159,8 @@ export function useEditorScene(initialBeautify: BeautifyState = DEFAULT_BEAUTIFY
     removeSelected,
     crop: scene.crop,
     setCrop,
+    exportFrame: scene.exportFrame,
+    setExportFrame,
     undo,
     redo,
     canUndo: past.length > 0,
