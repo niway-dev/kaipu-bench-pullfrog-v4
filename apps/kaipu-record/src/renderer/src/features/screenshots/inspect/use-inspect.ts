@@ -312,19 +312,24 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
 
   const toggle = useCallback(() => setActive(!activeRef.current), [setActive]);
 
-  const copyText = useCallback(async (text: string | null): Promise<boolean> => {
-    if (!text) return false;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      return false;
-    }
-    if (!alive.current) return true;
-    setCopied(true);
-    if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
-    return true;
-  }, []);
+  const copyText = useCallback(
+    async (text: string | null): Promise<boolean> => {
+      if (!text) return false;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (error) {
+        // Otherwise "Copied" just never shows and the user cannot tell the copy failed.
+        reportError(t("inspectCopyError"), error, { context: { phase: "inspect-copy" } });
+        return false;
+      }
+      if (!alive.current) return true;
+      setCopied(true);
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
+      return true;
+    },
+    [t],
+  );
 
   /** The bar's Copy: the pixel under the pointer, or the last one if the pointer moved to the bar. */
   const copy = useCallback(
@@ -385,10 +390,13 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     bytesRef.current = null;
     tileRef.current = null;
     lastHoverRef.current = null;
+    // The readout still shows the old image's pixel: drop it until the new buffer is read.
+    publish(null);
+    setLoupe(null);
     probeBroken.current = false;
     setCapturedUnavailable(false);
     if (activeRef.current) void ensureDecodedRef.current();
-  }, [displayUrl]);
+  }, [displayUrl, publish]);
 
   // Unmount: drop the buffer (about 81 MiB at 6K) and every timer.
   useEffect(() => {

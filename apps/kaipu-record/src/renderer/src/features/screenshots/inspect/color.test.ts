@@ -127,20 +127,20 @@ describe("formatColor", () => {
     expect(formatColor(emerald, "oklch")).toBe("oklch(0.696 0.149 162.5)");
   });
 
-  it("adds alpha to each format, trimming trailing zeros", () => {
+  it("adds alpha to each format", () => {
     const half = { ...emerald, a: 128 };
     expect(formatColor(half, "hex")).toBe("#10b98180");
-    expect(formatColor(half, "rgb")).toBe("rgba(16, 185, 129, 0.5)");
-    expect(formatColor(half, "hsl")).toBe("hsla(160, 84%, 39%, 0.5)");
-    expect(formatColor(half, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.5)");
-    expect(formatColor({ ...emerald, a: 64 }, "rgb")).toBe("rgba(16, 185, 129, 0.25)");
+    expect(formatColor(half, "rgb")).toBe("rgba(16, 185, 129, 0.502)");
+    expect(formatColor(half, "hsl")).toBe("hsla(160, 84%, 39%, 0.502)");
+    expect(formatColor(half, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.502)");
+    expect(formatColor({ ...emerald, a: 64 }, "rgb")).toBe("rgba(16, 185, 129, 0.251)");
     expect(formatColor({ ...emerald, a: 0 }, "rgb")).toBe("rgba(16, 185, 129, 0)");
   });
 
-  it("never rounds a translucent pixel to fully transparent or fully opaque", () => {
-    expect(formatColor({ ...emerald, a: 1 }, "rgb")).toBe("rgba(16, 185, 129, 0.01)");
-    expect(formatColor({ ...emerald, a: 254 }, "rgb")).toBe("rgba(16, 185, 129, 0.99)");
-    expect(formatColor({ ...emerald, a: 254 }, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.99)");
+  it("prints alpha with enough decimals to round-trip every 8-bit value", () => {
+    expect(formatColor({ ...emerald, a: 1 }, "rgb")).toBe("rgba(16, 185, 129, 0.004)");
+    expect(formatColor({ ...emerald, a: 254 }, "rgb")).toBe("rgba(16, 185, 129, 0.996)");
+    expect(formatColor({ ...emerald, a: 254 }, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.996)");
   });
 });
 

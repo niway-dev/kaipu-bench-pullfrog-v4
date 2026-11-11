@@ -1245,6 +1245,7 @@
     "inspectReading": "Reading pixels…",
     "inspectUnavailable": "Pixel reading unavailable",
     "inspectCapturedUnavailable": "\"As captured\" is unavailable for this image",
+    "inspectCopyError": "Couldn't copy the color to the clipboard.",
     "inspectOutOfSrgb": "Out of sRGB",
     "beautifyHeading": "Beautify",
     "background": "Background",
