@@ -37,6 +37,21 @@ function resolveControls(
   if (selected) {
     // An added image has no colour or stroke either.
     if (selected.kind === "blur" || selected.kind === "image") return null;
+    if (selected.kind === "step") {
+      return {
+        mode: "size",
+        color: selected.color,
+        setColor: (color) => {
+          scene.commitAnnotation(selected.id, { color });
+          tools.setColor(color);
+        },
+        level: selected.size,
+        setLevel: (size) => {
+          scene.commitAnnotation(selected.id, { size });
+          tools.setStepSize(size);
+        },
+      };
+    }
     return selected.kind === "text"
       ? {
           mode: "size",
@@ -73,6 +88,15 @@ function resolveControls(
   // Nothing selected + select/blur/crop tool → nothing to set for colour/stroke.
   if (tools.tool === "select" || tools.tool === "blur" || tools.tool === "crop") return null;
   // A drawing tool is active → set the defaults for the next shape.
+  if (tools.tool === "step") {
+    return {
+      mode: "size",
+      color: tools.color,
+      setColor: tools.setColor,
+      level: tools.stepSize,
+      setLevel: tools.setStepSize,
+    };
+  }
   return tools.tool === "text"
     ? {
         mode: "size",

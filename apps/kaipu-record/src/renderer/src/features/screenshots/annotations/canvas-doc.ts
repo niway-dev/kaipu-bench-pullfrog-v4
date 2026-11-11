@@ -1,7 +1,13 @@
 import { CANVAS_ASSET_ID_PATTERN } from "@shared/types/screenshot-canvas";
-import { BACKGROUND_IDS, type BeautifyState } from "../beautify/backgrounds";
+import {
+  BACKGROUND_IDS,
+  PADDING_RANGE,
+  RADIUS_RANGE,
+  SHADOW_RANGE,
+  type BeautifyState,
+} from "../beautify/backgrounds";
 import type { Annotation, CropRect, Scene } from "./scene";
-import { STROKE_WIDTHS, TEXT_SIZES } from "./tools";
+import { STEP_PX, STROKE_WIDTHS, TEXT_SIZES } from "./tools";
 
 /** A stored preset index (stroke level, text size): an integer inside its table. Anything
  * else would draw a NaN stroke, so the document is refused instead. */
@@ -82,6 +88,9 @@ function mapGeometry(
     }
     case "path":
       return { ...a, points: a.points.map((p) => ({ x: px(p.x), y: py(p.y) })) };
+    case "step":
+      // The centre is a position; `size` is a display size level, like a stroke.
+      return { ...a, x: px(a.x), y: py(a.y) };
   }
 }
 
@@ -210,6 +219,10 @@ function parseAnnotation(o: Obj): Annotation | null {
       return o.points.every((p) => isObj(p) && nums(p, ["x", "y"]))
         ? (o as unknown as Annotation)
         : null;
+    case "step":
+      return nums(o, ["x", "y", "size"]) && level(o.size, STEP_PX) && str(o.color)
+        ? (o as unknown as Annotation)
+        : null;
     case "blur":
       if (!nums(o, ["x", "y", "w", "h"])) return null;
       if (o.style !== undefined && o.style !== "blur" && o.style !== "solid") return null;
@@ -223,6 +236,11 @@ function parseAnnotation(o: Obj): Annotation | null {
 function parseFrame(v: unknown): BeautifyState | null {
   if (!isObj(v) || !str(v.bg) || !(BACKGROUND_IDS as readonly string[]).includes(v.bg)) return null;
   if (!nums(v, ["padding", "radius", "shadow"])) return null;
+  // Inside the panel's ranges: a negative padding would give the export a negative size.
+  const within = (n: unknown, r: { min: number; max: number }): boolean =>
+    (n as number) >= r.min && (n as number) <= r.max;
+  if (!within(v.padding, PADDING_RANGE) || !within(v.radius, RADIUS_RANGE)) return null;
+  if (!within(v.shadow, SHADOW_RANGE)) return null;
   return v as unknown as BeautifyState;
 }
 

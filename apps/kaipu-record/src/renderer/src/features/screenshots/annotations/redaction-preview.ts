@@ -59,7 +59,11 @@ export function loadImage(src: string): Promise<ImageBitmap | null> {
     .then((blob) =>
       createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" }),
     )
-    .catch(() => null);
+    .catch(() => {
+      // Not cached: the next preview of this image tries again.
+      if (images.get(src) === image) images.delete(src);
+      return null;
+    });
   images.set(src, image);
   while (images.size > MAX_IMAGES) images.delete(images.keys().next().value as string);
   return image;

@@ -82,9 +82,13 @@ export async function saveScreenshotToVault(
         { title: meta.title, ...(meta.manual ? { editorSavedAt: now } : {}) },
         overwriteAssetId,
       );
-      // After the PNG, with the id it ended up under (a rename may have moved it).
-      if (meta.canvas) await writeCanvas(vault, written, meta.canvas);
-      else await clearCanvas(vault, written);
+      // After the PNG, with the id it ended up under (a rename may have moved it). A
+      // followed rename means another id: lock that one too, or a rename of it could land
+      // between the PNG and the document. Every caller locks one id, so no cycle.
+      const canvasStep = (): Promise<void> =>
+        meta.canvas ? writeCanvas(vault, written, meta.canvas) : clearCanvas(vault, written);
+      if (written === overwriteId) await canvasStep();
+      else await withItemLock(vault.workspaceId ?? vault.directory, written, canvasStep);
       return written;
     });
   }

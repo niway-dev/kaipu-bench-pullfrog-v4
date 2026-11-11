@@ -3,9 +3,14 @@ import { useTranslations } from "@kaipu/i18n";
 import {
   BLUR_STD,
   HAND_FONT,
+  STEP_FONT,
+  stepDiameterPx,
   STROKE_WIDTHS,
   TEXT_LINE_HEIGHT,
   resolveFontPx,
+  stepFontPx,
+  stepInk,
+  stepRingPx,
   textBoxPx,
   textLines,
 } from "./tools";
@@ -13,6 +18,7 @@ import { roughArrow, roughRect } from "./rough";
 import { smoothPath } from "./smooth";
 import {
   nextAnnotationId,
+  stepNumbers,
   type Annotation,
   type BlurAnnotation,
   type ImageAnnotation,
@@ -244,6 +250,26 @@ function AnnotationLayerImpl({
       setEditing({ x: p.x, y: p.y });
       return;
     }
+    if (tools.tool === "step") {
+      // Only the primary button places a badge: a right-click, or the middle-button drag
+      // that pans the canvas, must not commit a number.
+      if (e.button !== 0) return;
+      // Each click drops the next number. The tool stays active (unlike the drawing
+      // tools) so consecutive clicks number 1, 2, 3. The new badge is NOT selected: the
+      // options panel edits the selection, so picking a colour for the next badge would
+      // repaint the one just placed.
+      const { id } = nextAnnotationId();
+      scene.addAnnotation({
+        id,
+        kind: "step",
+        x: p.x,
+        y: p.y,
+        color: tools.color,
+        size: tools.stepSize,
+      });
+      scene.select(null);
+      return;
+    }
     if (tools.tool === "pen") {
       drag.current = { mode: "draw-pen", start: p };
       setDraft({
@@ -431,6 +457,7 @@ function AnnotationLayerImpl({
         : NO_BLURS,
     [canvasMode, shown, blurDraft],
   );
+  const numbers = useMemo(() => stepNumbers(shown), [shown]);
   const selectedAnnotation =
     tools.tool === "select" && !editing
       ? (shown.find((a) => a.id === scene.selectedId) ?? null)
@@ -450,17 +477,7 @@ function AnnotationLayerImpl({
     >
       {canvas && <div className={styles.hitSurface} data-testid="canvas-hit-surface" aria-hidden />}
       <svg className={styles.svg} width={size.w} height={size.h}>
-        {/* Canvas mode bakes a redaction into the base image, which sits under every item,
-            so its preview tile is drawn first, under all annotations and added images, as the
-            export composes it. Drawn at the blur's z-position, it would cover an image or a
-            box placed later over the redacted area in the live view only. */}
-        {canvasMode &&
-          [...shown, ...(draft ? [draft] : [])]
-            .filter((a): a is BlurAnnotation => a.kind === "blur" && !a.locked)
-            .map((a) => (
-              <RedactionTile key={`tile-${a.id}`} a={a} size={size} selected={false} src={src} />
-            ))}
-        {shown.map((a) =>
+        {shown.map((a, i) =>
           // Hide the label being re-edited — the inline editor sits on top of it.
           a.id === editing?.id ? null : a.kind === "image" ? (
             <ImageShape
@@ -474,18 +491,33 @@ function AnnotationLayerImpl({
               redactions={redactions}
             />
           ) : (
-            <Shape
-              key={a.id}
-              a={a}
-              size={size}
-              selected={scene.selectedId === a.id}
-              src={src}
-              canvasMode={canvasMode}
-            />
+            <React.Fragment key={a.id}>
+              <Shape
+                a={a}
+                size={size}
+                selected={scene.selectedId === a.id}
+                src={src}
+                canvasMode={canvasMode}
+                n={numbers.get(a.id)}
+              />
+              {canvasMode && a.kind === "blur" && (
+                <BlurOverImagesBelow
+                  blur={a}
+                  below={shown.slice(0, i)}
+                  imageUrls={imageUrls}
+                  size={size}
+                />
+              )}
+            </React.Fragment>
           ),
         )}
         {draft && (
-          <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+          <>
+            <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+            {canvasMode && draft.kind === "blur" && (
+              <BlurOverImagesBelow blur={draft} below={shown} imageUrls={imageUrls} size={size} />
+            )}
+          </>
         )}
         {selectedAnnotation && <Handles a={selectedAnnotation} size={size} />}
       </svg>
@@ -566,6 +598,7 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.stroke === n.tools.stroke &&
     p.tools.textSize === n.tools.textSize &&
     p.tools.redactionStyle === n.tools.redactionStyle &&
+    p.tools.stepSize === n.tools.stepSize &&
     p.canvasMode === n.canvasMode &&
     p.imageUrls === n.imageUrls &&
     // Added images follow the beautify radius and shadow; nothing else of it is read.
@@ -605,12 +638,15 @@ const Shape = React.memo(function Shape({
   selected,
   src,
   canvasMode,
+  n,
 }: {
   a: Annotation;
   size: Size;
   selected: boolean;
   src: string;
   canvasMode: boolean;
+  /** The badge's number, for a `step` annotation (see `stepNumbers`). */
+  n?: number;
 }): React.JSX.Element {
   const { w: W, h: H } = size;
 
@@ -618,22 +654,35 @@ const Shape = React.memo(function Shape({
   // redactions over it; the layer never routes one here.
   if (a.kind === "image") return <g />;
 
-  // Canvas mode: the tile is drawn at the bottom of the layer (see `baseTiles`); at the
-  // blur's own z-position only its selection outline is left.
-  if (a.kind === "blur" && canvasMode) {
-    if (a.locked) return <></>;
-    if (!selected) return <g data-annotation={a.id} />;
+  if (a.kind === "step") {
+    const d = stepDiameterPx(a.size);
+    const num = n ?? 1;
+    const ink = stepInk(a.color);
+    const cx = a.x * W;
+    const cy = a.y * H;
     return (
       <g data-annotation={a.id}>
-        <rect
-          className={styles.selOutline}
-          x={a.x * W}
-          y={a.y * H}
-          width={a.w * W}
-          height={a.h * H}
-        />
+        <circle cx={cx} cy={cy} r={d / 2} fill={a.color} stroke={ink} strokeWidth={stepRingPx(d)} />
+        <text
+          x={cx}
+          y={cy}
+          fill={ink}
+          fontFamily={STEP_FONT}
+          fontSize={stepFontPx(d, num)}
+          fontWeight={700}
+          textAnchor="middle"
+          dominantBaseline="central"
+          style={{ userSelect: "none" }}
+        >
+          {num}
+        </text>
+        {selected && <circle className={styles.selOutline} cx={cx} cy={cy} r={d / 2 + 4} />}
       </g>
     );
+  }
+
+  if (a.kind === "blur" && canvasMode) {
+    return <RedactionTile a={a} size={size} selected={selected} src={src} />;
   }
 
   if (a.kind === "blur") {
@@ -935,7 +984,72 @@ function ImageRedactionTile({
   );
 }
 
-/** Canvas-mode blur: the real redaction as a raster tile over the rect; locked = nothing. */
+/**
+ * Canvas mode: what a blur shows, at its z-position, of the added images BELOW it. The
+ * export redraws those images' baked pixels over the blur's rect (see `bakedBlurSvg`), so
+ * an annotation stacked between them and the blur is covered, while an image above the
+ * blur still draws over it. Unlocked: each image's own redaction tile. Locked: the image's
+ * pixels (its asset already holds the redaction), clipped to the rect.
+ */
+function BlurOverImagesBelow({
+  blur,
+  below,
+  imageUrls,
+  size,
+}: {
+  blur: BlurAnnotation;
+  below: readonly Annotation[];
+  imageUrls: Readonly<Record<string, string>> | undefined;
+  size: Size;
+}): React.JSX.Element | null {
+  const hits = below.filter(
+    (b): b is ImageAnnotation =>
+      b.kind === "image" &&
+      imageUrls?.[b.assetId] !== undefined &&
+      blur.x < b.x + b.w &&
+      blur.x + blur.w > b.x &&
+      blur.y < b.y + b.h &&
+      blur.y + blur.h > b.y,
+  );
+  if (hits.length === 0) return null;
+  const clip = `under-clip-${blur.id}`;
+  return (
+    <g data-testid="redaction-over-images" data-blur={blur.id}>
+      <clipPath id={clip}>
+        <rect
+          x={blur.x * size.w}
+          y={blur.y * size.h}
+          width={blur.w * size.w}
+          height={blur.h * size.h}
+        />
+      </clipPath>
+      <g clipPath={`url(#${clip})`}>
+        {hits.map((b) => {
+          const url = imageUrls![b.assetId]!;
+          return blur.locked ? (
+            <image
+              key={b.id}
+              href={url}
+              x={b.x * size.w}
+              y={b.y * size.h}
+              width={b.w * size.w}
+              height={b.h * size.h}
+              preserveAspectRatio="none"
+            />
+          ) : (
+            <ImageRedactionTile key={b.id} a={b} blur={blur} url={url} size={size} />
+          );
+        })}
+      </g>
+    </g>
+  );
+}
+
+/**
+ * Canvas-mode blur: the real redaction as a raster tile over the rect. A locked one is
+ * already in the image, so it redraws the image's own pixels over the rect: in z-order it
+ * still covers whatever annotation was drawn before it, as the export does.
+ */
 function RedactionTile({
   a,
   size,
@@ -948,9 +1062,27 @@ function RedactionTile({
   src: string;
 }): React.JSX.Element | null {
   const tile = useRedactionTile(src, a, a.style ?? "blur", !a.locked);
-  if (a.locked) return null;
   const bx = a.x * size.w;
   const by = a.y * size.h;
+  if (a.locked) {
+    const clipId = `lock-clip-${a.id}`;
+    return (
+      <g data-testid="locked-redaction">
+        <clipPath id={clipId}>
+          <rect x={bx} y={by} width={a.w * size.w} height={a.h * size.h} />
+        </clipPath>
+        <image
+          href={src}
+          x={0}
+          y={0}
+          width={size.w}
+          height={size.h}
+          preserveAspectRatio="none"
+          clipPath={`url(#${clipId})`}
+        />
+      </g>
+    );
+  }
   return (
     <g data-annotation={a.id}>
       {tile && (
@@ -987,7 +1119,7 @@ function isBigEnough(a: Annotation): boolean {
   if (a.kind === "box" || a.kind === "blur") return a.w > 0.01 && a.h > 0.01;
   if (a.kind === "arrow") return Math.hypot(a.x2 - a.x1, a.y2 - a.y1) > 0.02;
   if (a.kind === "path") return a.points.length >= 1;
-  return true;
+  return true; // text and step are placed by a click, never dragged out
 }
 
 function moveBy(a: Annotation, dx: number, dy: number): Partial<Annotation> {
@@ -1041,6 +1173,9 @@ function hitTest(
       ) {
         return a;
       }
+    } else if (a.kind === "step") {
+      const r = stepDiameterPx(a.size) / 2 + 4;
+      if (Math.hypot((p.x - a.x) * (size.w || 1), (p.y - a.y) * (size.h || 1)) <= r) return a;
     } else if (a.kind === "path") {
       for (let j = 0; j < a.points.length - 1; j += 1) {
         if (distToSegment(p, a.points[j], a.points[j + 1]) < 0.02) return a;

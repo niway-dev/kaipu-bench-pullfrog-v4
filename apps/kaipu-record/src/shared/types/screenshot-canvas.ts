@@ -11,8 +11,11 @@
  * know which files to load; the schema is the renderer's to validate.
  */
 
-/** An asset id: a file name stem under `.kaipu/<id>.assets/`. Main refuses anything else. */
-export const CANVAS_ASSET_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+/**
+ * An asset id: a file name stem under `.kaipu/<id>.assets/`. Main refuses anything else.
+ * It starts with a letter or digit, so `__proto__` can never be a key of the asset map.
+ */
+export const CANVAS_ASSET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 /** What a canvas-mode save sends beside the flattened PNG. */
 export interface CanvasSavePayload {

@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnnotationLayer } from "./annotation-layer";
@@ -24,6 +25,8 @@ function makeTools(overrides: Partial<AnnotationToolsController> = {}): Annotati
     setTextSize: vi.fn(),
     redactionStyle: "blur",
     setRedactionStyle: vi.fn(),
+    stepSize: 1,
+    setStepSize: vi.fn(),
     ...overrides,
   };
 }
@@ -688,28 +691,53 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
       expect(tile.parentElement?.getAttribute("clip-path")).toMatch(/^url\(#iclip-i1\)$/);
     });
 
-    it("draws the base's tile under every item, whatever the blur's z-position", () => {
-      tileMock.mockImplementation((url: string) =>
-        url === "blob:base"
-          ? {
-              url: "data:base-tile",
-              rect: { x: 0, y: 0, w: 10, h: 10 },
-              naturalW: 100,
-              naturalH: 100,
-            }
-          : null,
-      );
-      // The blur comes AFTER the image: the save bakes it into the base, under the image,
-      // so the live tile must not be drawn over the image either.
-      const { container } = renderImageLayer(makeScene([image, blur], null), makeTools(), {
+    const baseTileOnly = (url: string) =>
+      url === "blob:base"
+        ? {
+            url: "data:base-tile",
+            rect: { x: 0, y: 0, w: 10, h: 10 },
+            naturalW: 100,
+            naturalH: 100,
+          }
+        : null;
+    const follows = (a: Element, b: Element): boolean =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+    it("a blur below an image draws the base's tile under the image", () => {
+      tileMock.mockImplementation(baseTileOnly);
+      const { container } = renderImageLayer(makeScene([blur, image], null), makeTools(), {
         canvasMode: true,
         src: "blob:base",
       });
       const baseTile = container.querySelector('[data-testid="redaction-tile"]')!;
       const added = container.querySelector('image[href="blob:added"]')!;
-      expect(
-        baseTile.compareDocumentPosition(added) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
+      expect(follows(baseTile, added)).toBe(true);
+      // Nothing of the image is redrawn over it: the image is above the blur.
+      expect(container.querySelector('[data-testid="redaction-over-images"]')).toBeNull();
+    });
+
+    it("a blur above an image redraws that image's redacted pixels over the base's tile", () => {
+      tileMock.mockImplementation(baseTileOnly);
+      // As the export: at the blur's z-position the baked base, then the baked image below it.
+      const { container } = renderImageLayer(makeScene([image, blur], null), makeTools(), {
+        canvasMode: true,
+        src: "blob:base",
+      });
+      const added = container.querySelector('image[href="blob:added"]')!;
+      const baseTile = container.querySelector('[data-testid="redaction-tile"]')!;
+      const over = container.querySelector('[data-testid="redaction-over-images"]')!;
+      expect(follows(added, baseTile)).toBe(true);
+      expect(follows(baseTile, over)).toBe(true);
+    });
+
+    it("a locked blur above an image redraws the image's own (already baked) pixels", () => {
+      const { container } = renderImageLayer(
+        makeScene([image, { ...blur, locked: true }], null),
+        makeTools(),
+        { canvasMode: true, src: "blob:base" },
+      );
+      const over = container.querySelector('[data-testid="redaction-over-images"]')!;
+      expect(over.querySelector('image[href="blob:added"]')).not.toBeNull();
     });
 
     it("passes the solid style through", () => {
@@ -729,5 +757,89 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
       renderImageLayer(makeScene([image, blur], null), makeTools());
       expect(tileMock.mock.calls.some((c) => c[0] === "blob:added")).toBe(false);
     });
+  });
+});
+
+describe("AnnotationLayer — step badges", () => {
+  // A stateful scene and tool: the layer reads annotations back from it, so numbering is
+  // exercised end to end (click -> addAnnotation -> stepNumbers -> rendered text).
+  function StepHarness(): React.JSX.Element {
+    const [annotations, setAnnotations] = useState<Annotation[]>([]);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [tool, setTool] = useState<AnnotationToolsController["tool"]>("step");
+    const scene = {
+      ...makeScene(annotations, selectedId),
+      addAnnotation: (a: Annotation) => setAnnotations((prev) => [...prev, a]),
+      select: (id: string | null) => setSelectedId(id),
+      removeSelected: () => {
+        setAnnotations((prev) => prev.filter((a) => a.id !== selectedId));
+        setSelectedId(null);
+      },
+    };
+    return (
+      <>
+        <span data-testid="tool">{tool}</span>
+        <button type="button" onClick={() => setTool("select")}>
+          to-select
+        </button>
+        <AnnotationLayer scene={scene} tools={makeTools({ tool, setTool })} src="" />
+      </>
+    );
+  }
+
+  const numbers = (container: HTMLElement): string[] =>
+    Array.from(container.querySelectorAll("g[data-annotation] text")).map(
+      (el) => el.textContent ?? "",
+    );
+
+  it("numbers clicks 1, 2, 3, keeps the step tool, and renumbers after deleting the middle", () => {
+    for (const prop of ["clientWidth", "clientHeight"]) {
+      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 100 });
+    }
+    const { container } = render(<StepHarness />);
+    const layer = container.querySelector("svg")!.parentElement as HTMLElement;
+    layer.setPointerCapture = vi.fn();
+    layer.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: 100,
+        bottom: 100,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+
+    // A right-click and a middle-button press (canvas pan) place nothing.
+    fireEvent.pointerDown(layer, { clientX: 30, clientY: 30, button: 2 });
+    fireEvent.pointerDown(layer, { clientX: 30, clientY: 30, button: 1 });
+    expect(numbers(container)).toEqual([]);
+
+    fireEvent.pointerDown(layer, { clientX: 20, clientY: 20 });
+    fireEvent.pointerDown(layer, { clientX: 50, clientY: 50 });
+    fireEvent.pointerDown(layer, { clientX: 80, clientY: 80 });
+    expect(numbers(container)).toEqual(["1", "2", "3"]);
+    expect(screen.getByTestId("tool").textContent).toBe("step"); // never auto-switches
+    // Placing does not select: the options panel would otherwise repaint the badge just
+    // placed when the user picks a colour for the next one. One circle each, no outline.
+    for (const g of container.querySelectorAll("g[data-annotation]")) {
+      expect(g.querySelectorAll("circle")).toHaveLength(1);
+    }
+
+    // Select the middle badge with the select tool, then delete it.
+    fireEvent.click(screen.getByText("to-select"));
+    fireEvent.pointerDown(layer, { clientX: 50, clientY: 50 });
+    fireEvent.keyDown(window, { key: "Delete" });
+    expect(numbers(container)).toEqual(["1", "2"]);
+    // The survivors are the first and the last badge, now numbered 1 and 2.
+    const centers = Array.from(container.querySelectorAll("g[data-annotation] text")).map((el) => [
+      el.getAttribute("x"),
+      el.textContent,
+    ]);
+    expect(centers).toEqual([
+      ["20", "1"],
+      ["80", "2"],
+    ]);
   });
 });

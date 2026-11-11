@@ -4,9 +4,14 @@ import { smoothPath } from "./smooth";
 import {
   BLUR_STD,
   HAND_FONT,
+  STEP_FONT,
+  stepDiameterPx,
   STROKE_WIDTHS,
   TEXT_LINE_HEIGHT,
   resolveFontPx,
+  stepFontPx,
+  stepInk,
+  stepRingPx,
   textLines,
 } from "./tools";
 import {
@@ -18,7 +23,13 @@ import {
   type Extents,
 } from "./canvas-geometry";
 import { bakeCanvasRedactions, type CanvasAssets } from "./redaction";
-import type { Annotation, ImageAnnotation, Scene } from "./scene";
+import {
+  stepNumbers,
+  type Annotation,
+  type BlurAnnotation,
+  type ImageAnnotation,
+  type Scene,
+} from "./scene";
 
 /**
  * Longest canvas side the compositor will rasterize to. Chromium caps a canvas
@@ -307,15 +318,17 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // beautify padding is shown there — clipping to the shot truncated it in the
   // export only. The output viewBox (the crop window, or the whole frame) is the
   // natural bound, so they render exactly as previewed.
-  // Canvas mode (`ext` set): blurs were baked into the base bytes, so none is drawn here.
-  const drawn = ext ? scene.annotations.filter((a) => a.kind !== "blur") : scene.annotations;
-  // Added images (canvas mode only) are drawn here, in z-order among the annotations.
-  const anno = `<g transform="translate(${ox},${oy})">${drawn
-    .map((a) =>
-      a.kind === "image"
-        ? imageSvg(a, g, sv > 0)
-        : annotationSvg(a, g.naturalW, g.naturalH, g.scale),
-    )
+  // Canvas mode (`ext` set): every blur was baked into each image it covers, so it draws
+  // no filter. At its z-position it redraws the baked images BELOW it (the base, then the
+  // added images earlier in the array) over its rect, so it covers an annotation drawn
+  // before it and never paints over an image above it. Added images draw in z-order too.
+  const steps = stepNumbers(scene.annotations);
+  const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
+    .map((a, i) => {
+      if (a.kind === "image") return imageSvg(a, g, sv > 0);
+      if (a.kind === "blur" && ext) return bakedBlurSvg(a, scene.annotations.slice(0, i), g);
+      return annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps);
+    })
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
@@ -331,13 +344,13 @@ export function buildSvg(scene: Scene, g: Geom): string {
  * carries the x/y translation would be resolved in the translated space and land twice.
  * Outside canvas mode there are no image annotations; one is drawn as nothing.
  */
-function imageSvg(a: ImageAnnotation, g: Geom, shadow: boolean): string {
+function imageSvg(a: ImageAnnotation, g: Geom, shadow: boolean, idSuffix = ""): string {
   if (!g.extents) return "";
   const x = a.x * g.naturalW;
   const y = a.y * g.naturalH;
   const w = a.w * g.naturalW;
   const h = a.h * g.naturalH;
-  const clip = `ic-${a.id}`;
+  const clip = `ic-${a.id}${idSuffix}`;
   return (
     `<defs><clipPath id="${clip}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${g.radius}"/></clipPath></defs>` +
     (shadow
@@ -347,7 +360,41 @@ function imageSvg(a: ImageAnnotation, g: Geom, shadow: boolean): string {
   );
 }
 
-function annotationSvg(a: Annotation, W: number, H: number, scale: number): string {
+/**
+ * A blur in canvas mode, at its z-position: the baked images below it, clipped to its rect.
+ * Their pixels already hold the redaction, so no filter is drawn; redrawing them covers
+ * any annotation stacked between those images and the blur.
+ */
+function bakedBlurSvg(a: BlurAnnotation, below: readonly Annotation[], g: Geom): string {
+  const clip = `bclip-${a.id}`;
+  const images = below
+    .filter((b): b is ImageAnnotation => b.kind === "image")
+    .map((b) => imageSvg(b, g, false, `-under-${a.id}`))
+    .join("");
+  return (
+    `<defs><clipPath id="${clip}"><rect x="${a.x * g.naturalW}" y="${a.y * g.naturalH}" width="${a.w * g.naturalW}" height="${a.h * g.naturalH}"/></clipPath></defs>` +
+    `<g clip-path="url(#${clip})"><use href="#shot"/>${images}</g>`
+  );
+}
+
+function annotationSvg(
+  a: Annotation,
+  W: number,
+  H: number,
+  scale: number,
+  steps: Map<string, number>,
+): string {
+  if (a.kind === "step") {
+    const d = stepDiameterPx(a.size);
+    const n = steps.get(a.id) ?? 1;
+    const ink = stepInk(a.color);
+    const cx = a.x * W;
+    const cy = a.y * H;
+    return (
+      `<circle cx="${cx}" cy="${cy}" r="${(d / 2) * scale}" fill="${a.color}" stroke="${ink}" stroke-width="${stepRingPx(d) * scale}"/>` +
+      `<text x="${cx}" y="${cy}" fill="${ink}" font-family="${STEP_FONT}" font-size="${stepFontPx(d, n) * scale}" font-weight="700" text-anchor="middle" dominant-baseline="central">${n}</text>`
+    );
+  }
   if (a.kind === "blur") {
     // Bake the redaction: a blurred, clipped copy of the shared #shot image over the
     // rect. The filter region is the rect + margin, so it only processes those pixels

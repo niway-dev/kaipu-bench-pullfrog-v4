@@ -16,6 +16,8 @@ function makeTools(overrides: Partial<AnnotationToolsController> = {}): Annotati
     setTextSize: vi.fn(),
     redactionStyle: "blur",
     setRedactionStyle: vi.fn(),
+    stepSize: 1,
+    setStepSize: vi.fn(),
     ...overrides,
   };
 }

@@ -35,6 +35,7 @@ import {
   setReportedCaptureWhileRecording,
 } from "./capture-while-recording";
 import { saveCaptureToWorkspace, saveEditedScreenshot } from "./screenshot-save";
+import { isPlainItemId } from "../library/library-vault";
 import { vaultActivity } from "../library/vault-activity";
 import type { CaptureToastShowRequest } from "./capture-toast-window";
 import { deferToastUntilAfterCapture } from "./toast-after-capture";
@@ -286,6 +287,7 @@ export function registerScreenshotHandlers(
   ipcMain.handle(
     IPC_CHANNELS.screenshotReadBytes,
     scopedAdmitted("library", async (id: string): Promise<ArrayBuffer> => {
+      if (typeof id !== "string" || !isPlainItemId(id)) throw new Error("read: invalid id");
       const buf = await readFile(await screenshotFilePath(id));
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
     }),
@@ -295,7 +297,7 @@ export function registerScreenshotHandlers(
   ipcMain.handle(
     IPC_CHANNELS.screenshotReadCanvas,
     scopedAdmitted("library", async (id: string): Promise<CanvasReadResult | null> => {
-      await screenshotFilePath(id);
+      // readCanvas refuses an id that is not a plain item id (no path out of the vault).
       return readCanvas(currentVault(), id);
     }),
   );

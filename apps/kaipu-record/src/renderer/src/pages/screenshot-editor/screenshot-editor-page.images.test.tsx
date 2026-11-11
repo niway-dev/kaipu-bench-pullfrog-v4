@@ -41,8 +41,10 @@ vi.mock("@renderer/features/editor/paste-image", async (importOriginal) => ({
 const originalRect = Element.prototype.getBoundingClientRect;
 
 const flatBytes = new Uint8Array([1, 2, 3]).buffer;
-const assetBytes = new Uint8Array([9, 9, 9, 9]).buffer;
-const libraryBytes = new Uint8Array([5, 5]).buffer;
+// Stored assets start with the PNG signature: a reopened document refuses any other bytes.
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const assetBytes = new Uint8Array([...PNG_SIGNATURE, 9, 9, 9, 9]).buffer;
+const libraryBytes = new Uint8Array([...PNG_SIGNATURE, 5, 5]).buffer;
 const LOCAL: ImageSource = { kind: "local", id: "shot-1", assetId: "a-shot-1", title: "Shot" };
 const PASTE: ImageSource = {
   kind: "blob",

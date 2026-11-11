@@ -154,6 +154,12 @@ function newImageAssetId(): string {
  * PNG instead": no document, a corrupt or unsupported one, a missing base asset, or a read
  * that failed. It never rejects, so a bad document can never keep the editor from opening.
  */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const isPng = (bytes: ArrayBuffer): boolean => {
+  const head = new Uint8Array(bytes, 0, Math.min(8, bytes.byteLength));
+  return head.length === 8 && PNG_SIGNATURE.every((b, i) => head[i] === b);
+};
+
 async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
   try {
     const stored = await window.electronAPI.readScreenshotCanvas(id);
@@ -161,14 +167,15 @@ async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
     const parsed = parseCanvasDoc(stored.docJson);
     if (!parsed) return null;
     const bytes = stored.assets[parsed.base.assetId];
-    if (!bytes) return null;
-    // An image whose asset is gone cannot be drawn or exported: like a missing base, open the
-    // flattened PNG (which still shows it) instead of a document that would throw.
+    // Not a PNG: the image would never load and the editor would stay disabled.
+    if (!bytes || !isPng(bytes)) return null;
+    // An image whose asset is gone or not a PNG cannot be drawn or exported: like a bad base,
+    // open the flattened PNG (which still shows it) instead of a document that would throw.
     const assets: CanvasAssets = {};
     for (const a of parsed.scene.annotations) {
       if (a.kind !== "image") continue;
       const asset = stored.assets[a.assetId];
-      if (!asset) return null;
+      if (!asset || !isPng(asset)) return null;
       assets[a.assetId] = asset;
     }
     // New annotations must not reuse an id the document already holds.
@@ -555,8 +562,9 @@ function ScreenshotEditorBody({
 
   /** The base image's pixel size: the decoded image first, then the sizes already known. */
   const basePixels = (): { width: number; height: number } => ({
-    width: imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0,
-    height: imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0,
+    // A reopened document's base size comes before the source's, which is the flat export's.
+    width: imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0,
+    height: imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0,
   });
 
   /**

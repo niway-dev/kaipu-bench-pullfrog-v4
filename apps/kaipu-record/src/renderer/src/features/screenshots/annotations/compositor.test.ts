@@ -202,14 +202,26 @@ describe("compositor canvas mode", () => {
       const g = { ...geom, pad };
       // Canvas mode bakes blurs into the base bytes, so only the blur layer differs.
       const noBlur = { ...s, annotations: s.annotations.filter((a) => a.kind !== "blur") };
-      expect(buildSvg(s, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(noBlur, g));
+      expect(buildSvg(noBlur, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(noBlur, g));
     });
   });
 
-  it("draws no blur in canvas mode (its pixels are in the base image)", () => {
+  it("draws no blur filter in canvas mode (its pixels are in the base image)", () => {
     const svg = buildSvg(scene(inside), { ...geom, extents: ZERO });
     expect(svg).not.toContain("feGaussianBlur");
     expect(buildSvg(scene(inside), geom)).toContain("feGaussianBlur");
+  });
+
+  it("canvas mode: a redaction covers an annotation drawn before it, locked or not", () => {
+    for (const locked of [false, true]) {
+      const s = scene([
+        { id: "t", kind: "text", x: 0.1, y: 0.1, text: "secret", color: "#fff", size: 1 },
+        { id: "r", kind: "blur", x: 0, y: 0, w: 0.5, h: 0.5, style: "solid", locked },
+      ]);
+      const svg = buildSvg(s, { ...geom, extents: ZERO });
+      const copy = svg.indexOf(`<g clip-path="url(#bclip-r)"><use href="#shot"/>`);
+      expect(copy, `locked ${locked}`).toBeGreaterThan(svg.indexOf("secret"));
+    }
   });
 
   it("bakes redactions into the base bytes in canvas mode only", async () => {
@@ -379,5 +391,53 @@ describe("compositor image annotations (canvas mode)", () => {
     const plain = buildSvg(s, { ...geom, extents: ZERO });
     expect(buildSvg(s, { ...geom, extents: ZERO, assets })).toBe(plain);
     expect(plain).not.toContain("asset-");
+  });
+
+  it("redraws, at a blur's z-position, the baked images below it and never one above", () => {
+    const blur: Annotation = { id: "z", kind: "blur", x: 1.2, y: 0.1, w: 0.2, h: 0.2 };
+    const above = buildSvg(scene([second, blur]), g);
+    expect(above).toContain(`<clipPath id="bclip-z">`);
+    expect(above).toContain(
+      `<g clip-path="url(#bclip-z)"><use href="#shot"/><defs><clipPath id="ic-a9-under-z">`,
+    );
+    const below = buildSvg(scene([blur, second]), g);
+    expect(below).toContain(`<g clip-path="url(#bclip-z)"><use href="#shot"/></g>`);
+    expect(below).not.toContain("-under-z");
+    // Never a filter: the pixels are already baked.
+    expect(above).not.toContain("feGaussianBlur");
+  });
+});
+
+describe("compositor step badges", () => {
+  const step = (id: string, x: number, color: string): Annotation => ({
+    id,
+    kind: "step",
+    x,
+    y: 0.5,
+    color,
+    size: 1,
+  });
+
+  it("emits a circle and the number for each badge, scaled by `scale`", () => {
+    const svg = buildSvg(scene([step("a", 0.25, "#f6055c"), step("b", 0.75, "#f6055c")]), geom);
+    expect(svg.match(/<circle /g)).toHaveLength(2);
+    // Diameter STEP_PX[1] = 28 -> radius 14, times scale 2.
+    expect(svg).toContain('r="28"');
+    expect(svg).toMatch(/dominant-baseline="central">1<\/text>/);
+    expect(svg).toMatch(/dominant-baseline="central">2<\/text>/);
+    expect(svg).not.toContain("NaN");
+  });
+
+  it("renumbers in the export when a badge is missing", () => {
+    const svg = buildSvg(scene([step("a", 0.25, "#f6055c"), step("c", 0.75, "#f6055c")]), geom);
+    expect(svg).not.toContain(">3</text>");
+    expect(svg).toMatch(/>2<\/text>/);
+  });
+
+  it("uses dark ink on a light fill and white on a dark one", () => {
+    const light = buildSvg(scene([step("a", 0.5, "#f5f5f5")]), geom);
+    expect(light).toContain('fill="#1a1a1a"');
+    const dark = buildSvg(scene([step("a", 0.5, "#f6055c")]), geom);
+    expect(dark).toContain('stroke="#ffffff"');
   });
 });
