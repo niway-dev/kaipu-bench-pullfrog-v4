@@ -17,8 +17,8 @@ import {
   worldToFrame,
   type Extents,
 } from "./canvas-geometry";
-import { bakeRedactions } from "./redaction";
-import type { Annotation, Scene } from "./scene";
+import { bakeCanvasRedactions, type CanvasAssets } from "./redaction";
+import type { Annotation, ImageAnnotation, Scene } from "./scene";
 
 /**
  * Longest canvas side the compositor will rasterize to. Chromium caps a canvas
@@ -54,6 +54,12 @@ export interface CompositeOptions {
    * padding), and `scene.exportFrame` (not `scene.crop`) selects the output window.
    */
   canvas?: boolean;
+  /**
+   * Canvas mode (NIW2-703): the PNG bytes of every added image, by asset id. An image
+   * annotation whose asset is missing here makes the composite throw — the caller
+   * reports it instead of exporting a frame with a hole in it.
+   */
+  assets?: CanvasAssets;
 }
 
 export interface CompositeResult {
@@ -97,9 +103,27 @@ export async function compositeSceneAt(
   displayedW: number,
   options: CompositeOptions = {},
 ): Promise<CompositeResult> {
-  // Canvas mode: redactions are destructive, so their pixels go into the base image here
-  // (locked ones are already in it) and buildSvg draws no blur. Untouched = same bytes.
-  const base = options.canvas ? await bakeRedactions(bytes, scene.annotations) : bytes;
+  // Canvas mode: redactions are destructive, so their pixels go into the base image and
+  // into every added image they touch here (locked ones are already in them) and buildSvg
+  // draws no blur. Untouched = same bytes.
+  let base = bytes;
+  let assetHrefs: Record<string, string> | undefined;
+  if (options.canvas) {
+    const assets = options.assets ?? {};
+    for (const a of scene.annotations) {
+      if (a.kind === "image" && !assets[a.assetId]) {
+        throw new Error(`compositor: missing asset ${a.assetId}`);
+      }
+    }
+    const baked = await bakeCanvasRedactions(bytes, assets, scene.annotations);
+    base = baked.base;
+    assetHrefs = {};
+    for (const a of scene.annotations) {
+      if (a.kind === "image" && !(a.assetId in assetHrefs)) {
+        assetHrefs[a.assetId] = await bytesToDataUrl(baked.assets[a.assetId]);
+      }
+    }
+  }
   const href = await bytesToDataUrl(base);
   // Decode the PNG for its TRUE pixel size (Retina-safe — `getSize` can differ).
   const { width: naturalW, height: naturalH } = await imageSize(href);
@@ -111,6 +135,7 @@ export async function compositeSceneAt(
   const geom: Geom = { href, naturalW, naturalH, pad, radius, scale };
   if (options.canvas) {
     geom.extents = contentExtents(scene.annotations, naturalW, naturalH, scale);
+    geom.assets = assetHrefs;
   }
   const { outW, outH } = frameWindow(scene, geom);
   const svg = buildSvg(scene, geom);
@@ -140,6 +165,8 @@ export interface Geom {
    * image (natural px). All zero + no `exportFrame` yields the exact non-canvas SVG.
    */
   extents?: Extents;
+  /** Canvas mode: data URL of each added image's (already redacted) PNG, by asset id. */
+  assets?: Record<string, string>;
 }
 
 /**
@@ -240,6 +267,19 @@ export function buildSvg(scene: Scene, g: Geom): string {
     `<image id="shot" href="${g.href}" width="${g.naturalW}" height="${g.naturalH}" preserveAspectRatio="none"/>`,
   );
 
+  // Each added image (canvas mode), defined ONCE per asset like #shot, however many
+  // annotations place it.
+  const assetDefs = new Set<string>();
+  for (const a of scene.annotations) {
+    if (!ext || a.kind !== "image" || assetDefs.has(a.assetId)) continue;
+    const href = g.assets?.[a.assetId];
+    if (href === undefined) throw new Error(`compositor: missing asset ${a.assetId}`);
+    assetDefs.add(a.assetId);
+    defs.push(
+      `<image id="asset-${a.assetId}" href="${href}" width="${a.w * g.naturalW}" height="${a.h * g.naturalH}" preserveAspectRatio="none"/>`,
+    );
+  }
+
   // Round the outer frame to match the live preview (BeautifiedFrame applies
   // frameRadius to the bg div) — a square rect here made exports differ.
   const outerR = Math.round(frameRadius(scene.beautify.bg, scene.beautify.radius) * g.scale);
@@ -269,13 +309,42 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // natural bound, so they render exactly as previewed.
   // Canvas mode (`ext` set): blurs were baked into the base bytes, so none is drawn here.
   const drawn = ext ? scene.annotations.filter((a) => a.kind !== "blur") : scene.annotations;
+  // Added images (canvas mode only) are drawn here, in z-order among the annotations.
   const anno = `<g transform="translate(${ox},${oy})">${drawn
-    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale))
+    .map((a) =>
+      a.kind === "image"
+        ? imageSvg(a, g, sv > 0)
+        : annotationSvg(a, g.naturalW, g.naturalH, g.scale),
+    )
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
   // window in native px, so it rasterizes 1:1 (no scaling).
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${vbX} ${vbY} ${outW} ${outH}"><defs>${defs.join("")}</defs>${bg}${boxFill}${shadow}${image}${anno}</svg>`;
+}
+
+/**
+ * One added image: its shadow (same filter as the base, when shadow > 0), then the shared
+ * asset clipped to a rect with the beautify radius. Authored in the annotation group's
+ * space (already translated to the base's corner). As with the base, the clip sits on a
+ * wrapping <g> that carries no transform of its own: a clip-path on the <use> that also
+ * carries the x/y translation would be resolved in the translated space and land twice.
+ * Outside canvas mode there are no image annotations; one is drawn as nothing.
+ */
+function imageSvg(a: ImageAnnotation, g: Geom, shadow: boolean): string {
+  if (!g.extents) return "";
+  const x = a.x * g.naturalW;
+  const y = a.y * g.naturalH;
+  const w = a.w * g.naturalW;
+  const h = a.h * g.naturalH;
+  const clip = `ic-${a.id}`;
+  return (
+    `<defs><clipPath id="${clip}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${g.radius}"/></clipPath></defs>` +
+    (shadow
+      ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${g.radius}" fill="#000" filter="url(#sh)"/>`
+      : "") +
+    `<g clip-path="url(#${clip})"><use href="#asset-${a.assetId}" x="${x}" y="${y}"/></g>`
+  );
 }
 
 function annotationSvg(a: Annotation, W: number, H: number, scale: number): string {
@@ -295,6 +364,7 @@ function annotationSvg(a: Annotation, W: number, H: number, scale: number): stri
       `<use href="#shot" clip-path="url(#bclip-${a.id})" filter="url(#bfilter-${a.id})"/>`
     );
   }
+  if (a.kind === "image") return ""; // drawn by imageSvg, which needs the geometry
   if (a.kind === "box") {
     const bw = a.w * W;
     const bh = a.h * H;

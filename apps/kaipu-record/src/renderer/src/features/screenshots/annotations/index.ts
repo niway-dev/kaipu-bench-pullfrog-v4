@@ -11,7 +11,7 @@ export {
   type CompositeOptions,
   type CompositeResult,
 } from "./compositor";
-export type { Scene, Annotation, CropRect } from "./scene";
+export type { Scene, Annotation, CropRect, ImageAnnotation } from "./scene";
 export {
   annotationBounds,
   contentExtents,
@@ -62,6 +62,8 @@ export {
   redactionBlockSize,
   redactRegion,
   bakeRedactions,
+  bakeCanvasRedactions,
+  type CanvasAssets,
   type PixelRegion,
 } from "./redaction";
 export {
@@ -71,5 +73,6 @@ export {
   parseCanvasDoc,
   type CanvasImageItem,
   type CanvasDocV1,
+  type CanvasDocV2,
   type ParsedCanvasDoc,
 } from "./canvas-doc";

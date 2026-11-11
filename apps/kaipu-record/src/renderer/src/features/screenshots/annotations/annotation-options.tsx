@@ -35,7 +35,8 @@ function resolveControls(
   // the *current* tool default, so the choice "sticks" for the next annotation too
   // (change colour on a selection → keep drawing in that colour, across tools).
   if (selected) {
-    if (selected.kind === "blur") return null;
+    // An added image has no colour or stroke either.
+    if (selected.kind === "blur" || selected.kind === "image") return null;
     return selected.kind === "text"
       ? {
           mode: "size",

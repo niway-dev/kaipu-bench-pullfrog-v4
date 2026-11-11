@@ -177,7 +177,8 @@ describe("compositor buildSvg", () => {
 const bakeMock = vi.hoisted(() => vi.fn());
 vi.mock("./redaction", async (orig) => ({
   ...(await orig<typeof import("./redaction")>()),
-  bakeRedactions: bakeMock,
+  // The compositor's one entry point is the canvas bake (it bakes the base and every image).
+  bakeCanvasRedactions: bakeMock,
 }));
 
 describe("compositor canvas mode", () => {
@@ -218,7 +219,7 @@ describe("compositor canvas mode", () => {
     await expect(compositeSceneAt(scene(inside), bytes, 100, { canvas: true })).rejects.toThrow(
       "baked",
     );
-    expect(bakeMock).toHaveBeenCalledWith(bytes, inside);
+    expect(bakeMock).toHaveBeenCalledWith(bytes, {}, inside);
     // Flag off: the export goes straight to decoding the bytes, which never settles for
     // these fake bytes in jsdom; the bake would have run before that, so one tick is enough.
     bakeMock.mockClear();
@@ -301,5 +302,82 @@ describe("compositor canvas mode", () => {
     const s: Scene = { ...scene([]), crop: { x: 0.5, y: 0.5, w: 0.25, h: 0.25 } };
     const svg = buildSvg(s, { ...geom, extents: ZERO });
     expect(svg).toContain(`viewBox="0 0 1080 680"`);
+  });
+});
+
+describe("compositor image annotations (canvas mode)", () => {
+  const ZERO = { left: 0, top: 0, right: 0, bottom: 0 };
+  // Illustrative: a 500x300 image to the right of the 1000x600 base, 100 px gap, top-aligned.
+  const second: Annotation = {
+    id: "a9",
+    kind: "image",
+    assetId: "img-abc123def456",
+    x: 1.1,
+    y: 0,
+    w: 0.5,
+    h: 0.5,
+    pixelWidth: 500,
+    pixelHeight: 300,
+  };
+  const assets = { "img-abc123def456": "data:image/png;base64,BBBB" };
+  const g: Geom = { ...geom, extents: { ...ZERO, right: 600 }, assets };
+
+  it("defines the asset once, uses it at its frame position and grows the frame", () => {
+    const box: Annotation = {
+      id: "b",
+      kind: "box",
+      x: 0.1,
+      y: 0.1,
+      w: 0.2,
+      h: 0.2,
+      color: "#f00",
+      stroke: 1,
+      seed: 3,
+    };
+    const svg = buildSvg(scene([second, box, { ...second, id: "a10", x: 1.1, y: 0.6 }]), g);
+    expect(svg.split('<image id="asset-img-abc123def456"')).toHaveLength(2);
+    expect(svg).toContain(`href="data:image/png;base64,BBBB" width="500" height="300"`);
+    // Annotation space is translated to the shot at the padding (40,40): x = 1.1 * 1000.
+    expect(svg).toContain(`translate(40,40)`);
+    expect(svg).toContain(`<use href="#asset-img-abc123def456" x="1100" y="0"/>`);
+    expect(svg).toContain(`<use href="#asset-img-abc123def456" x="1100" y="360"/>`);
+    const fullW = 1000 + 600 + 80;
+    expect(svg).toContain(`width="${fullW}" height="680" viewBox="0 0 ${fullW} 680"`);
+  });
+
+  it("clips each image to its own rounded rect in a non-transformed group", () => {
+    const svg = buildSvg(scene([second]), g);
+    expect(svg).toContain(
+      `<clipPath id="ic-a9"><rect x="1100" y="0" width="500" height="300" rx="12"/></clipPath>`,
+    );
+    expect(svg).toContain(`<g clip-path="url(#ic-a9)"><use href="#asset-img-abc123def456"`);
+  });
+
+  it("gives an image the base's drop shadow only when shadow > 0", () => {
+    const withShadow = buildSvg(scene([second]), g);
+    expect(withShadow).toContain(
+      `<rect x="1100" y="0" width="500" height="300" rx="12" fill="#000" filter="url(#sh)"/>`,
+    );
+    const flat: Scene = { ...scene([second]), beautify: { ...scene([]).beautify, shadow: 0 } };
+    expect(buildSvg(flat, g)).not.toContain("filter=");
+  });
+
+  it("throws when an image's asset is missing", () => {
+    expect(() => buildSvg(scene([second]), { ...g, assets: {} })).toThrow(/missing asset/);
+  });
+
+  it("composite throws on a missing asset before doing any work", async () => {
+    await expect(
+      compositeSceneAt(scene([second]), new ArrayBuffer(4), 100, { canvas: true, assets: {} }),
+    ).rejects.toThrow(/missing asset img-abc123def456/);
+  });
+
+  it("leaves the output unchanged when no image annotation is present", () => {
+    const s = scene([
+      { id: "t", kind: "text", x: 0.5, y: 0.5, text: "Hi", color: "#fff", size: 1 },
+    ]);
+    const plain = buildSvg(s, { ...geom, extents: ZERO });
+    expect(buildSvg(s, { ...geom, extents: ZERO, assets })).toBe(plain);
+    expect(plain).not.toContain("asset-");
   });
 });

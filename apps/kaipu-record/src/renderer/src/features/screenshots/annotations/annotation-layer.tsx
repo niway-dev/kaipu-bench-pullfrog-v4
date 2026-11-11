@@ -558,6 +558,9 @@ const Shape = React.memo(function Shape({
 }): React.JSX.Element {
   const { w: W, h: H } = size;
 
+  // An added image (NIW2-703) is not drawn by this layer yet; the export draws it.
+  if (a.kind === "image") return <g />;
+
   if (a.kind === "blur" && canvasMode) {
     return <RedactionTile a={a} size={size} selected={selected} src={src} />;
   }
@@ -800,7 +803,7 @@ function hitTest(
     const a = annotations[i];
     // A locked redaction is already part of the stored image: nothing to grab.
     if (canvasMode && a.kind === "blur" && a.locked) continue;
-    if (a.kind === "box" || a.kind === "blur") {
+    if (a.kind === "box" || a.kind === "blur" || a.kind === "image") {
       if (
         p.x >= a.x - 0.01 &&
         p.x <= a.x + a.w + 0.01 &&

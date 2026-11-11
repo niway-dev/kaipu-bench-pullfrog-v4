@@ -200,4 +200,27 @@ describe("canvas mode (NIW2-698)", () => {
     });
     expect(compositeSceneAt).toHaveBeenCalledTimes(2);
   });
+
+  it("passes the added images' assets to the compositor, for png and pdf", async () => {
+    const png = await tinyPng();
+    const assets = { "img-aaaaaaaaaaaa": png };
+    compositeSceneAt.mockResolvedValue({ png, width: 2, height: 2, scale: 1 });
+    await exportScene("png", { scene, bytes: png, displayedW: 2, canvas: true, assets });
+    expect(compositeSceneAt).toHaveBeenLastCalledWith(scene, png, 2, { canvas: true, assets });
+    await exportScene("pdf", { scene, bytes: png, displayedW: 2, canvas: true, assets });
+    expect(compositeSceneAt).toHaveBeenLastCalledWith(scene, png, 2, {
+      rasterScale: PDF_RASTER_SCALE,
+      canvas: true,
+      assets,
+    });
+  });
+
+  it("recomposites when the assets object changes", async () => {
+    const png = await tinyPng();
+    compositeSceneAt.mockResolvedValue({ png, width: 2, height: 2, scale: 1 });
+    const input = { scene, bytes: png, displayedW: 2, canvas: true };
+    await exportScene("png", { ...input, assets: { a: png } });
+    await exportScene("png", { ...input, assets: { a: png } });
+    expect(compositeSceneAt).toHaveBeenCalledTimes(2);
+  });
 });

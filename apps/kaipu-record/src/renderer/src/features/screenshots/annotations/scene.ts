@@ -66,12 +66,33 @@ export interface BlurAnnotation {
    * the document but not drawn again and not selectable. */
   locked?: boolean;
 }
+/**
+ * Canvas mode only (NIW2-703): an image added to the canvas. Geometry is in the same
+ * base-normalized units as every annotation (it may lie outside 0–1); w/h keep the image
+ * at 1 world unit = 1 source px, so selection, move, delete, z-order and undo reuse the
+ * annotation machinery. The base image is not one of these: it stays the anchor.
+ */
+export interface ImageAnnotation {
+  id: string;
+  kind: "image";
+  /** Key into the editor's asset map and `.kaipu/<id>.assets/<assetId>.png`. */
+  assetId: string;
+  /** Top-left, normalized to the base image. */
+  x: number;
+  y: number;
+  /** pixelWidth / baseNaturalW and pixelHeight / baseNaturalH. */
+  w: number;
+  h: number;
+  pixelWidth: number;
+  pixelHeight: number;
+}
 export type Annotation =
   | BoxAnnotation
   | ArrowAnnotation
   | TextAnnotation
   | PathAnnotation
-  | BlurAnnotation;
+  | BlurAnnotation
+  | ImageAnnotation;
 
 /**
  * A crop window over the beautified **frame** (background + padding + shot), normalized
