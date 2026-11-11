@@ -1,3 +1,4 @@
+export { AddImageControl } from "./add-image-control";
 export { useCanvasViewport, type CanvasViewport, type PanMode } from "./use-canvas-viewport";
 export { useShotMetrics, type ShotMetrics } from "./use-shot-metrics";
 export { useDotGrid } from "./use-dot-grid";

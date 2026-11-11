@@ -46,7 +46,7 @@ import {
   AnnotationToolbar,
   BASE_ASSET_ID,
   ZERO_EXTENTS,
-  bakeRedactions,
+  bakeCanvasRedactions,
   buildCanvasDoc,
   contentExtents,
   extentsToDisplay,
@@ -57,12 +57,15 @@ import {
   useAnnotationTools,
   useEditorScene,
   worldToFrame,
+  type CanvasAssets,
   type CanvasGeom,
   type CropRect,
+  type ImageAnnotation,
   type EditorScene,
   type Scene,
 } from "@renderer/features/screenshots/annotations";
 import {
+  AddImageControl,
   CANVAS_ZOOM,
   isIdentityView,
   useCanvasViewport,
@@ -70,6 +73,9 @@ import {
   useExtentsCompensation,
   useShotMetrics,
 } from "@renderer/features/screenshots/canvas";
+import { decodeToPng, imageFileFromPaste } from "@renderer/features/editor/paste-image";
+import { isTextField, readFromMain } from "@renderer/features/editor/use-paste-to-editor";
+import { nextAnnotationId } from "@renderer/features/screenshots/annotations/scene";
 import { useFlag } from "@renderer/features/analytics/use-flag";
 import {
   clearExportCache,
@@ -84,6 +90,8 @@ import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-works
 import styles from "./screenshot-editor-page.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
+/** The gap, in source px, between the content box and an image added to its right. */
+const ADDED_IMAGE_GAP_PX = 32;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
@@ -130,6 +138,15 @@ interface LoadedCanvasDoc {
   /** The base image's pixel size as the document recorded it. */
   pixelWidth: number;
   pixelHeight: number;
+  /** The bytes of every image annotation's asset (NIW2-703). */
+  assets: CanvasAssets;
+}
+
+/** A new asset id for an added image: matches `CANVAS_ASSET_ID_PATTERN`, never "base". */
+function newImageAssetId(): string {
+  let id = "";
+  while (id.length < 12) id += Math.random().toString(36).slice(2);
+  return `img-${id.slice(0, 12)}`;
 }
 
 /**
@@ -145,6 +162,15 @@ async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
     if (!parsed) return null;
     const bytes = stored.assets[parsed.base.assetId];
     if (!bytes) return null;
+    // An image whose asset is gone cannot be drawn or exported: like a missing base, open the
+    // flattened PNG (which still shows it) instead of a document that would throw.
+    const assets: CanvasAssets = {};
+    for (const a of parsed.scene.annotations) {
+      if (a.kind !== "image") continue;
+      const asset = stored.assets[a.assetId];
+      if (!asset) return null;
+      assets[a.assetId] = asset;
+    }
     // New annotations must not reuse an id the document already holds.
     reserveAnnotationIds(parsed.scene.annotations);
     return {
@@ -152,6 +178,7 @@ async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
       scene: parsed.scene,
       pixelWidth: parsed.base.pixelWidth,
       pixelHeight: parsed.base.pixelHeight,
+      assets,
     };
   } catch (error) {
     // The next save replaces the document with one built on the flat PNG, so a read that
@@ -472,6 +499,35 @@ function ScreenshotEditorBody({
   const zoomMin = canvasMode ? CANVAS_ZOOM.min : ZOOM_MIN;
   const zoomMax = canvasMode ? CANVAS_ZOOM.max : ZOOM_MAX;
 
+  // Images added to the canvas (NIW2-703). The bytes live in a ref: queued save and export jobs
+  // read them when they RUN, and nothing renders from the bytes themselves. The display side is
+  // `imageUrls`, assetId -> object URL, a new object only when an asset is added so the layer
+  // can depend on it. An undone image keeps its asset (redo brings it back); a save sends only
+  // what the scene still references.
+  const assetsRef = useRef<CanvasAssets>(doc ? { ...doc.assets } : {});
+  const [imageUrls, setImageUrls] = useState<Readonly<Record<string, string>>>({});
+  const urlsRef = useRef(new Map<string, string>());
+  const registerAsset = (assetId: string, png: ArrayBuffer): string => {
+    const known = urlsRef.current.get(assetId);
+    if (known) return known;
+    const url = URL.createObjectURL(new Blob([png], { type: "image/png" }));
+    urlsRef.current.set(assetId, url);
+    return url;
+  };
+  useEffect(() => {
+    if (!canvasMode) return;
+    const urls = urlsRef.current;
+    // Registered in the effect, not at render, so StrictMode's mount/unmount/mount pass
+    // revokes and recreates them together instead of leaving the state holding dead URLs.
+    for (const [assetId, png] of Object.entries(assetsRef.current)) registerAsset(assetId, png);
+    setImageUrls(Object.fromEntries(urls));
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, [canvasMode]);
+
   // Composite the beautify frame + annotations and encode them as `format`: PNG is
   // what Copy and Save use, PDF what Export writes. Only ever invoked once
   // `imageReady` is true (see the guards below), which itself can only happen once
@@ -481,8 +537,77 @@ function ScreenshotEditorBody({
       scene: snap,
       bytes: await image!.getBytes(),
       displayedW: imgRef.current?.clientWidth ?? 0,
-      ...(canvasMode ? { canvas: true } : {}),
+      ...(canvasMode ? { canvas: true, assets: assetsRef.current } : {}),
     });
+
+  /** The base image's pixel size: the decoded image first, then the sizes already known. */
+  const basePixels = (): { width: number; height: number } => ({
+    width: imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0,
+    height: imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0,
+  });
+
+  /**
+   * Put a PNG on the canvas as an image annotation (NIW2-703): to the right of the content
+   * box, top-aligned with the base, selected, with the select tool active so it can be moved.
+   * It goes through `addAnnotation`, so it is an undoable edit that marks the scene dirty.
+   */
+  const addImage = (png: ArrayBuffer, pixelWidth: number, pixelHeight: number): void => {
+    const { width: naturalW, height: naturalH } = basePixels();
+    if (naturalW <= 0 || naturalH <= 0 || pixelWidth <= 0 || pixelHeight <= 0) return;
+    // The same scale the live extents use; before the first measurement the displayed width
+    // is unknown and 1 only affects the size of text bounds.
+    const scale = metrics && metrics.w > 0 ? naturalW / metrics.w : 1;
+    const { right } = contentExtents(scene.annotations, naturalW, naturalH, scale);
+    const assetId = newImageAssetId();
+    assetsRef.current = { ...assetsRef.current, [assetId]: png };
+    const url = registerAsset(assetId, png);
+    setImageUrls((prev) => ({ ...prev, [assetId]: url }));
+    const annotation: ImageAnnotation = {
+      id: nextAnnotationId().id,
+      kind: "image",
+      assetId,
+      x: (naturalW + right + ADDED_IMAGE_GAP_PX) / naturalW,
+      y: 0,
+      w: pixelWidth / naturalW,
+      h: pixelHeight / naturalH,
+      pixelWidth,
+      pixelHeight,
+    };
+    scene.addAnnotation(annotation);
+    scene.select(annotation.id);
+    tools.setTool("select");
+  };
+  // The paste listener below outlives a render: it calls the latest closure.
+  const addImageRef = useRef(addImage);
+  addImageRef.current = addImage;
+
+  // Pasting an image adds it to the canvas (canvas mode only). Text fields keep their own
+  // paste. Like the home pages, the paste event's image wins and main's clipboard reader
+  // answers when the event carries none; a clipboard with no image does nothing.
+  const pasting = useRef(false);
+  useEffect(() => {
+    if (!canvasMode) return;
+    const onPaste = (e: ClipboardEvent): void => {
+      if (isTextField(e.target)) return;
+      const file = imageFileFromPaste(e.clipboardData);
+      e.preventDefault();
+      if (pasting.current) return;
+      pasting.current = true;
+      void (async () => {
+        try {
+          const image = await (file ? decodeToPng(file) : readFromMain());
+          if (image && alive.current) addImageRef.current(image.png, image.width, image.height);
+        } catch (error) {
+          reportError(t("addImageError"), error, { context: { phase: "paste-image" } });
+        } finally {
+          pasting.current = false;
+        }
+      })();
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads latest state through refs
+  }, [canvasMode]);
 
   /**
    * Export the scene and put it on the clipboard. Reports its own failures; the
@@ -527,12 +652,28 @@ function ScreenshotEditorBody({
    */
   const buildCanvasPayload = async (snap: Scene): Promise<CanvasSavePayload | null> => {
     // The decoded image first; the known sizes cover an image that has not reported one.
-    const pixelWidth = imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0;
-    const pixelHeight = imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0;
+    const { width: pixelWidth, height: pixelHeight } = basePixels();
     if (pixelWidth <= 0 || pixelHeight <= 0) return null;
-    const baked = await bakeRedactions(await image!.getBytes(), snap.annotations);
+    const baked = await bakeCanvasRedactions(
+      await image!.getBytes(),
+      assetsRef.current,
+      snap.annotations,
+    );
     const docJson = JSON.stringify(buildCanvasDoc(snap, { pixelWidth, pixelHeight }));
-    return { docJson, assets: [{ assetId: BASE_ASSET_ID, png: baked }] };
+    // The base, then each image asset the scene still references, once (one asset may sit on
+    // the canvas twice). Main prunes whatever else the vault held for this shot.
+    const assets: CanvasSavePayload["assets"] = [{ assetId: BASE_ASSET_ID, png: baked.base }];
+    const sent = new Set<string>();
+    for (const a of snap.annotations) {
+      if (a.kind !== "image" || sent.has(a.assetId)) continue;
+      const png = baked.assets[a.assetId];
+      // Every image is added with its bytes, so this is a bug: fail the save visibly rather
+      // than store a document whose reopen would fall back to the flat PNG.
+      if (!png) throw new Error(`save: no bytes for image asset ${a.assetId}`);
+      sent.add(a.assetId);
+      assets.push({ assetId: a.assetId, png });
+    }
+    return { docJson, assets };
   };
 
   /** Returns the saved title, or null when the save failed (already reported). */
@@ -795,6 +936,15 @@ function ScreenshotEditorBody({
         <AnnotationToolbar tools={tools} onPick={() => scene.select(null)} />
         <CaptureTitleInput title={captureTitle} />
         <div className={styles.actions}>
+          {canvasMode && (
+            <AddImageControl
+              onAdd={addImage}
+              excludeId={savedId}
+              excludeAssetId={savedAssetIdRef.current ?? null}
+              buttonClassName={styles.secondary}
+              labelClassName={styles.label}
+            />
+          )}
           <button
             type="button"
             className={styles.iconBtn}
@@ -901,6 +1051,7 @@ function ScreenshotEditorBody({
                   src={image.displayUrl}
                   canvas={canvasMode}
                   canvasMode={canvasMode}
+                  {...(canvasMode ? { imageUrls } : {})}
                 />
               }
               frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}

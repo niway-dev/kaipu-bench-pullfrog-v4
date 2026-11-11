@@ -270,9 +270,11 @@ export const UI_MAP = {
       tools: { states: ["select", "annotate", "crop"] },
       canvas: { states: ["default", "crop", "annotate"] },
       canvasView: {
-        states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light"],
+        states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light", "twoImages"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      addImage: { states: ["closed", "open"], gatedBy: [{ flag: "image-canvas" }] },
+      libraryPicker: { states: ["open", "empty"], gatedBy: [{ flag: "image-canvas" }] },
       redactionStyle: {
         states: ["blur", "solid"],
         gatedBy: [{ flag: "image-canvas" }],
