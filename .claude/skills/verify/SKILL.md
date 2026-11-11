@@ -138,12 +138,13 @@ instance does not interfere (separate `--user-data-dir`).
 
 ## Feature map
 
-| Scenario      | What it shows                                                                   | Command                         | Artifacts                                                                     |
-| ------------- | ------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
-| `launch`      | First run: onboarding dialog, then the main window after "Skip setup"           | `bun run proof:run launch`      | `01-onboarding.png`, `02-main-window.png`, `video.webm`                       |
-| `library`     | Library list, then the seeded recording's detail page with "Edit video"         | `bun run proof:run library`     | `01-library-list.png`, `02-recording-detail.png`, `video.webm`                |
-| `export`      | Editor, export sheet, "Ready to share" card after a real H.264 export           | `bun run proof:run export`      | `01-editor.png`, `02-export-sheet.png`, `03-ready-to-share.png`, `video.webm` |
-| `kaipu-black` | A plain launch at the default size, every main page at 1440×900, a rail tooltip | `bun run proof:run kaipu-black` | `00-plain-launch.png` … `06-sidebar-tooltip.png`, `video.webm`                |
+| Scenario       | What it shows                                                                                                                                          | Command                          | Artifacts                                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `launch`       | First run: onboarding dialog, then the main window after "Skip setup"                                                                                  | `bun run proof:run launch`       | `01-onboarding.png`, `02-main-window.png`, `video.webm`                                                                         |
+| `library`      | Library list, then the seeded recording's detail page with "Edit video"                                                                                | `bun run proof:run library`      | `01-library-list.png`, `02-recording-detail.png`, `video.webm`                                                                  |
+| `export`       | Editor, export sheet, "Ready to share" card after a real H.264 export                                                                                  | `bun run proof:run export`       | `01-editor.png`, `02-export-sheet.png`, `03-ready-to-share.png`, `video.webm`                                                   |
+| `kaipu-black`  | A plain launch at the default size, every main page at 1440×900, a rail tooltip                                                                        | `bun run proof:run kaipu-black`  | `00-plain-launch.png` … `06-sidebar-tooltip.png`, `video.webm`                                                                  |
+| `image-canvas` | Flag `image-canvas`: export parity with the flag off (plain and beautified), text outside the image grows the export, zoom out, pan, export-frame tool | `bun run proof:run image-canvas` | `01-flag-off-editor.png` … `06-export-frame-tool.png`, `parity*.json`, `text-outside.json`, clipboard PNGs, `video-flag-*.webm` |
 
 Not covered yet: recording itself (needs screen-capture permission), screenshot editor, settings, auth.
 Add a scenario when a PR's criterion lands there.
