@@ -220,6 +220,10 @@ pixels are gone.
 The quiet capture path (ADR 0042: capture and copy without opening the editor) writes only
 `<id>.png`; the document is created the first time the item is opened in the editor.
 
+**As built in M3 (NIW2-700).** Coordinates stay normalized to the base image until M6 adds a
+second image; the base asset is `base.png`; the strong blur's block is
+`max(24, ceil(min(w, h) / 4))` pixels. The details are in ADR 0053's Implementation status.
+
 ### 3. Inspect mode
 
 Entered with one key or a toolbar button; `Esc` leaves. While active, over an image item:

@@ -5,10 +5,13 @@ description: "Should a saved screenshot store a re-editable scene (base image + 
 
 # Re-editable screenshots (scene doc)
 
-> **Status: 🔵 Proposed (analysis).** Today a saved screenshot is a **flat PNG** —
-> re-editing flattens again and the old annotations aren't editable. This doc weighs
-> making saves **non-destructive** by persisting the editor scene, and answers the
-> open question: it works locally, but what about cloud?
+> **Status: 🟢 Ready to validate, behind the `image-canvas` flag** (NIW2-700, M3 of the image
+> editor epic). A save now writes the editable document beside the flat PNG, and the editor
+> reopens it. Redaction is destructive, so this doc's "keep the original" and "Reset edits"
+> are not built; [ADR 0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/)
+> records what was. Cloud sync of the document is still open.
+>
+> The analysis below is from before the build: today's flat-PNG behaviour is the flag-off path.
 
 ## The model is the easy part
 
