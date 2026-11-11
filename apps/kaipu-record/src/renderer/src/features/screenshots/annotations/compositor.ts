@@ -4,9 +4,14 @@ import { smoothPath } from "./smooth";
 import {
   BLUR_STD,
   HAND_FONT,
+  STEP_FONT,
+  stepDiameterPx,
   STROKE_WIDTHS,
   TEXT_LINE_HEIGHT,
   resolveFontPx,
+  stepFontPx,
+  stepInk,
+  stepRingPx,
   textLines,
 } from "./tools";
 import {
@@ -18,7 +23,7 @@ import {
   type Extents,
 } from "./canvas-geometry";
 import { bakeRedactions } from "./redaction";
-import type { Annotation, Scene } from "./scene";
+import { stepNumbers, type Annotation, type Scene } from "./scene";
 
 /**
  * Longest canvas side the compositor will rasterize to. Chromium caps a canvas
@@ -269,8 +274,9 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // natural bound, so they render exactly as previewed.
   // Canvas mode (`ext` set): blurs were baked into the base bytes. Each one still redraws
   // the (baked) base over its rect, in z-order, so it covers an annotation drawn before it.
+  const steps = stepNumbers(scene.annotations);
   const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
-    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, Boolean(ext)))
+    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps, Boolean(ext)))
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
@@ -278,12 +284,30 @@ export function buildSvg(scene: Scene, g: Geom): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${vbX} ${vbY} ${outW} ${outH}"><defs>${defs.join("")}</defs>${bg}${boxFill}${shadow}${image}${anno}</svg>`;
 }
 
-function annotationSvg(a: Annotation, W: number, H: number, scale: number, baked = false): string {
+function annotationSvg(
+  a: Annotation,
+  W: number,
+  H: number,
+  scale: number,
+  steps: Map<string, number>,
+  baked = false,
+): string {
   if (a.kind === "blur" && baked) {
     // The base already holds the redacted pixels: a clipped, unfiltered copy of them.
     return (
       `<defs><clipPath id="bclip-${a.id}"><rect x="${a.x * W}" y="${a.y * H}" width="${a.w * W}" height="${a.h * H}"/></clipPath></defs>` +
       `<use href="#shot" clip-path="url(#bclip-${a.id})"/>`
+    );
+  }
+  if (a.kind === "step") {
+    const d = stepDiameterPx(a.size);
+    const n = steps.get(a.id) ?? 1;
+    const ink = stepInk(a.color);
+    const cx = a.x * W;
+    const cy = a.y * H;
+    return (
+      `<circle cx="${cx}" cy="${cy}" r="${(d / 2) * scale}" fill="${a.color}" stroke="${ink}" stroke-width="${stepRingPx(d) * scale}"/>` +
+      `<text x="${cx}" y="${cy}" fill="${ink}" font-family="${STEP_FONT}" font-size="${stepFontPx(d, n) * scale}" font-weight="700" text-anchor="middle" dominant-baseline="central">${n}</text>`
     );
   }
   if (a.kind === "blur") {

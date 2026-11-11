@@ -4,6 +4,7 @@ import {
   nextAnnotationId,
   reserveAnnotationIds,
   sameScene,
+  stepNumbers,
   type Annotation,
   type Scene,
 } from "./scene";
@@ -38,5 +39,44 @@ describe("reserveAnnotationIds", () => {
     // Never moves backwards.
     reserveAnnotationIds([box("a3")]);
     expect(Number(nextAnnotationId().id.slice(1))).toBeGreaterThan(Number(next.id.slice(1)));
+  });
+});
+
+describe("stepNumbers", () => {
+  const step = (id: string): Annotation => ({
+    id,
+    kind: "step",
+    x: 0.5,
+    y: 0.5,
+    color: "#fff",
+    size: 1,
+  });
+  const box: Annotation = {
+    id: "b",
+    kind: "box",
+    x: 0,
+    y: 0,
+    w: 0.1,
+    h: 0.1,
+    color: "#fff",
+    stroke: 1,
+    seed: 1,
+  };
+
+  it("numbers only the steps, 1-based, in array order, skipping other kinds", () => {
+    const m = stepNumbers([step("s1"), box, step("s2"), step("s3")]);
+    expect([...m]).toEqual([
+      ["s1", 1],
+      ["s2", 2],
+      ["s3", 3],
+    ]);
+  });
+
+  it("renumbers when a step in the middle is removed", () => {
+    const m = stepNumbers([step("s1"), step("s3")]);
+    expect([...m]).toEqual([
+      ["s1", 1],
+      ["s3", 2],
+    ]);
   });
 });
