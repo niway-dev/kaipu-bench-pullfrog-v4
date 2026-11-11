@@ -223,6 +223,8 @@ describe.each([
     expect(loupe).toHaveAttribute("data-smoothing", "off");
     expect(loupe).toHaveAttribute("width", "15");
     // Drawn unsmoothed, 15 x 15 pixels, the pixel under the pointer in the middle.
+    // The loupe canvas is painted in an effect after the readout renders: wait for it.
+    await waitFor(() => expect(drawn.length).toBeGreaterThan(0));
     expect(fakeContext.imageSmoothingEnabled).toBe(false);
     const last = drawn[drawn.length - 1];
     expect(last).toHaveLength(15 * 15 * 4);
