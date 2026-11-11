@@ -174,7 +174,7 @@ async function cacheRecognition(
   startedAt: number,
 ): Promise<void> {
   await withLock(lockKey(vault, id), async () => {
-    // A save, clear or delete since the start means these words may be stale or hidden ones.
+    // A save since the start means these words may be stale or hidden ones.
     if (textGeneration(vault, id) !== startedAt) return;
     // A rename, move or delete may have taken the item away: never write under its old id.
     if (!(await vault.hasMedia(id))) return;

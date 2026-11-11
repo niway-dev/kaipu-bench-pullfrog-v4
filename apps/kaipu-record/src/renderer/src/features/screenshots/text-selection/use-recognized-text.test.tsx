@@ -68,7 +68,7 @@ describe("useRecognizedText", () => {
     expect(result.current).toEqual({ status: "unavailable" });
   });
 
-  it("reads a rejected call or an unreadable image as unavailable", async () => {
+  it("reads a rejected call as unavailable", async () => {
     recognize.mockRejectedValue(new Error("ipc"));
     const getBytes = async () => bytesA;
     const { result } = renderHook(() =>
