@@ -33,13 +33,20 @@ func clamp(_ value: Double, _ low: Double, _ high: Double) -> Double { min(max(v
         guard !data.isEmpty,
               let src = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(src, 0, nil) else { fail("cannot decode the image") }
-        let width = image.width, height = image.height
+        // Chromium shows the image with its EXIF/PNG orientation applied, and the renderer
+        // normalizes boxes by that displayed size, so Vision must see the oriented image.
+        let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+        let rawOrientation = (props?[kCGImagePropertyOrientation] as? UInt32) ?? 1
+        let orientation = CGImagePropertyOrientation(rawValue: rawOrientation) ?? .up
+        let swapped = (5...8).contains(Int(orientation.rawValue))
+        let width = swapped ? image.height : image.width
+        let height = swapped ? image.width : image.height
         let W = Double(width), H = Double(height)
 
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        do { try VNImageRequestHandler(cgImage: image, options: [:]).perform([request]) }
+        do { try VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:]).perform([request]) }
         catch { fail("vision failed: \(error.localizedDescription)") }
 
         var words: [Word] = []
