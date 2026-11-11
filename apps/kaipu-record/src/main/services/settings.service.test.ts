@@ -7,6 +7,8 @@ import {
   isValidTheme,
   mergeSettings as mergeSettingsFor,
   mergeShortcuts as mergeShortcutsFor,
+  migrateLegacyShortcuts,
+  SHORTCUTS_VERSION,
 } from "./settings.service";
 
 // Pin the platform so these tests do not depend on the machine running them.
@@ -52,13 +54,8 @@ describe("mergeSettings", () => {
       stopRecording: "Command+Control+2",
       bringToFront: "Command+Control+3",
       captureScreenshot: "Command+Control+4",
-      captureScreen: "Command+Control+8",
-      captureFrame: "Command+Control+9",
       captureWindow: "Command+Control+0",
-      recordArea: "Command+Control+Shift+1",
-      toggleMicrophone: "Command+Control+5",
-      toggleSystemAudio: "Command+Control+6",
-      toggleCamera: "Command+Control+7",
+      captureInstant: "Command+Control+Shift+9",
     };
     expect(
       mergeSettings({
@@ -329,38 +326,30 @@ describe("mergeShortcuts", () => {
       stopRecording: DEFAULT_SHORTCUTS.stopRecording,
       bringToFront: DEFAULT_SHORTCUTS.bringToFront,
       captureScreenshot: DEFAULT_SHORTCUTS.captureScreenshot,
-      captureScreen: DEFAULT_SHORTCUTS.captureScreen,
-      captureFrame: DEFAULT_SHORTCUTS.captureFrame,
       captureWindow: DEFAULT_SHORTCUTS.captureWindow,
-      recordArea: DEFAULT_SHORTCUTS.recordArea,
-      toggleMicrophone: DEFAULT_SHORTCUTS.toggleMicrophone,
-      toggleSystemAudio: DEFAULT_SHORTCUTS.toggleSystemAudio,
-      toggleCamera: DEFAULT_SHORTCUTS.toggleCamera,
+      captureInstant: DEFAULT_SHORTCUTS.captureInstant,
     });
   });
 
-  it("gives settings stored before the live toggles existed their new defaults", () => {
-    const merged = mergeShortcuts({
-      startRecording: "Command+Control+1",
-      stopRecording: "Command+Control+2",
-      bringToFront: "Command+Control+3",
-      captureScreenshot: "Command+Control+4",
-    });
-    expect(merged.toggleMicrophone).toBe("Command+Control+M");
-    expect(merged.toggleSystemAudio).toBe("Command+Control+A");
-    expect(merged.toggleCamera).toBe("Command+Control+K");
-  });
-
-  it("gives settings stored before Screen and Frame existed their new defaults", () => {
+  it("gives a settings file with only some bindings the defaults for the rest", () => {
     const merged = mergeShortcuts({
       startRecording: "Command+Control+1",
       captureScreenshot: "Command+Control+4",
     });
     expect(merged.captureScreenshot).toBe("Command+Control+4");
-    expect(merged.captureScreen).toBe("Command+Control+Shift+X");
-    expect(merged.captureFrame).toBe("Command+Control+Shift+F");
     expect(merged.captureWindow).toBe("Command+Control+W");
-    expect(merged.recordArea).toBe("Command+Control+Shift+R");
+    expect(merged.captureInstant).toBe("Command+Shift+2");
+  });
+
+  it("drops the keys of removed shortcuts instead of carrying them", () => {
+    const merged = mergeShortcuts({
+      startRecording: "Command+Control+G",
+      toggleMicrophone: "Command+Control+M",
+      recordArea: "Command+Control+Shift+R",
+    });
+    expect(Object.keys(merged).sort()).toEqual(Object.keys(DEFAULT_SHORTCUTS).sort());
+    expect(merged).not.toHaveProperty("toggleMicrophone");
+    expect(merged).not.toHaveProperty("recordArea");
   });
 
   it("ignores non-string bindings", () => {
@@ -560,5 +549,89 @@ describe("mergeSettings — editor", () => {
     expect(mergeSettings({ editor: { hiddenTracks: "zooms" } } as never).editor).toEqual({
       hiddenTracks: [],
     });
+  });
+});
+
+describe("migrateLegacyShortcuts", () => {
+  const oldMac = {
+    startRecording: "Command+Control+C",
+    stopRecording: "Command+Control+S",
+    bringToFront: "Command+Control+O",
+    captureScreenshot: "Command+Control+X",
+    captureScreen: "Command+Control+Shift+X",
+    captureFrame: "Command+Control+Shift+F",
+    captureWindow: "Command+Control+W",
+    captureInstant: "Command+Control+I",
+    recordArea: "Command+Control+Shift+R",
+    toggleMicrophone: "Command+Control+M",
+    toggleSystemAudio: "Command+Control+A",
+    toggleCamera: "Command+Control+K",
+  };
+  const load = (stored: unknown, platform = "darwin") =>
+    mergeShortcutsFor(migrateLegacyShortcuts(stored).shortcuts, platform);
+
+  it("moves a user still on the old defaults to the new ones", () => {
+    const merged = load(oldMac);
+    expect(merged.captureScreenshot).toBe("Command+Shift+1");
+    expect(merged.captureInstant).toBe("Command+Shift+2");
+    // Unchanged defaults stay as they were.
+    expect(merged.startRecording).toBe("Command+Control+C");
+    expect(merged.captureWindow).toBe("Command+Control+W");
+  });
+
+  it("moves the Windows old defaults to the Windows new ones", () => {
+    const merged = load(
+      { captureScreenshot: "Control+Alt+X", captureInstant: "Control+Alt+I" },
+      "win32",
+    );
+    expect(merged.captureScreenshot).toBe("Control+Alt+1");
+    expect(merged.captureInstant).toBe("Control+Alt+2");
+  });
+
+  it("keeps a custom binding, whether or not the file carries removed keys", () => {
+    const merged = load({
+      ...oldMac,
+      captureScreenshot: "Command+Control+4",
+      captureInstant: "Command+Control+Shift+2",
+    });
+    expect(merged.captureScreenshot).toBe("Command+Control+4");
+    expect(merged.captureInstant).toBe("Command+Control+Shift+2");
+  });
+
+  it("removes the keys of the dropped shortcuts and reports the file as migrated", () => {
+    const result = migrateLegacyShortcuts(oldMac);
+    expect(result.migrated).toBe(true);
+    for (const key of [
+      "captureScreen",
+      "captureFrame",
+      "recordArea",
+      "toggleMicrophone",
+      "toggleSystemAudio",
+      "toggleCamera",
+    ]) {
+      expect(result.shortcuts).not.toHaveProperty(key);
+    }
+  });
+
+  it("leaves a current file alone and reports nothing to persist", () => {
+    const current = { startRecording: "Command+Control+G", captureScreenshot: "Command+Shift+1" };
+    expect(migrateLegacyShortcuts(current)).toEqual({ shortcuts: current, migrated: false });
+  });
+
+  it("does nothing for a file already at the current version", () => {
+    const stored = {
+      captureScreenshot: "Command+Control+X",
+      recordArea: "Command+Control+Shift+R",
+    };
+    expect(migrateLegacyShortcuts(stored, SHORTCUTS_VERSION)).toEqual({
+      shortcuts: stored,
+      migrated: false,
+    });
+  });
+
+  it("passes anything that is not an object through", () => {
+    expect(migrateLegacyShortcuts(undefined)).toEqual({ shortcuts: undefined, migrated: false });
+    expect(migrateLegacyShortcuts("x")).toEqual({ shortcuts: "x", migrated: false });
+    expect(migrateLegacyShortcuts([1])).toEqual({ shortcuts: [1], migrated: false });
   });
 });

@@ -249,7 +249,7 @@ export function ScreenshotEditor({
     setDirty(true);
   }, [scene.beautify.state, scene.annotations, scene.crop]);
 
-  // Hold in-app navigation (sidebar clicks, ⌘⌃V start-recording, ⌘⌃X new
+  // Hold in-app navigation (sidebar clicks, ⌘⌃V start-recording, ⌘⇧1 new
   // capture — all go through the router) while there are unsaved changes. A shot that
   // is in the vault saves its edits and then leaves (see `autosaveEdits`); only an
   // image the vault has never seen asks before it is lost.

@@ -11,7 +11,7 @@ The Screenshots page is the `#/screenshots` route (`ScreenshotsPage`). The captu
 journey:
 
 - The user clicks **Capturar pantalla** on the capture card, or fires the global
-  shortcut **⌃⌘X** (`captureScreenshot`) from anywhere.
+  shortcut **⇧⌘1** (`captureScreenshot`) from anywhere.
 - The app window hides, and the native macOS region-select overlay (crosshair)
   appears. The user drags a region — or presses Esc to cancel.
 - On a successful drag, the app reappears **already on the screenshot editor**
@@ -48,7 +48,7 @@ visibility — no editor, no navigation.
 - Preload bridge (`src/preload/index.ts:106-116`): `captureScreenshot` →
   `ipcRenderer.invoke("screenshot:capture")`; `revealAfterCapture` →
   `ipcRenderer.send("screenshot:reveal")`; plus a `screenshot:hotkey` listener for
-  the ⌃⌘X path.
+  the ⇧⌘1 path.
 - Main handler (`src/main/screenshots/screenshot-ipc.ts:35-55`): the
   `screenshot:capture` handler is **darwin-only and re-entrancy-guarded** — it
   returns `null` immediately if `process.platform !== "darwin"` or a capture is
@@ -74,7 +74,7 @@ visibility — no editor, no navigation.
   grant makes `screencapture` fail or produce an empty region on this macOS version.
 - **`nativeImage` / `clipboard`** (`screenshot-ipc.ts:47,60,65`) — sizing the PNG
   and the copy-to-clipboard channels (`screenshot:copy`, `screenshot:copy-by-id`).
-- **Global shortcut** ⌃⌘X → `sendToRenderer("screenshot:hotkey")`
+- **Global shortcut** ⇧⌘1 → `sendToRenderer("screenshot:hotkey")`
   (`src/main/index.ts:230`), which drives the same renderer `capture()` flow.
 
 **Post-capture save to vault.** Not part of the capture handler — it happens from
@@ -159,7 +159,7 @@ capture. Add a small fixture PNG under `e2e/fixtures/` (e.g. `sample-shot.png`).
 - **Screen Recording permission** — no prompt API; must be granted in System
   Settings and verified by a human. A denied grant degrading/blocking `screencapture`
   is _unverified_ and manual-only.
-- **Global ⌃⌘X hotkey** — relies on `globalShortcut` registration and OS focus;
+- **Global ⇧⌘1 hotkey** — relies on `globalShortcut` registration and OS focus;
   exercise the renderer `capture()` flow directly (Test B) rather than the hotkey.
 - **Copy-to-clipboard** (`screenshot:copy` / `screenshot:copy-by-id`) — touches the
   native `clipboard`; out of scope for the capture flow, manual if needed.

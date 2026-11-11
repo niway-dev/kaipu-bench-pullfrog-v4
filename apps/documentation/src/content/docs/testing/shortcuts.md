@@ -19,17 +19,15 @@ Each row shows a click-to-rebind control. The actions and their default accelera
 - _Stop recording_ — `Command+Control+S` (⌃⌘S) — end the current recording from anywhere.
 - _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
   reach (the "rescue" backstop).
-- _Capture screenshot_ — `Command+Control+X` (⌃⌘X) — capture with the current screenshot mode
-  (Frame, Screen, or Window while Window mode is enabled).
-- _Capture screen_ — `Command+Control+Shift+X` (⌃⇧⌘X) — capture one whole display, and make
-  Screen the current mode.
-- _Capture frame_ — `Command+Control+Shift+F` (⌃⇧⌘F) — capture what is inside the remembered
-  frame, and make Frame the current mode.
+- _Open capture_ — `Command+Shift+1` (⇧⌘1) — open the capture widget to choose what to capture,
+  in the current screenshot mode (Frame, Screen, or Window while Window mode is enabled).
+- _Instant capture_ — `Command+Shift+2` (⇧⌘2) — capture the screen under the cursor at once, no
+  selector. macOS owns `Command+Shift+3/4/5` for its own screenshots; 1 and 2 are free.
 - _Capture window_ — `Command+Control+W` (⌃⌘W) — capture one window. Listed and registered only
   while Window mode is enabled (`ENABLED_CAPTURE_MODES`); otherwise the row is hidden.
 
-Those are the macOS defaults. Windows defaults use `Control+Alt+<same key>` (`Control+Alt+Shift+<key>` for the Screen and Frame rows, `Control+Alt+W` for Window) (shown as
-`Ctrl+Alt+C`), resolved per platform by `defaultShortcutsFor` in
+Those are the macOS defaults. Windows defaults use `Control+Alt+<same key>` (`Control+Alt+1` and `Control+Alt+2` for the two
+capture rows) (shown as `Ctrl+Alt+C`), resolved per platform by `defaultShortcutsFor` in
 `src/shared/shortcut-defaults.ts`.
 
 These are _global_ (system-wide) shortcuts: they fire even when another app is focused,
@@ -176,8 +174,8 @@ window.electronAPI.getShortcutStatus())` should report the actions; do not hard-
 
 ## Not covered / manual
 
-- **Actual global-accelerator firing** (`⌘⌃C` start, `⌘⌃S` stop, `⌘⌃O` show app, `⌘⌃X`
-  capture) while another app is focused — verify manually on macOS, ideally in a packaged
+- **Actual global-accelerator firing** (`⌘⌃C` start, `⌘⌃S` stop, `⌘⌃O` show app, `⇧⌘1`
+  capture widget, `⇧⌘2` instant capture) while another app is focused — verify manually on macOS, ideally in a packaged
   build, because Electron `globalShortcut` is an OS-level hotkey Playwright's in-page input
   cannot invoke.
 - **"In use by another app" surfacing** — requires a second process owning the combo at the

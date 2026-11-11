@@ -5,7 +5,11 @@ import { randomUUID } from "node:crypto";
 import { IPC_CHANNELS } from "@shared/types";
 import type { AppSettings } from "@shared/types";
 import type { SettingsOverrides } from "@shared/settings-scope";
-import { mergeSettings } from "../services/settings.service";
+import {
+  SHORTCUTS_VERSION,
+  mergeSettings,
+  migrateLegacyShortcuts,
+} from "../services/settings.service";
 import { resolveEffective } from "../workspaces/settings-overrides";
 
 /**
@@ -42,7 +46,21 @@ function load(): void {
   } catch {
     parsed = null;
   }
+  // A file written before the shortcut trim: drop the removed actions and move a user still
+  // on an old default to the new one. The version marker is persisted with the result, so it
+  // runs once and a binding the user picks afterwards (even an old default) is kept.
+  const fromVersion = (parsed as { shortcutsVersion?: unknown } | null)?.shortcutsVersion;
+  const upgraded = migrateLegacyShortcuts(
+    parsed?.shortcuts,
+    typeof fromVersion === "number" ? fromVersion : 0,
+  );
+  if (parsed && upgraded.migrated) {
+    parsed = { ...parsed, shortcuts: upgraded.shortcuts as AppSettings["shortcuts"] };
+  }
   settings = mergeSettings(parsed);
+  // An existing file below the current version is stamped even when nothing had to change;
+  // a first run has no file and is stamped by the persist of its deviceId below.
+  if (parsed && !(typeof fromVersion === "number" && fromVersion >= SHORTCUTS_VERSION)) persist();
 
   // The locale is NOT seeded from `app.getLocale()`: a first run opens in English
   // (`DEFAULT_LOCALE`) and the onboarding welcome step is where the user picks their
@@ -63,7 +81,10 @@ function persist(): void {
     // on the same volume, so the real file is always complete-or-untouched.
     const path = settingsPath();
     const tmp = `${path}.tmp`;
-    writeFileSync(tmp, JSON.stringify(settings, null, 2));
+    writeFileSync(
+      tmp,
+      JSON.stringify({ ...settings, shortcutsVersion: SHORTCUTS_VERSION }, null, 2),
+    );
     renameSync(tmp, path);
   } catch (error) {
     console.error("failed to persist settings", error);
@@ -212,7 +233,7 @@ function applySideEffects(): void {
 /**
  * Merge `patch` into the persisted settings, then persist, apply side effects, notify
  * main listeners and broadcast to every window: the same path the renderer's
- * `updateSettings` takes, for main-side writers (a mode-specific capture shortcut).
+ * `updateSettings` takes, for main-side writers (a capture shortcut).
  */
 export function updateAppSettings(patch: Partial<AppSettings>): AppSettings {
   settings = mergeSettings({ ...settings, ...patch });

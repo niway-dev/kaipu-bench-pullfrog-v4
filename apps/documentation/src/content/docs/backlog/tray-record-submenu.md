@@ -38,7 +38,7 @@ and when the recording hub reports that a recording started or stopped.
   "Open" shows `CommandOrControl+O`, also display-only.
 - **Record screen shows no accelerator.** `startRecording` opens the selector in the last used
   mode, which is not always Screen, so showing it there would promise something else. Record
-  area shows `recordArea`, which does open Frame.
+  area opens Frame but shows no accelerator either: the `recordArea` global shortcut was removed.
 - **Library and Settings** navigate by setting the main window's URL hash (the renderer uses a
   hash router), since main has no navigation channel to the renderer.
 - **"Highlighted" Stop** is not possible on a native menu; Stop is simply the extra item.

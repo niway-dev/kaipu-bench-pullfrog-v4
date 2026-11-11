@@ -32,7 +32,7 @@ describe("global shortcuts and Window mode", () => {
     expect(registered).not.toContain(DEFAULT_SHORTCUTS.captureWindow);
     expect(registered).toHaveLength(SHORTCUT_ACTIONS.length - 1);
     expect(getShortcutStatus().captureWindow).toBe(false);
-    expect(getShortcutStatus().captureFrame).toBe(true);
+    expect(getShortcutStatus().captureInstant).toBe(true);
   });
 
   it("re-registers a held temporary shortcut after a settings re-apply, until released", () => {

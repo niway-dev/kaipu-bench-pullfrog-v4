@@ -70,12 +70,6 @@ import {
   onSettingsChanged,
 } from "../infrastructure/settings-store";
 
-/** The three input toggles a global shortcut can flip. */
-export type LiveRecordingToggle =
-  | "isMicrophoneEnabled"
-  | "isSystemAudioEnabled"
-  | "isCameraEnabled";
-
 export interface RecordingHubHandle {
   /** True while a recording is active or paused. */
   isActive(): boolean;
@@ -92,13 +86,6 @@ export interface RecordingHubHandle {
    * "Your video is ready" window opens there.
    */
   lastTakeDisplayId(): number | null;
-  /**
-   * Flip one of the three input toggles, exactly as clicking it in a window
-   * does (the global shortcuts use this). Mid-take the recorder picks the
-   * change up from the settings broadcast; outside a take it is just the
-   * pre-recording setting.
-   */
-  toggleRecordingSetting(key: LiveRecordingToggle): void;
   /**
    * Hide the camera bubble for the duration of a screenshot capture (it sits
    * always-on-top, and where capture cannot exclude it — Windows before 10 2004 — it would
@@ -1271,7 +1258,6 @@ export function registerRecordingHub(
     isPending: () => pending && !activity.active,
     lastTakeDisplayId: () => lastTakeDisplayId,
     hasOpenWrites: () => writer.ids().length > 0,
-    toggleRecordingSetting: (key) => applySettingsPatch({ [key]: !settings[key] }),
     suspendEscapeForCapture: () => {
       escapeSuspended = true;
       if (!escapeHeld) return;

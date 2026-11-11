@@ -43,9 +43,9 @@ Sources: `apps/kaipu-record/CHANGELOG.md` (0.11.0, 0.12.0), the commits on `main
 
 | Row (`features-config.ts`) | Change                                                                                         |
 | -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `captureModes`             | "Select an area" → **Frame or Screen**, with the ⌘⌃X / ⌘⌃⇧F / ⌘⌃⇧X chips                       |
+| `captureModes`             | "Select an area" → **Frame or Screen**, with the ⌘⇧1 chip                                      |
 | `quietCapture` (new)       | Copy from the selection without the editor; the toast offers Annotate / Open / Save to Library |
-| `liveControls` (new)       | Mute the mic, system audio or camera mid-take (⌘⌃M / ⌘⌃A / ⌘⌃K)                                |
+| `liveControls` (new)       | Mute the mic, system audio or camera mid-take (no shortcuts)                                   |
 | `editorHome` (new)         | The Editor opens on recent work and starts a new image from the clipboard                      |
 | `startAnywhere`            | Chips read `DEFAULT_ACCELERATORS` instead of typed glyphs (they showed ⌃⌘, the app shows ⌘⌃)   |
 | home chapter 02            | "Area · window · full screen" → "Frame · Screen"                                               |
@@ -120,7 +120,7 @@ is the complete, detailed catalogue the home links to: "everything Kaipu does".
 - Screen and camera recording — screen, your voice, system audio and a floating,
   draggable camera bubble, in high quality.
 - Start from anywhere — a menu-bar capture panel and global shortcuts
-  (⌃⌘C start, ⌃⌘S stop, ⌃⌘X capture, ⌃⌘O show app). Pause, resume, stop.
+  (⌃⌘C start, ⌃⌘S stop, ⇧⌘1 capture widget, ⇧⌘2 instant capture, ⌃⌘O show app). Pause, resume, stop.
 - Microphone picker — choose any input; the list updates when you plug one in.
 - Recording quality presets — trade file size for sharpness.
 - Already saved — when you stop, it is in your library; interrupted recordings

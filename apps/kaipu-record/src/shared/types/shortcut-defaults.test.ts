@@ -23,28 +23,57 @@ describe("the desktop shortcut defaults", () => {
     }
   });
 
-  it("pins the capture shortcuts to their documented macOS combos", () => {
+  it("keeps exactly the five global shortcuts, plus the flag-gated Window one", () => {
+    expect([...SHORTCUT_ACTIONS].sort()).toEqual(
+      [
+        "startRecording",
+        "stopRecording",
+        "bringToFront",
+        "captureScreenshot",
+        "captureInstant",
+        "captureWindow",
+      ].sort(),
+    );
+  });
+
+  it("pins the shortcuts to their documented macOS combos", () => {
     const mac = defaultShortcutsFor("darwin");
-    expect(mac.captureScreenshot).toBe("Command+Control+X");
-    expect(mac.captureScreen).toBe("Command+Control+Shift+X");
-    expect(mac.captureFrame).toBe("Command+Control+Shift+F");
-    expect(mac.captureWindow).toBe("Command+Control+W");
+    expect(mac).toEqual({
+      startRecording: "Command+Control+C",
+      stopRecording: "Command+Control+S",
+      bringToFront: "Command+Control+O",
+      captureScreenshot: "Command+Shift+1",
+      captureWindow: "Command+Control+W",
+      captureInstant: "Command+Shift+2",
+    });
   });
 
-  it("pins the capture shortcuts to their documented Windows combos", () => {
+  it("pins the shortcuts to their documented Windows combos", () => {
     const win = defaultShortcutsFor("win32");
-    expect(win.captureScreenshot).toBe("Control+Alt+X");
-    expect(win.captureScreen).toBe("Control+Alt+Shift+X");
-    expect(win.captureFrame).toBe("Control+Alt+Shift+F");
-    expect(win.captureWindow).toBe("Control+Alt+W");
+    expect(win).toEqual({
+      startRecording: "Control+Alt+C",
+      stopRecording: "Control+Alt+S",
+      bringToFront: "Control+Alt+O",
+      captureScreenshot: "Control+Alt+1",
+      captureWindow: "Control+Alt+W",
+      captureInstant: "Control+Alt+2",
+    });
   });
 
-  it("keeps the new capture actions in the app group with their status words", () => {
-    const screen = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureScreen");
-    const frame = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureFrame");
+  it("never binds a macOS system screenshot key (Command+Shift+3, 4 or 5)", () => {
+    for (const accelerator of Object.values(defaultShortcutsFor("darwin"))) {
+      expect(accelerator).not.toMatch(/^Command\+Shift\+[345]$/);
+    }
+  });
+
+  it("describes the generic capture shortcut as opening the capture widget", () => {
+    const capture = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureScreenshot");
     const window = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureWindow");
-    expect(screen).toMatchObject({ group: "app", statusWord: "screen" });
-    expect(frame).toMatchObject({ group: "app", statusWord: "frame" });
+    expect(capture).toMatchObject({
+      group: "app",
+      label: "Open capture",
+      description: "Open the capture widget to choose what to capture",
+    });
     expect(window).toMatchObject({ group: "app", label: "Capture window", statusWord: "window" });
   });
 

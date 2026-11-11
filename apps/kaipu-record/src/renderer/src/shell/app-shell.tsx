@@ -15,8 +15,8 @@ import styles from "./app-shell.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
 /**
- * action → `shortcuts` namespace status-word keys for the status bar. The live
- * input toggles are left out on purpose: seven hints would crowd the bar, and
+ * action → `shortcuts` namespace status-word keys for the status bar. Instant
+ * capture and Window are left out on purpose: the bar stays at four hints, and
  * the Shortcuts page lists every binding.
  */
 const STATUS_KEY: Partial<

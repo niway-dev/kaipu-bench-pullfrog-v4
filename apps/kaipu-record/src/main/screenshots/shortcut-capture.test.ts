@@ -23,9 +23,7 @@ describe("resolveShortcutCapture", () => {
     expect(resolveShortcutCapture("captureScreenshot", "screen", null).mode).toBe("screen");
   });
 
-  it("a mode-specific shortcut opens with its own mode and remembers nothing by itself", () => {
-    expect(resolveShortcutCapture("captureScreen", "frame", ALL)).toEqual({ mode: "screen" });
-    expect(resolveShortcutCapture("captureFrame", "screen", ALL)).toEqual({ mode: "frame" });
+  it("the Window shortcut opens with Window mode and remembers nothing by itself", () => {
     expect(resolveShortcutCapture("captureWindow", "frame", ALL)).toEqual({ mode: "window" });
   });
 

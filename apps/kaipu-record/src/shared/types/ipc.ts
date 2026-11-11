@@ -37,13 +37,8 @@ export const SHORTCUT_ACTIONS = [
   "stopRecording",
   "bringToFront",
   "captureScreenshot",
-  "captureScreen",
-  "captureFrame",
   "captureWindow",
-  "recordArea",
-  "toggleMicrophone",
-  "toggleSystemAudio",
-  "toggleCamera",
+  "captureInstant",
 ] as const;
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
@@ -113,29 +108,16 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     description: "Show the app window if it slips behind or out of reach",
     statusWord: "show app",
   },
+  // Opens the capture widget (the overlay with its mode chips) to choose what to capture.
+  // ⌘⇧1 and ⌘⇧2 are deliberate: macOS owns ⌘⇧3, ⌘⇧4 and ⌘⇧5 for its own screenshots and
+  // recording toolbar, while 1 and 2 are free and sit right beside them.
   {
     action: "captureScreenshot",
-    defaultAccelerator: { mac: "Command+Control+X", win: "Control+Alt+X" },
+    defaultAccelerator: { mac: "Command+Shift+1", win: "Control+Alt+1" },
     group: "app",
-    label: "Capture screenshot",
-    description: "Capture with your current mode",
+    label: "Open capture",
+    description: "Open the capture widget to choose what to capture",
     statusWord: "capture",
-  },
-  {
-    action: "captureScreen",
-    defaultAccelerator: { mac: "Command+Control+Shift+X", win: "Control+Alt+Shift+X" },
-    group: "app",
-    label: "Capture screen",
-    description: "Capture one whole display",
-    statusWord: "screen",
-  },
-  {
-    action: "captureFrame",
-    defaultAccelerator: { mac: "Command+Control+Shift+F", win: "Control+Alt+Shift+F" },
-    group: "app",
-    label: "Capture frame",
-    description: "Capture what is inside a remembered frame",
-    statusWord: "frame",
   },
   {
     action: "captureWindow",
@@ -145,41 +127,17 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     description: "Capture one window, not the screen around it",
     statusWord: "window",
   },
-  // Opens the capture overlay to choose what to record (ADR 0030): Enter keeps the area as
-  // the recording target, R records it at once.
+  // The exception to "choose, then capture": no selector opens. Once the app is out of the
+  // shot (a short settle, longer if the window had to load first) it grabs the display under
+  // the cursor, so a menu or state that lasts a moment is still there. During a take with
+  // "capture while recording" on, it grabs the recorded area like every other capture.
   {
-    action: "recordArea",
-    defaultAccelerator: { mac: "Command+Control+Shift+R", win: "Control+Alt+Shift+R" },
-    group: "recording",
-    label: "Record an area",
-    description: "Choose part of the screen to record",
-    statusWord: "area",
-  },
-  // Live input toggles: they flip the recording setting with or without a take
-  // (outside a take they change the pre-recording toggle, as clicking it does).
-  {
-    action: "toggleMicrophone",
-    defaultAccelerator: { mac: "Command+Control+M", win: "Control+Alt+M" },
-    group: "recording",
-    label: "Mute / unmute microphone",
-    description: "Turn your voice on or off, also mid-recording",
-    statusWord: "mic",
-  },
-  {
-    action: "toggleSystemAudio",
-    defaultAccelerator: { mac: "Command+Control+A", win: "Control+Alt+A" },
-    group: "recording",
-    label: "System audio on / off",
-    description: "Turn what the computer plays on or off, also mid-recording",
-    statusWord: "audio",
-  },
-  {
-    action: "toggleCamera",
-    defaultAccelerator: { mac: "Command+Control+K", win: "Control+Alt+K" },
-    group: "recording",
-    label: "Show / hide camera",
-    description: "Show or hide the camera bubble, also mid-recording",
-    statusWord: "camera",
+    action: "captureInstant",
+    defaultAccelerator: { mac: "Command+Shift+2", win: "Control+Alt+2" },
+    group: "app",
+    label: "Instant capture",
+    description: "Capture the screen under the cursor at once, no selector",
+    statusWord: "instant",
   },
 ];
 
@@ -304,8 +262,8 @@ export interface AppSettings {
    */
   screenshotFrame: Record<string, CaptureRect>;
   /**
-   * The same memory for the overlay opened to RECORD (the `recordArea` shortcut, or Record
-   * pressed on the overlay): the last area the user confirmed, per display id. Kept apart
+   * The same memory for the overlay opened to RECORD (any recording selector: Start recording, the
+   * Record page or the tray's Record items; or Record pressed on the overlay): the last area the user confirmed, per display id. Kept apart
    * from `screenshotFrame` because a recording stage and a screenshot frame are rarely the
    * same rectangle, and sharing one would make each feature undo the other's last choice.
    */
@@ -319,8 +277,7 @@ export interface AppSettings {
   /**
    * The one current screenshot mode, app-wide. The Screenshots page, the tray panel and the
    * generic `captureScreenshot` shortcut all capture with it; picking a mode on the page or
-   * the tray, or pressing a mode-specific shortcut (`captureScreen`, `captureFrame`, `captureWindow`), makes
-   * that mode current. A mode the platform cannot serve stays stored but captures as Frame.
+   * the tray, or pressing the Window shortcut (`captureWindow`), makes that mode current. A mode the platform cannot serve stays stored but captures as Frame.
    * A stored legacy `"area"` is migrated to `"frame"` by the settings merge.
    */
   screenshotMode: CaptureMode;
@@ -688,7 +645,7 @@ export const IPC_CHANNELS = {
   // Main → recording shade window: countdown tick or recording.
   recordingShadeState: "recording-shade:state",
   // Capture Panel asks main to run the interactive screenshot capture (panel → main →
-  // same flow as the ⌘⌃X hotkey). Send-only; the capture result flows through the
+  // same flow as the ⌘⇧1 hotkey). Send-only; the capture result flows through the
   // existing screenshot channels.
   screenshotRequestCapture: "screenshot:request-capture",
   // Per-action registration state of the global shortcuts (false = another app owns it).

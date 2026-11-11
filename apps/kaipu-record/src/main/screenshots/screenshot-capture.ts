@@ -68,6 +68,8 @@ export interface Deps {
   getDisplays(): Promise<Display[]>;
   /** Short pause so a window hidden just before a no-overlay capture is off screen. */
   settle(): Promise<void>;
+  /** The cursor, in global DIP: the instant capture grabs the display under it. */
+  getCursorPoint?(): Promise<{ x: number; y: number }>;
 }
 
 const realDeps: Deps = {
@@ -88,7 +90,43 @@ const realDeps: Deps = {
   // Loaded lazily so importing this module (tests, type checks) never needs Electron.
   settle: () => new Promise((resolve) => setTimeout(resolve, 80)),
   getDisplays: async () => (await import("electron")).screen.getAllDisplays(),
+  getCursorPoint: async () => (await import("electron")).screen.getCursorScreenPoint(),
 };
+
+/**
+ * The display the cursor is on; the first display when the cursor is between displays or
+ * its position is unknown. Pure, so the choice is testable without Electron.
+ */
+export function displayAtPoint(
+  displays: Display[],
+  point: { x: number; y: number } | null,
+): Display | undefined {
+  if (point) {
+    const hit = displays.find(
+      ({ bounds: b }) =>
+        point.x >= b.x && point.x < b.x + b.width && point.y >= b.y && point.y < b.y + b.height,
+    );
+    if (hit) return hit;
+  }
+  return displays[0];
+}
+
+/** The instant capture's target: the whole display under the cursor, no overlay, no pick. */
+async function instantTarget(deps: {
+  getDisplays(): Promise<Display[]>;
+  settle(): Promise<void>;
+  getCursorPoint?(): Promise<{ x: number; y: number }>;
+}): Promise<CaptureTarget | null> {
+  const [displays, point] = await Promise.all([
+    deps.getDisplays(),
+    deps.getCursorPoint ? deps.getCursorPoint().catch(() => null) : Promise.resolve(null),
+  ]);
+  const display = displayAtPoint(displays, point);
+  if (!display) return null;
+  // `beforeCapture` just hid the app: let it leave the screen. The only wait on this path.
+  await deps.settle();
+  return wholeDisplay(display);
+}
 
 /**
  * What the user chose: a display, and a display-relative DIP rect inside it (null = all of it).
@@ -241,6 +279,7 @@ export class MacProvider implements ScreenshotCaptureProvider {
     return runWithOverlay(
       overlay,
       async () => {
+        if (intent === "instant") return instantTarget(this.deps);
         const displays = await this.deps.getDisplays();
         // One display: nothing to choose, so Screen skips the overlay entirely.
         if (mode === "screen" && displays.length === 1) {
@@ -330,6 +369,8 @@ export interface WindowsDeps {
   getDisplays(): Promise<Display[]>;
   /** Short pause so a window hidden just before a no-overlay capture is off screen. */
   settle(): Promise<void>;
+  /** The cursor, in global DIP: the instant capture grabs the display under it. */
+  getCursorPoint?(): Promise<{ x: number; y: number }>;
 }
 
 const realWindowsDeps: WindowsDeps = {
@@ -339,6 +380,7 @@ const realWindowsDeps: WindowsDeps = {
   },
   getDisplays: async () => (await import("electron")).screen.getAllDisplays(),
   settle: realDeps.settle,
+  getCursorPoint: realDeps.getCursorPoint,
 };
 
 /**
@@ -363,6 +405,7 @@ export class WindowsProvider implements ScreenshotCaptureProvider {
     return runWithOverlay(
       overlay,
       async () => {
+        if (intent === "instant") return instantTarget(this.deps);
         const displays = await this.deps.getDisplays();
         if (mode === "screen" && displays.length === 1) {
           await this.deps.settle(); // the app was just hidden: let it leave the screen

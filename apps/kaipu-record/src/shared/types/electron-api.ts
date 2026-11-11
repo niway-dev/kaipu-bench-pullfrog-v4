@@ -588,7 +588,7 @@ export interface KaipuElectronAPI {
    * a source also starts the countdown.
    */
   onRequestChooseSource(callback: (request: { startOnPick: boolean }) => void): () => void;
-  /** Capture Panel → main: run the interactive screenshot capture (same as ⌘⌃X). */
+  /** Capture Panel → main: run the interactive screenshot capture (same as ⌘⇧1). */
   requestCaptureScreenshot(mode: CaptureMode): void;
   /**
    * Record page / Capture Panel → main: open the recording selector, in `mode` (a mode

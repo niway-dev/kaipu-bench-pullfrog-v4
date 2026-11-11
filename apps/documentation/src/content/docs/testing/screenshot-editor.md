@@ -9,7 +9,7 @@ description: "How the screenshot editor loads, edits and exports images, and why
 
 A user reaches the screenshot editor two ways:
 
-1. _Fresh capture_ — the `⌘⌃X` hotkey (or the Capture card) runs the native
+1. _Fresh capture_ — the `⇧⌘1` hotkey (or the Capture card) runs the native
    region selector; on confirm the app navigates into the editor with the PNG
    held in memory (`src/renderer/src/features/screenshots/use-screenshot-capture.ts:18-33`).
 2. _Re-open a saved shot_ — from a screenshot's library detail page, the **Edit**

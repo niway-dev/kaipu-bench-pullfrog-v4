@@ -14,14 +14,9 @@ const shortcuts = {
   startRecording: "⌃⌘C",
   stopRecording: "⌃⌘S",
   bringToFront: "⌃⌘O",
-  captureScreenshot: "⌃⌘X",
-  captureScreen: "⌃⇧⌘X",
-  captureFrame: "⌃⇧⌘F",
+  captureScreenshot: "⇧⌘1",
   captureWindow: "⌃⌘W",
-  recordArea: "⌃⇧⌘R",
-  toggleMicrophone: "⌃⌘M",
-  toggleSystemAudio: "⌃⌘A",
-  toggleCamera: "⌃⌘K",
+  captureInstant: "⇧⌘2",
 };
 
 const realApi = window.electronAPI;
@@ -61,7 +56,7 @@ describe("CaptureModeButtons — page hero", () => {
     );
     const primary = await screen.findByRole("button", { name: /^Capture/ });
     expect(screen.getAllByRole("button", { name: /^Capture/ })).toHaveLength(1);
-    expect(primary).toHaveTextContent("⌃⌘X");
+    expect(primary).toHaveTextContent("⇧⌘1");
     expect(
       screen.getByText(
         "Opens the selector in your last mode. Switch modes there, or pick one below to jump straight in.",
@@ -84,7 +79,7 @@ describe("CaptureModeButtons — page hero", () => {
     expect(onCapture).toHaveBeenCalledWith("screen");
   });
 
-  it("shows LAST USED and three chips with their shortcuts; the current one is highlighted", async () => {
+  it("shows LAST USED and three chips; only Window shows a shortcut, and the current one is highlighted", async () => {
     given(ALL, "window");
     render(
       <CaptureModeButtons
@@ -99,9 +94,9 @@ describe("CaptureModeButtons — page hero", () => {
     const frame = screen.getByRole("button", { name: /^Frame/ });
     const win = screen.getByRole("button", { name: /^Window/ });
     const screenChip = screen.getByRole("button", { name: /^Screen/ });
-    expect(frame).toHaveTextContent("⌃⇧⌘F");
+    expect(frame.querySelector("kbd")).toBeNull();
     expect(win).toHaveTextContent("⌃⌘W");
-    expect(screenChip).toHaveTextContent("⌃⇧⌘X");
+    expect(screenChip.querySelector("kbd")).toBeNull();
     expect(win).toHaveAttribute("data-current", "true");
     expect(frame).not.toHaveAttribute("data-current");
     expect(screenChip).not.toHaveAttribute("data-current");
@@ -216,7 +211,7 @@ describe("CaptureModeButtons — tray panel", () => {
       />,
     );
     const primary = await screen.findByRole("button", { name: /^Capture/ });
-    expect(primary).toHaveTextContent("⌃⌘X");
+    expect(primary).toHaveTextContent("⇧⌘1");
     for (const name of [/^Frame/, /^Window/, /^Screen/]) {
       const chip = screen.getByRole("button", { name });
       expect(chip).toBeEnabled();

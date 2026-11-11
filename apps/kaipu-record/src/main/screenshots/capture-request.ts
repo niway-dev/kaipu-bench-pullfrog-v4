@@ -1,5 +1,5 @@
 /**
- * What a capture shortcut (⌘⌃X, the panel's "Capture Screen") does when asked to capture.
+ * What a capture shortcut (⌘⇧1, the panel's "Capture Screen") does when asked to capture.
  *
  * During a recording the main window is hidden, so the renderer's own guard
  * ("finish the recording first") would toast into an invisible window. Main

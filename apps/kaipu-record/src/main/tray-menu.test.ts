@@ -20,8 +20,7 @@ const labels: TrayMenuLabels = {
 const shortcuts = {
   startRecording: "Command+Control+C",
   stopRecording: "Command+Control+S",
-  recordArea: "Command+Control+A",
-  captureScreenshot: "Command+Control+X",
+  captureScreenshot: "Command+Shift+1",
 } as ShortcutSettings;
 
 function actions(): TrayMenuActions {
@@ -61,13 +60,13 @@ describe("buildTrayMenuTemplate", () => {
     ]);
   });
 
-  it("idle: the Record submenu is enabled and shows only the accelerators that do the same", () => {
+  it("idle: the Record submenu is enabled and shows no accelerators", () => {
     const sub = submenu(build(false));
     expect(names(sub)).toEqual(["Record screen", "Record area", "Record window…"]);
     expect(sub.map((i) => i.enabled)).toEqual([true, true, true]);
     // startRecording opens the last used mode, not always Screen: not shown on Record screen.
     expect(sub[0]!.accelerator).toBeUndefined();
-    expect(sub[1]).toMatchObject({ accelerator: "Command+Control+A", registerAccelerator: false });
+    expect(sub[1]!.accelerator).toBeUndefined();
     expect(sub[2]!.accelerator).toBeUndefined();
   });
 

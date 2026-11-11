@@ -72,15 +72,10 @@ export function buildTrayMenuTemplate(input: TrayMenuInput): MenuItemConstructor
       label: labels.record,
       submenu: [
         // Each item opens the selector in its own mode, like the Record page's chips.
-        // Record screen shows no accelerator: `startRecording` opens the LAST used mode,
-        // which is not always Screen. `recordArea` does open Frame, so it is shown.
+        // No accelerator on any of them: `startRecording` opens the LAST used mode, which
+        // is not always the one the item opens, and the per-mode shortcuts are gone.
         { label: labels.recordScreen, enabled: !busy, click: actions.recordScreen },
-        {
-          label: labels.recordArea,
-          enabled: !busy,
-          ...display(shortcuts.recordArea),
-          click: actions.recordArea,
-        },
+        { label: labels.recordArea, enabled: !busy, click: actions.recordArea },
         { label: labels.recordWindow, enabled: !busy, click: actions.recordWindow },
       ],
     },

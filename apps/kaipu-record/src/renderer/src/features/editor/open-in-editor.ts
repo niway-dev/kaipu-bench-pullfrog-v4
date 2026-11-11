@@ -7,7 +7,7 @@ import type { VideoEditorSource } from "@renderer/pages/video-editor/video-edito
 
 /**
  * The one way into the Editor workspace. Every "Edit" in the app — the library
- * detail page, the library card and row, the ⌃⌘X capture — goes through here,
+ * detail page, the library card and row, the ⌘⇧1 capture — goes through here,
  * so the route an item lands on is decided in one place.
  */
 

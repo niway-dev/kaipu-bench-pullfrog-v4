@@ -87,6 +87,23 @@ describe("createCaptureHandler — choosing what to record", () => {
     );
   });
 
+  it("an instant capture is saved but never becomes the current mode", async () => {
+    const capture = vi.fn(
+      async (): Promise<ProviderResult> => ({
+        kind: "captured",
+        png: Buffer.from([1]),
+        mode: "screen",
+        action: "capture",
+      }),
+    );
+    const { handler, rememberMode, saveToVault } = setup(capture);
+    const result = await handler({ mode: "screen", intent: "instant" });
+    expect(result.kind).toBe("captured");
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({ intent: "instant" }));
+    expect(saveToVault).toHaveBeenCalledOnce();
+    expect(rememberMode).not.toHaveBeenCalled();
+  });
+
   it("hands a record answer to main and takes no screenshot", async () => {
     const { handler, onRecordTarget, saveToVault, track, rememberMode, windows } = setup(
       async () => ({ kind: "record", start: true, displayId: 2, rect }),

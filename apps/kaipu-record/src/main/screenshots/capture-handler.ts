@@ -195,7 +195,8 @@ export function createCaptureHandler(
       if (result.kind === "captured") {
         // Before the policy: a quiet save that fails and falls back to the editor still
         // remembers the mode the user captured in.
-        if (!duringTake) remember(deps, result.mode);
+        // The instant shortcut is an exception: it never becomes the current mode.
+        if (!duringTake && intent !== "instant") remember(deps, result.mode);
         answer = await finish(deps, result, workspace, policy, duringTake);
       } else if (result.kind === "record") {
         // A recording target, not a screenshot: no save, no mode memory, no analytics here.

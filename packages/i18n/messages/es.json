@@ -1721,22 +1721,12 @@
     "stopRecordingDesc": "Termina la grabación actual desde cualquier lugar",
     "bringToFrontLabel": "Traer Kaipu al frente",
     "bringToFrontDesc": "Muestra la ventana si queda detrás o fuera de alcance",
-    "captureScreenshotLabel": "Tomar captura",
-    "captureScreenshotDesc": "Captura con tu modo actual",
-    "captureScreenLabel": "Capturar pantalla",
-    "captureScreenDesc": "Captura una pantalla completa",
-    "captureFrameLabel": "Capturar marco",
-    "captureFrameDesc": "Captura lo que hay dentro de un marco recordado",
+    "captureScreenshotLabel": "Abrir captura",
+    "captureScreenshotDesc": "Abre el widget de captura para elegir qué capturar",
     "captureWindowLabel": "Capturar ventana",
     "captureWindowDesc": "Captura una sola ventana, sin la pantalla que la rodea",
-    "recordAreaLabel": "Grabar un área",
-    "recordAreaDesc": "Elige qué parte de la pantalla grabar",
-    "toggleMicrophoneLabel": "Silenciar / activar micrófono",
-    "toggleMicrophoneDesc": "Activa o silencia tu voz, también durante la grabación",
-    "toggleSystemAudioLabel": "Audio del sistema sí / no",
-    "toggleSystemAudioDesc": "Activa o quita lo que suena en la computadora, también durante la grabación",
-    "toggleCameraLabel": "Mostrar / ocultar cámara",
-    "toggleCameraDesc": "Muestra u oculta la burbuja de la cámara, también durante la grabación",
+    "captureInstantLabel": "Captura instantánea",
+    "captureInstantDesc": "Captura al instante la pantalla bajo el cursor, sin selector",
     "statusStart": "grabar",
     "statusStop": "detener",
     "statusShowApp": "mostrar app",
@@ -2379,14 +2369,12 @@
         "k1": "Empezar",
         "k2": "Detener",
         "k3": "Captura",
-        "k4": "Mostrar app"
+        "k4": "Mostrar app",
+        "k5": "Captura instantánea"
       },
       "liveControls": {
         "title": "Cambia de idea a mitad de la toma",
-        "body": "Silencia el micrófono, apaga el audio del sistema u oculta la cámara mientras grabas, desde el panel de captura o con un atajo. La toma sigue.",
-        "k1": "Micrófono",
-        "k2": "Audio del sistema",
-        "k3": "Cámara"
+        "body": "Silencia el micrófono, apaga el audio del sistema u oculta la cámara mientras grabas, desde el panel de captura. La toma sigue."
       },
       "micPicker": {
         "title": "Selector de micrófono",
@@ -2413,9 +2401,7 @@
       "captureModes": {
         "title": "Marco o Pantalla",
         "body": "Arrastra un marco sobre lo que necesitas o quédate con el de la última vez. Pantalla toma un monitor completo. Cambia de modo sobre la misma selección; Kaipu recuerda el último.",
-        "k1": "Modo actual",
-        "k2": "Marco",
-        "k3": "Pantalla"
+        "k1": "Modo actual"
       },
       "quietCapture": {
         "title": "Copia y sigue",

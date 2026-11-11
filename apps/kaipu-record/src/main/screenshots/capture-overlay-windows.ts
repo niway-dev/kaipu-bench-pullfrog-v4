@@ -7,7 +7,6 @@ import { IPC_CHANNELS } from "@shared/types/ipc";
 import {
   ENABLED_CAPTURE_MODES,
   isCaptureAction,
-  isCaptureIntent,
   isCaptureMode,
   isRecordingRatio,
   type CaptureAction,
@@ -896,7 +895,8 @@ export class CaptureOverlayWindows implements OverlayPort {
     this.deps.ipc.on(IPC_CHANNELS.screenshotOverlayIntent, (event, payload) => {
       if (!this.session?.settle || this.displayOf(event) === null) return;
       const intent = (payload as { intent?: unknown } | undefined)?.intent;
-      if (!isCaptureIntent(intent) || intent === this.intent) return;
+      // The overlay only switches between the two choices it offers; `instant` opens none.
+      if ((intent !== "capture" && intent !== "record") || intent === this.intent) return;
       this.intent = intent;
       this.broadcastState();
     });

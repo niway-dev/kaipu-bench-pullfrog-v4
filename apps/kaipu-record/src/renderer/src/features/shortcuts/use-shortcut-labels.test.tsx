@@ -9,34 +9,24 @@ const settingsWith = (startRecording: string): AppSettings =>
       startRecording,
       stopRecording: "Command+Control+S",
       bringToFront: "Command+Control+O",
-      captureScreenshot: "Command+Control+X",
-      captureScreen: "Command+Control+Shift+X",
-      captureFrame: "Command+Control+Shift+F",
+      captureScreenshot: "Command+Shift+1",
       captureWindow: "Command+Control+W",
-      recordArea: "Command+Control+Shift+R",
-      toggleMicrophone: "Command+Control+M",
-      toggleSystemAudio: "Command+Control+A",
-      toggleCamera: "Command+Control+K",
+      captureInstant: "Command+Shift+2",
     },
   }) as AppSettings;
 
 describe("useShortcutLabels", () => {
   it("returns the bindings from settings as formatted labels", async () => {
     const { result } = renderHook(() => useShortcutLabels());
-    // The test stub's settings carry the macOS defaults (Command+Control+C/S/O/X).
+    // The test stub's settings carry the macOS defaults (Command+Control+C/S/O, Command+Shift+1/2).
     await waitFor(() =>
       expect(result.current).toEqual({
         startRecording: "⌃⌘C",
         stopRecording: "⌃⌘S",
         bringToFront: "⌃⌘O",
-        captureScreenshot: "⌃⌘X",
-        captureScreen: "⌃⇧⌘X",
-        captureFrame: "⌃⇧⌘F",
+        captureScreenshot: "⇧⌘1",
         captureWindow: "⌃⌘W",
-        recordArea: "⌃⇧⌘R",
-        toggleMicrophone: "⌃⌘M",
-        toggleSystemAudio: "⌃⌘A",
-        toggleCamera: "⌃⌘K",
+        captureInstant: "⇧⌘2",
       }),
     );
   });

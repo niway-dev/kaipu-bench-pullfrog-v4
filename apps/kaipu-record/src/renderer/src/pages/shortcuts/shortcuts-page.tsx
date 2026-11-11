@@ -22,26 +22,16 @@ const LABEL_KEY = {
   stopRecording: "stopRecordingLabel",
   bringToFront: "bringToFrontLabel",
   captureScreenshot: "captureScreenshotLabel",
-  captureScreen: "captureScreenLabel",
-  captureFrame: "captureFrameLabel",
   captureWindow: "captureWindowLabel",
-  recordArea: "recordAreaLabel",
-  toggleMicrophone: "toggleMicrophoneLabel",
-  toggleSystemAudio: "toggleSystemAudioLabel",
-  toggleCamera: "toggleCameraLabel",
+  captureInstant: "captureInstantLabel",
 } as const;
 const DESC_KEY = {
   startRecording: "startRecordingDesc",
   stopRecording: "stopRecordingDesc",
   bringToFront: "bringToFrontDesc",
   captureScreenshot: "captureScreenshotDesc",
-  captureScreen: "captureScreenDesc",
-  captureFrame: "captureFrameDesc",
   captureWindow: "captureWindowDesc",
-  recordArea: "recordAreaDesc",
-  toggleMicrophone: "toggleMicrophoneDesc",
-  toggleSystemAudio: "toggleSystemAudioDesc",
-  toggleCamera: "toggleCameraDesc",
+  captureInstant: "captureInstantDesc",
 } as const;
 
 function Section({

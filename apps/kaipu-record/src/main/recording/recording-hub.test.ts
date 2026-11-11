@@ -203,24 +203,6 @@ describe("recording hub — camera on keeps the main window visible", () => {
     const { registerRecordingHub } = await import("./recording-hub");
     registerSettings();
     const mainWindow = fakeMainWindow();
-    const hub = registerRecordingHub(() => mainWindow as never);
-    // Startup applied the persisted policy once; from here on nothing changes it.
-    const policyCalls = mockState.setActivationPolicy.mock.calls.length;
-    const dockCalls = mockState.dockShow.mock.calls.length;
-
-    hub.toggleRecordingSetting("isCameraEnabled");
-
-    expect(mockState.bubble.show).toHaveBeenCalledTimes(1);
-    expect(mainWindow.hide).not.toHaveBeenCalled();
-    expect(mockState.setActivationPolicy).toHaveBeenCalledTimes(policyCalls);
-    expect(mockState.dockShow).toHaveBeenCalledTimes(dockCalls);
-  });
-
-  it("the same holds when the toggle arrives over IPC from a window", async () => {
-    const { registerSettings } = await import("../infrastructure/settings-store");
-    const { registerRecordingHub } = await import("./recording-hub");
-    registerSettings();
-    const mainWindow = fakeMainWindow();
     registerRecordingHub(() => mainWindow as never);
     mockState.setActivationPolicy.mockClear();
     mockState.dockShow.mockClear();
@@ -1512,14 +1494,14 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
     const { registerRecordingHub } = await import("./recording-hub");
     registerSettings();
     const mainWindow = fakeMainWindow();
-    const hub = registerRecordingHub(() => mainWindow as never);
+    registerRecordingHub(() => mainWindow as never);
     mockState.setActivationPolicy.mockClear();
     mockState.dockShow.mockClear();
     mockState.bubble.show.mockImplementation(() => {
       mockState.dockVisible = false;
     });
 
-    hub.toggleRecordingSetting("isCameraEnabled");
+    mockState.ipcOn.get(IPC_CHANNELS.recordingSettingsUpdate)!({}, { isCameraEnabled: true });
 
     expect(mockState.bubble.show).toHaveBeenCalledTimes(1);
     expect(mainWindow.hide).not.toHaveBeenCalled();
