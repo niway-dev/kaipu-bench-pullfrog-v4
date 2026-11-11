@@ -219,6 +219,12 @@ describe("compositor canvas mode", () => {
       "baked",
     );
     expect(bakeMock).toHaveBeenCalledWith(bytes, inside);
+    // Flag off: the export goes straight to decoding the bytes, which never settles for
+    // these fake bytes in jsdom; the bake would have run before that, so one tick is enough.
+    bakeMock.mockClear();
+    void compositeSceneAt(scene(inside), bytes, 100).catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(bakeMock).not.toHaveBeenCalled();
   });
 
   it("grows the frame for a text outside the image and keeps the shot at the padding", () => {
