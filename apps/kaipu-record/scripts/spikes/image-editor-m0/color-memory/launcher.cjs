@@ -19,6 +19,13 @@ const timer = setTimeout(
   },
   10 * 60 * 1000,
 );
+// A failed spawn (wrong Electron path, missing node_modules) emits "error" and never "exit":
+// write DONE right away so the runner does not wait out its full timeout.
+child.on("error", (err) => {
+  clearTimeout(timer);
+  console.error(`[launcher] spawn failed: ${err.message}`);
+  fs.writeFileSync(path.join(out, "DONE"), `spawn-error: ${err.message}`);
+});
 child.on("exit", (code, signal) => {
   clearTimeout(timer);
   console.error(`[launcher] electron exited code=${code} signal=${signal}`);
