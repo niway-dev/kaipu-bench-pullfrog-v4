@@ -201,6 +201,37 @@ describe("useLocalLibrary", () => {
     expect(result.current.isRefreshing).toBe(false);
   });
 
+  it("a superseded refresh() resolves only once the newer list is on screen", async () => {
+    type ListResult = Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>;
+    const resolvers: Array<(value: ListResult) => void> = [];
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise<ListResult>((r) => resolvers.push(r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    await act(async () => resolvers[0]!({ items: [], vaultError: null, catalogVerifiedAt: null }));
+
+    // A caller awaits its re-list (the detail page's retry); a broadcast starts a newer one.
+    let older: Promise<void> | undefined;
+    let olderDone = false;
+    await act(async () => {
+      older = result.current.refresh().then(() => void (olderDone = true));
+    });
+    await act(async () => void result.current.refresh());
+    expect(resolvers).toHaveLength(3);
+
+    // The older call's own list resolves first and is dropped: it must not resolve yet.
+    await act(async () => resolvers[1]!({ items, vaultError: null, catalogVerifiedAt: null }));
+    expect(olderDone).toBe(false);
+
+    await act(async () =>
+      resolvers[2]!({ items: [items[0]!], vaultError: null, catalogVerifiedAt: null }),
+    );
+    await act(async () => older);
+    expect(olderDone).toBe(true);
+    expect(result.current.videos).toHaveLength(1);
+  });
+
   it("stays loading when the first list is superseded until the newer one lands", async () => {
     type ListResult = Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>;
     const resolvers: Array<(value: ListResult) => void> = [];

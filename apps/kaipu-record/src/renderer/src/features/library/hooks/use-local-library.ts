@@ -58,46 +58,56 @@ export function useLocalLibrary(): LocalLibrary {
   // latest started refresh may write results (an older one resolving last would
   // overwrite a fresh list with a stale one).
   const latest = useRef(0);
+  // The latest started re-list. A superseded call awaits it, so `await refresh()` still
+  // means "a list at least as new as my call is on screen" (the detail page's retry and
+  // the editor routes' re-list rely on that).
+  const latestRun = useRef<Promise<void>>(Promise.resolve());
   const [hasError, setHasError] = useState(false);
   const [catalogVerifiedAt, setCatalogVerifiedAt] = useState<number | null>(null);
 
-  const refresh = useCallback(async () => {
-    // Stale-while-revalidate: only the first list shows "loading"; a re-list keeps the
-    // current videos on screen so open pages (detail, editor home) do not blank.
-    inFlight.current += 1;
-    setRefreshing(true);
+  const refresh = useCallback((): Promise<void> => {
     const seq = ++latest.current;
-    let applied = false;
-    try {
-      const result = await window.electronAPI.listLibraryItems();
-      if (seq !== latest.current) return; // superseded: a newer list is on its way or landed
-      applied = true;
-      // Do NOT blank the list to [] on a vault error — cloud items from the
-      // cached catalog are still real data, and blanking would render as the
-      // "No recordings yet" empty state, indistinguishable from real data loss.
-      setVideos(result.items.map(toLibraryVideo));
-      setCatalogVerifiedAt(result.catalogVerifiedAt);
-      setHasError(result.vaultError !== null);
-      if (result.vaultError !== null) {
-        reportError(t("errorRead"), new Error(result.vaultError), {
+    const run = relist(seq);
+    latestRun.current = run;
+    return run;
+
+    async function relist(seq: number): Promise<void> {
+      // Stale-while-revalidate: only the first list shows "loading"; a re-list keeps the
+      // current videos on screen so open pages (detail, editor home) do not blank.
+      inFlight.current += 1;
+      setRefreshing(true);
+      let applied = false;
+      try {
+        const result = await window.electronAPI.listLibraryItems();
+        if (seq !== latest.current) return await latestRun.current; // superseded: wait for the newer list
+        applied = true;
+        // Do NOT blank the list to [] on a vault error — cloud items from the
+        // cached catalog are still real data, and blanking would render as the
+        // "No recordings yet" empty state, indistinguishable from real data loss.
+        setVideos(result.items.map(toLibraryVideo));
+        setCatalogVerifiedAt(result.catalogVerifiedAt);
+        setHasError(result.vaultError !== null);
+        if (result.vaultError !== null) {
+          reportError(t("errorRead"), new Error(result.vaultError), {
+            context: { phase: "library-list" },
+            retry: () => void refresh(),
+          });
+        }
+      } catch (error) {
+        if (seq !== latest.current) return await latestRun.current;
+        applied = true;
+        setHasError(true);
+        reportError(t("errorRead"), error, {
           context: { phase: "library-list" },
           retry: () => void refresh(),
         });
+      } finally {
+        inFlight.current -= 1;
+        if (inFlight.current === 0) setRefreshing(false);
+        // A dropped result must not end "loading": the newer request is still in flight and
+        // will, so the first paint is never an empty list read as "no recordings".
+        if (applied) setLoading(false);
       }
-    } catch (error) {
-      if (seq !== latest.current) return;
-      applied = true;
-      setHasError(true);
-      reportError(t("errorRead"), error, {
-        context: { phase: "library-list" },
-        retry: () => void refresh(),
-      });
-    } finally {
-      inFlight.current -= 1;
-      if (inFlight.current === 0) setRefreshing(false);
-      // A dropped result must not end "loading": the newer request is still in flight and
-      // will, so the first paint is never an empty list read as "no recordings".
-      if (applied) setLoading(false);
     }
   }, []);
 
