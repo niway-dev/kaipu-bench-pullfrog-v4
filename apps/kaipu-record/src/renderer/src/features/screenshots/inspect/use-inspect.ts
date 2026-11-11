@@ -114,6 +114,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
   onEnterRef.current = onEnter;
   const flushRef = useRef<() => void>(() => {});
   const runProbeRef = useRef<() => Promise<void>>(async () => {});
+  const scheduleProbeRef = useRef<() => void>(() => {});
   // A probe that failed once is not retried on every move: "as captured" just stays unknown.
   const probeBroken = useRef(false);
 
@@ -201,7 +202,8 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     }
     const after = hoverRef.current;
     const covered = after && tileRef.current && readProbe(tileRef.current, after.x, after.y);
-    if (alive.current && activeRef.current && after && !covered) void runProbeRef.current();
+    // Wait for the pointer to rest again rather than decoding on every tile it crosses.
+    if (alive.current && activeRef.current && after && !covered) scheduleProbeRef.current();
   }, [scheduleFlush, t]);
   runProbeRef.current = runProbe;
 
@@ -212,6 +214,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       void runProbeRef.current();
     }, PROBE_REST_MS);
   }, []);
+  scheduleProbeRef.current = scheduleProbe;
 
   /** Map the last pointer position to a pixel and publish it (one per animation frame). */
   const flush = useCallback(() => {

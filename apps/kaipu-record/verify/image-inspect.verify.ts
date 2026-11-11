@@ -174,7 +174,8 @@ async function readMark(s: Scenario, expected: boolean): Promise<boolean> {
       return false;
     }
   }
-  await s.page.waitForTimeout(600);
+  // Absence means something only once the tile is read: wait for the HUD to say so.
+  await expect(s.page.locator(`${HUD}[data-probed="true"]`)).toBeVisible({ timeout: 5_000 });
   return markLocator(s).isVisible();
 }
 

@@ -126,7 +126,9 @@ export type ColorFormat = (typeof COLOR_FORMATS)[number];
 
 /** Alpha as CSS prints it: up to 2 decimals, trailing zeros trimmed. */
 function alphaText(a: number): string {
-  return String(Number((a / 255).toFixed(2)));
+  // Two decimals, but never round a translucent pixel to fully transparent or opaque.
+  const v = Number((a / 255).toFixed(2));
+  return String(a > 0 && v === 0 ? 0.01 : a < 255 && v === 1 ? 0.99 : v);
 }
 const hex2 = (n: number): string => n.toString(16).padStart(2, "0");
 

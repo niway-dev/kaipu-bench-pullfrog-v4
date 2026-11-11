@@ -136,6 +136,12 @@ describe("formatColor", () => {
     expect(formatColor({ ...emerald, a: 64 }, "rgb")).toBe("rgba(16, 185, 129, 0.25)");
     expect(formatColor({ ...emerald, a: 0 }, "rgb")).toBe("rgba(16, 185, 129, 0)");
   });
+
+  it("never rounds a translucent pixel to fully transparent or fully opaque", () => {
+    expect(formatColor({ ...emerald, a: 1 }, "rgb")).toBe("rgba(16, 185, 129, 0.01)");
+    expect(formatColor({ ...emerald, a: 254 }, "rgb")).toBe("rgba(16, 185, 129, 0.99)");
+    expect(formatColor({ ...emerald, a: 254 }, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.99)");
+  });
 });
 
 describe("as captured", () => {
