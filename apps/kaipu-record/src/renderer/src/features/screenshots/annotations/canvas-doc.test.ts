@@ -67,6 +67,8 @@ describe("canvas document", () => {
   });
   it("returns null for a bad asset id", () => {
     expect(parseCanvasDoc(docWith((d) => (d.items[0].assetId = "../x")))).toBeNull();
+    // `__proto__` would not be an own key of the asset map.
+    expect(parseCanvasDoc(docWith((d) => (d.items[0].assetId = "__proto__")))).toBeNull();
   });
   it("returns null for a non-finite or wrong-typed field", () => {
     // JSON has no NaN: a null coordinate is what NaN serializes to.
@@ -78,6 +80,10 @@ describe("canvas document", () => {
     expect(parseCanvasDoc(docWith((d) => (d.items[2].stroke = 4)))).toBeNull();
     expect(parseCanvasDoc(docWith((d) => (d.items[2].stroke = 1.5)))).toBeNull();
     expect(parseCanvasDoc(docWith((d) => (d.items[4].stroke = -1)))).toBeNull();
+  });
+  it("returns null for a frame value outside the panel's range", () => {
+    expect(parseCanvasDoc(docWith((d) => (d.frame.padding = -100)))).toBeNull();
+    expect(parseCanvasDoc(docWith((d) => (d.frame.radius = 1000)))).toBeNull();
   });
   it("returns null for an unknown background", () => {
     expect(parseCanvasDoc(docWith((d) => (d.frame.bg = "nope")))).toBeNull();

@@ -25,6 +25,11 @@ describe("sameScene with crop", () => {
 });
 
 describe("reserveAnnotationIds", () => {
+  it("skips an id too large for a safe integer, so new ids stay finite", () => {
+    const box = (id: string): Annotation => ({ id, kind: "blur", x: 0, y: 0, w: 1, h: 1 });
+    reserveAnnotationIds([box(`a${"9".repeat(310)}`)]);
+    expect(nextAnnotationId().id).not.toBe("aInfinity");
+  });
   it("moves the counter past ids already present in a reopened document", () => {
     const box = (id: string): Annotation => ({ id, kind: "blur", x: 0, y: 0, w: 1, h: 1 });
     reserveAnnotationIds([box("a41"), box("a7"), box("custom"), box("image-base")]);

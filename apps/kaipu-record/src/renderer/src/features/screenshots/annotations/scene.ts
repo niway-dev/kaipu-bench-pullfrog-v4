@@ -123,6 +123,7 @@ export function nextAnnotationId(): { id: string; seed: number } {
 export function reserveAnnotationIds(annotations: readonly Annotation[]): void {
   for (const a of annotations) {
     const m = /^a(\d+)$/.exec(a.id);
-    if (m) counter = Math.max(counter, Number(m[1]));
+    // An id too large for a safe integer would stall the counter at Infinity: skip it.
+    if (m && Number.isSafeInteger(Number(m[1]))) counter = Math.max(counter, Number(m[1]));
   }
 }

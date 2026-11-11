@@ -1,5 +1,11 @@
 import { CANVAS_ASSET_ID_PATTERN } from "@shared/types/screenshot-canvas";
-import { BACKGROUND_IDS, type BeautifyState } from "../beautify/backgrounds";
+import {
+  BACKGROUND_IDS,
+  PADDING_RANGE,
+  RADIUS_RANGE,
+  SHADOW_RANGE,
+  type BeautifyState,
+} from "../beautify/backgrounds";
 import type { Annotation, CropRect, Scene } from "./scene";
 import { STROKE_WIDTHS, TEXT_SIZES } from "./tools";
 
@@ -141,6 +147,11 @@ function parseAnnotation(o: Obj): Annotation | null {
 function parseFrame(v: unknown): BeautifyState | null {
   if (!isObj(v) || !str(v.bg) || !(BACKGROUND_IDS as readonly string[]).includes(v.bg)) return null;
   if (!nums(v, ["padding", "radius", "shadow"])) return null;
+  // Inside the panel's ranges: a negative padding would give the export a negative size.
+  const within = (n: unknown, r: { min: number; max: number }): boolean =>
+    (n as number) >= r.min && (n as number) <= r.max;
+  if (!within(v.padding, PADDING_RANGE) || !within(v.radius, RADIUS_RANGE)) return null;
+  if (!within(v.shadow, SHADOW_RANGE)) return null;
   return v as unknown as BeautifyState;
 }
 
