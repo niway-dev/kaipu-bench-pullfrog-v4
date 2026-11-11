@@ -31,7 +31,9 @@ whose coordinates belong to one image and whose only saved artifact is a flatten
 1. **One world space.** The editor's document is a list of items, images and annotations
    alike, positioned in world units. One world unit is one source pixel of an image at scale 1.
 2. **The export is the content box.** Copy and Save render the union of all item bounds plus
-   the beautify padding, with the background filling any gap between items. A manual export frame overrides it; the crop tool becomes that frame.
+   the beautify padding, which behaves as it does today at every background. A gap between
+   items is filled with the background, or with a neutral solid when the background is `none`.
+   A manual export frame overrides the content box; the crop tool becomes that frame.
    A canvas holding one untouched image exports what the current editor exports.
 3. **Three artifacts.** `<id>.png` (flattened, always valid), `.kaipu/<id>.canvas.json` (the
    document, with `schemaVersion`), `.kaipu/<id>.assets/` (each image as added).
@@ -39,8 +41,9 @@ whose coordinates belong to one image and whose only saved artifact is a flatten
    editor opens `<id>.png` as a single image item.
 5. **Redaction is destructive at save.** The redacted pixels are replaced in the stored
    asset. The redaction stays in the document as a locked item. The styles are a strong blur (the
-   region is reduced to coarse blocks, then smoothed, so the detail is gone before it is
-   softened) and `solid`; the light gaussian that `annotations/tools.ts` documents as
+   region is reduced to coarse blocks, then smoothed) and `solid`. Only `solid` hides content
+   for certain: block averages of short, predictable text can be matched against rendered
+   candidates, so the strong blur has a minimum block size and the tool states the difference; the light gaussian that `annotations/tools.ts` documents as
    reversible is retired, so it is never the thing baked into an asset.
 
 ## Alternatives rejected
