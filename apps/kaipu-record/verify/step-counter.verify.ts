@@ -17,6 +17,12 @@ async function badgeNumbers(s: Scenario): Promise<string[]> {
   return s.page.locator("[data-annotation] text").allTextContents();
 }
 
+/** Let the toolbar's background transition finish, so a shot never catches two tools mid-fade. */
+async function settledShot(s: Scenario, name: string): Promise<void> {
+  await s.page.waitForTimeout(500);
+  await s.shot(name);
+}
+
 async function copyPng(s: Scenario, name: string): Promise<{ width: number; height: number }> {
   await s.app.evaluate(({ clipboard }) => clipboard.clear());
   await s.page.getByRole("button", { name: "Copy", exact: true }).click();
@@ -56,14 +62,14 @@ async function run(on: boolean, offset: number): Promise<void> {
     }));
     for (const p of points) await s.page.mouse.click(p.x, p.y);
     await expect.poll(() => badgeNumbers(s)).toEqual(["1", "2", "3"]);
-    await s.shot(`${side}-three-steps`);
+    await settledShot(s, `${side}-three-steps`);
 
     // Select the middle badge and delete it: the third one becomes 2.
     await s.page.getByRole("button", { name: "Select", exact: true }).click();
     await s.page.mouse.click(points[1].x, points[1].y);
     await s.page.keyboard.press("Delete");
     await expect.poll(() => badgeNumbers(s)).toEqual(["1", "2"]);
-    await s.shot(`${side}-after-delete`);
+    await settledShot(s, `${side}-after-delete`);
 
     const size = await copyPng(s, `${side}-export.png`);
     const result = { side, numbersAfterDelete: await badgeNumbers(s), export: size };
