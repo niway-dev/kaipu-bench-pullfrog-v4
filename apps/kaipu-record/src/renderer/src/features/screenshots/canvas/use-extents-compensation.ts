@@ -11,11 +11,14 @@ import type { Insets } from "./viewport";
  * already hold content outside the image, and compensating from "no extents" to those would
  * pan the content box off-centre. Seeding from the first measure shows the content box in
  * the initial view, like a fresh open. `measured` is false until the shot has a size.
+ * `onSeed` runs once, at that first measurement (the page fits a content box wider or
+ * taller than the canvas into view).
  */
 export function useExtentsCompensation(
   extents: Insets,
   measured: boolean,
   compensate: (prev: Insets, next: Insets) => void,
+  onSeed?: () => void,
 ): void {
   const prevExtents = useRef<Insets>(ZERO_EXTENTS);
   const seeded = useRef(false);
@@ -23,7 +26,10 @@ export function useExtentsCompensation(
     const prev = prevExtents.current;
     prevExtents.current = extents;
     if (!seeded.current) {
-      if (measured) seeded.current = true;
+      if (measured) {
+        seeded.current = true;
+        onSeed?.();
+      }
       return;
     }
     if (
@@ -34,5 +40,5 @@ export function useExtentsCompensation(
     ) {
       compensate(prev, extents);
     }
-  }, [extents, measured, compensate]);
+  }, [extents, measured, compensate, onSeed]);
 }

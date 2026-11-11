@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -455,12 +455,25 @@ function ScreenshotEditorBody({
   // on screen. Move the pan by the same amount so the shot stays where the user left it.
   // The first measurement is the baseline, so a reopened document with content outside the
   // image opens with its content box in view instead of panned off-centre.
-  const { compensate } = viewport;
+  const { compensate, fit } = viewport;
+  // A reopened document wider or taller than the canvas opens fitted, not clipped.
+  const fitOnOpen = useCallback(() => fit({ onlyIfOverflowing: true }), [fit]);
   useExtentsCompensation(
     extents,
     canvasMode && metrics != null && metrics.w > 0 && metrics.naturalW > 0,
     compensate,
+    fitOnOpen,
   );
+  // An added image lands past the content box's right edge, often off screen: once its
+  // extents are laid out (after the compensation above), fit the view so it shows.
+  const fitAfterAdd = useRef(false);
+  useLayoutEffect(() => {
+    if (!fitAfterAdd.current) return;
+    fitAfterAdd.current = false;
+    fit();
+    // Keyed on the annotations too: an add always changes them, so the flag never outlives
+    // the render that placed the image.
+  }, [scene.annotations, extents, fit]);
   // The dot grid behind the frame: pinned to the shot's top-left, so it pans and zooms with it.
   useDotGrid(canvasRef, canvasMode, viewport.view, {
     x: scene.beautify.state.padding + extents.left,
@@ -573,6 +586,7 @@ function ScreenshotEditorBody({
       pixelWidth,
       pixelHeight,
     };
+    fitAfterAdd.current = true;
     scene.addAnnotation(annotation);
     scene.select(annotation.id);
     tools.setTool("select");

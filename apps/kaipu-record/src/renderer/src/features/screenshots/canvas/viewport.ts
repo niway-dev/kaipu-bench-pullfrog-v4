@@ -133,6 +133,38 @@ export function clampPan(view: View, b: PanBounds, keep: number = PAN_KEEP_PX): 
   };
 }
 
+/** Room left around the content when the view is fitted to it, screen px. */
+export const FIT_MARGIN_PX = 32;
+
+/** True when the frame, at zoom 1 and no pan, spills past the visible area on either axis. */
+export function overflowsAtRest(b: PanBounds): boolean {
+  return b.content.w > b.viewport.w || b.content.h > b.viewport.h;
+}
+
+/**
+ * The view that shows the whole frame, centred, with `margin` px around it: zoomed out
+ * as far as needed (within the canvas zoom range), never zoomed in past 100%. An
+ * unmeasured bounds leaves the view as is.
+ */
+export function fitView(
+  view: View,
+  b: PanBounds,
+  margin: number = FIT_MARGIN_PX,
+  limits: ZoomLimits = CANVAS_ZOOM,
+): View {
+  if (b.viewport.w <= 0 || b.viewport.h <= 0 || b.content.w <= 0 || b.content.h <= 0) return view;
+  const room = (viewport: number): number => Math.max(1, viewport - 2 * margin);
+  const zoom = clampZoom(
+    Math.min(1, room(b.viewport.w) / b.content.w, room(b.viewport.h) / b.content.h),
+    limits,
+  );
+  return {
+    zoom,
+    panX: b.viewport.w / 2 - b.origin.x - (b.content.w * zoom) / 2,
+    panY: b.viewport.h / 2 - b.origin.y - (b.content.h * zoom) / 2,
+  };
+}
+
 /** How far the content box sticks out past each side of the shot, in layout px. */
 export interface Insets {
   left: number;

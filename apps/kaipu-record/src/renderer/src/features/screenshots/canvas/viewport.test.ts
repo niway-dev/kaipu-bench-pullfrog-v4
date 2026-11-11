@@ -6,7 +6,9 @@ import {
   clampZoom,
   compensateExtents,
   dotGrid,
+  fitView,
   isIdentityView,
+  overflowsAtRest,
   panBy,
   panByWheel,
   viewTransform,
@@ -250,5 +252,55 @@ describe("dotGrid", () => {
     expect(g.x).toBeLessThan(g.size);
     expect(g.y).toBeGreaterThanOrEqual(0);
     expect(g.y).toBeLessThan(g.size);
+  });
+});
+
+describe("fitView", () => {
+  // The evidence case: a 1104 px content box, centred in a 1056 px canvas, spills 24 px
+  // past each side at rest.
+  const wide = {
+    viewport: { w: 1056, h: 725 },
+    origin: { x: -24, y: 187.5 },
+    content: { w: 1104, h: 350 },
+  };
+
+  it("zooms a content box wider than the canvas out until it fits with the margin, centred", () => {
+    const v = fitView({ zoom: 2, panX: 300, panY: -50 }, wide, 32);
+    expect(v.zoom).toBeCloseTo((1056 - 64) / 1104);
+    // Screen left and right of the content: the rest origin plus pan, plus the scaled width.
+    const left = wide.origin.x + v.panX;
+    expect(left).toBeCloseTo(32);
+    expect(left + wide.content.w * v.zoom).toBeCloseTo(1056 - 32);
+    const top = wide.origin.y + v.panY;
+    expect(top + (wide.content.h * v.zoom) / 2).toBeCloseTo(725 / 2);
+  });
+
+  it("never zooms in past 100%: a small content box is only re-centred", () => {
+    const small = {
+      viewport: { w: 1000, h: 800 },
+      origin: { x: 400, y: 300 },
+      content: { w: 200, h: 200 },
+    };
+    expect(fitView({ zoom: 0.5, panX: 90, panY: 10 }, small, 32)).toEqual(IDENTITY_VIEW);
+  });
+
+  it("stops at the canvas zoom floor", () => {
+    const huge = { ...wide, content: { w: 100_000, h: 350 } };
+    expect(fitView(IDENTITY_VIEW, huge).zoom).toBe(CANVAS_ZOOM.min);
+  });
+
+  it("leaves an unmeasured view as is", () => {
+    const v = { zoom: 1.5, panX: 4, panY: 5 };
+    expect(fitView(v, { ...wide, viewport: { w: 0, h: 0 } })).toBe(v);
+  });
+});
+
+describe("overflowsAtRest", () => {
+  it("is true only when the frame is wider or taller than the canvas", () => {
+    const viewport = { w: 1000, h: 700 };
+    const origin = { x: 0, y: 0 };
+    expect(overflowsAtRest({ viewport, origin, content: { w: 1000, h: 700 } })).toBe(false);
+    expect(overflowsAtRest({ viewport, origin, content: { w: 1001, h: 10 } })).toBe(true);
+    expect(overflowsAtRest({ viewport, origin, content: { w: 10, h: 701 } })).toBe(true);
   });
 });

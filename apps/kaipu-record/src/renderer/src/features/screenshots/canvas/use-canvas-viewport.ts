@@ -4,6 +4,8 @@ import {
   ZOOM_STEP,
   clampPan,
   compensateExtents,
+  fitView,
+  overflowsAtRest,
   panBy,
   panByWheel,
   wheelPx,
@@ -66,6 +68,12 @@ export interface CanvasViewport {
    * stays where it was on screen instead of sliding with the re-centred frame.
    */
   compensate(prev: Insets, next: Insets): void;
+  /**
+   * Show the whole content box, centred (zoomed out if it is wider or taller than the
+   * canvas, never past 100%). `onlyIfOverflowing` leaves a frame that already fits at rest
+   * untouched, so a document that fits opens exactly as before.
+   */
+  fit(options?: { onlyIfOverflowing?: boolean }): void;
   /** The +/- buttons: step the zoom around the middle of the visible canvas. */
   zoomStep(direction: 1 | -1): void;
   /** Spread onto the canvas element: Space+drag and middle-button drag pan. */
@@ -221,6 +229,17 @@ export function useCanvasViewport(
     [enabled, apply],
   );
 
+  const fit = useCallback(
+    (options?: { onlyIfOverflowing?: boolean }): void => {
+      if (!enabled) return;
+      apply((v, b) => {
+        if (!b || (options?.onlyIfOverflowing && !overflowsAtRest(b))) return v;
+        return fitView(v, b);
+      });
+    },
+    [enabled, apply],
+  );
+
   const zoomStep = useCallback(
     (direction: 1 | -1): void => {
       apply((v, b) => {
@@ -234,5 +253,5 @@ export function useCanvasViewport(
   );
 
   const panMode: PanMode = panning ? "active" : spaceHeld ? "ready" : "idle";
-  return { view, panMode, reset, compensate, zoomStep, bindings };
+  return { view, panMode, reset, compensate, fit, zoomStep, bindings };
 }
