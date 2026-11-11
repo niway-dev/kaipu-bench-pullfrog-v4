@@ -59,9 +59,11 @@ export function useTags(): Tags {
       return await window.electronAPI.createTag(name, color);
     } catch (error) {
       // The name is taken: hand back the tag that has it instead of failing.
-      const existing = (await window.electronAPI.listTags()).find(
-        (tag) => tag.name.toLowerCase() === name.trim().toLowerCase(),
-      );
+      // A failed lookup falls through, so the create error is still reported.
+      const existing = await window.electronAPI
+        .listTags()
+        .then((list) => list.find((tag) => tag.name.toLowerCase() === name.trim().toLowerCase()))
+        .catch(() => undefined);
       if (existing) return existing;
       reportError(t("errorTags"), error, { context: { phase: "create-tag" } });
       return null;

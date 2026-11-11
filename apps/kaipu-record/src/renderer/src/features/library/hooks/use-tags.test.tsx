@@ -50,6 +50,26 @@ describe("useTags", () => {
     expect(listTags).toHaveBeenCalledTimes(2);
   });
 
+  it("create answers null and reports the create error when the fallback lookup fails too", async () => {
+    const createError = new Error("registry unreadable");
+    window.electronAPI.createTag = vi.fn(async () => {
+      throw createError;
+    });
+    const { result } = renderHook(() => useTags());
+    await waitFor(() => expect(result.current.tags).toHaveLength(1));
+    listTags.mockRejectedValueOnce(new Error("vault gone"));
+
+    let created: unknown = "unset";
+    await act(async () => {
+      created = await result.current.create("New");
+    });
+
+    expect(created).toBeNull();
+    expect(reportError).toHaveBeenCalledWith(expect.any(String), createError, {
+      context: { phase: "create-tag" },
+    });
+  });
+
   it("re-lists when the library changes", async () => {
     let notify: (() => void) | null = null;
     window.electronAPI.onLibraryChanged = (cb: () => void) => {
