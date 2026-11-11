@@ -39,7 +39,8 @@ permission and TCC attributes it to the responsible process.
 4. **Memory**: one 6144x3456 decode in a fresh window, 3 repetitions per canvas variant
    (default GPU canvas, and `willReadFrequently` CPU canvas): blob loaded, ImageBitmap,
    drawn, `getImageData`, copied into a standalone array with everything else released,
-   all dropped, and 5 s later, with `--expose-gc` and `gc()` before each snapshot. Reported
+   all dropped, and 5 s later, with `--expose-gc`. `gc()` runs only after the release and drop
+   stages; the other snapshots include uncollected garbage. Reported
    as median MiB deltas against that repetition's baseline, with decode times.
 
 ## What to look at

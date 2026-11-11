@@ -82,6 +82,9 @@ three runs in a fresh window, renderer private memory over baseline:
 | Standalone array kept, the rest released | +81 MiB              | +83 MiB                     |
 | Everything dropped, after `gc()`         | 0 MiB                | +2 MiB                      |
 
+`gc()` runs only after the release and drop stages, so the "After `getImageData`" row also
+counts garbage not yet collected; the budget rests on the later rows.
+
 With the default canvas the GPU process kept about 160–210 MiB after release; with
 `willReadFrequently` everything returned to baseline. The GPU-process baseline was noisy (29
 to 112 MiB between runs), so that residue is indicative. Decode time: `createImageBitmap`
