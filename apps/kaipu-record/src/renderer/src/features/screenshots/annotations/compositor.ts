@@ -267,10 +267,10 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // beautify padding is shown there — clipping to the shot truncated it in the
   // export only. The output viewBox (the crop window, or the whole frame) is the
   // natural bound, so they render exactly as previewed.
-  // Canvas mode (`ext` set): blurs were baked into the base bytes, so none is drawn here.
-  const drawn = ext ? scene.annotations.filter((a) => a.kind !== "blur") : scene.annotations;
-  const anno = `<g transform="translate(${ox},${oy})">${drawn
-    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale))
+  // Canvas mode (`ext` set): blurs were baked into the base bytes. Each one still redraws
+  // the (baked) base over its rect, in z-order, so it covers an annotation drawn before it.
+  const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
+    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, Boolean(ext)))
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
@@ -278,7 +278,14 @@ export function buildSvg(scene: Scene, g: Geom): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${vbX} ${vbY} ${outW} ${outH}"><defs>${defs.join("")}</defs>${bg}${boxFill}${shadow}${image}${anno}</svg>`;
 }
 
-function annotationSvg(a: Annotation, W: number, H: number, scale: number): string {
+function annotationSvg(a: Annotation, W: number, H: number, scale: number, baked = false): string {
+  if (a.kind === "blur" && baked) {
+    // The base already holds the redacted pixels: a clipped, unfiltered copy of them.
+    return (
+      `<defs><clipPath id="bclip-${a.id}"><rect x="${a.x * W}" y="${a.y * H}" width="${a.w * W}" height="${a.h * H}"/></clipPath></defs>` +
+      `<use href="#shot" clip-path="url(#bclip-${a.id})"/>`
+    );
+  }
   if (a.kind === "blur") {
     // Bake the redaction: a blurred, clipped copy of the shared #shot image over the
     // rect. The filter region is the rect + margin, so it only processes those pixels

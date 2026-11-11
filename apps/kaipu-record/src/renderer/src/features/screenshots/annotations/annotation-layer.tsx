@@ -723,7 +723,11 @@ const Shape = React.memo(function Shape({
   );
 });
 
-/** Canvas-mode blur: the real redaction as a raster tile over the rect; locked = nothing. */
+/**
+ * Canvas-mode blur: the real redaction as a raster tile over the rect. A locked one is
+ * already in the image, so it redraws the image's own pixels over the rect: in z-order it
+ * still covers whatever annotation was drawn before it, as the export does.
+ */
 function RedactionTile({
   a,
   size,
@@ -736,9 +740,27 @@ function RedactionTile({
   src: string;
 }): React.JSX.Element | null {
   const tile = useRedactionTile(src, a, a.style ?? "blur", !a.locked);
-  if (a.locked) return null;
   const bx = a.x * size.w;
   const by = a.y * size.h;
+  if (a.locked) {
+    const clipId = `lock-clip-${a.id}`;
+    return (
+      <g data-testid="locked-redaction">
+        <clipPath id={clipId}>
+          <rect x={bx} y={by} width={a.w * size.w} height={a.h * size.h} />
+        </clipPath>
+        <image
+          href={src}
+          x={0}
+          y={0}
+          width={size.w}
+          height={size.h}
+          preserveAspectRatio="none"
+          clipPath={`url(#${clipId})`}
+        />
+      </g>
+    );
+  }
   return (
     <g data-annotation={a.id}>
       {tile && (

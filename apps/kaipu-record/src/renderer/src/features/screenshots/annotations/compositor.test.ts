@@ -201,14 +201,26 @@ describe("compositor canvas mode", () => {
       const g = { ...geom, pad };
       // Canvas mode bakes blurs into the base bytes, so only the blur layer differs.
       const noBlur = { ...s, annotations: s.annotations.filter((a) => a.kind !== "blur") };
-      expect(buildSvg(s, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(noBlur, g));
+      expect(buildSvg(noBlur, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(noBlur, g));
     });
   });
 
-  it("draws no blur in canvas mode (its pixels are in the base image)", () => {
+  it("draws no blur filter in canvas mode (its pixels are in the base image)", () => {
     const svg = buildSvg(scene(inside), { ...geom, extents: ZERO });
     expect(svg).not.toContain("feGaussianBlur");
     expect(buildSvg(scene(inside), geom)).toContain("feGaussianBlur");
+  });
+
+  it("canvas mode: a redaction covers an annotation drawn before it, locked or not", () => {
+    for (const locked of [false, true]) {
+      const s = scene([
+        { id: "t", kind: "text", x: 0.1, y: 0.1, text: "secret", color: "#fff", size: 1 },
+        { id: "r", kind: "blur", x: 0, y: 0, w: 0.5, h: 0.5, style: "solid", locked },
+      ]);
+      const svg = buildSvg(s, { ...geom, extents: ZERO });
+      const copy = svg.indexOf(`<use href="#shot" clip-path="url(#bclip-r)"/>`);
+      expect(copy, `locked ${locked}`).toBeGreaterThan(svg.indexOf("secret"));
+    }
   });
 
   it("bakes redactions into the base bytes in canvas mode only", async () => {
