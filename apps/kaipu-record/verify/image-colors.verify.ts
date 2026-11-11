@@ -205,7 +205,9 @@ async function photographRun(canvas: boolean): Promise<void> {
     const listMs = Date.now() - t0;
     const listTasks = await takeLongTasks(s);
     await shot(s, `photo-${tag}-list`);
-    // The screenshot's own stall is not the panel's: drop it before timing the locate.
+    // The screenshot's own stall is not the panel's: let the heartbeat record it, then drop it
+    // before timing the locate.
+    await s.page.waitForTimeout(200);
     await takeLongTasks(s);
 
     const t1 = Date.now();

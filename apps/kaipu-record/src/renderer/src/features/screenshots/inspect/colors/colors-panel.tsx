@@ -39,7 +39,8 @@ function Row({
         <span className={styles.value}>{value}</span>
         <span className={styles.share}>{formatShare(group.count, total)}</span>
       </button>
-      {group.members.length > 1 && (
+      {/* Also with one listed value: the group may hide minor ones, and only the exact chip excludes them. */}
+      {(group.members.length > 1 || group.distinct > 1) && (
         <div className={styles.members}>
           {group.members.map((member) => {
             const memberValue = formatColor(unpackRgb(member.rgb), format);

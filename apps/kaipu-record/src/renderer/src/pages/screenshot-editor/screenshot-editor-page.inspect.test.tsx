@@ -519,6 +519,22 @@ describe.each([
     expect(panel()).toHaveTextContent("Colors unavailable for this image");
   });
 
+  it("offers the exact value of a group whose other values are too minor to list", async () => {
+    // 199 px #ffffff and 1 px #fefefe: one group, and #fefefe (0.5%) is too minor to list.
+    const data = new Uint8ClampedArray(200 * 4);
+    for (let p = 0; p < 200; p++)
+      data.set(p === 0 ? [254, 254, 254, 255] : [255, 255, 255, 255], p * 4);
+    decodeSrgbBuffer.mockImplementation(async () => ({ width: 200, height: 1, data }));
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(colorsButton());
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+    expect(screen.queryByTitle("Highlight only #fefefe")).toBeNull();
+    fireEvent.click(screen.getByTitle("Highlight only #ffffff"));
+    await waitFor(() => expect(overlay()).toHaveAttribute("data-matched", "199"));
+  });
+
   it("lists the colors with their share and the two whites side by side", async () => {
     await openPanel();
     expect(colorsButton()).toHaveAttribute("aria-pressed", "true");
