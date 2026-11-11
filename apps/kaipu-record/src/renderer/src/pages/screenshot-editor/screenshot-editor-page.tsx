@@ -725,6 +725,7 @@ export function ScreenshotEditor({
             {...(canvasMode
               ? {
                   ...viewport.bindings,
+                  ...uiArea("editorImage.canvasView"),
                   "data-canvas": "true",
                   "data-panned": String(viewport.view.panX !== 0 || viewport.view.panY !== 0),
                   "data-zoomed-out": String(shownZoom < 1),

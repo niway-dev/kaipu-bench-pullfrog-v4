@@ -77,6 +77,12 @@ export const PROFILES = {
     cursorRecording: true,
     flags: { "native-cursor-capture": true },
   },
+  "image-canvas": {
+    description:
+      "Flag image-canvas forced on: the image editor's content-box canvas, pan, zoom and export frame.",
+    seed: "demo",
+    flags: { "image-canvas": true },
+  },
   exporting: {
     description:
       "The demo workspace; states here start real exports of its short recording, so the vault ends up holding the copies.",
