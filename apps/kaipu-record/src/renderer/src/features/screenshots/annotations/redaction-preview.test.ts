@@ -61,8 +61,11 @@ describe("loadImage cache", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("resolves null for a failed fetch instead of throwing", async () => {
+  it("resolves null for a failed fetch, and does not cache the failure", async () => {
     fetchMock.mockImplementationOnce(() => Promise.resolve({ ok: false }));
     await expect(loadImage("bad")).resolves.toBeNull();
+    // The next preview of the same image tries again, and succeeds.
+    await expect(loadImage("bad")).resolves.not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
