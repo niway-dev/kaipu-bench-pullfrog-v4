@@ -137,6 +137,12 @@ interface LoadedCanvasDoc {
  * PNG instead": no document, a corrupt or unsupported one, a missing base asset, or a read
  * that failed. It never rejects, so a bad document can never keep the editor from opening.
  */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const isPng = (bytes: ArrayBuffer): boolean => {
+  const head = new Uint8Array(bytes, 0, Math.min(8, bytes.byteLength));
+  return head.length === 8 && PNG_SIGNATURE.every((b, i) => head[i] === b);
+};
+
 async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
   try {
     const stored = await window.electronAPI.readScreenshotCanvas(id);
@@ -144,7 +150,8 @@ async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
     const parsed = parseCanvasDoc(stored.docJson);
     if (!parsed) return null;
     const bytes = stored.assets[parsed.base.assetId];
-    if (!bytes) return null;
+    // Not a PNG: the image would never load and the editor would stay disabled.
+    if (!bytes || !isPng(bytes)) return null;
     // New annotations must not reuse an id the document already holds.
     reserveAnnotationIds(parsed.scene.annotations);
     return {
