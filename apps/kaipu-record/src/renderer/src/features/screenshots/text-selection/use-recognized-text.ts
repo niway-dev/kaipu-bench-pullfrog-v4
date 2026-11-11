@@ -76,7 +76,9 @@ export function useRecognizedText(opts: {
       runRef.current = run;
     }
     let live = true;
-    setText((prev) => (prev.status === "pending" ? prev : { status: "pending" }));
+    // A settled run is shown as is, so picking the tool again never flashes "pending".
+    const settled = run.result;
+    setText((prev) => settled ?? (prev.status === "pending" ? prev : { status: "pending" }));
     void run.promise.then((result) => {
       if (live) setText(result);
     });

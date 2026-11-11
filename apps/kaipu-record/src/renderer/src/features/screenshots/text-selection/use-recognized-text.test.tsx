@@ -83,7 +83,8 @@ describe("useRecognizedText", () => {
     await waitFor(() => expect(result.current).toEqual({ status: "ready", words: [WORD] }));
     expect(recognize).toHaveBeenCalledTimes(2);
     rerender({ retryKey: 2 });
-    await waitFor(() => expect(result.current).toEqual({ status: "ready", words: [WORD] }));
+    // A known result is shown right away: no "pending" flash on a re-pick.
+    expect(result.current).toEqual({ status: "ready", words: [WORD] });
     expect(recognize).toHaveBeenCalledTimes(2);
   });
 
