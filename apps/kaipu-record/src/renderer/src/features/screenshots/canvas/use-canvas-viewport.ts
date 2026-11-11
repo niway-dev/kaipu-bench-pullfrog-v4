@@ -3,11 +3,13 @@ import {
   IDENTITY_VIEW,
   ZOOM_STEP,
   clampPan,
+  compensateExtents,
   panBy,
   panByWheel,
   wheelPx,
   zoomAt,
   zoomByWheel,
+  type Insets,
   type PanBounds,
   type Point,
   type View,
@@ -59,6 +61,11 @@ export interface CanvasViewport {
   panMode: PanMode;
   /** Back to zoom 100% and no pan. */
   reset(): void;
+  /**
+   * The content box grew or shrank (`prev` -> `next`, layout px): move the pan so the shot
+   * stays where it was on screen instead of sliding with the re-centred frame.
+   */
+  compensate(prev: Insets, next: Insets): void;
   /** The +/- buttons: step the zoom around the middle of the visible canvas. */
   zoomStep(direction: 1 | -1): void;
   /** Spread onto the canvas element: Space+drag and middle-button drag pan. */
@@ -206,6 +213,14 @@ export function useCanvasViewport(
     setViewState(IDENTITY_VIEW);
   }, []);
 
+  const compensate = useCallback(
+    (prev: Insets, next: Insets): void => {
+      if (!enabled) return;
+      apply((v) => compensateExtents(v, prev, next));
+    },
+    [enabled, apply],
+  );
+
   const zoomStep = useCallback(
     (direction: 1 | -1): void => {
       apply((v, b) => {
@@ -219,5 +234,5 @@ export function useCanvasViewport(
   );
 
   const panMode: PanMode = panning ? "active" : spaceHeld ? "ready" : "idle";
-  return { view, panMode, reset, zoomStep, bindings };
+  return { view, panMode, reset, compensate, zoomStep, bindings };
 }

@@ -133,6 +133,37 @@ export function clampPan(view: View, b: PanBounds, keep: number = PAN_KEEP_PX): 
   };
 }
 
+/** How far the content box sticks out past each side of the shot, in layout px. */
+export interface Insets {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * The pan that keeps the SHOT at the same screen position when the extents change.
+ *
+ * The frame is centred in the canvas and holds the shot at `extent.left` / `extent.top`
+ * from its own top-left, so growing an extent moves the shot two ways: the frame's rest
+ * origin moves by -(Δleft + Δright) / 2 (still centred, now wider), and the shot sits
+ * `Δleft` further into the frame, which the zoom magnifies. Cancelling both:
+ * `Δpan = (Δleft + Δright) / 2 - zoom · Δleft` (same on y with top / bottom). Growing the
+ * right extent by 200 px at zoom 1 therefore pans +100 px, undoing the 100 px slide left.
+ */
+export function compensateExtents(view: View, prev: Insets, next: Insets): View {
+  const dl = next.left - prev.left;
+  const dr = next.right - prev.right;
+  const dt = next.top - prev.top;
+  const db = next.bottom - prev.bottom;
+  if (dl === 0 && dr === 0 && dt === 0 && db === 0) return view;
+  return {
+    ...view,
+    panX: view.panX + (dl + dr) / 2 - view.zoom * dl,
+    panY: view.panY + (dt + db) / 2 - view.zoom * dt,
+  };
+}
+
 /** The CSS transform for a view, or undefined for the identity (no transform at all). */
 export function viewTransform(view: View): string | undefined {
   if (isIdentityView(view)) return undefined;

@@ -4,6 +4,7 @@ import {
   IDENTITY_VIEW,
   clampPan,
   clampZoom,
+  compensateExtents,
   isIdentityView,
   panBy,
   panByWheel,
@@ -141,6 +142,52 @@ describe("clampPan", () => {
     const v: View = { zoom: 1, panX: 9999, panY: 9999 };
     expect(clampPan(v, { ...bounds, content: { w: 0, h: 0 } })).toBe(v);
     expect(clampPan(v, { ...bounds, viewport: { w: 0, h: 0 } })).toBe(v);
+  });
+});
+
+describe("compensateExtents", () => {
+  const none = { left: 0, top: 0, right: 0, bottom: 0 };
+  // Where the shot's left edge lands on screen, relative to the canvas: the frame is
+  // centred (rest origin = (canvas - frame) / 2), the shot is `left` into the frame,
+  // and the view maps a frame point p to rest + pan + zoom * p.
+  const shotX = (view: View, e: { left: number; right: number }, canvas = 1000, shot = 400) =>
+    (canvas - (e.left + shot + e.right)) / 2 + view.panX + view.zoom * e.left;
+
+  it("is the same view when nothing changed", () => {
+    const v = { zoom: 2, panX: 5, panY: 6 };
+    expect(compensateExtents(v, none, none)).toBe(v);
+  });
+
+  it("growing the right extent by 200 pans +100, undoing the slide left", () => {
+    const next = { ...none, right: 200 };
+    expect(compensateExtents(IDENTITY_VIEW, none, next)).toEqual({ zoom: 1, panX: 100, panY: 0 });
+  });
+
+  it("growing the bottom extent pans y the same way", () => {
+    const next = { ...none, bottom: 80 };
+    expect(compensateExtents(IDENTITY_VIEW, none, next)).toEqual({ zoom: 1, panX: 0, panY: 40 });
+  });
+
+  it("growing the left extent pans the other way, scaled by the zoom", () => {
+    const next = { ...none, left: 200 };
+    expect(compensateExtents(IDENTITY_VIEW, none, next).panX).toBe(-100);
+    expect(compensateExtents({ zoom: 2, panX: 0, panY: 0 }, none, next).panX).toBe(-300);
+  });
+
+  it("keeps the shot at the same screen position, at any zoom, for any growth", () => {
+    for (const zoom of [0.5, 1, 2, 3]) {
+      const before = { zoom, panX: 30, panY: -20 };
+      const prev = { left: 10, top: 0, right: 40, bottom: 0 };
+      const next = { left: 210, top: 0, right: 140, bottom: 0 };
+      const after = compensateExtents(before, prev, next);
+      expect(shotX(after, next)).toBeCloseTo(shotX(before, prev), 9);
+    }
+  });
+
+  it("is undone by the reverse change", () => {
+    const next = { left: 12, top: 7, right: 200, bottom: 33 };
+    const there = compensateExtents(IDENTITY_VIEW, none, next);
+    expect(compensateExtents(there, next, none)).toEqual(IDENTITY_VIEW);
   });
 });
 
