@@ -347,6 +347,44 @@ describe.each([
     expect(await screen.findByText("#010203")).toBeInTheDocument();
   });
 
+  /** Hold the first probe pending across a swap; `settle` finishes it afterwards. */
+  async function swapDuringProbe() {
+    let settle: { resolve: (tile: unknown) => void; reject: (e: Error) => void } = {
+      resolve: () => {},
+      reject: () => {},
+    };
+    const first = probeCaptured.getMockImplementation()!;
+    probeCaptured.mockImplementationOnce(
+      () => new Promise((resolve, reject) => (settle = { resolve, reject })),
+    );
+    mountSwappable();
+    await loadImage();
+    press("i");
+    await screen.findByTestId("inspect-layer");
+    fireEvent.pointerMove(layer(), POINTER);
+    await screen.findByText(PIXEL_HEX);
+    await waitFor(() => expect(probeCaptured).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "As captured" }));
+    swapImage();
+    return { settle, tile: await first() };
+  }
+
+  it("drops a probe tile of the old image that resolves after the swap", async () => {
+    const { settle, tile } = await swapDuringProbe();
+    // The old tile would say rgb(9, 9, 9) and "Out of sRGB"; the new image's own tile says 1, 2, 3.
+    tile.raw.fill(9);
+    settle.resolve(tile);
+    expect(await screen.findByText("#010203")).toBeInTheDocument();
+    expect(screen.queryByText("#090909")).toBeNull();
+  });
+
+  it("drops a probe failure of the old image that arrives after the swap", async () => {
+    const { settle } = await swapDuringProbe();
+    settle.reject(new Error("old probe failed"));
+    expect(await screen.findByText("#010203")).toBeInTheDocument();
+    expect(screen.queryByText('"As captured" is unavailable for this image')).toBeNull();
+  });
+
   it("re-reads the pixel when the image moves under a still pointer", async () => {
     await enterAndHover();
     expect(screen.getByText("3, 1")).toBeInTheDocument();

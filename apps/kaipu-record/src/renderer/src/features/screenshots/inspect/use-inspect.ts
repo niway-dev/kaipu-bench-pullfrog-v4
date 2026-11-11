@@ -47,7 +47,8 @@ export interface InspectController {
   asCaptured: boolean;
   setAsCaptured(on: boolean): void;
   hover: InspectHover | null;
-  /** The text the chip shows and Copy writes; null while the value is not known yet. */
+  /** The text the chip shows and the C key copies; null while the value is not known yet.
+   * The bar's Copy writes the same, but falls back to the last pixel after the pointer left. */
   readout: string | null;
   loupe: Uint8ClampedArray | null;
   onPointerMove(e: { clientX: number; clientY: number }): void;
@@ -173,20 +174,28 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     if (probing.current || probeBroken.current || !bytes || !buf || !at) return;
     if (tileRef.current && readProbe(tileRef.current, at.x, at.y)) return;
     probing.current = true;
+    // The image may be swapped while the tile decodes: a swap clears bytesRef and the next
+    // decode sets new bytes, so `!==` means this result belongs to another image.
+    const otherImage = (): boolean => bytesRef.current !== bytes;
     try {
       const tile = await probeCaptured(bytes, at.x, at.y, 32, buf);
       if (!alive.current || !activeRef.current) return;
       const now = hoverRef.current;
-      // Stale: the pointer left this tile while it was decoding. Drop it and probe again.
-      if (now && readProbe(tile, now.x, now.y)) {
+      // Stale: the image changed, or the pointer left this tile while it was decoding.
+      // Drop it; the tail below probes again for what is under the pointer now.
+      if (!otherImage() && now && readProbe(tile, now.x, now.y)) {
         tileRef.current = tile;
         scheduleFlush();
       }
     } catch (error) {
-      probeBroken.current = true;
-      setCapturedUnavailable(true);
-      reportError(t("inspectUnavailable"), error, { context: { phase: "inspect-probe" } });
-      return;
+      if (!alive.current) return;
+      // The old image's failure says nothing about the new one: drop it and probe again below.
+      if (!otherImage()) {
+        probeBroken.current = true;
+        setCapturedUnavailable(true);
+        reportError(t("inspectUnavailable"), error, { context: { phase: "inspect-probe" } });
+        return;
+      }
     } finally {
       probing.current = false;
     }
