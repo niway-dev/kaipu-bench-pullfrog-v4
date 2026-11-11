@@ -189,7 +189,8 @@ test("image-canvas document: save, reopen from the Library, redaction baked, fla
 
     // Reopen from the Library: the annotations are objects, and the arrow can be dragged.
     await openFromLibrary(s);
-    await expect(annotationObjects(s.page)).toHaveCount(2);
+    // The locked blur is baked into the asset and draws nothing: only the arrow is an object.
+    await expect(annotationObjects(s.page)).toHaveCount(1);
     const arrowShape = s.page.locator(`[data-annotation="${arrow!.id}"]`);
     const before = await arrowShape.boundingBox();
     if (!before) throw new Error("the arrow has no box after reopen");
