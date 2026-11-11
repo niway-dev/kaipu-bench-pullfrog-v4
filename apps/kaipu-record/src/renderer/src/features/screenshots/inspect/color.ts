@@ -124,7 +124,7 @@ export function srgbToOklch([r, g, b]: Rgb): { l: number; c: number; h: number }
 export const COLOR_FORMATS = ["hex", "rgb", "hsl", "oklch"] as const;
 export type ColorFormat = (typeof COLOR_FORMATS)[number];
 
-/** Alpha as CSS prints it: up to 2 decimals, trailing zeros trimmed. */
+/** Alpha as CSS prints it: up to 3 decimals, trailing zeros trimmed. */
 function alphaText(a: number): string {
   // Three decimals round-trip every 8-bit alpha (1/255 → 0.004, 254/255 → 0.996).
   return String(Number((a / 255).toFixed(3)));
