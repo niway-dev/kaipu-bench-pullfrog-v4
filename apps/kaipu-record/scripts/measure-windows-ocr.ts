@@ -1,7 +1,8 @@
 /**
- * Runs the real Windows text recognition backend (`windows-ocr.ts`, ADR 0055) on two
- * 1920×1080 fixtures, checks what it recognized, and times every call end to end (PowerShell
- * start, WinRT load, decode, OCR, JSON). Windows only.
+ * Runs the real Windows text recognition backend (`windows-ocr.ts`, ADR 0055) on three
+ * 1920×1080 fixtures and checks what it recognized. Two are timed end to end (PowerShell
+ * start, WinRT load, decode, OCR, JSON); the third, tilted 10°, checks where the boxes land,
+ * not how long OCR takes. Windows only.
  *
  *   bun apps/kaipu-record/scripts/measure-windows-ocr.ts [report.json]
  *
