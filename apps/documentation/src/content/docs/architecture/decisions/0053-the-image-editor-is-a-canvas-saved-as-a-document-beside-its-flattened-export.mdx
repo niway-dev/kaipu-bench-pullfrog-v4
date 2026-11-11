@@ -1,0 +1,73 @@
+---
+title: "ADR 0053: The image editor is a canvas, saved as a document beside its flattened export"
+description: The image editor holds images and annotations in one world coordinate space on an infinite canvas. Copy and Save export the box around the content. A saved item keeps a flattened PNG that is always valid, plus an editable document and the original images. Redactions are baked into the stored images.
+---
+
+# ADR 0053: The image editor is a canvas, saved as a document beside its flattened export
+
+## Status
+
+| Field         | Value                                                                                                                                                                                                                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed, 2026-11-11. Not built. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color)                                                                          |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                     |
+| Relates to    | [0042](/architecture/decisions/0042-capture-ends-in-the-preview-card/) (the quiet path still writes only a PNG), [0051](/architecture/decisions/0051-the-video-background-is-the-screenshot-beautify-drawn-as-the-outermost-step/) (the beautify model is unchanged), [0003](/architecture/decisions/0003-export-never-replaces-the-original/) |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                              |
+
+## Context
+
+The image editor edits one screenshot. Annotation coordinates are normalized to that shot
+(`annotations/scene.ts`), the beautify frame wraps it, and crop is relative to the frame.
+Saving flattens everything into `<id>.png`; reopening starts an empty scene over the flattened
+pixels, as the [re-editable screenshots analysis](/backlog/screenshot-scene-doc/) describes.
+
+The owner asked on 2026-11-11 for a canvas: the capture in the middle of an infinite surface,
+objects allowed outside the image, more than one image, and an export that is "only the space
+of the content". They also expect edits to remain editable after saving. Neither fits a model
+whose coordinates belong to one image and whose only saved artifact is a flattened PNG.
+
+## Decision
+
+1. **One world space.** The editor's document is a list of items, images and annotations
+   alike, positioned in world units. One world unit is one source pixel of an image at scale 1.
+2. **The export is the content box.** Copy and Save render the union of all item bounds plus
+   the beautify padding. A manual export frame overrides it; the crop tool becomes that frame.
+   A canvas holding one untouched image exports what the current editor exports.
+3. **Three artifacts.** `<id>.png` (flattened, always valid), `.kaipu/<id>.canvas.json` (the
+   document, with `schemaVersion`), `.kaipu/<id>.assets/` (each image as added).
+4. **The flattened PNG is the fallback.** If the document or an asset cannot be read, the
+   editor opens `<id>.png` as a single image item.
+5. **Redaction is destructive at save.** The redacted pixels are replaced in the stored
+   asset. The redaction stays in the document as a locked item.
+
+## Alternatives rejected
+
+- **Keep one image per editor and add a separate "board" feature.** Two editors with two
+  scene models, and the annotation tools built twice.
+- **Flatten only, as today.** Text outside the image and a second image can be flattened, but
+  nothing can be moved after saving, which the owner asked for.
+- **Save redacted screenshots flattened only** (the recommendation in the earlier analysis).
+  It was the cheap answer when re-editing was optional; with a canvas of several images,
+  dropping the document because one of them has a redaction loses the whole layout.
+- **Adopt a canvas library (Konva, Fabric, tldraw).** The SVG layer and Canvas 2D compositor
+  already select, draw and export every annotation kind; a library replaces working code and
+  adds a dependency for pan and zoom, which are a transform.
+
+## Consequences
+
+- Annotation coordinates migrate from normalized-to-shot to world units; every geometry
+  helper (`handles.ts`, `crop.ts`, `compositor.ts`) changes.
+- The document format must be readable forever: `schemaVersion` and a migration per bump.
+- Storage per item roughly doubles (asset plus flattened).
+- A redaction cannot be undone after saving.
+- Cloud sync keeps carrying only `<id>.png`; an item downloaded on another machine is flat.
+
+## Non-goals
+
+Cloud sync of the document, layout helpers, layers UI, multi-page documents, collaboration.
+
+## What would reopen this
+
+- One-image parity cannot be kept without special cases in the compositor.
+- The document needs a second breaking schema change within its first three versions.
+- Cloud sync of editable items is scheduled: the asset and document transport needs its own decision.
