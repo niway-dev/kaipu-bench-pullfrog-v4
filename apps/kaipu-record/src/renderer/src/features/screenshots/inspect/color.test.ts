@@ -141,6 +141,11 @@ describe("formatColor", () => {
     expect(formatColor({ ...emerald, a: 1 }, "rgb")).toBe("rgba(16, 185, 129, 0.004)");
     expect(formatColor({ ...emerald, a: 254 }, "rgb")).toBe("rgba(16, 185, 129, 0.996)");
     expect(formatColor({ ...emerald, a: 254 }, "oklch")).toBe("oklch(0.696 0.149 162.5 / 0.996)");
+    for (let a = 0; a < 255; a++) {
+      const text = formatColor({ ...emerald, a }, "rgb");
+      const printed = Number(text.slice(text.lastIndexOf(",") + 1, -1));
+      expect(Math.round(printed * 255), `alpha ${a} printed as ${printed}`).toBe(a);
+    }
   });
 });
 
