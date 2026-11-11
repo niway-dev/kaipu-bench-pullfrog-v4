@@ -5,7 +5,7 @@ description: Select and copy the text inside a screenshot in the image editor, r
 
 # Image editor text recognition
 
-> **Status: 🟢 Ready to validate (prod review pending) — behind flag image-text (with image-canvas), off by default. macOS only.**
+> **Status: 🟢 Ready to validate (prod review pending) — behind flag image-text, off by default. macOS only.**
 
 Design: [image editor canvas and inspect](../specs/2026-11-11-image-editor-canvas-and-inspect-design/),
 detail 5. Decision: [ADR 0055](../architecture/decisions/0055-text-recognition-is-a-port-served-by-the-os-engine-on-each-platform/).
@@ -14,8 +14,8 @@ Hiding a recognized block: [NIW2-706](https://linear.app/niway/issue/NIW2-706).
 
 ## What it does
 
-With both `image-canvas` and `image-text` on, the image editor's toolbar has a **Select text**
-tool:
+With `image-text` on, the image editor's toolbar has a **Select text** tool, in the canvas
+editor (`image-canvas`) and in the classic one:
 
 - When the editor opens an image, main recognizes its text in the background. The options bar
   says "Recognizing text…" until the answer arrives; the canvas and the other tools work
@@ -28,7 +28,7 @@ tool:
 - Where recognition is not available (Windows and Linux until NIW2-707, a missing or broken
   helper, a timeout), the options bar says so and the rest of the editor is unchanged.
 
-With either flag off, the editor is unchanged.
+With `image-text` off, the editor is unchanged.
 
 ## How it works
 
@@ -49,13 +49,16 @@ With either flag off, the editor is unchanged.
    library repair carry or remove it.
 4. **Redactions.** Every save rewrites the cache from the words the renderer sends, which already
    exclude every word a baked redaction touches, hashed from the assets just written. A save
-   without words (recognition still pending, or the classic editor) deletes the file. A
-   recognition that finishes after a save, rename or delete of its item writes nothing (a
-   generation counter per item), so a hidden word never comes back.
+   without words (recognition still pending, or the classic editor, which stores no assets)
+   deletes the file, so the classic editor recognizes its image again on the next open. A
+   recognition that finishes after a save of its item writes nothing (a generation counter
+   per item), nor one whose item was renamed, moved or deleted meanwhile, so a hidden word
+   never comes back.
 
 ## How to turn it on
 
-- **Released builds:** the PostHog feature flags `image-canvas` and `image-text`.
+- **Released builds:** the PostHog feature flag `image-text` (and `image-canvas` for the canvas
+  editor).
 - **Local development:**
 
   ```bash
@@ -68,5 +71,5 @@ With either flag off, the editor is unchanged.
 
 - Windows (`Windows.Media.Ocr`): NIW2-707.
 - A recognized line as a one-click redaction target: NIW2-706.
-- Text selection in the classic editor (flag `image-canvas` off).
+- A cache that survives a save in the classic editor (flag `image-canvas` off).
 - Re-recognizing after an unsaved edit: the editor recognizes the image as it was loaded.
