@@ -1,0 +1,66 @@
+---
+title: "ADR 0055: Text recognition is a port, served by the operating system's engine on each platform"
+description: Recognizing the text inside a screenshot goes through one interface in main with a backend per platform — Apple Vision through an in-house Swift helper on macOS, Windows.Media.Ocr on Windows. The result is word boxes in source pixels, cached in the item's sidecar. Where no backend answers, the feature is off.
+---
+
+# ADR 0055: Text recognition is a port, served by the operating system's engine on each platform
+
+## Status
+
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed, 2026-11-11. Not built, and **pending the M0 spike**: the Windows backend and the latency of both engines are not measured. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                |
+| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (same shape: one request, a backend per platform), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (the cache sits beside the document; redaction removes words)                                                   |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                         |
+
+## Context
+
+The owner wants the text inside a screenshot to be selectable, and recognized blocks offered
+as targets to hide and, later, to zoom on, on every platform the app captures on (macOS and
+Windows). The desktop app has no OCR today. The repository forbids install scripts and keeps
+native code to one patched npm module and in-house Swift helpers built with `swiftc`
+(`native/encoded-capture`, `native/cursor-capture`).
+
+## Decision
+
+1. **A port in main**, `TextRecognizer.recognize(png)`, returning words with a box in source
+   pixels (top-left origin), a line index and a confidence, or `"unavailable"`.
+2. **macOS backend:** Apple Vision in a Swift helper built and shipped like the existing
+   helpers. It prints versioned JSON and runs under a timeout.
+3. **Windows backend:** `Windows.Media.Ocr`, driven without a compiled npm module.
+4. **Failure is "off".** A missing helper, a non-zero exit, a timeout or output that fails
+   its schema all return `"unavailable"`; the editor works without the text tools.
+5. **Cache.** Results are stored in `.kaipu/<id>.text.json`, keyed by asset. Saving a
+   redaction removes the words it intersects.
+6. **Only text.** The port does not return UI boxes; nothing produces them.
+
+## Alternatives rejected
+
+- **One WASM engine everywhere (tesseract.js, PaddleOCR on ONNX).** A language-data download
+  or tens of megabytes in the bundle, and weaker results on small interface text than the
+  system engines. Kept as the fallback if the Windows spike fails.
+- **An npm package that wraps Vision.** The ones found either compile at install, which the
+  repository forbids, or ship a binary we did not build.
+- **macOS only.** The owner asked for both platforms.
+- **Recognition in memory only.** Slower reopen and no path to searching screenshots by their
+  text; the owner accepts a local cache.
+
+## Consequences
+
+- A third Swift helper to build, sign and ship, with its own deployment target to state.
+- Two engines give different words and boxes for the same image; tests assert on fixtures
+  per platform, not on equal output.
+- The text cache is one more file that must follow the item when it is moved or deleted.
+
+## Non-goals
+
+Translation, handwriting, searching the Library by recognized text, recognizing text in video
+frames, zoom targets in the video editor.
+
+## What would reopen this
+
+- M0 shows `Windows.Media.Ocr` cannot be driven without a compiled module, or takes more than
+  1.5 s cold on a 1920×1080 image: decide between a small compiled helper and the WASM fallback.
+- Vision takes more than 1.5 s on a Retina screenshot on the oldest supported Mac.
+- Linux capture is added: it needs a backend, most likely the WASM fallback.

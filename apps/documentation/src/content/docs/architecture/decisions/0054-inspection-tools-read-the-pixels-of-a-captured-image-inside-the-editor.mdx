@@ -1,0 +1,73 @@
+---
+title: "ADR 0054: Inspection tools read the pixels of a captured image, inside the editor"
+description: Loupe, color readout, ruler and colors panel work on an image already captured, in the image editor, by reading its pixels in the renderer. The ruler measures a pixel run, not a recognized element. Sizes are image pixels and colors are sRGB converted once. The capture overlay does not change.
+---
+
+# ADR 0054: Inspection tools read the pixels of a captured image, inside the editor
+
+## Status
+
+| Field         | Value                                                                                                                                                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status        | Proposed, 2026-11-11. Not built. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color)                |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                           |
+| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (its non-goals for the overlay stand), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (pinned measurements are canvas items) |
+| Superseded by | —                                                                                                                                                                                                                                                                                    |
+
+## Context
+
+ADR 0022 and the two capture-mode specs list a magnifier, a pixel-color readout and OCR as
+non-goals. Those documents decide the capture overlay, which returns geometry and never
+captures. The owner asked on 2026-11-11 for a ruler, a loupe, a live color readout, a colors
+panel and a step counter, after using Shottr, and assumed the ruler relies on text
+recognition. Shottr does not document its algorithm; PowerToys Screen Ruler, which is open
+source, documents a scan from the cursor until the pixel difference exceeds a tolerance.
+
+## Decision
+
+1. **Where.** The tools live in the shared image editor component, so they are available for
+   a fresh capture, a pasted image and an item reopened from the Library. Nothing is added to
+   the capture overlay; ADR 0022 is not reopened.
+2. **How.** Each image item is decoded once into a pixel buffer in the renderer. Loupe, color
+   readout, ruler and colors panel read that buffer. No native code, no new dependency.
+3. **The ruler measures a pixel run:** from the cursor outward while the pixel stays within a
+   tolerance of the starting pixel. The UI calls it a measurement of the area under the
+   cursor, offers the tolerance, and lets the endpoints be dragged.
+4. **One mode.** Inspect is a mode of the editor. Loupe and readout are a cursor HUD and are
+   never saved. A pinned measurement and a step badge are annotations.
+5. **Units.** Lengths are image pixels, stored in the measured image's coordinates.
+6. **Color.** The readout is the sampled color converted once to sRGB, with a switch to the
+   value as captured. Formats: hex, rgb, hsl, oklch. Colors outside sRGB are marked.
+
+## Alternatives rejected
+
+- **Element detection for the ruler (text recognition or rectangle detection).** It needs a
+  native engine per platform and still cannot see a borderless container. A pixel run is
+  exact about what it measures.
+- **Inspect on the live screen, in the overlay.** It would need a frozen backdrop, which ADR
+  0022 rejected, and gives nothing a captured image does not.
+- **Separate toolbar buttons per tool.** The toolbar already holds seven tools; loupe and
+  readout are only useful together with the ruler.
+- **Points or logical units.** No reliable scale exists for pasted, reopened or zoomed content.
+- **A palette library (Color Thief, node-vibrant).** They return dominant colors; the need is
+  every distinct color and where it is used.
+
+## Consequences
+
+- A pixel buffer per image stays in memory while the item is on the canvas.
+- A run stops at labels, icons and gradients; users will sometimes need to adjust it.
+- The color module owns one conversion and must be tested against reference values.
+- In-window keys (`1`, `2`, `C`) join an editor with no shortcut registry; they need the same
+  focus guards as the existing listeners.
+
+## Non-goals
+
+Guides, grids, snapping between objects, contrast checking, exporting a palette file.
+
+## What would reopen this
+
+- The M0 color fixtures cannot be made to pass in the shipped Electron version: the buffer
+  must then be decoded outside Chromium.
+- Owner QA finds the pixel run wrong more often than right on real interfaces: add edge
+  analysis across several scan lines before considering element detection.
+- A request to measure the live screen without capturing first.
