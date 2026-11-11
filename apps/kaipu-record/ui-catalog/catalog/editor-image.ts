@@ -13,6 +13,12 @@ const theme = (value: "light" | "dark"): Step => ({
 const inspectToggle: Step = {
   click: { area: "editorImage.inspectToggle" },
 };
+const inspectColors: Step = {
+  click: {
+    area: "editorImage.inspectBar",
+    part: { role: "button", name: "Colors", exact: true },
+  },
+};
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
@@ -153,7 +159,11 @@ export const editorImage = catalog(
         inspectToggle,
         { waitFor: { area: "editorImage.inspectBar" } },
       ],
-      demonstrates: ["editorImage.inspectToggle:on", "editorImage.inspectBar:hex"],
+      demonstrates: [
+        "editorImage.inspectToggle:on",
+        "editorImage.inspectBar:hex",
+        "editorImage.inspectRuler:off",
+      ],
     },
     "inspect-as-captured": {
       profile: "image-inspect",
@@ -181,6 +191,76 @@ export const editorImage = catalog(
       ],
       keepPointer: true,
       demonstrates: ["editorImage.inspectHud:reading"],
+    },
+    "inspect-colors": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors: the panel lists the image's colors, largest first, with their share; a group with more than one exact value lists them under it.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        inspectColors,
+        { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
+      ],
+      demonstrates: ["editorImage.inspectColors:list"],
+    },
+    "inspect-colors-located": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors, and click the second color: the image dims everywhere except the pixels of that color.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        inspectColors,
+        { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
+        { click: { area: "editorImage.inspectColors", part: { css: "li > button" }, nth: 1 } },
+        {
+          waitFor: { area: "editorImage.canvas", part: { css: "[data-testid='inspect-locate']" } },
+        },
+      ],
+      demonstrates: ["editorImage.inspectColors:located"],
+    },
+    "inspect-ruler": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 1: the horizontal pixel run under the cursor is drawn with its length, and Horizontal is on in the bar.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.inspectHud" } },
+        { press: "1" },
+        { waitFor: { area: "editorImage.inspectRun" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRuler:horizontal", "editorImage.inspectRun:horizontal"],
+    },
+    "inspect-ruler-vertical": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 2: the vertical pixel run under the cursor is drawn with its length beside it, and Vertical is on in the bar.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.inspectHud" } },
+        { press: "2" },
+        { waitFor: { area: "editorImage.inspectRun" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRuler:vertical", "editorImage.inspectRun:vertical"],
+    },
+    "inspect-measure-pinned": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image, press 1 and click: the run stays on the image as a measurement with its length.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.inspectHud" } },
+        { press: "1" },
+        { waitFor: { area: "editorImage.inspectRun" } },
+        { click: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.measure" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.measure:pinned"],
     },
     "text-none": {
       profile: "image-text",
@@ -283,6 +363,14 @@ export const editorImage = catalog(
       "editorImage.textStatus:unavailable": nc(
         "inducedFailure",
         "showing it needs a run without the recognition helper; the catalog could only get that with a test-only override of the helper path in production code (or by deleting the helper on the runner), and the real-app proof `verify/image-text.verify.ts` covers it by renaming the helper away",
+      ),
+      "editorImage.inspectColors:counting": nc(
+        "transient",
+        "the count of a catalog-sized image ends in well under a second, before a screenshot can be taken",
+      ),
+      "editorImage.inspectColors:error": nc(
+        "inducedFailure",
+        "shown only when the image cannot be decoded or the colors worker fails; the page tests pin it",
       ),
       "editorImage.canvasView:exportFrame": nc(
         "needsSetup",

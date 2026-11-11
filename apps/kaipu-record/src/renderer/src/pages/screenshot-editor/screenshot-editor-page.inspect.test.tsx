@@ -55,6 +55,8 @@ const originalGetContext = HTMLCanvasElement.prototype.getContext;
 const drawn: Uint8ClampedArray[] = [];
 const fakeContext = {
   imageSmoothingEnabled: true,
+  clearRect: vi.fn(),
+  drawImage: vi.fn(),
   createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
   putImageData: vi.fn((image: { data: Uint8ClampedArray }) => {
     drawn.push(new Uint8ClampedArray(image.data));
@@ -472,5 +474,355 @@ describe.each([
     fireEvent.wheel(layer(), { deltaX: 10, deltaY: 40 });
     expect(wheel).toHaveBeenCalledTimes(1);
     if (canvas) await waitFor(() => expect(canvasEl().dataset.panned).toBe("true"));
+  });
+});
+
+/** 4x4: 8 px #ffffff, 4 px #fafafa (a second white), 4 px #000000. */
+function twoWhites() {
+  const data = new Uint8ClampedArray(4 * 4 * 4);
+  for (let p = 0; p < 16; p++) {
+    const v = p < 8 ? 255 : p < 12 ? 250 : 0;
+    data.set([v, v, v, 255], p * 4);
+  }
+  return { width: 4, height: 4, data };
+}
+
+/**
+ * 8x8 image, every row the same: white, white, a 1 px black border, a 4 px blue fill, the
+ * other border. Shown at 200x200, so one image pixel is 25 CSS px.
+ */
+function buttonImage() {
+  const row = [
+    [255, 255, 255, 255],
+    [255, 255, 255, 255],
+    [0, 0, 0, 255],
+    [40, 90, 200, 255],
+    [40, 90, 200, 255],
+    [40, 90, 200, 255],
+    [40, 90, 200, 255],
+    [0, 0, 0, 255],
+  ];
+  const data = new Uint8ClampedArray(8 * 8 * 4);
+  for (let y = 0; y < 8; y++) row.forEach((px, x) => data.set(px, (y * 8 + x) * 4));
+  return { width: 8, height: 8, data };
+}
+// Over pixel (4, 2): inside the blue fill.
+const FILL = { clientX: 4 * 25 + 12, clientY: 2 * 25 + 12 };
+const rulerLength = () => screen.queryByTestId("inspect-ruler-length");
+
+describe.each([
+  ["image-canvas off", false],
+  ["image-canvas on", true],
+])("ScreenshotEditorPage — Inspect colors panel (%s)", (_label, canvas) => {
+  beforeEach(() => {
+    flags["image-inspect"] = true;
+    flags["image-canvas"] = canvas;
+    decodeSrgbBuffer.mockImplementation(async () => twoWhites());
+  });
+
+  const colorsButton = () => screen.getByRole("button", { name: "Colors" });
+  const panel = () => document.querySelector('[data-ui-area="editorImage.inspectColors"]');
+  const overlay = () => screen.queryByTestId("inspect-locate");
+
+  async function openPanel(): Promise<void> {
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(colorsButton());
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+  }
+
+  it("says the colors are unavailable when Inspect could not read the pixels", async () => {
+    decodeSrgbBuffer.mockRejectedValue(new Error("no canvas"));
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(colorsButton());
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "error"));
+    expect(panel()).toHaveTextContent("Colors unavailable for this image");
+  });
+
+  it("offers the exact value when the group's minor values add up to a notable share", async () => {
+    // 190 px #ffffff and 10 near-whites of 1 px each: every near-white is too minor to list
+    // (0.5%), but together they are 5% of the group, so the exact #ffffff chip is offered.
+    const near = [
+      [255, 255, 254],
+      [255, 254, 255],
+      [254, 255, 255],
+      [254, 254, 255],
+      [254, 255, 254],
+      [255, 254, 254],
+      [254, 254, 254],
+      [253, 255, 255],
+      [255, 253, 255],
+      [255, 255, 253],
+    ];
+    const data = new Uint8ClampedArray(200 * 4);
+    for (let p = 0; p < 200; p++) data.set([...(near[p] ?? [255, 255, 255]), 255], p * 4);
+    decodeSrgbBuffer.mockImplementation(async () => ({ width: 200, height: 1, data }));
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(colorsButton());
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+    expect(screen.queryByTitle("Highlight only #fefefe")).toBeNull();
+    fireEvent.click(screen.getByTitle("Highlight only #ffffff"));
+    await waitFor(() => expect(overlay()).toHaveAttribute("data-matched", "190"));
+  });
+
+  it("offers no exact chip when the group's other values are a trace", async () => {
+    // 199 px #ffffff and 1 px #fefefe (0.5%): the group and #ffffff highlight nearly the same.
+    const data = new Uint8ClampedArray(200 * 4);
+    for (let p = 0; p < 200; p++)
+      data.set(p === 0 ? [254, 254, 254, 255] : [255, 255, 255, 255], p * 4);
+    decodeSrgbBuffer.mockImplementation(async () => ({ width: 200, height: 1, data }));
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(colorsButton());
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+    expect(
+      screen.getByTitle("Highlight #ffffff and the values grouped with it"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle("Highlight only #ffffff")).toBeNull();
+  });
+
+  it("lists the colors with their share and the two whites side by side", async () => {
+    await openPanel();
+    expect(colorsButton()).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("2 colors · 3 exact values")).toBeInTheDocument();
+    const white = screen.getByTitle("Highlight #ffffff and the values grouped with it");
+    expect(white).toHaveTextContent("#ffffff75.0%");
+    expect(screen.getByTitle("Highlight only #ffffff")).toHaveTextContent("#ffffff50.0%");
+    expect(screen.getByTitle("Highlight only #fafafa")).toHaveTextContent("#fafafa25.0%");
+    expect(screen.getByTitle("Highlight #000000 and the values grouped with it")).toHaveTextContent(
+      "#00000025.0%",
+    );
+    // One decode serves the loupe and the panel.
+    expect(decodeSrgbBuffer).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the values in the Inspect bar's format", async () => {
+    await openPanel();
+    fireEvent.click(screen.getByRole("button", { name: "RGB" }));
+    expect(screen.getByTitle("Highlight only rgb(250, 250, 250)")).toBeInTheDocument();
+  });
+
+  it("clicking a color highlights it, clicking it again clears it", async () => {
+    await openPanel();
+    const second = screen.getByTitle("Highlight only #fafafa");
+    fireEvent.click(second);
+    await waitFor(() => expect(overlay()).toHaveAttribute("data-matched", "4"));
+    expect(second).toHaveAttribute("aria-pressed", "true");
+    expect(panel()).toHaveAttribute("data-state", "located");
+    expect(screen.getByText("4 pixels highlighted")).toBeInTheDocument();
+    // The overlay sits in the frame's overlay slot, over the image.
+    expect(overlay()!.parentElement).toContainElement(screen.getByRole("img"));
+
+    fireEvent.click(screen.getByTitle("Highlight #ffffff and the values grouped with it"));
+    await waitFor(() => expect(overlay()).toHaveAttribute("data-matched", "12"));
+
+    fireEvent.click(screen.getByTitle("Highlight #ffffff and the values grouped with it"));
+    expect(overlay()).toBeNull();
+    expect(panel()).toHaveAttribute("data-state", "list");
+  });
+
+  it("Clear highlight and closing the panel remove the highlight", async () => {
+    await openPanel();
+    fireEvent.click(screen.getByTitle("Highlight only #fafafa"));
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear highlight" }));
+    expect(overlay()).toBeNull();
+
+    fireEvent.click(screen.getByTitle("Highlight only #fafafa"));
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    fireEvent.click(colorsButton());
+    expect(panel()).toBeNull();
+    expect(overlay()).toBeNull();
+  });
+
+  it("leaving Inspect closes the panel and drops the highlight", async () => {
+    await openPanel();
+    fireEvent.click(screen.getByTitle("Highlight only #fafafa"));
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    press("Escape");
+    expect(panel()).toBeNull();
+    expect(overlay()).toBeNull();
+    press("i");
+    expect(screen.getByRole("button", { name: "Colors" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("counts the new image after a swap", async () => {
+    decodeSrgbBuffer.mockImplementationOnce(async () => twoWhites());
+    decodeSrgbBuffer.mockImplementationOnce(async () => fourByFour());
+    mountSwappable();
+    await loadImage();
+    press("i");
+    fireEvent.click(colorsButton());
+    await screen.findByText("2 colors · 3 exact values");
+    fireEvent.click(screen.getByTitle("Highlight only #fafafa"));
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    swapImage();
+    // fourByFour: 16 exact values; the darkest neighbours fall into shared groups.
+    await screen.findByText("14 colors · 16 exact values");
+    expect(overlay()).toBeNull();
+  });
+});
+
+describe.each([
+  ["image-canvas off", false],
+  ["image-canvas on", true],
+])("ScreenshotEditorPage — Inspect ruler (%s)", (_label, canvas) => {
+  beforeEach(() => {
+    flags["image-inspect"] = true;
+    flags["image-canvas"] = canvas;
+    decodeSrgbBuffer.mockImplementation(async () => buttonImage());
+  });
+
+  async function enterOverFill(): Promise<void> {
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    await screen.findByTestId("inspect-layer");
+    fireEvent.pointerMove(layer(), FILL);
+    await screen.findByText("4, 2");
+  }
+
+  it("1 shows the horizontal run, 2 the vertical one, and the same key again hides it", async () => {
+    await enterOverFill();
+    expect(rulerLength()).toBeNull();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    expect(rulerLength()).toHaveAttribute("data-axis", "x");
+    press("2");
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("8 px"));
+    expect(rulerLength()).toHaveAttribute("data-axis", "y");
+    press("2");
+    await waitFor(() => expect(rulerLength()).toBeNull());
+  });
+
+  it("the bar's Horizontal and Vertical buttons do what 1 and 2 do", async () => {
+    await enterOverFill();
+    fireEvent.click(screen.getByRole("button", { name: "Horizontal" }));
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    fireEvent.click(screen.getByRole("button", { name: "Vertical" }));
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("8 px"));
+  });
+
+  it("keeps the length in image pixels when the view is zoomed", async () => {
+    await enterOverFill();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    // Off the image first, so the run on screen afterwards can only come from a new scan.
+    fireEvent.pointerMove(layer(), { clientX: 260, clientY: 50 });
+    await waitFor(() => expect(rulerLength()).toBeNull());
+    // Twice as large on screen: the same pixel (4, 2) is now under (225, 125).
+    Element.prototype.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 400,
+        height: 400,
+        right: 400,
+        bottom: 400,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    fireEvent.pointerMove(layer(), { clientX: 4 * 50 + 25, clientY: 2 * 50 + 25 });
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    expect(screen.getByText("4, 2")).toBeInTheDocument();
+  });
+
+  it("Shift and the Outer toggle measure past the border", async () => {
+    await enterOverFill();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    press("Shift");
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("6 px"));
+    expect(rulerLength()).toHaveAttribute("data-outer", "true");
+    fireEvent.keyUp(window, { key: "Shift" });
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    fireEvent.click(screen.getByRole("button", { name: "Outer" }));
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("6 px"));
+  });
+
+  it("the wheel changes the tolerance while a run is shown, and does not pan", async () => {
+    await enterOverFill();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toBeInTheDocument());
+    const wheel = vi.fn();
+    canvasEl().addEventListener("wheel", wheel);
+    fireEvent.wheel(layer(), { deltaY: -25 });
+    await waitFor(() => expect(screen.getByTestId("inspect-tolerance")).toHaveTextContent("11"));
+    fireEvent.wheel(layer(), { deltaY: 50 });
+    await waitFor(() => expect(screen.getByTestId("inspect-tolerance")).toHaveTextContent("9"));
+    expect(wheel).not.toHaveBeenCalled();
+    if (canvas) expect(canvasEl().dataset.panned).toBe("false");
+    // Cmd + wheel keeps zooming: it reaches the canvas and the view actually zooms in.
+    expect(canvasEl()).toHaveAttribute("data-zoomed", "false");
+    fireEvent.wheel(layer(), { deltaY: -25, metaKey: true });
+    expect(wheel).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(canvasEl()).toHaveAttribute("data-zoomed", "true"));
+  });
+
+  it("a high tolerance joins the fill and the border", async () => {
+    await enterOverFill();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    const up = screen.getByRole("button", { name: "Raise the tolerance" });
+    for (let i = 0; i < 190; i++) fireEvent.click(up);
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("6 px"));
+  });
+
+  it("shows no run over padding or empty canvas", async () => {
+    await enterOverFill();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toBeInTheDocument());
+    fireEvent.pointerMove(layer(), { clientX: 260, clientY: 50 });
+    await waitFor(() => expect(rulerLength()).toBeNull());
+  });
+
+  it("ignores 1 and 2 typed in the title field", async () => {
+    await enterOverFill();
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "1" });
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "2" });
+    expect(layer()).toHaveAttribute("data-ruler", "off");
+  });
+
+  it("a click pins the run as a measure annotation in image pixels", async () => {
+    await enterOverFill();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toHaveTextContent("4 px"));
+    fireEvent.pointerDown(layer(), { ...FILL, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(layer(), { ...FILL, button: 0, pointerId: 1 });
+    const pinned = await waitFor(() => {
+      const el = document.querySelector('[data-kind="measure"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(pinned).toHaveAttribute("data-measure-length", "4");
+    // Inspect stays on, so the next run can be measured.
+    expect(canvasEl()).toHaveAttribute("data-inspect", "true");
+  });
+
+  it("a drag is not a click and pins nothing", async () => {
+    await enterOverFill();
+    press("1");
+    await waitFor(() => expect(rulerLength()).toBeInTheDocument());
+    fireEvent.pointerDown(layer(), { ...FILL, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(layer(), {
+      clientX: FILL.clientX + 30,
+      clientY: FILL.clientY,
+      button: 0,
+      pointerId: 1,
+    });
+    expect(document.querySelector('[data-kind="measure"]')).toBeNull();
+  });
+
+  it("a click with no run shown pins nothing", async () => {
+    await enterOverFill();
+    fireEvent.pointerDown(layer(), { ...FILL, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(layer(), { ...FILL, button: 0, pointerId: 1 });
+    expect(document.querySelector('[data-kind="measure"]')).toBeNull();
   });
 });

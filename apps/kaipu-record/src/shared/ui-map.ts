@@ -281,6 +281,20 @@ export const UI_MAP = {
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
+      // The colors panel (NIW2-704): the list, the list with one color highlighted, while it
+      // counts, and when the image could not be read.
+      inspectColors: {
+        states: ["list", "located", "counting", "error"],
+        gatedBy: [{ flag: "image-inspect" }],
+      },
+      // The ruler (NIW2-702): its row in the Inspect bar, the run drawn under the cursor, and
+      // a run pinned as a `measure` annotation.
+      inspectRuler: {
+        states: ["off", "horizontal", "vertical"],
+        gatedBy: [{ flag: "image-inspect" }],
+      },
+      inspectRun: { states: ["horizontal", "vertical"], gatedBy: [{ flag: "image-inspect" }] },
+      measure: { states: ["pinned"], gatedBy: [{ flag: "image-inspect" }] },
       // The "Select text" tool (`image-text`, NIW2-705): the options bar's recognition
       // status, and the image with its recognized words while the tool is active.
       textStatus: {

@@ -1,8 +1,10 @@
 import React from "react";
-import { Check, Copy, X } from "lucide-react";
+import { Check, Copy, Minus, MoveHorizontal, MoveVertical, Palette, Plus, X } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { uiArea } from "@renderer/lib/ui-area";
 import { COLOR_FORMATS, capturedFormat, type ColorFormat } from "./color";
+import type { ColorsController } from "./colors/use-colors";
+import { MAX_TOLERANCE, MIN_TOLERANCE } from "./pixel-run";
 import type { InspectController } from "./use-inspect";
 import styles from "./inspect.module.css";
 
@@ -17,7 +19,14 @@ const FORMAT_LABEL: Record<ColorFormat, string> = {
  * The Inspect bar: format switch, "As captured", Copy and exit. Every key Inspect answers to
  * has a control here. It takes the place of the per-tool options while Inspect is on.
  */
-export function InspectBar({ inspect }: { inspect: InspectController }): React.JSX.Element {
+export function InspectBar({
+  inspect,
+  colors,
+}: {
+  inspect: InspectController;
+  /** The colors panel's toggle (NIW2-704). */
+  colors?: ColorsController;
+}): React.JSX.Element {
   const t = useTranslations("screenshots");
   const shownFormat = inspect.asCaptured ? capturedFormat(inspect.format) : inspect.format;
   return (
@@ -54,6 +63,72 @@ export function InspectBar({ inspect }: { inspect: InspectController }): React.J
           {t("inspectAsCaptured")}
         </button>
       </div>
+      <div
+        {...uiArea("editorImage.inspectRuler")}
+        className={styles.barRow}
+        role="group"
+        aria-label={t("inspectRulerLabel")}
+        data-ruler={inspect.ruler ?? "off"}
+      >
+        <button
+          type="button"
+          className={`${styles.barBtn} ${inspect.ruler === "x" ? styles.barBtnOn : ""}`}
+          aria-pressed={inspect.ruler === "x"}
+          title={t("inspectRulerXTitle")}
+          onClick={() => inspect.setRuler(inspect.ruler === "x" ? null : "x")}
+        >
+          <MoveHorizontal size={14} />
+          {t("inspectRulerX")}
+        </button>
+        <button
+          type="button"
+          className={`${styles.barBtn} ${inspect.ruler === "y" ? styles.barBtnOn : ""}`}
+          aria-pressed={inspect.ruler === "y"}
+          title={t("inspectRulerYTitle")}
+          onClick={() => inspect.setRuler(inspect.ruler === "y" ? null : "y")}
+        >
+          <MoveVertical size={14} />
+          {t("inspectRulerY")}
+        </button>
+        <button
+          type="button"
+          className={`${styles.barBtn} ${inspect.outer ? styles.barBtnOn : ""}`}
+          aria-pressed={inspect.outer}
+          title={t("inspectOuterTitle")}
+          disabled={!inspect.ruler}
+          onClick={() => inspect.setOuterLocked(!inspect.outerLocked)}
+        >
+          {t("inspectOuter")}
+        </button>
+        <div
+          className={styles.rulerTolerance}
+          role="group"
+          aria-label={t("inspectTolerance")}
+          title={t("inspectToleranceTitle")}
+        >
+          <button
+            type="button"
+            className={styles.segment}
+            aria-label={t("inspectToleranceDown")}
+            disabled={!inspect.ruler || inspect.tolerance <= MIN_TOLERANCE}
+            onClick={() => inspect.setTolerance(inspect.tolerance - 1)}
+          >
+            <Minus size={12} />
+          </button>
+          <span className={styles.toleranceValue} data-testid="inspect-tolerance">
+            {inspect.tolerance}
+          </span>
+          <button
+            type="button"
+            className={styles.segment}
+            aria-label={t("inspectToleranceUp")}
+            disabled={!inspect.ruler || inspect.tolerance >= MAX_TOLERANCE}
+            onClick={() => inspect.setTolerance(inspect.tolerance + 1)}
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+      </div>
       <div className={styles.barRow}>
         <button
           type="button"
@@ -65,6 +140,18 @@ export function InspectBar({ inspect }: { inspect: InspectController }): React.J
           {inspect.copied ? <Check size={14} /> : <Copy size={14} />}
           {inspect.copied ? t("inspectCopied") : t("inspectCopy")}
         </button>
+        {colors && (
+          <button
+            type="button"
+            className={`${styles.barBtn} ${colors.open ? styles.barBtnOn : ""}`}
+            aria-pressed={colors.open}
+            title={t("inspectColorsTitle")}
+            onClick={colors.toggle}
+          >
+            <Palette size={14} />
+            {t("inspectColors")}
+          </button>
+        )}
         <button
           type="button"
           className={styles.barBtn}

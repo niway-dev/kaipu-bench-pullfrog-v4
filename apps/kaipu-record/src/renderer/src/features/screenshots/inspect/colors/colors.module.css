@@ -1,0 +1,158 @@
+/* Colors panel (NIW2-704). Built on the current editor chrome; restyled in NIW2-708. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 260px;
+  max-height: min(420px, calc(100vh - 260px));
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.summary,
+.status {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+}
+
+.group,
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-xs);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.group:hover,
+.member:hover {
+  background: var(--bg-card-hover);
+}
+
+.on,
+.on:hover {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary-soft);
+}
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-left: 22px;
+  padding-left: var(--space-xs);
+  border-left: 1px solid var(--border);
+}
+
+.member {
+  color: var(--text-secondary);
+}
+
+.swatch,
+.memberSwatch {
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.5);
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+}
+
+.memberSwatch {
+  width: 12px;
+  height: 12px;
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.clear {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.clear:hover {
+  color: var(--text-primary);
+}
+
+/*
+ * Image-sized canvas scaled to the shot. Smooth scaling on purpose: a 5K shot is shown
+ * smaller than its size, and nearest-neighbour would drop 1 px strokes from the highlight.
+ */
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

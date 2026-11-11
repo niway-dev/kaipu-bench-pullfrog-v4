@@ -704,7 +704,9 @@ export interface KaipuElectronAPI {
    * The words recognized in one image of the editor (ADR 0055). Served from
    * `.kaipu/<id>.text.json` when the cached hash matches the bytes; otherwise the platform
    * backend runs (up to 30 s or more the first time on a Mac, while Vision compiles its
-   * model). Never rejects: any failure is `{ status: "unavailable" }`.
+   * model). A recognition failure is `{ status: "unavailable" }`, never a rejection; the call
+   * still rejects while the library is busy (maintenance, a workspace switch), like every
+   * library call.
    */
   recognizeScreenshotText(request: TextRecognitionRequest): Promise<TextRecognitionResult>;
   /** The image on the system clipboard as PNG, or null when it holds no image. */

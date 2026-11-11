@@ -77,7 +77,7 @@ test("after: select text, copy it, and cache the words on save", async () => {
     await s.page.getByRole("button", { name: "Select text", exact: true }).click();
     // The first recognition on a Mac compiles Vision's model (13.5 s measured).
     await expect(status(s.page)).toContainText("words found", { timeout: 60_000 });
-    await s.page.screenshot({ path: shotPath(s, "01-ready.png") });
+    await s.page.screenshot({ path: shotPath(s, "01-ready.png"), animations: "disabled" });
 
     const box = await imageBox(s.page);
     const at = (x: number) => ({
@@ -91,7 +91,7 @@ test("after: select text, copy it, and cache the words on save", async () => {
     await s.page.mouse.move(to.x, to.y, { steps: 12 });
     await s.page.mouse.up();
     await expect(s.page.locator('[data-testid="text-highlight"]')).toHaveCount(2);
-    await s.page.screenshot({ path: shotPath(s, "02-selected.png") });
+    await s.page.screenshot({ path: shotPath(s, "02-selected.png"), animations: "disabled" });
 
     // An empty clipboard first, so a stale value cannot pass for the copy.
     await s.app.evaluate(({ clipboard }) => clipboard.clear());
@@ -156,7 +156,7 @@ test("helper missing: Select text says it is unavailable and the canvas still wo
         .first()
         .evaluate((img) => (img as HTMLImageElement).naturalWidth);
       expect(natural).toBe(FIXTURE.w);
-      await s.page.screenshot({ path: shotPath(s, "04-unavailable.png") });
+      await s.page.screenshot({ path: shotPath(s, "04-unavailable.png"), animations: "disabled" });
     } finally {
       await s.finish();
     }
@@ -176,7 +176,7 @@ test("before: the editor on the same screenshot", async () => {
   try {
     await dismissOnboarding(s.page);
     await openTextItem(s);
-    await s.page.screenshot({ path: shotPath(s, "00-before.png") });
+    await s.page.screenshot({ path: shotPath(s, "00-before.png"), animations: "disabled" });
   } finally {
     await s.finish();
   }

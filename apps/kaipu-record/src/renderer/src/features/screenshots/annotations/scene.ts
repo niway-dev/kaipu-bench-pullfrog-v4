@@ -66,6 +66,27 @@ export interface BlurAnnotation {
    * the document but not drawn again and not selectable. */
   locked?: boolean;
 }
+/**
+ * A pinned ruler measurement (NIW2-702). Unlike the other kinds it is stored in the image's
+ * SOURCE pixels, not normalized units, so the label is exact and never depends on zoom: the
+ * label is always `to - from`. `from`/`to` are pixel edges along `axis` (the run covers
+ * pixels `from` … `to - 1`), `at` is the pixel row (axis x) or column (axis y).
+ * `imageW`/`imageH` are the pixel size of the image it was measured on, which turns those
+ * pixels into the layer's normalized space; with one image per editor they also anchor it:
+ * the measurement moves with the image. A multi-image canvas adds the image's id here.
+ */
+export interface MeasureAnnotation {
+  id: string;
+  kind: "measure";
+  axis: "x" | "y";
+  from: number;
+  to: number;
+  at: number;
+  imageW: number;
+  imageH: number;
+  color: string;
+}
+
 /** A numbered step badge. Its number is NOT stored: it is the badge's 1-based position
  * among the scene's `step` annotations, so deleting one renumbers the rest. Plain
  * serializable data, like every other kind, so the canvas document (NIW2-700) can persist it. */
@@ -85,6 +106,7 @@ export type Annotation =
   | TextAnnotation
   | PathAnnotation
   | BlurAnnotation
+  | MeasureAnnotation
   | StepAnnotation;
 
 /**
