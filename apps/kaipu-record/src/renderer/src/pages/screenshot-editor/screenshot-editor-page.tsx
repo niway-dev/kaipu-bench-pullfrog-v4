@@ -34,6 +34,12 @@ import {
   DEFAULT_BEAUTIFY,
   FLAT_BEAUTIFY,
 } from "@renderer/features/screenshots/beautify";
+import {
+  InspectBar,
+  InspectLayer,
+  InspectToggle,
+  useInspect,
+} from "@renderer/features/screenshots/inspect";
 import { SaveOptionsDialog } from "@renderer/features/screenshots/save-options-dialog";
 import { CaptureTitleInput } from "@renderer/features/screenshots/capture-title-input";
 import {
@@ -278,6 +284,19 @@ function ScreenshotEditorBody({
   // reactive, but a shot must never mix the two models (a classic crop would be dropped, or
   // outside content clipped, on the next export or autosave). A flag change applies to the
   // next editor that opens. Everything below branches on this boolean. Off = today's editor.
+  // Inspect mode (NIW2-699): latched like `canvasMode`. Off = no button, no key, no listener,
+  // no decode: the editor is exactly what it was.
+  const [inspectEnabled] = useState(useFlag("image-inspect"));
+  const inspect = useInspect({
+    enabled: inspectEnabled,
+    image,
+    imgRef,
+    // Inspect reads the image, it does not edit it: leave any drawing tool (a crop included).
+    onEnter: () => {
+      tools.setTool("select");
+      scene.select(null);
+    },
+  });
   const [zoom, setZoom] = useState(1);
   // One transient "last action" indicator — copied or saved-with-name — that
   // auto-clears; avoids the illegal "both shown" state two flags allowed.
@@ -963,7 +982,14 @@ function ScreenshotEditorBody({
         role="toolbar"
         aria-label={t("editorToolbar")}
       >
-        <AnnotationToolbar tools={tools} onPick={() => scene.select(null)} />
+        <AnnotationToolbar
+          tools={tools}
+          onPick={() => {
+            scene.select(null);
+            inspect.setActive(false);
+          }}
+        />
+        {inspectEnabled && <InspectToggle active={inspect.active} onToggle={inspect.toggle} />}
         <CaptureTitleInput title={captureTitle} />
         <div className={styles.actions}>
           {canvasMode && (
@@ -1057,6 +1083,7 @@ function ScreenshotEditorBody({
             ref={canvasRef}
             className={styles.canvas}
             data-zoomed={shownZoom > 1}
+            {...(inspectEnabled ? { "data-inspect": String(inspect.active) } : {})}
             {...(canvasMode
               ? {
                   ...viewport.bindings,
@@ -1091,11 +1118,16 @@ function ScreenshotEditorBody({
               extents={canvasMode ? extents : undefined}
               onImageLoad={() => setImageReady(true)}
             />
+            {inspectEnabled && inspect.active && <InspectLayer inspect={inspect} />}
           </div>
 
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
-            <AnnotationOptions tools={tools} scene={cropScene} canvasMode={canvasMode} />
+            {inspect.active ? (
+              <InspectBar inspect={inspect} />
+            ) : (
+              <AnnotationOptions tools={tools} scene={cropScene} canvasMode={canvasMode} />
+            )}
           </div>
 
           {/* Zoom pinned at the foot of the canvas — a familiar editor convention. */}
