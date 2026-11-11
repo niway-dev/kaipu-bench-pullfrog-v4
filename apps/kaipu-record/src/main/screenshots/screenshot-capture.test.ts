@@ -105,6 +105,33 @@ describe("MacProvider", () => {
         ]);
       });
 
+      it("during a take it grabs the recorded area, not the display under the cursor", async () => {
+        displays = [main, left];
+        const getCursorPoint = vi.fn(async () => ({ x: 100, y: 100 }));
+        const out = await new MacProvider({
+          runCli,
+          readPng: async () => PNG,
+          fileExists,
+          tempPath: () => "/tmp/x.png",
+          getDisplays: async () => displays,
+          settle,
+          getCursorPoint,
+        }).capture({
+          mode: "screen",
+          overlay: fake,
+          intent: "instant",
+          recordingTarget: { displayId: 2, rect: null },
+        });
+        expect(out).toMatchObject({ kind: "captured", mode: "screen" });
+        expect(getCursorPoint).not.toHaveBeenCalled();
+        expect(runCli).toHaveBeenCalledWith("screencapture", [
+          "-R",
+          "-1920,0,1920,1080",
+          "-x",
+          "/tmp/x.png",
+        ]);
+      });
+
       it("falls back to the first display when the cursor cannot be read", async () => {
         displays = [main, left];
         const out = await new MacProvider({

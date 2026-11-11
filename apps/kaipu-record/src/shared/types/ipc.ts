@@ -127,8 +127,10 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     description: "Capture one window, not the screen around it",
     statusWord: "window",
   },
-  // The exception to "choose, then capture": grabs the display under the cursor the moment
-  // it is pressed, for states that vanish before a selector could open.
+  // The exception to "choose, then capture": no selector opens. Once the app is out of the
+  // shot (a short settle, longer if the window had to load first) it grabs the display under
+  // the cursor, so a menu or state that lasts a moment is still there. During a take with
+  // "capture while recording" on, it grabs the recorded area like every other capture.
   {
     action: "captureInstant",
     defaultAccelerator: { mac: "Command+Shift+2", win: "Control+Alt+2" },
@@ -260,8 +262,8 @@ export interface AppSettings {
    */
   screenshotFrame: Record<string, CaptureRect>;
   /**
-   * The same memory for the overlay opened to RECORD (the tray's Record area item, or Record
-   * pressed on the overlay): the last area the user confirmed, per display id. Kept apart
+   * The same memory for the overlay opened to RECORD (any recording selector: Start recording, the
+   * Record page or the tray's Record items; or Record pressed on the overlay): the last area the user confirmed, per display id. Kept apart
    * from `screenshotFrame` because a recording stage and a screenshot frame are rarely the
    * same rectangle, and sharing one would make each feature undo the other's last choice.
    */

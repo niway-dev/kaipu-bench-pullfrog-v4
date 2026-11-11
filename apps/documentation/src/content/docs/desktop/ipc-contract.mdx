@@ -235,8 +235,8 @@ the capture ends in. Analytics: the handler of
 `cancelled`, `unsupported` or `failed`; `failed` is a provider throw, which the renderer still
 receives as `cancelled`.
 
-**Recording from the overlay (ADR 0030).** `screenshot:capture` with `intent: "record"` (the
-tray's Record area item) opens the overlay with `&intent=record` in its query: Enter answers
+**Recording from the overlay (ADR 0030).** `screenshot:capture` with `intent: "record"` (any
+recording selector: Start recording, the Record page, the tray's Record items) opens the overlay with `&intent=record` in its query: Enter answers
 `select`, R answers `record`, and the Frame box starts from
 `AppSettings.recordingArea` instead of `screenshotFrame`. In either intent a `record` or
 `select` answer takes no pixels: the provider returns `{ kind: "record", start, displayId,
