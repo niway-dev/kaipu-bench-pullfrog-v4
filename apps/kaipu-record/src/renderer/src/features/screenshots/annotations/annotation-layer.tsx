@@ -233,7 +233,8 @@ function AnnotationLayerImpl({
         const anchor = activeText.words[hit.index];
         drag.current = { mode: "select-text", anchor };
         activeText.select(anchor, anchor);
-        (e.target as Element).setPointerCapture?.(e.pointerId);
+        // The layer, not the target: a highlight under the pointer unmounts as the range changes.
+        ref.current?.setPointerCapture(e.pointerId);
       } else {
         activeText.clear();
       }

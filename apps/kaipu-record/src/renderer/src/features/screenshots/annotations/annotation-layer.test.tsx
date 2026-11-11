@@ -747,6 +747,15 @@ describe("AnnotationLayer — Select text tool", () => {
     fireEvent.pointerUp(layer, { pointerId: 1 });
   });
 
+  it("a press on a highlight captures the pointer on the layer, not on the highlight", () => {
+    const { container, layer } = renderText([B]);
+    const highlight = container.querySelector('[data-testid="text-highlight"]') as SVGElement;
+    highlight.setPointerCapture = vi.fn();
+    fireEvent.pointerDown(highlight, { clientX: 60, clientY: 12, pointerId: 1 });
+    expect(layer.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(highlight.setPointerCapture).not.toHaveBeenCalled();
+  });
+
   it("a press far from every word clears and starts no drag", () => {
     const { layer, select, clear } = renderText([A]);
     fireEvent.pointerDown(layer, { clientX: 20, clientY: 80, pointerId: 1 });

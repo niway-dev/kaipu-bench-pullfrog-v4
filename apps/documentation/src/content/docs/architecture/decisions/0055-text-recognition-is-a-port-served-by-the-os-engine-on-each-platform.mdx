@@ -7,12 +7,12 @@ description: Recognizing the text inside a screenshot goes through one interface
 
 ## Status
 
-| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed, 2026-11-11. macOS built in M8 (NIW2-705). Windows built in M10 (NIW2-707) and measured on a CI runner only: its cold call (3.4 s) **meets a reopen condition below**, which the owner decides. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
-| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (same shape: one request, a backend per platform), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (the cache sits beside the document; redaction removes words)                                                                                                                       |
-| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed, 2026-11-11. Built on macOS behind the `image-text` flag in M8 ([NIW2-705](https://linear.app/niway/issue/NIW2-705)). The macOS backend was measured by the M0 spike ([NIW2-697](https://linear.app/niway/issue/NIW2-697/image-editor-m0-spikes-for-color-memory-and-text-recognition-on-macos), results below). Built on Windows in M10 ([NIW2-707](https://linear.app/niway/issue/NIW2-707)) and measured on a CI runner only (results in Implementation status): its first call, 3.4 s, **meets the Windows reopen condition below**, which the owner decides; the ADR stays Proposed until then. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (same shape: one request, a backend per platform), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (the cache sits beside the document; redaction removes words)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## Context
 
@@ -34,6 +34,65 @@ native code to one patched npm module and in-house Swift helpers built with `swi
 5. **Cache.** Results are stored in `.kaipu/<id>.text.json`, keyed by asset. Saving a
    redaction removes the words it intersects.
 6. **Only text.** The port does not return UI boxes; nothing produces them.
+
+## M0 results (macOS, 2026-11-11)
+
+Measured by the spike in `apps/kaipu-record/scripts/spikes/image-editor-m0/vision/`
+([NIW2-697](https://linear.app/niway/issue/NIW2-697/image-editor-m0-spikes-for-color-memory-and-text-recognition-on-macos)):
+a Swift helper built with `swiftc -O` (target `arm64-apple-macos13.0`) that takes a PNG path,
+runs `VNRecognizeTextRequest`, and prints versioned JSON with word boxes in top-left source
+pixels. A runner spawns it as a new process per run, the way main will, and measures wall
+clock from spawn to exit. Fixtures are synthetic UI screenshots drawn with CoreText (window
+chrome, sidebar, 11–13 pt labels, a table, a code line) with 119 ground-truth words.
+
+- **Commands:** `apps/kaipu-record/scripts/spikes/image-editor-m0/vision/run.sh` on the M5,
+  and `run-on-macmini.sh` (same folder) from the M5 for the mini.
+- **Machines:** MacBook Pro M5 (Mac17,2, 24 GB), macOS 26.6.2; Mac mini M4 (Mac16,10, 16 GB),
+  macOS 27.0.1. Swift 6.4.2 on both.
+
+Wall clock in ms, `accurate` level, first run of that image in the bench, then the median and
+maximum of five more processes; recall is ground-truth words recognized exactly:
+
+| Machine  | Image              | First run (this bench) | Median | Max | Recall |
+| -------- | ------------------ | ---------------------- | ------ | --- | ------ |
+| M5       | 1920×1080, scale 1 | 1413                   | 561    | 577 | 86.6%  |
+| M5       | 3024×1964, scale 2 | 539                    | 515    | 535 | 95.0%  |
+| Mac mini | 1920×1080, scale 1 | 388                    | 212    | 236 | 99.2%  |
+| Mac mini | 3024×1964, scale 2 | 214                    | 246    | 266 | 99.2%  |
+
+- **Only the first row per machine can be cold, and the mini's table row is not.** The bench runs
+  the 1920×1080 image first and the Retina one after it, so the Retina row follows a loaded
+  model. On the mini the first run ever was killed at 10 s while the model compiled, and the one
+  after it, by hand, took 13.5 s (below); both happened before the bench, so its 388 ms is a
+  warm run. The table therefore shows warm numbers; the cold case missed the 1.5 s target on
+  the mini.
+- **The first recognition on a machine is much slower.** On the mini the first `accurate`
+  run hit the 10 s timeout of the runner's first version (the committed runner allows 60 s); a stack sample showed the process waiting in
+  `_ANEClient compileModel` (the Neural Engine compiling the model). Run again by hand, it
+  took **13.5 s**; every run after that was warm (the rows above). The M5's 1413 ms was the
+  first launch after the build, but the model may already have been compiled there, so it
+  is not proven to be the coldest case. When the OS drops that compiled model (after an OS
+  update, most likely) is not measured.
+- The `fast` level is 2–3 times quicker (about 170–215 ms) but recognized only 44.5% of the
+  words at scale 1, where interface text is 11–13 px high.
+- The two machines recognize differently on the same image (86.6% and 99.2% at scale 1);
+  which words the M5 missed, and whether macOS 27 is the reason, is not checked.
+
+**What this decides for M8:**
+
+- The macOS backend is viable: warm, a 1920×1080 image or a Retina screenshot is recognized
+  in about 0.2–0.6 s, under the 1.5 s target.
+- The helper uses the `accurate` level.
+- The timeout must allow the one-time model compilation: at least 30 s for a call, and the
+  editor shows the text tools as pending until the answer arrives, never blocking the canvas.
+  A 10 s timeout would turn the first use on a machine into "unavailable".
+- Recognition runs off the editing path, so the 13.5 s first run does not trigger "What would
+  reopen this": that condition is about the per-image latency, which passed on both machines.
+  The oldest supported Mac is not measured.
+
+**Not measured:** the Windows backend (measured later in M10, below), recognition spawned from Electron's main
+process, real screenshots instead of drawn fixtures, an Intel Mac, a recognition after reboot
+or OS update.
 
 ## Alternatives rejected
 
@@ -60,7 +119,8 @@ behind the `image-text` flag, in the canvas editor and in the classic one. M10
 ([NIW2-707](https://linear.app/niway/issue/NIW2-707)) builds point 3. Usage and file layout:
 [image editor text recognition](/backlog/image-editor-text-recognition/).
 
-- **Port.** `TextRecognizer` and the `RecognizedWord` schema live in `@kaipu/domain/schemas`.
+- **Port.** `TextRecognizer` and the `RecognizedWord` schema live in `@kaipu/domain/schemas`,
+  not in main as point 1 says, so the renderer and main validate the same shape.
 - **Helper.** `native/text-recognition/main.swift`, `accurate` level with language correction,
   macOS 13 or later, universal. The PNG arrives on stdin, so no copy of the screenshot is
   written to a temporary file. Main allows 45 s per call, for the first-run model compilation.
@@ -92,7 +152,11 @@ behind the `image-text` flag, in the canvas editor and in the classic one. M10
   within a few pixels of the drawn text, and a 10° tilted copy put its boxes back on the text.
   This is a VM, not a consumer machine; nothing was measured on a real Windows 10 or 11 install.
 
-The cold call is over the 1.5 s reopen condition below. What costs the extra 2.8 s is not
+The cold call is over the 1.5 s reopen condition below. For comparison, Vision's first run
+on the mini took 13.5 s, and M0 decided that did not reopen the macOS backend because
+recognition runs off the editing path; the Windows condition, unlike the macOS one, names the
+cold case explicitly. Whether the Windows first-call cost recurs after every boot or only once
+per machine, like Vision's model compilation, is not measured: the VM was new. What costs the extra 2.8 s is not
 measured. The likely cause is the first load of the OCR engine and its language data on a fresh
 machine, which a compiled helper would also pay; that is a hypothesis, not a result. The
 backend ships as is, behind the flag, until the owner decides between keeping it, a compiled
