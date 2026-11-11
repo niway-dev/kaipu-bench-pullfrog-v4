@@ -7,7 +7,7 @@ import {
   type BeautifyState,
 } from "../beautify/backgrounds";
 import type { Annotation, CropRect, Scene } from "./scene";
-import { STROKE_WIDTHS, TEXT_SIZES } from "./tools";
+import { STEP_PX, STROKE_WIDTHS, TEXT_SIZES } from "./tools";
 
 /** A stored preset index (stroke level, text size): an integer inside its table. Anything
  * else would draw a NaN stroke, so the document is refused instead. */
@@ -132,6 +132,10 @@ function parseAnnotation(o: Obj): Annotation | null {
       if (!nums(o, ["stroke"]) || !level(o.stroke, STROKE_WIDTHS)) return null;
       if (!str(o.color) || !Array.isArray(o.points)) return null;
       return o.points.every((p) => isObj(p) && nums(p, ["x", "y"]))
+        ? (o as unknown as Annotation)
+        : null;
+    case "step":
+      return nums(o, ["x", "y", "size"]) && level(o.size, STEP_PX) && str(o.color)
         ? (o as unknown as Annotation)
         : null;
     case "blur":
