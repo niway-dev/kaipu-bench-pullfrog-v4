@@ -25,6 +25,49 @@ export const controlBar = catalog(
       demonstrates: ["controlBar.bar:paused"],
       after: [{ action: "stopTake" }],
     },
+    inputsOff: {
+      profile: "recording",
+      steps: [
+        {
+          call: "updateRecordingSettings",
+          args: [
+            { isMicrophoneEnabled: false, isSystemAudioEnabled: false, isCameraEnabled: false },
+          ],
+          on: "main",
+        },
+        ...take,
+      ],
+      demonstrates: ["controlBar.inputs:off"],
+      after: [{ action: "stopTake" }],
+    },
+    inputsOn: {
+      profile: "recording",
+      requires: { microphone: true, camera: true },
+      steps: [
+        {
+          call: "updateRecordingSettings",
+          args: [{ isMicrophoneEnabled: true, isSystemAudioEnabled: true, isCameraEnabled: true }],
+          on: "main",
+        },
+        ...take,
+      ],
+      demonstrates: ["controlBar.inputs:on"],
+      after: [
+        { action: "stopTake" },
+        {
+          call: "updateRecordingSettings",
+          args: [{ isCameraEnabled: false, isSystemAudioEnabled: false }],
+          on: "main",
+        },
+      ],
+    },
+    screenshot: {
+      profile: "recording",
+      steps: [...take, { waitFor: { area: "controlBar.screenshot" } }],
+      demonstrates: ["controlBar.screenshot:available"],
+      gates: [{ flag: "capture-while-recording", side: "on" }],
+      after: [{ action: "stopTake" }],
+    },
     frame: {
       profile: "recording",
       how: "Open the overlay to record in Frame mode and press Enter on its frame: a take of that area.",
@@ -40,7 +83,15 @@ export const controlBar = catalog(
     },
   },
   {
+    oneSided: {
+      "controlBar.screenshot":
+        "the screenshot button is absent when capture-while-recording is off or the platform is unsupported",
+    },
     notCapturable: {
+      "controlBar.inputs:audioUnavailable": nc(
+        "platform",
+        "depends on loopback availability in the runner's OS/build",
+      ),
       "controlBar.bar:starting": nc(
         "transient",
         "a transient state between the countdown and the first frame",
