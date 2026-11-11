@@ -638,6 +638,9 @@ function ScreenshotEditorBody({
     if (!canvasMode) return;
     const onPaste = (e: ClipboardEvent): void => {
       if (isTextField(e.target)) return;
+      // A modal (the Library picker, the unsaved-changes dialog) owns the keyboard: nothing
+      // lands on the canvas behind it.
+      if (document.querySelector('[aria-modal="true"]')) return;
       const file = imageFileFromPaste(e.clipboardData);
       e.preventDefault();
       if (pasting.current) return;

@@ -246,6 +246,23 @@ describe("ScreenshotEditor — adding images (image-canvas)", () => {
     expect(second.x).toBeGreaterThan(first.x + first.w);
   });
 
+  it("a paste while a modal is open adds nothing behind it", async () => {
+    mountPaste();
+    await loadImage();
+    const modal = document.createElement("div");
+    modal.setAttribute("aria-modal", "true");
+    document.body.appendChild(modal);
+    try {
+      pasteImage();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(annotations()).toHaveLength(0);
+    } finally {
+      modal.remove();
+    }
+    pasteImage();
+    await waitFor(() => expect(annotations()).toHaveLength(1));
+  });
+
   describe("the view fits the content", () => {
     // The canvas is 200 px (clientWidth stub); the frame's laid-out size is `frame` px.
     let frame = 100;
@@ -373,6 +390,9 @@ describe("ScreenshotEditor — adding images (image-canvas)", () => {
     openAddMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "From Library" }));
     fireEvent.click(await screen.findByRole("button", { name: "Dashboard draft" }));
+    // The open picker blocks a paste, so force the interleaving: any image added while the
+    // Library read is in flight must not be covered by the picked one.
+    screen.getByRole("alertdialog").removeAttribute("aria-modal");
     pasteImage();
     await waitFor(() => expect(annotations()).toHaveLength(1));
     release(libraryBytes);
