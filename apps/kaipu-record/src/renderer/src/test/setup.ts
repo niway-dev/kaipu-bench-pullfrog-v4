@@ -359,6 +359,7 @@ window.electronAPI = {
   copyScreenshotById: async () => {},
   readScreenshotBytes: async () => new ArrayBuffer(0),
   readScreenshotCanvas: async () => null,
+  recognizeScreenshotText: async () => ({ status: "unavailable" as const }),
   readClipboardImage: async () => null,
   peekClipboardImage: async () => null,
   saveScreenshot: async () => {
