@@ -1,11 +1,11 @@
 ---
 title: Image editor text recognition
-description: Select and copy the text inside a screenshot in the image editor, recognized on macOS by Apple Vision through a Swift helper and cached beside the item, behind the image-text flag.
+description: Select and copy the text inside a screenshot in the image editor, recognized by Apple Vision through a Swift helper on macOS and by Windows.Media.Ocr through PowerShell on Windows, cached beside the item, behind the image-text flag.
 ---
 
 # Image editor text recognition
 
-> **Status: 🟢 Ready to validate (prod review pending) — behind flag image-text, off by default. macOS only.**
+> **Status: 🟢 Ready to validate (prod review pending) — behind flag image-text, off by default. macOS validated in the real app; Windows built and checked on a CI runner only.**
 
 Design: [image editor canvas and inspect](../specs/2026-11-11-image-editor-canvas-and-inspect-design/),
 detail 5. Decision: [ADR 0055](../architecture/decisions/0055-text-recognition-is-a-port-served-by-the-os-engine-on-each-platform/).
@@ -25,8 +25,8 @@ editor (`image-canvas`) and in the classic one:
 - ⌘/Ctrl+C, or **Copy text** in the options bar, puts the selected text on the clipboard: words of
   a line joined by a space, lines by a newline.
 - Words under a redaction, saved or not, cannot be selected.
-- Where recognition is not available (Windows and Linux until NIW2-707, a missing or broken
-  helper, a timeout), the options bar says so and the rest of the editor is unchanged.
+- Where recognition is not available (Linux, a missing or broken helper, no Windows OCR
+  language pack, a timeout), the options bar says so and the rest of the editor is unchanged.
 
 With `image-text` off, the editor is unchanged.
 
@@ -70,7 +70,8 @@ With `image-text` off, the editor is unchanged.
 
 ## Not built yet
 
-- Windows (`Windows.Media.Ocr`): NIW2-707.
+- Windows checked on a real Windows 10 or 11 install, and the cold-call latency decision (3.4 s
+  on a CI VM, over ADR 0055's 1.5 s): NIW2-707.
 - A recognized line as a one-click redaction target: NIW2-706.
 - A cache that survives a save in the classic editor (flag `image-canvas` off).
 - Re-recognizing after an unsaved edit: the editor recognizes the image as it was loaded.
