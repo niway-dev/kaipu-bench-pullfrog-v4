@@ -266,6 +266,21 @@ describe.each([
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith("#010203"));
   });
 
+  it("says why As captured shows nothing when its decode fails, and retries on the next entry", async () => {
+    probeCaptured.mockRejectedValueOnce(new Error("no p3 canvas"));
+    await enterAndHover();
+    fireEvent.click(screen.getByRole("button", { name: "As captured" }));
+    expect(
+      await screen.findByText('"As captured" is unavailable for this image'),
+    ).toBeInTheDocument();
+    press("Escape");
+    press("i");
+    await screen.findByTestId("inspect-layer");
+    fireEvent.pointerMove(layer(), POINTER);
+    await screen.findByText("#010203");
+    expect(screen.queryByText('"As captured" is unavailable for this image')).toBeNull();
+  });
+
   it("says so when the pixels cannot be read", async () => {
     decodeSrgbBuffer.mockRejectedValue(new Error("no canvas"));
     mount(PASTE);

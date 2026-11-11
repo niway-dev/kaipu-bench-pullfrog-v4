@@ -79,6 +79,9 @@ export function InspectBar({ inspect }: { inspect: InspectController }): React.J
       {inspect.status === "decoding" && (
         <span className={styles.status}>{t("inspectReading")}</span>
       )}
+      {inspect.status === "ready" && inspect.asCaptured && inspect.capturedUnavailable && (
+        <span className={styles.status}>{t("inspectCapturedUnavailable")}</span>
+      )}
       {inspect.status === "error" && (
         <span className={styles.status}>{t("inspectUnavailable")}</span>
       )}

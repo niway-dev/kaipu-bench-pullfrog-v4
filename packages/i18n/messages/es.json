@@ -1244,6 +1244,7 @@
     "inspectExitTitle": "Salir de Inspeccionar (Esc)",
     "inspectReading": "Leyendo píxeles…",
     "inspectUnavailable": "Lectura de píxeles no disponible",
+    "inspectCapturedUnavailable": "\"Como se capturó\" no está disponible para esta imagen",
     "inspectOutOfSrgb": "Fuera de sRGB",
     "beautifyHeading": "Embellecer",
     "background": "Fondo",

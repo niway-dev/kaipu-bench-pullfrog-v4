@@ -56,6 +56,8 @@ export interface InspectController {
   /** True for a moment after a successful copy. */
   copied: boolean;
   status: InspectStatus;
+  /** The second decode behind "as captured" and the out-of-sRGB mark failed for this image. */
+  capturedUnavailable: boolean;
 }
 
 interface Options {
@@ -87,6 +89,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
   const [hover, setHover] = useState<InspectHover | null>(null);
   const [loupe, setLoupe] = useState<Uint8ClampedArray | null>(null);
   const [copied, setCopied] = useState(false);
+  const [capturedUnavailable, setCapturedUnavailable] = useState(false);
 
   const activeRef = useRef(false);
   const alive = useRef(true);
@@ -142,6 +145,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       }
     } catch (error) {
       probeBroken.current = true;
+      setCapturedUnavailable(true);
       reportError(t("inspectUnavailable"), error, { context: { phase: "inspect-probe" } });
       return;
     } finally {
@@ -202,10 +206,14 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     if (bufferRef.current || decoding.current || !current) return;
     decoding.current = true;
     setStatus("decoding");
+    // The image may change while it decodes: then this result is dropped and the new one decoded.
+    let stale = false;
     try {
       const bytes = await current.getBytes();
       const buffer = await decodeSrgbBuffer(bytes);
       if (!alive.current) return;
+      stale = imageRef.current?.displayUrl !== current.displayUrl;
+      if (stale) return;
       bytesRef.current = bytes;
       bufferRef.current = buffer;
       setStatus("ready");
@@ -217,6 +225,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       reportError(t("inspectUnavailable"), error, { context: { phase: "inspect-decode" } });
     } finally {
       decoding.current = false;
+      if (stale && activeRef.current) void ensureDecodedRef.current();
     }
   }, [scheduleFlush, t]);
 
@@ -229,6 +238,9 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       activeRef.current = next;
       setActiveState(next);
       if (next) {
+        // A failed probe gets one more chance each time Inspect is entered.
+        probeBroken.current = false;
+        setCapturedUnavailable(false);
         onEnterRef.current?.();
         void ensureDecoded();
       } else {
@@ -335,5 +347,6 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     copy,
     copied,
     status,
+    capturedUnavailable,
   };
 }
