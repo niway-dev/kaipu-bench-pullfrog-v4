@@ -10,7 +10,11 @@ import { inferRecordingRatio, recordingCaptureMode } from "./recording-capture";
 import type { RecordingRatio } from "./types/screenshot-capture";
 
 /** Feature flags the app reads. Names must match the PostHog dashboard exactly. */
-export const FLAG_NAMES = ["bypass-login", "native-cursor-capture"] as const;
+export const FLAG_NAMES = [
+  "bypass-login",
+  "native-cursor-capture",
+  "capture-while-recording",
+] as const;
 export type FlagName = (typeof FLAG_NAMES)[number];
 
 /**
@@ -24,6 +28,8 @@ export const FLAG_DEFAULTS: Record<FlagName, boolean> = {
   // with the webcam and audio. The PostHog flag stays as a kill switch: disabled there,
   // the SDK returns undefined and this default applies; enabled at 0%, it turns it off.
   "native-cursor-capture": true,
+  // Screenshots during a take (macOS only): off until it is validated in the real app.
+  "capture-while-recording": false,
 };
 
 /** Identity super-properties attached to every event/error for multi-surface filtering. */
@@ -143,4 +149,25 @@ export function buildRecordingStartedProperties(input: {
     size: recordingSizeBucket(size.width, size.height),
     ratio: input.ratio ?? inferRecordingRatio(size.width, size.height),
   };
+}
+
+/** Event name for a change of the editor's preview playback speed (NIW2-666). */
+export const EDITOR_SPEED_CHANGED_EVENT = "editor_speed_changed";
+
+/**
+ * The whole payload of `editor_speed_changed`: the speed the user switched to (0.5, 1, 1.5
+ * or 2). Whether anyone uses 0.5x decides whether the speed control earns its place. No
+ * recording id, title, time or duration, and nothing about what is on screen. The speed is
+ * preview-only and never reaches the export.
+ */
+// A type alias, not an interface: `captureEvent` takes a `Record<string, unknown>`.
+export type EditorSpeedChangedProperties = {
+  speed: number;
+};
+
+/** Copies exactly the allowed field, so a caller cannot leak an extra one. */
+export function buildEditorSpeedChangedProperties(
+  input: EditorSpeedChangedProperties,
+): EditorSpeedChangedProperties {
+  return { speed: input.speed };
 }

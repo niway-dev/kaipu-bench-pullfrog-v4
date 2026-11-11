@@ -312,6 +312,21 @@ export function Rail<T extends RailItem = RailItem>({
   const [tip, setTip] = useState<Tip | null>(null);
   // A tooltip belongs to the collapsed rail; switching mode with one open must not strand it.
   useEffect(() => setTip(null), [mode]);
+  // Leaving the window (or pressing Escape) closes the tooltip. Without this, a link that kept the
+  // focus after a click got it back when the window was reactivated, and showed its tooltip with
+  // the pointer far away; nothing then ever hid it.
+  useEffect(() => {
+    const hide = () => setTip(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") hide();
+    };
+    window.addEventListener("blur", hide);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("blur", hide);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   const tipHandlers = (text: string) => {
     if (!collapsed) return {};
@@ -320,7 +335,12 @@ export function Rail<T extends RailItem = RailItem>({
       setTip({ text, top: rect.top + rect.height / 2, left: rect.right + 8 });
     };
     const hide = () => setTip(null);
-    return { onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide };
+    // Focus shows the tooltip only for keyboard navigation (:focus-visible), not for the focus a
+    // click leaves behind or the browser restores on window reactivation.
+    const showOnKeyboardFocus = (event: { currentTarget: HTMLElement }) => {
+      if (event.currentTarget.matches(":focus-visible")) show(event);
+    };
+    return { onMouseEnter: show, onMouseLeave: hide, onFocus: showOnKeyboardFocus, onBlur: hide };
   };
 
   return (

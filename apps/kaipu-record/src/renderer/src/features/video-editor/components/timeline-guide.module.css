@@ -1,0 +1,367 @@
+/* The Timeline guide (NIW2-679): a wide dark dialog over a dimmed editor. The sample
+   timeline and the legend swatches reuse the lanes' own stylesheets; this file only adds
+   the frame around them. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(960px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 16px 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.subtitle {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab,
+.walkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tab:hover,
+.walkButton:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.tabActive {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.tabActive:hover {
+  background: var(--accent-primary-hover);
+  color: #fff;
+}
+
+.walkButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.close {
+  display: inline-flex;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.tab:focus-visible,
+.walkButton:focus-visible,
+.close:focus-visible,
+.sampleLabel:focus-visible {
+  outline: 2px solid var(--accent-primary-ring);
+  outline-offset: 1px;
+}
+
+/* ---- sample timeline ---- */
+.sample {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-app);
+}
+
+.sampleRuler {
+  position: relative;
+  height: 18px;
+  margin-left: 124px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-4);
+}
+
+.sampleTick {
+  position: absolute;
+  bottom: 0;
+  padding-left: 4px;
+  border-left: 1px solid currentColor;
+  line-height: 14px;
+}
+
+.sampleRow {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 12px;
+  align-items: center;
+  border-radius: 4px;
+  transition: opacity 120ms;
+}
+
+.sampleRowDim {
+  opacity: 0.4;
+}
+
+.sampleRowLit {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 3px;
+}
+
+.sampleLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sampleRowLit .sampleLabel {
+  color: var(--text-primary);
+}
+
+.sampleLane {
+  position: relative;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.sampleNote {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* The clips row and the webcam strip are pictures in the editor; here they are a pattern. */
+.frames {
+  position: relative;
+  display: flex;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--bg-raised);
+}
+
+.frame {
+  flex: 1;
+  border-right: 1px solid var(--bg-app);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--text-primary) 16%, transparent),
+    color-mix(in srgb, var(--text-primary) 6%, transparent)
+  );
+}
+
+.faces {
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      color-mix(in srgb, #e8b998 55%, transparent) 0 22%,
+      transparent 23%
+    ),
+    var(--bg-raised);
+  background-size:
+    6.25% 100%,
+    100% 100%;
+}
+
+.trimHandle {
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--text-primary);
+}
+
+/* ---- swatches ---- */
+.swatch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--bg-raised);
+}
+
+.swatchFrames {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text-primary) 14%, transparent) 0 10px,
+    var(--bg-app) 10px 11px
+  );
+}
+
+.selectedHandle {
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-primary);
+}
+
+/* ---- text ---- */
+.body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  padding-top: 4px;
+}
+
+.column {
+  min-width: 0;
+}
+
+.laneName {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.intro,
+.why {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.sectionTitle {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.legend,
+.how {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.legendIndex {
+  flex-shrink: 0;
+  width: 10px;
+  padding-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-primary);
+}
+
+.howRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.chip {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.walk {
+  display: flex;
+  gap: 8px;
+}

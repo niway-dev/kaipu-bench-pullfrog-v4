@@ -15,6 +15,14 @@ export const BACKGROUND_IDS = [
   "sunset",
   "forest",
   "graphite",
+  "aurora",
+  "iris",
+  "coral",
+  "lilac",
+  "citrus",
+  "ember",
+  "sky",
+  "dusk",
 ] as const;
 export type BackgroundId = (typeof BACKGROUND_IDS)[number];
 
@@ -33,7 +41,15 @@ export type BackgroundNameKey =
   | "bgOcean"
   | "bgSunset"
   | "bgForest"
-  | "bgGraphite";
+  | "bgGraphite"
+  | "bgAurora"
+  | "bgIris"
+  | "bgCoral"
+  | "bgLilac"
+  | "bgCitrus"
+  | "bgEmber"
+  | "bgSky"
+  | "bgDusk";
 
 export interface Background {
   id: BackgroundId;
@@ -99,6 +115,56 @@ export const BACKGROUNDS: Background[] = [
     nameKey: "bgGraphite",
     css: "linear-gradient(135deg, #3f3f46, #18181b)",
     paint: { kind: "gradient", from: "#3f3f46", to: "#18181b" },
+  },
+  // NIW2-676: eight wallpaper-style gradients, appended so the first nine keep their order.
+  // Rich and saturated, smooth along the 135° diagonal; Coral and Lilac are the soft ones.
+  {
+    id: "aurora",
+    nameKey: "bgAurora",
+    css: "linear-gradient(135deg, #2de2e6, #7b2ff7)",
+    paint: { kind: "gradient", from: "#2de2e6", to: "#7b2ff7" },
+  },
+  {
+    id: "iris",
+    nameKey: "bgIris",
+    css: "linear-gradient(135deg, #5b3df5, #ff5fa2)",
+    paint: { kind: "gradient", from: "#5b3df5", to: "#ff5fa2" },
+  },
+  {
+    id: "coral",
+    nameKey: "bgCoral",
+    css: "linear-gradient(135deg, #ffb37a, #ff6fa0)",
+    paint: { kind: "gradient", from: "#ffb37a", to: "#ff6fa0" },
+  },
+  {
+    id: "lilac",
+    nameKey: "bgLilac",
+    css: "linear-gradient(135deg, #c4b5fd, #f9a8d4)",
+    paint: { kind: "gradient", from: "#c4b5fd", to: "#f9a8d4" },
+  },
+  {
+    id: "citrus",
+    nameKey: "bgCitrus",
+    css: "linear-gradient(135deg, #ffe53b, #ff9a1f)",
+    paint: { kind: "gradient", from: "#ffe53b", to: "#ff9a1f" },
+  },
+  {
+    id: "ember",
+    nameKey: "bgEmber",
+    css: "linear-gradient(135deg, #ff7a18, #a3121f)",
+    paint: { kind: "gradient", from: "#ff7a18", to: "#a3121f" },
+  },
+  {
+    id: "sky",
+    nameKey: "bgSky",
+    css: "linear-gradient(135deg, #7dd3fc, #4f46e5)",
+    paint: { kind: "gradient", from: "#7dd3fc", to: "#4f46e5" },
+  },
+  {
+    id: "dusk",
+    nameKey: "bgDusk",
+    css: "linear-gradient(135deg, #2a1a7a, #ff7aa2)",
+    paint: { kind: "gradient", from: "#2a1a7a", to: "#ff7aa2" },
   },
 ];
 

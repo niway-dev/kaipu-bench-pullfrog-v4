@@ -242,12 +242,18 @@ export const UI_MAP = {
       cursor: { states: ["visible"], gatedBy: [{ flag: "native-cursor-capture" }] },
       cursorInspector: { states: ["open"], gatedBy: [{ flag: "native-cursor-capture" }] },
       webcam: { states: ["visible"] },
-      transport: { states: ["paused", "playing"] },
+      transport: { states: ["paused", "playing", "withCounts", "speedChanged", "zoomed"] },
       toolRail: { states: ["default", "annotate", "privacy"] },
       toolFlyout: { states: ["audio"] },
+      tracksPopover: { states: ["open"] },
+      // The Timeline guide (NIW2-679): a dialog over the editor, one tab per lane.
+      trackGuide: { states: ["clips", "zooms", "webcam"] },
       toolbar: { states: ["default", "saving", "saved"] },
       inspector: { states: ["detection", "zoom", "mute", "webcam", "annotation", "privacy"] },
-      timeline: { states: ["default"] },
+      // The Background section at the top of the inspector with nothing selected (ADR 0051):
+      // `default` is none with the sliders disabled, `set` is a preset with padding, corners, shadow.
+      background: { states: ["default", "set"] },
+      timeline: { states: ["default", "zoomed"] },
       zoomLane: { states: ["empty", "segments"] },
       webcamLane: { states: ["segments"] },
       privacyLane: { states: ["empty", "regions"] },
@@ -471,8 +477,12 @@ export const UI_MAP = {
     areas: {
       root: { states: ["saved", "notSaved"] },
       card: {
-        states: ["rest", "hover", "copied"],
-        gatedBy: [{ setting: "screenshotAfterCapture" }, { setting: "screenshotCopy" }],
+        states: ["rest", "hover", "copied", "taken"],
+        gatedBy: [
+          { setting: "screenshotAfterCapture" },
+          { setting: "screenshotCopy" },
+          { flag: "capture-while-recording" },
+        ],
       },
     },
   },

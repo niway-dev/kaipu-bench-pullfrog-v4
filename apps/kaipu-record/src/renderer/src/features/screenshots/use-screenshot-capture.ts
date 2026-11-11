@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useTranslations } from "@kaipu/i18n";
 import { getRecorderSnapshot } from "@renderer/features/recording/recorder-store";
 import { useOpenInEditor } from "@renderer/features/editor/open-in-editor";
+import { useFlag } from "@renderer/features/analytics/use-flag";
 import { showToast } from "@renderer/ui/toast-store";
 import type { CaptureIntent, CaptureMode } from "@shared/types/screenshot-capture";
 import { screenshotTitle } from "@shared/screenshot-title";
@@ -13,13 +14,18 @@ export function useScreenshotCapture(): {
 } {
   const { openCapture, openScreenshot } = useOpenInEditor();
   const t = useTranslations("screenshots");
+  const duringTake = useFlag("capture-while-recording");
   const capture = useCallback(
     async (mode: CaptureMode = "frame", intent: CaptureIntent = "capture") => {
       // A recording — including its countdown/starting phase — must never be
       // interrupted by a screenshot: it would race the native region selector
       // against the recording start, and bringing the window forward afterward
       // would put the app back on screen inside the still-running recording.
-      if (getRecorderSnapshot().status !== "idle") {
+      // Behind `capture-while-recording` (macOS; main enforces the platform) a take may be
+      // captured over: main saves it quietly and the window stays hidden. Finalizing is still
+      // refused, since the take's file is being written.
+      const status = getRecorderSnapshot().status;
+      if (status !== "idle" && !(duringTake && status !== "finalizing")) {
         showToast({ message: t("captureWhileRecording") });
         return;
       }
@@ -70,7 +76,7 @@ export function useScreenshotCapture(): {
       }
       window.electronAPI.revealAfterCapture();
     },
-    [openCapture, openScreenshot, t],
+    [openCapture, openScreenshot, t, duringTake],
   );
   return { capture };
 }

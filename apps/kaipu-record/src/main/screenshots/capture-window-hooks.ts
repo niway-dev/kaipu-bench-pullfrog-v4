@@ -19,6 +19,12 @@ export interface CaptureWindowHooksDeps {
   dismissToast(): void;
   hideCameraBubble(): void;
   restoreCameraBubble(): void;
+  /**
+   * A take's countdown holds a global Esc. While the capture overlay is open it must not:
+   * Esc cancels only the selection (`capture-while-recording`). No-ops without a countdown.
+   */
+  suspendTakeEscape?(): void;
+  resumeTakeEscape?(): void;
   /** Show and focus the main window, recreating it when it was closed. */
   showMainWindow(): void;
   /** Bring the whole app to the front (the editor asked for it). */
@@ -55,6 +61,7 @@ export function createCaptureWindowHooks(
     isCapturing: () => capturing,
     beforeCapture: () => {
       capturing = true;
+      deps.suspendTakeEscape?.();
       const window = liveWindow();
       wasVisible = window?.isVisible() ?? false;
       // Failure: the last quiet capture's toast is always on top and would land in this shot.
@@ -67,6 +74,7 @@ export function createCaptureWindowHooks(
     },
     afterCapture: (ending: CaptureEnding) => {
       capturing = false;
+      deps.resumeTakeEscape?.();
       if (wasVisible && ending === "cancelled") deps.showMainWindow();
       deps.restoreCameraBubble();
     },

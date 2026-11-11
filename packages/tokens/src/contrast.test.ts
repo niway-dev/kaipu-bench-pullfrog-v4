@@ -58,6 +58,7 @@ describe("light theme", () => {
     "accent-red",
     "accent-yellow",
     "accent-purple",
+    "accent-secondary",
   ] as const;
   const ACCENT_SURFACES = ["bg-app", "bg-card", "bg-sidebar"] as const;
 

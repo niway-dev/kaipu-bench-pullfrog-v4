@@ -18,11 +18,13 @@ import {
 } from "electron";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { captureWhileRecordingEnabled } from "./screenshots/capture-while-recording";
 import { setActiveFlagOverrides, withFlagOverrides } from "./flag-overrides";
 import { parseFlagOverrides } from "@shared/flag-overrides";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { IPC_CHANNELS } from "@shared/types";
 import icon from "../../resources/icon.png?asset";
+import windowsIcon from "../../build/icon.ico?asset";
 import { CapturePanelWindow } from "./capture-panel-window";
 import { hasTitleBarOverlay, mainWindowChrome, titleBarOverlay } from "./window-chrome";
 import { devAppIdentity } from "./app-identity";
@@ -337,6 +339,9 @@ function createWindow(showOnReady = true): void {
     // Our own title bar: logo, name and workspace switcher in the chrome (NIW2-621).
     ...mainWindowChrome(process.platform, getAppSettings().theme),
     ...(process.platform === "linux" ? { icon } : {}),
+    // Windows draws the taskbar button from the window icon while the app runs; the full-bleed
+    // .ico is the one the installer and the shortcuts use (the PNG carries the macOS margin).
+    ...(process.platform === "win32" ? { icon: windowsIcon } : {}),
     webPreferences: withFlagOverrides({
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,
@@ -643,6 +648,7 @@ function bringAppToFront(): void {
 function triggerCaptureScreenshot(request: CaptureRequestPayload): void {
   routeCaptureRequest({
     isRecordingActive: () => (hub?.isActive() || hub?.isPending()) ?? false,
+    allowDuringTake: () => captureWhileRecordingEnabled(),
     notifyBusy: () => {
       // The main window is hidden during a take, so the renderer cannot show its
       // "finish the recording first" toast — use a system notification.
@@ -740,6 +746,8 @@ const captureWindowHooks = createCaptureWindowHooks({
   dismissToast: () => captureToast?.dismiss(),
   hideCameraBubble: () => hub?.hideCameraBubbleForCapture(),
   restoreCameraBubble: () => hub?.restoreCameraBubbleAfterCapture(),
+  suspendTakeEscape: () => hub?.suspendEscapeForCapture(),
+  resumeTakeEscape: () => hub?.resumeEscapeAfterCapture(),
   showMainWindow,
   bringAppToFront,
 });
@@ -839,11 +847,13 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId("com.niway.kaipu-record");
 
-  // A dev run is Electron's own bundle, so the Dock and ⌘-Tab would show
-  // Electron's icon. Give it the brand icon (derived by scripts/generate-app-icons.sh).
-  // Packaged builds keep the bundle's .icns: overriding it there would hide a
-  // stale bundle icon instead of surfacing it.
-  if (process.platform === "darwin" && !app.isPackaged) app.dock?.setIcon(icon);
+  // Set the Dock and ⌘-Tab icon from the brand icon (derived by scripts/generate-app-icons.sh).
+  // A dev run is Electron's own bundle and would show Electron's icon. A packaged run sets it
+  // too: macOS can keep drawing a cached icon from an older install after the bundle's .icns
+  // changed (the play-mark triangle survived 0.16 and 0.17 on one machine until the system
+  // icon cache was cleared), and an explicit icon wins over that cache while the app runs.
+  // It does not change the icon of the closed app or Finder: those still follow the bundle.
+  if (process.platform === "darwin") app.dock?.setIcon(icon);
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -1074,6 +1084,8 @@ app.whenReady().then(async () => {
     captureWindowHooks,
     (request) => toast.show(request),
     (target) => void applyRecordTarget(target),
+    () => (hub?.isActive() || hub?.isPending()) ?? false,
+    async () => (await hub?.screenshotTarget()) ?? null,
   );
 
   /**

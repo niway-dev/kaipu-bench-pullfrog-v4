@@ -18,9 +18,17 @@ import type { OverlayPort } from "./overlay-port";
 
 const execFileAsync = promisify(execFile);
 
+/** A frozen recording destination; rect is display-relative DIP. */
+export interface RecordingCaptureTarget {
+  displayId: number;
+  rect: Rectangle | null;
+  windowId?: string;
+}
+
 export type CaptureRequest = {
   mode: CaptureMode;
   overlay: OverlayPort;
+  recordingTarget?: RecordingCaptureTarget;
   /** Why the overlay opens; absent means `capture`. */
   intent?: CaptureIntent;
 };
@@ -209,7 +217,27 @@ export class MacProvider implements ScreenshotCaptureProvider {
     return CAPTURE_MODES.filter((mode) => this.supports(mode));
   }
 
-  async capture({ mode, overlay, intent = "capture" }: CaptureRequest): Promise<ProviderResult> {
+  async capture({
+    mode,
+    overlay,
+    intent = "capture",
+    recordingTarget,
+  }: CaptureRequest): Promise<ProviderResult> {
+    if (recordingTarget) {
+      const display = (await this.deps.getDisplays()).find(
+        (d) => d.id === recordingTarget.displayId,
+      );
+      if (!display) return { kind: "cancelled" };
+      await this.deps.settle();
+      return this.captureTarget({
+        display,
+        rect: recordingTarget.rect,
+        mode: recordingTarget.windowId ? "window" : recordingTarget.rect ? "frame" : "screen",
+        action: "capture",
+        viaOverlay: false,
+        windowId: recordingTarget.windowId,
+      });
+    }
     return runWithOverlay(
       overlay,
       async () => {
@@ -236,7 +264,7 @@ export class MacProvider implements ScreenshotCaptureProvider {
     windowId,
   }: CaptureTarget): Promise<ProviderResult> {
     const region = ["-R", rectArg(rect ? toGlobal(rect, display) : display.bounds), "-x"];
-    if (mode === "window" && windowId && rect) {
+    if (mode === "window" && windowId) {
       // `-l` captures the window by id, whole and without its shadow (`-o`), even when covered.
       let byId: ProviderResult;
       try {
@@ -248,6 +276,7 @@ export class MacProvider implements ScreenshotCaptureProvider {
         byId = { kind: "cancelled" };
       }
       if (byId.kind === "captured") return byId;
+      if (!rect) return { kind: "cancelled" };
       // The window vanished or `-l` refused it: one retry on the rectangle the user saw.
       console.warn(`[screenshot] screencapture -l ${windowId} produced no file; using the rect`);
     }

@@ -354,6 +354,8 @@ const kaipuApi: KaipuElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.screenshotCapture, intent ? { mode, intent } : { mode }),
   screenshotSupportedModes: () => ipcRenderer.invoke(IPC_CHANNELS.screenshotSupportedModes),
   revealAfterCapture: () => ipcRenderer.send(IPC_CHANNELS.screenshotReveal),
+  reportCaptureWhileRecording: (enabled) =>
+    ipcRenderer.send(IPC_CHANNELS.screenshotCaptureWhileRecordingFlag, enabled === true),
   captureOverlay: {
     answer: (answer) => ipcRenderer.send(IPC_CHANNELS.screenshotOverlayAnswer, answer),
     hover: (displayId) => ipcRenderer.send(IPC_CHANNELS.screenshotOverlayHover, { displayId }),

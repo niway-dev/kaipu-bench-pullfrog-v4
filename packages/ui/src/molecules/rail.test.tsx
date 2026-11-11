@@ -1,12 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { RAIL_MODES, Rail, type RailItem, type RailLinkProps } from "./rail";
 
 /**
  * The collapsed rail's floating label. It repeats the link's own name, so it is visual only:
  * no tooltip role and hidden from assistive tech, which already reads the name once.
  */
 const tip = (): HTMLElement | null => document.querySelector("[data-rail-tooltip]");
-import { RAIL_MODES, Rail, type RailItem, type RailLinkProps } from "./rail";
+
+/** jsdom has no focus heuristics: `:focus-visible` is always false. This makes it what a real Tab press gives. */
+const keyboardFocus = (): void => {
+  const matches = Element.prototype.matches;
+  vi.spyOn(Element.prototype, "matches").mockImplementation(function (this: Element, selector) {
+    return selector === ":focus-visible"
+      ? this === document.activeElement
+      : matches.call(this, selector);
+  });
+};
+afterEach(() => vi.restoreAllMocks());
 
 interface LinkItem extends RailItem {
   to: string;
@@ -159,9 +171,11 @@ describe("Rail", () => {
       expect(library).not.toHaveAttribute("title");
     });
 
-    it("the floating label is visual only: no tooltip role, hidden from screen readers", () => {
+    it("the floating label is visual only: no tooltip role, hidden from screen readers", async () => {
+      keyboardFocus();
       render(<Rail mode="collapsed" items={items} renderLink={link} />);
-      fireEvent.focus(screen.getByRole("link", { name: "Library" }));
+      await userEvent.tab();
+      await userEvent.tab();
       expect(screen.queryByRole("tooltip")).toBeNull();
       expect(tip()).toHaveAttribute("aria-hidden", "true");
       expect(screen.getByRole("link", { name: "Library" })).not.toHaveAttribute("aria-describedby");
@@ -176,12 +190,37 @@ describe("Rail", () => {
       expect(tip()).toBeNull();
     });
 
-    it("collapsed shows the tooltip on keyboard focus too, and hides it on blur", () => {
+    it("collapsed shows the tooltip on keyboard focus too, and hides it on blur", async () => {
+      keyboardFocus();
+      render(<Rail mode="collapsed" items={items} renderLink={link} />);
+      await userEvent.tab();
+      expect(tip()).toHaveTextContent("Record");
+      await userEvent.tab();
+      expect(tip()).toHaveTextContent("Library");
+      await userEvent.tab();
+      expect(tip()).toBeNull();
+    });
+
+    it("does not show the tooltip for focus that is not keyboard focus (a click, or window reactivation)", () => {
       render(<Rail mode="collapsed" items={items} renderLink={link} />);
       const record = screen.getByRole("link", { name: "Record" });
+      // A synthetic focus event on an element that is not :focus-visible, as after a mouse click.
       fireEvent.focus(record);
-      expect(tip()).toHaveTextContent("Record");
-      fireEvent.blur(record);
+      expect(tip()).toBeNull();
+    });
+
+    it("closes the tooltip when the window loses focus", () => {
+      render(<Rail mode="collapsed" items={items} renderLink={link} />);
+      fireEvent.mouseEnter(screen.getByRole("link", { name: "Record" }));
+      expect(tip()).not.toBeNull();
+      fireEvent.blur(window);
+      expect(tip()).toBeNull();
+    });
+
+    it("closes the tooltip on Escape", () => {
+      render(<Rail mode="collapsed" items={items} renderLink={link} />);
+      fireEvent.mouseEnter(screen.getByRole("link", { name: "Record" }));
+      fireEvent.keyDown(document, { key: "Escape" });
       expect(tip()).toBeNull();
     });
 

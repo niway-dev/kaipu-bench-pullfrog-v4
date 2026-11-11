@@ -192,6 +192,9 @@ describe("Sidebar Library badge (copies being made or ready)", () => {
 describe("Sidebar is icon-only (NIW2-626)", () => {
   const tip = (): HTMLElement | null => document.querySelector("[data-rail-tooltip]");
 
+  // The keyboard-focus test spies on Element.prototype.matches; never leak it into other tests.
+  afterEach(() => vi.restoreAllMocks());
+
   it("always draws the collapsed rail, with no way to expand it", () => {
     renderAt("/");
     expect(screen.getByRole("navigation")).toHaveAttribute("data-mode", "collapsed");
@@ -208,9 +211,16 @@ describe("Sidebar is icon-only (NIW2-626)", () => {
   it("shows the label in a tooltip on keyboard focus and on hover", () => {
     renderAt("/");
     const settings = screen.getByRole("link", { name: "Settings" });
-    fireEvent.focus(settings);
+    // jsdom has no focus heuristics; make `:focus-visible` what a real Tab press gives.
+    const matches = Element.prototype.matches;
+    vi.spyOn(Element.prototype, "matches").mockImplementation(function (this: Element, selector) {
+      return selector === ":focus-visible"
+        ? this === document.activeElement
+        : matches.call(this, selector);
+    });
+    act(() => settings.focus());
     expect(tip()).toHaveTextContent("Settings");
-    fireEvent.blur(settings);
+    act(() => settings.blur());
     expect(tip()).toBeNull();
     fireEvent.mouseEnter(settings);
     expect(tip()).toHaveTextContent("Settings");

@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalRecording } from "@shared/types/library-storage";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import { SESSION_BEFORE_WEBCAM } from "@renderer/features/video-editor/session-before-webcam.fixture";
+import { serializeSession } from "@renderer/features/video-editor/session";
+import { initialScene } from "@renderer/features/video-editor/scene";
+import { TRACK_KEYS } from "@renderer/features/video-editor/tracks";
 import { WEBCAM_DEFAULTS } from "@renderer/features/video-editor/webcam/webcam-model";
 import { setHeaderActionsElement } from "@renderer/features/workspaces/header-slot";
 import {
@@ -59,6 +62,14 @@ vi.mock("@renderer/features/video-editor/export/use-video-export", () => ({
     start: startExport,
     cancel: vi.fn(),
   }),
+}));
+
+// The page reports one product event for the speed button. The real client is a no-op
+// without PostHog; spying on it lets the tests pin the name and the payload.
+const captureEventSpy = vi.hoisted(() => vi.fn());
+vi.mock("@renderer/features/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@renderer/features/analytics")>()),
+  captureEvent: captureEventSpy,
 }));
 
 // Thumbnails never decode in jsdom (no WebCodecs); spying on the hook lets the webcam tests
@@ -128,6 +139,9 @@ afterEach(() => {
   headerActions.remove();
 });
 
+/** The timeline blocks: the lane labels are guide buttons too (NIW2-679), not segments. */
+const BLOCK_BUTTONS = 'button:not([class*="_laneGuide_"])';
+
 function renderEditor(source: VideoEditorSource = SOURCE) {
   const router = createMemoryRouter(
     [
@@ -178,7 +192,7 @@ async function makeDirty(footer: HTMLElement): Promise<void> {
   });
   fireEvent.change(input, { target: { files: [file] } });
   await waitFor(() => {
-    expect(footer.querySelectorAll("button")).toHaveLength(2);
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2);
   });
 }
 
@@ -311,16 +325,20 @@ describe("VideoEditorLoader — an identity two files claim (NIW2-560)", () => {
 });
 
 describe("VideoEditorPage — actions in the title bar (NIW2-619)", () => {
-  it("renders undo, redo, split, delete, the status and Export into the title bar, not the side column", async () => {
+  it("renders undo, redo, add image, the status and Export into the title bar, not the side column", async () => {
     renderEditor();
     await waitForEditorLoaded();
 
     const inspector = document.querySelector('[data-testid="editor-inspector"]')!;
     const side = inspector.parentElement!;
-    for (const name of ["Undo", "Redo", "Add image", "Split here", "Delete segment", "Export"]) {
+    for (const name of ["Undo", "Redo", "Add image", "Export"]) {
       const button = screen.getByRole("button", { name });
       expect(headerActions.contains(button)).toBe(true);
       expect(side.contains(button)).toBe(false);
+    }
+    // Split and delete act on the timeline, so they live on the transport bar (NIW2-664).
+    for (const name of ["Split here", "Delete segment"]) {
+      expect(within(headerActions).queryByRole("button", { name })).toBeNull();
     }
     const badge = within(headerActions).getByText("ORIGINAL UNTOUCHED", { exact: false });
     // The badge is the first thing a crowded title bar hides; Export stays, last.
@@ -396,6 +414,69 @@ describe("VideoEditorPage — transport bar", () => {
     });
   });
 
+  it("holds split, delete, mute and fullscreen, with play and the time between them", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    const transport = document.querySelector<HTMLElement>(
+      "[data-ui-area='editorVideo.transport']",
+    )!;
+    for (const name of ["Split here", "Delete segment", "Mute", "Fullscreen", "Play"]) {
+      expect(within(transport).getByRole("button", { name })).toBeInTheDocument();
+    }
+    expect(within(transport).getByText("0:00.0 / 0:30.0")).toBeInTheDocument();
+  });
+
+  it("Forward skips five seconds through the playback seek, and Rewind comes back", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Rewind" }));
+    await waitFor(() => expect(screen.getByText("0:00.0 / 0:30.0")).toBeInTheDocument());
+  });
+
+  it("Split here cuts the clip under the playhead in two", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    // One clip covers the recording: one block on the timeline.
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1);
+
+    // Step off t=0 so the cut lands inside the clip (a cut on the boundary is a no-op).
+    fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    const split = screen.getByRole("button", { name: "Split here" });
+    expect(split).toBeEnabled();
+    fireEvent.click(split);
+
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
+  });
+
+  it("Delete segment is disabled until a segment is selected, then removes it", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    // Two segments, so the only thing keeping Delete disabled is the missing selection
+    // (with one item left it is disabled regardless).
+    fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Split here" }));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
+
+    expect(screen.getByRole("button", { name: "Delete segment" })).toBeDisabled();
+
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[0]);
+    const remove = await waitFor(() => {
+      const button = screen.getByRole("button", { name: "Delete segment" });
+      expect(button).toBeEnabled();
+      return button;
+    });
+    fireEvent.click(remove);
+
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1));
+    expect(screen.getByRole("button", { name: "Delete segment" })).toBeDisabled();
+  });
+
   it("renders the fullscreen button with aria-label 'Fullscreen' by default", async () => {
     renderEditor();
     await waitForEditorLoaded();
@@ -427,11 +508,11 @@ describe("VideoEditorPage — add-image wiring", () => {
     const footer = await waitForEditorLoaded();
 
     // Starting scene is a single clip covering the whole recording — one track block.
-    expect(footer.querySelectorAll("button")).toHaveLength(1);
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1);
 
     await makeDirty(footer);
 
-    const blocks = footer.querySelectorAll("button");
+    const blocks = footer.querySelectorAll(BLOCK_BUTTONS);
     // Playhead is at 0, so boundaryIndexAt lands the slide at index 0 — the first
     // block. Only a slide block renders an <img> (its picture) and the ImagePlus
     // badge icon; a plain clip block with no decoded thumbnails renders neither.
@@ -501,7 +582,7 @@ describe("VideoEditorPage — background export vs. useBlocker", () => {
     fireEvent.change(screen.getByTestId("slide-image-input"), {
       target: { files: [new File([new Uint8Array([0x89, 0x50])], "y.png", { type: "image/png" })] },
     });
-    await waitFor(() => expect(footer.querySelectorAll("button")).toHaveLength(3));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(3));
 
     await act(async () => {
       await pending!.onSaved({
@@ -679,7 +760,7 @@ describe("VideoEditorPage — add-image decode failure", () => {
       );
     });
     // No slide was inserted — still the single starting clip block.
-    expect(footer.querySelectorAll("button")).toHaveLength(1);
+    expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1);
   });
 
   it("resets the file input's value so re-selecting the same (still-corrupt) file fires another change event", async () => {
@@ -1258,5 +1339,831 @@ describe("VideoEditorPage — webcam track", () => {
     fireEvent.pointerDown(screen.getByTestId("webcam-layer"), { pointerId: 1 });
     expect(await screen.findByRole("heading", { name: "Webcam" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Position" })).toBeInTheDocument();
+  });
+});
+
+describe("VideoEditorPage — Tracks popover (NIW2-665)", () => {
+  type Settings = Awaited<ReturnType<typeof window.electronAPI.getSettings>>;
+  type Patch = Parameters<typeof window.electronAPI.updateSettings>[0];
+  let writes: Patch[];
+  let original: Pick<
+    typeof window.electronAPI,
+    "getSettings" | "updateSettings" | "onSettingsChanged"
+  >;
+
+  /** A settings store that remembers what the page writes and tells its subscribers. */
+  function fakeSettings(hiddenTracks: string[]): void {
+    const base = original.getSettings();
+    const listeners = new Set<(s: Settings) => void>();
+    let current: Settings | null = null;
+    const read = async (): Promise<Settings> => {
+      current ??= { ...(await base), editor: { hiddenTracks } } as unknown as Settings;
+      return current;
+    };
+    window.electronAPI.getSettings = read;
+    window.electronAPI.updateSettings = async (patch: Patch) => {
+      writes.push(patch);
+      current = { ...(await read()), ...patch } as Settings;
+      listeners.forEach((listener) => listener(current!));
+      return current;
+    };
+    window.electronAPI.onSettingsChanged = (cb) => {
+      listeners.add(cb as (s: Settings) => void);
+      return () => listeners.delete(cb as (s: Settings) => void);
+    };
+  }
+
+  beforeEach(() => {
+    writes = [];
+    original = {
+      getSettings: window.electronAPI.getSettings,
+      updateSettings: window.electronAPI.updateSettings,
+      onSettingsChanged: window.electronAPI.onSettingsChanged,
+    };
+    stubDecodedVideoSize(1280, 720);
+  });
+  afterEach(() => {
+    Object.assign(window.electronAPI, original);
+    stubDecodedVideoSize(0, 0);
+  });
+
+  const laneLabels = (): string[] =>
+    [...document.querySelectorAll("footer span")]
+      .filter((el) => el.querySelector("svg") && el.textContent)
+      .map((el) => el.textContent ?? "");
+  const tracksTrigger = (): HTMLElement => screen.getByRole("button", { name: /^Tracks/ });
+
+  const EDITED = {
+    ...initialScene(30),
+    items: [{ id: "clip-1", kind: "clip" as const, sourceStart: 0, sourceEnd: 30 }],
+    overlays: [
+      {
+        id: "o1",
+        kind: "text" as const,
+        x: 0.4,
+        y: 0.4,
+        text: "still here",
+        size: 19,
+        color: "#000000",
+        start: 0,
+        end: 30,
+      },
+    ],
+    redactions: [
+      {
+        id: "r1",
+        kind: "cover" as const,
+        start: 0,
+        end: 30,
+        rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+        fill: "#18181b",
+        label: "",
+      },
+    ],
+    mutedRanges: [{ id: "m1", sourceStart: 3, sourceEnd: 5 }],
+    zoomSegments: [
+      {
+        id: "z1",
+        start: 1,
+        end: 10,
+        scale: 2,
+        mode: "fixed" as const,
+        anchor: { x: 0.25, y: 0.25 },
+        smoothing: 0,
+        origin: "manual" as const,
+        trigger: null,
+      },
+    ],
+  };
+
+  it("counts the lanes this take can show: 5/5 without a cursor track or a camera", async () => {
+    fakeSettings([]);
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(tracksTrigger()).toHaveTextContent("Tracks 5/5");
+    expect(laneLabels()).toEqual(["Clips", "Zooms", "Privacy", "Audio"]);
+  });
+
+  it("has no Activity row any more", async () => {
+    fakeSettings([]);
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(laneLabels()).not.toContain("Activity");
+    expect(document.querySelector("[data-testid='activity-lane']")).toBeNull();
+  });
+
+  it("draws the stored choice: a hidden lane is not on the timeline and the trigger counts it", async () => {
+    fakeSettings(["zooms", "privacy"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    await waitFor(() => expect(tracksTrigger()).toHaveTextContent("Tracks 3/5"));
+    expect(laneLabels()).toEqual(["Clips", "Audio"]);
+  });
+
+  it("unchecking Zooms in the popover hides the lane and saves editor.hiddenTracks", async () => {
+    fakeSettings([]);
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(tracksTrigger());
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Zooms" }));
+    await waitFor(() => expect(laneLabels()).toEqual(["Clips", "Privacy", "Audio"]));
+    expect(writes).toEqual([{ editor: { hiddenTracks: ["zooms"] } }]);
+    expect(tracksTrigger()).toHaveTextContent("Tracks 4/5");
+  });
+
+  it("selecting a zoom while Zooms is hidden shows the lane again, with the zoom selected", async () => {
+    fakeSettings(["zooms"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    await waitFor(() => expect(laneLabels()).toEqual(["Clips", "Privacy", "Audio"]));
+
+    // The Zoom tool adds a manual zoom at the playhead and selects it.
+    fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
+    await screen.findByRole("heading", { name: "Zoom 1" });
+
+    await waitFor(() => expect(laneLabels()).toContain("Zooms"));
+    expect(writes).toEqual([{ editor: { hiddenTracks: [] } }]);
+    expect(document.querySelector("[data-zoom-id]")).not.toBeNull();
+  });
+
+  it("adding a mute while Audio is hidden shows the Audio lane again", async () => {
+    fakeSettings(["audio"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    await waitFor(() => expect(laneLabels()).not.toContain("Audio"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Mute a section/ }));
+
+    await waitFor(() => expect(laneLabels()).toContain("Audio"));
+    expect(writes).toEqual([{ editor: { hiddenTracks: [] } }]);
+  });
+
+  it("selecting something on a lane that is shown writes nothing", async () => {
+    fakeSettings(["privacy"]);
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom" }));
+    await screen.findByRole("heading", { name: "Zoom 1" });
+    expect(writes).toEqual([]);
+  });
+
+  describe("hiding a lane clears a selection that lives on it", () => {
+    const kinds: { lane: string; heading: string; select(footer: HTMLElement): void }[] = [
+      {
+        lane: "Privacy",
+        heading: "Cover region",
+        select: (footer) => fireEvent.click(footer.querySelector('[data-redaction-block="r1"]')!),
+      },
+      {
+        lane: "Zooms",
+        heading: "Zoom 1",
+        select: (footer) => fireEvent.click(footer.querySelector('[data-zoom-id="z1"]')!),
+      },
+      {
+        lane: "Audio",
+        heading: "Muted section 1",
+        select: (footer) => fireEvent.click(footer.querySelector('[data-mute-id="m1"]')!),
+      },
+      {
+        lane: "Objects",
+        heading: "Text",
+        // The annotation's pill in its lane: a button with an icon and no text.
+        select: (footer) => fireEvent.pointerDown(footer.querySelector('button[class*="_pill_"]')!),
+      },
+    ];
+
+    it.each(kinds)(
+      "$lane: hiding it deselects the item on it, so Delete cannot remove it unseen",
+      async ({ lane, heading, select }) => {
+        window.electronAPI.loadVideoEditSession = vi.fn(async () => ({
+          sessionJson: serializeSession(EDITED),
+          assets: [],
+        }));
+        fakeSettings([]);
+        renderEditor();
+        const footer = await waitForEditorLoaded();
+        await waitFor(() => expect(laneLabels()).toContain(lane));
+        select(footer);
+        await screen.findByRole("heading", { name: heading });
+
+        fireEvent.click(tracksTrigger());
+        fireEvent.click(screen.getByRole("menuitemcheckbox", { name: lane }));
+        await waitFor(() => expect(laneLabels()).not.toContain(lane));
+        expect(screen.queryByRole("heading", { name: heading })).toBeNull();
+
+        // The page's Delete handler now has nothing selected: everything still exports.
+        fireEvent.keyDown(window, { key: "Delete" });
+        startExport.mockClear();
+        clickExportVideo();
+        await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+        const handed = (startExport.mock.calls[0] as unknown[])[0] as { scene: typeof EDITED };
+        expect(handed.scene.overlays).toHaveLength(1);
+        expect(handed.scene.redactions).toHaveLength(1);
+        expect(handed.scene.zoomSegments).toHaveLength(1);
+        expect(handed.scene.mutedRanges).toHaveLength(1);
+      },
+    );
+
+    it("leaves a selection on another lane alone", async () => {
+      window.electronAPI.loadVideoEditSession = vi.fn(async () => ({
+        sessionJson: serializeSession(EDITED),
+        assets: [],
+      }));
+      fakeSettings([]);
+      renderEditor();
+      const footer = await waitForEditorLoaded();
+      await waitFor(() => expect(laneLabels()).toContain("Privacy"));
+      fireEvent.click(footer.querySelector('[data-zoom-id="z1"]')!);
+      await screen.findByRole("heading", { name: "Zoom 1" });
+      fireEvent.click(tracksTrigger());
+      fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Privacy" }));
+      await waitFor(() => expect(laneLabels()).not.toContain("Privacy"));
+      expect(screen.getByRole("heading", { name: "Zoom 1" })).toBeInTheDocument();
+    });
+  });
+
+  describe("hiding every lane changes no scene handed to the export (ADR 0050 decision 1)", () => {
+    const HIDEABLE = TRACK_KEYS.filter((key) => key !== "clips");
+
+    /** Open the saved edit with these lanes hidden, seek into the zoom, and export. */
+    async function openAndExport(hidden: string[]) {
+      window.electronAPI.loadVideoEditSession = vi.fn(async () => ({
+        sessionJson: serializeSession(EDITED),
+        assets: [],
+      }));
+      fakeSettings(hidden);
+      startExport.mockClear();
+      renderEditor();
+      await waitForEditorLoaded();
+      await waitFor(() =>
+        expect(tracksTrigger()).toHaveTextContent(hidden.length ? /Tracks [1-9]\/5/ : "Tracks 5/5"),
+      );
+      const video = document.querySelector("video") as HTMLVideoElement;
+      video.currentTime = 4;
+      fireEvent(video, new Event("seeked"));
+      const preview = {
+        overlay: screen.queryByText("still here") !== null,
+        redaction: document.querySelector('[data-redaction-id="r1"]') !== null,
+        // The zoomed frame is the redaction layer's parent. A missing parent must fail the
+        // test, not read back as `undefined` on both sides and compare equal.
+        zoom: (
+          document.querySelector('[data-testid="redaction-layer"]')?.parentElement as
+            | HTMLElement
+            | undefined
+        )?.style.transform,
+      };
+      clickExportVideo();
+      await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+      const handed = (startExport.mock.calls[0] as unknown[])[0] as { scene: unknown };
+      return { preview, scene: structuredClone(handed.scene) };
+    }
+
+    it("keeps the annotation, the redaction and the zoom in the preview, and hands the export the same scene", async () => {
+      const shown = await openAndExport([]);
+      cleanup();
+      const hidden = await openAndExport(HIDEABLE);
+      expect(laneLabels()).toEqual(["Clips"]);
+      // Drawn in the preview whatever the timeline shows.
+      expect(shown.preview.overlay).toBe(true);
+      expect(shown.preview.redaction).toBe(true);
+      expect(shown.preview.zoom).toEqual(expect.stringMatching(/scale\(/));
+      expect(hidden.preview.zoom).toBe(shown.preview.zoom);
+      expect(hidden.preview).toEqual(shown.preview);
+      // And the export is handed the same scene: nothing dropped with its lane. (Annotation
+      // stroke scale follows the live preview width, which this test does not pin.)
+      expect(hidden.scene).toEqual(shown.scene);
+      expect(hidden.scene).toMatchObject({
+        overlays: [{ id: "o1" }],
+        redactions: [{ id: "r1" }],
+        zoomSegments: [{ id: "z1" }],
+        mutedRanges: [{ id: "m1" }],
+      });
+    });
+  });
+});
+
+describe("VideoEditorPage — preview playback speed (NIW2-666)", () => {
+  const speedButton = (): HTMLElement => screen.getByRole("button", { name: /^Playback speed/ });
+  const videoEl = (): HTMLVideoElement => document.querySelector("video") as HTMLVideoElement;
+
+  beforeEach(() => {
+    captureEventSpy.mockClear();
+    startExport.mockClear();
+    stubDecodedVideoSize(1280, 720);
+  });
+  afterEach(() => {
+    cleanup();
+    stubDecodedVideoSize(0, 0);
+  });
+
+  it("cycles 1x, 1.5x, 2x, 0.5x, 1x and the <video> follows each rate", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(speedButton()).toHaveTextContent("1×");
+    expect(videoEl().playbackRate).toBe(1);
+
+    const seen: Array<[string | null, number]> = [];
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(speedButton());
+      seen.push([speedButton().textContent, videoEl().playbackRate]);
+    }
+    expect(seen).toEqual([
+      ["1.5×", 1.5],
+      ["2×", 2],
+      ["0.5×", 0.5],
+      ["1×", 1],
+    ]);
+  });
+
+  it("keeps the rate when the element loads a new source", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(speedButton());
+    fireEvent.click(speedButton()); // 2x
+    videoEl().playbackRate = 1; // what a src change does to a real element
+    fireEvent.loadedMetadata(videoEl());
+    expect(videoEl().playbackRate).toBe(2);
+  });
+
+  it("reports one editor_speed_changed per change, with the speed and nothing else", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(speedButton());
+    fireEvent.click(speedButton());
+    expect(captureEventSpy.mock.calls).toEqual([
+      ["editor_speed_changed", { speed: 1.5 }],
+      ["editor_speed_changed", { speed: 2 }],
+    ]);
+  });
+
+  it("starts at 1x again when the editor is reopened", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(speedButton());
+    fireEvent.click(speedButton());
+    expect(speedButton()).toHaveTextContent("2×");
+    cleanup();
+
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(speedButton()).toHaveTextContent("1×");
+    expect(videoEl().playbackRate).toBe(1);
+    expect(captureEventSpy).toHaveBeenCalledTimes(2); // opening reports nothing
+  });
+
+  it("hands the export the same scene at 1x and at 2x", async () => {
+    const exportedScene = async (clicks: number): Promise<unknown> => {
+      renderEditor();
+      await waitForEditorLoaded();
+      for (let i = 0; i < clicks; i++) fireEvent.click(speedButton());
+      startExport.mockClear();
+      clickExportVideo();
+      await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+      const handed = (startExport.mock.calls[0] as unknown[])[0] as { scene: unknown };
+      const scene = structuredClone(handed.scene);
+      cleanup();
+      return scene;
+    };
+    const at1x = await exportedScene(0);
+    const at2x = await exportedScene(2);
+    expect(at2x).toEqual(at1x);
+    expect(JSON.stringify(at2x)).not.toMatch(/speed|playbackRate/i);
+  });
+});
+
+describe("VideoEditorPage — timeline zoom (NIW2-667)", () => {
+  // jsdom lays nothing out: the lane sits at x = 220 and is 1000 px wide, so the 30 s
+  // recording is 33.3 px/s at fit and zooms up to 20x (2000%), whatever its duration (NIW2-675).
+  const LANE_LEFT = 220;
+  const LANE_WIDTH = 1000;
+
+  // These tests need ONE fresh clip. An earlier describe leaves a saved session on the shared
+  // fake IPC, which would open the editor already cut; start every test from no session.
+  let loadSession: typeof window.electronAPI.loadVideoEditSession;
+  beforeEach(() => {
+    loadSession = window.electronAPI.loadVideoEditSession;
+    window.electronAPI.loadVideoEditSession = async () => null;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const rect = (left: number, width: number): DOMRect =>
+          ({
+            left,
+            right: left + width,
+            width,
+            top: 0,
+            bottom: 20,
+            height: 20,
+            x: left,
+            y: 0,
+            toJSON: () => ({}),
+          }) as DOMRect;
+        const id = this.dataset.testid;
+        if (id === "timeline-scroller") return rect(100, 120 + LANE_WIDTH);
+        if (id === "lane-corner") return rect(100, 120);
+        return rect(0, 0);
+      },
+    );
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.electronAPI.loadVideoEditSession = loadSession;
+    stubDecodedVideoSize(0, 0);
+  });
+
+  const scroller = (): HTMLElement =>
+    document.querySelector('[data-testid="timeline-scroller"]') as HTMLElement;
+  const zoomIn = (): HTMLElement => screen.getByRole("button", { name: "Zoom in the timeline" });
+  const zoomOut = (): HTMLElement => screen.getByRole("button", { name: "Zoom out the timeline" });
+  const fit = (): HTMLElement =>
+    screen.getByRole("button", { name: "Fit the whole recording in the timeline" });
+  const zoomTo4x = (): void => {
+    for (let i = 0; i < 2; i++) fireEvent.click(zoomIn()); // 100% → 200% → 400%
+    expect(Number(scroller().dataset.zoom)).toBeCloseTo(4, 6);
+  };
+  const stubCapture = (el: HTMLElement): HTMLElement => {
+    el.setPointerCapture = vi.fn();
+    el.hasPointerCapture = vi.fn(() => true);
+    el.releasePointerCapture = vi.fn();
+    return el;
+  };
+
+  it("opens at 1x, showing the whole recording as before: nothing to zoom out of or fit", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(scroller().dataset.zoom).toBe("1");
+    expect(scroller().scrollLeft).toBe(0);
+    expect(zoomOut()).toBeDisabled();
+    expect(fit()).toBeDisabled();
+  });
+
+  it("the transport bar's + and the strip are one view: + zooms the lanes, FIT brings them back", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.click(zoomIn());
+    expect(Number(scroller().dataset.zoom)).toBeCloseTo(2, 6); // one press = 200%
+    fireEvent.click(zoomIn());
+    expect(Number(scroller().dataset.zoom)).toBeCloseTo(4, 6);
+    expect(fit()).toBeEnabled();
+    fireEvent.click(fit());
+    expect(scroller().dataset.zoom).toBe("1");
+    expect(scroller().scrollLeft).toBe(0);
+  });
+
+  it("a trim at 4x moves the edge by the time under the pointer, not the 1x amount", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    zoomTo4x();
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[0]); // select the clip: its handles appear
+    const end = stubCapture(
+      await waitFor(() => {
+        const handle = document.querySelector<HTMLElement>('[data-trim-handle="end"]');
+        expect(handle).not.toBeNull();
+        return handle!;
+      }),
+    );
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 800 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 600 }); // -200 px
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 600 });
+    // 200 px at 4x (133.3 px/s) is 1.5 s: 30 s becomes 28.5 s. At 1x it would be -6 s: 24 s.
+    await waitFor(() => expect(screen.getByText("0:00.0 / 0:28.5")).toBeInTheDocument());
+  });
+
+  it("a click on the ruler at 4x seeks to the time under the pointer", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    zoomTo4x();
+    const ruler = stubCapture(screen.getByTestId("ruler"));
+    // Off the centre: the + buttons zoom around the centre of the lane, so a click there
+    // would read the same at 1x and at 4x and prove nothing.
+    fireEvent.pointerDown(ruler, { pointerId: 1, clientX: LANE_LEFT + 800 });
+    const scale = (Number(scroller().dataset.zoom) * LANE_WIDTH) / 30;
+    const expected = (800 + scroller().scrollLeft) / scale;
+    const tenths = Math.floor(expected * 10 + 1e-6);
+    const label = `0:${String(Math.floor(tenths / 10)).padStart(2, "0")}.${tenths % 10} / 0:30.0`;
+    await waitFor(() => expect(screen.getByText(label)).toBeInTheDocument());
+    // The time the same pixel shows at 1x would be 24.0 s.
+    expect(label).not.toBe("0:24.0 / 0:30.0");
+    expect(screen.queryByText("0:24.0 / 0:30.0")).toBeNull();
+  });
+
+  it("deleting a clip while zoomed keeps the scroll inside the shorter content", async () => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Forward" })); // 5 s
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Split here" }));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
+    for (let i = 0; i < 5; i++) fireEvent.click(zoomIn()); // the 5th press is already at 2000%
+    const zoomBefore = Number(scroller().dataset.zoom);
+    expect(zoomBefore).toBe(20);
+    act(() => {
+      scroller().scrollLeft = 99_999;
+      fireEvent.scroll(scroller());
+    });
+    // The scroll really sits on the 20x maximum (19000 px), where the left edge is at 28.5 s: past
+    // the 5 s that are left after the delete, so the re-clamp below has work to do.
+    expect(scroller().scrollLeft).toBeCloseTo(zoomBefore * LANE_WIDTH - LANE_WIDTH, 3);
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[1]); // select the second clip (25 s)
+    fireEvent.click(screen.getByRole("button", { name: "Delete segment" }));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(1));
+    // 5 s are left. The zoom is a factor and its cap does not depend on the duration, so the
+    // view stays at 2000% (it re-fits what is left) and the scroll stays inside the content.
+    const zoomAfter = Number(scroller().dataset.zoom);
+    expect(zoomAfter).toBe(zoomBefore);
+    expect(scroller().scrollLeft).toBeLessThanOrEqual(zoomAfter * LANE_WIDTH - LANE_WIDTH + 0.5);
+  });
+
+  // Esc runs clearSelection(), which unmounts the trim handles. The handle held pointer
+  // capture, so the browser sends `lostpointercapture` to the document and the handle's own
+  // "drag ended" never fires (NIW2-667 review R2-1). Split and Delete are held back while a
+  // drag owns the scene, so a drag that never ends also leaves them dead.
+  const startTrimDragThenEscape = async (): Promise<HTMLElement> => {
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    zoomTo4x();
+    fireEvent.click(footer.querySelectorAll(BLOCK_BUTTONS)[0]); // select the clip: its handles appear
+    const end = stubCapture(
+      await waitFor(() => {
+        const handle = document.querySelector<HTMLElement>('[data-trim-handle="end"]');
+        expect(handle).not.toBeNull();
+        return handle!;
+      }),
+    );
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 800 });
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(document.querySelector("[data-trim-handle]")).toBeNull());
+    return footer;
+  };
+
+  it("Escape in the middle of a trim drag ends the drag: Split here works again", async () => {
+    const footer = await startTrimDragThenEscape();
+    fireEvent.click(screen.getByRole("button", { name: "Forward" })); // 5 s: inside the clip
+    await waitFor(() => expect(screen.getByText("0:05.0 / 0:30.0")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Split here" }));
+    await waitFor(() => expect(footer.querySelectorAll(BLOCK_BUTTONS)).toHaveLength(2));
+  });
+
+  it("Escape in the middle of a trim drag leaves a paused seek off screen revealed", async () => {
+    await startTrimDragThenEscape();
+    // The zoom buttons zoom around the centre: the lane shows 11.25..18.75 s of the 30.
+    for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await waitFor(() => expect(screen.getByText("0:25.0 / 0:30.0")).toBeInTheDocument());
+    // 25 s at 4x is 3333 px from the start of a 1000 px lane: unless the view scrolled to
+    // follow the seek, it sits 1833 px off the right edge.
+    await waitFor(() => {
+      const x = (25 * Number(scroller().dataset.zoom) * LANE_WIDTH) / 30 - scroller().scrollLeft;
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(LANE_WIDTH);
+    });
+  });
+
+  it("starts at 1x again when the editor is reopened: the view is not saved", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    zoomTo4x();
+    cleanup();
+    renderEditor();
+    await waitForEditorLoaded();
+    expect(scroller().dataset.zoom).toBe("1");
+  });
+
+  it("hands the export the same scene at 1x and at 4x", async () => {
+    stubDecodedVideoSize(1280, 720);
+    const exportedScene = async (zoom: boolean): Promise<unknown> => {
+      renderEditor();
+      await waitForEditorLoaded();
+      if (zoom) zoomTo4x();
+      startExport.mockClear();
+      clickExportVideo();
+      await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+      const handed = (startExport.mock.calls[0] as unknown[])[0] as { scene: unknown };
+      // A fresh open mints a fresh clip id; everything else must match.
+      const scene = JSON.parse(
+        JSON.stringify(handed.scene).replace(/"id":"[0-9a-f-]{36}"/g, '"id":"clip"'),
+      ) as unknown;
+      cleanup();
+      return scene;
+    };
+    const atFit = await exportedScene(false);
+    const zoomed = await exportedScene(true);
+    expect(zoomed).toEqual(atFit);
+  });
+});
+
+describe("VideoEditorPage — background (NIW2-668)", () => {
+  const MAGENTA = { bg: "magenta", padding: 48, radius: 16, shadow: 24 } as const;
+
+  // The saved-session fake is shared; start each test from none, and put it back after.
+  let loadSession: typeof window.electronAPI.loadVideoEditSession;
+  const savedSession = (json: string | null): void => {
+    window.electronAPI.loadVideoEditSession = vi.fn(async () =>
+      json === null ? null : { sessionJson: json, assets: [] },
+    );
+  };
+  beforeEach(() => {
+    loadSession = window.electronAPI.loadVideoEditSession;
+    savedSession(null);
+    startExport.mockClear();
+    stubDecodedVideoSize(1280, 720);
+    // The preview frame measures itself; jsdom lays nothing out.
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(960);
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(540);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.electronAPI.loadVideoEditSession = loadSession;
+    stubDecodedVideoSize(0, 0);
+  });
+
+  const picture = (): HTMLElement => screen.getByTestId("preview-picture");
+  const swatch = (name: string): HTMLElement => screen.getByRole("button", { name });
+  const slider = (name: string): HTMLInputElement =>
+    screen.getByRole("slider", { name }) as HTMLInputElement;
+  const exportedArgs = async (): Promise<{
+    scene: { background?: unknown };
+    fingerprint: string;
+  }> => {
+    startExport.mockClear();
+    clickExportVideo();
+    await waitFor(() => expect(startExport).toHaveBeenCalledOnce());
+    return (startExport.mock.calls[0] as unknown[])[0] as never;
+  };
+
+  it("shows the Background section above Detection with nothing selected: none, sliders disabled, picture fills the frame", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    const section = await screen.findByRole("region", { name: "Background" });
+    const inspector = document.querySelector('[data-testid="editor-inspector"]')!;
+    expect(inspector.contains(section)).toBe(true);
+    const detection = screen.getByRole("heading", { name: "Detection" });
+    expect(
+      section.compareDocumentPosition(detection) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(section).getAllByRole("button")).toHaveLength(17);
+    expect(swatch("None")).toHaveAttribute("aria-pressed", "true");
+    for (const name of ["Padding", "Corners", "Shadow"]) expect(slider(name)).toBeDisabled();
+    expect(slider("Padding")).toHaveValue("0");
+    expect(picture().style.left).toBe("");
+    expect(screen.getByTestId("preview-frame").style.getPropertyValue("--frame-bg")).toBe("");
+  });
+
+  it("choosing Magenta enables the sliders; padding 48, corners 16, shadow 24 insets the picture on the gradient", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    await screen.findByRole("region", { name: "Background" });
+    fireEvent.click(swatch("Magenta"));
+    for (const name of ["Padding", "Corners", "Shadow"]) expect(slider(name)).toBeEnabled();
+    fireEvent.change(slider("Padding"), { target: { value: "48" } });
+    fireEvent.change(slider("Corners"), { target: { value: "16" } });
+    fireEvent.change(slider("Shadow"), { target: { value: "24" } });
+    expect(screen.getByTestId("preview-frame").style.getPropertyValue("--frame-bg")).toBe(
+      "linear-gradient(135deg, #ff2d6e, #a3044a)",
+    );
+    // 960×540 stage: 48 px at 1080 is 24 px, the radius 8 px, the picture keeps 16:9.
+    expect(parseFloat(picture().style.top)).toBeCloseTo(24, 6);
+    expect(parseFloat(picture().style.borderRadius)).toBeCloseTo(8, 6);
+    expect(parseFloat(picture().style.height)).toBeCloseTo(492, 6);
+    expect(picture().style.boxShadow).toMatch(/^0 \d/);
+  });
+
+  it("hands the export the background in the scene, and bg1 in the fingerprint; a plain scene has neither", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    await screen.findByRole("region", { name: "Background" });
+    const plain = await exportedArgs();
+    expect(plain.fingerprint).not.toMatch(/bg1/);
+    cleanup();
+
+    savedSession(serializeSession({ ...initialScene(30), background: MAGENTA }));
+    renderEditor();
+    await waitForEditorLoaded();
+    const withBackground = await exportedArgs();
+    expect(withBackground.scene.background).toEqual(MAGENTA);
+    expect(withBackground.fingerprint).toMatch(/^edit:bg1:[0-9a-z]+$/);
+    expect(withBackground.fingerprint).not.toBe(plain.fingerprint);
+  });
+
+  it("keeps the old fingerprint for none, even with stored numbers", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    const plain = await exportedArgs();
+    cleanup();
+    savedSession(
+      serializeSession({
+        ...initialScene(30),
+        background: { bg: "none", padding: 48, radius: 16, shadow: 24 },
+      }),
+    );
+    renderEditor();
+    await waitForEditorLoaded();
+    const stored = await exportedArgs();
+    // The scene's items carry fresh ids per open, so compare what the fingerprint keys on: the
+    // tag, which is absent for none.
+    expect(stored.fingerprint).not.toMatch(/bg1/);
+    expect(stored.fingerprint.split(":")).toHaveLength(plain.fingerprint.split(":").length);
+  });
+
+  it("restores the background when the editor is opened again", async () => {
+    savedSession(serializeSession({ ...initialScene(30), background: MAGENTA }));
+    renderEditor();
+    await waitForEditorLoaded();
+    await screen.findByRole("region", { name: "Background" });
+    expect(getToasts().map((toast) => toast.message)).toContain("Restored your previous edit");
+    expect(swatch("Magenta")).toHaveAttribute("aria-pressed", "true");
+    expect(slider("Padding")).toHaveValue("48");
+    expect(slider("Corners")).toHaveValue("16");
+    expect(slider("Shadow")).toHaveValue("24");
+    expect(parseFloat(picture().style.top)).toBeCloseTo(24, 6);
+    expect(screen.getByTestId("preview-frame").style.getPropertyValue("--frame-bg")).toContain(
+      "#ff2d6e",
+    );
+  });
+
+  it("saves the background with the session", async () => {
+    const save = vi.spyOn(window.electronAPI, "saveVideoEditSession");
+    renderEditor();
+    await waitForEditorLoaded();
+    await screen.findByRole("region", { name: "Background" });
+    fireEvent.click(swatch("Ocean"));
+    clickExportVideo();
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    const json = (save.mock.calls[0] as unknown[])[1] as string;
+    expect(JSON.parse(json).scene.background).toMatchObject({ bg: "ocean" });
+    expect(JSON.parse(json).version).toBe(1);
+  });
+
+  it("opens a session saved before backgrounds as none, edits intact", async () => {
+    savedSession(SESSION_BEFORE_WEBCAM);
+    renderEditor();
+    const footer = await waitForEditorLoaded();
+    await screen.findByRole("region", { name: "Background" });
+    expect(footer.querySelector('[data-zoom-id="zoom-1"]')).not.toBeNull();
+    expect(swatch("None")).toHaveAttribute("aria-pressed", "true");
+    expect(slider("Padding")).toBeDisabled();
+  });
+
+  it("undo takes the background back, one step per click", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    await screen.findByRole("region", { name: "Background" });
+    fireEvent.click(swatch("Magenta"));
+    fireEvent.click(swatch("Ocean"));
+    expect(swatch("Ocean")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(swatch("Magenta")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(swatch("None")).toHaveAttribute("aria-pressed", "true");
+    expect(slider("Padding")).toBeDisabled();
+  });
+
+  it("keeps the camera-transformed content layer inside the picture, so a zoom never reaches the padding", async () => {
+    savedSession(serializeSession({ ...initialScene(30), background: MAGENTA }));
+    renderEditor();
+    await waitForEditorLoaded();
+    await screen.findByRole("region", { name: "Background" });
+    // The camera transform is written to the content layer, which lives inside the picture.
+    expect(picture().contains(screen.getByTestId("preview-content"))).toBe(true);
+    expect(screen.getByTestId("preview-frame").contains(picture())).toBe(true);
+    // That the picture clips (`overflow: hidden`) is a stylesheet fact: preview-stage-sizing.test.ts.
+  });
+});
+
+describe("VideoEditorPage — Timeline guide (NIW2-679)", () => {
+  it("opens on the Clips tab from the header button, and Esc closes it", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    // Two buttons share the name (the header's and the transport bar's `?`): the header is first.
+    fireEvent.click(screen.getAllByRole("button", { name: "Timeline guide" })[0]);
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens on the Clips tab with H, and the shortcuts behind it stay quiet", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.keyDown(window, { key: "h" });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Clips");
+    // Space would toggle playback behind the modal; the guide swallows it. The control: the
+    // same press, with the guide closed, does start playback.
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockImplementation(() => Promise.resolve());
+    fireEvent.keyDown(window, { key: " " });
+    expect(play).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.keyDown(window, { key: " " });
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    play.mockRestore();
+  });
+
+  it("ignores H typed with a modifier", async () => {
+    renderEditor();
+    await waitForEditorLoaded();
+    fireEvent.keyDown(window, { key: "h", metaKey: true });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

@@ -529,6 +529,46 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
     expect(mockState.shortcutUnregister).toHaveBeenCalledWith("Escape");
   });
 
+  it("lets Esc through to a capture overlay opened over the countdown, then takes it back", async () => {
+    mockState.shortcutRegister.mockClear();
+    mockState.shortcutUnregister.mockClear();
+    const { registerSettings } = await import("../infrastructure/settings-store");
+    const { registerRecordingHub } = await import("./recording-hub");
+    registerSettings();
+    const hub = registerRecordingHub(() => fakeMainWindow() as never);
+    mockState.displays = [{ id: 2, bounds: { x: 0, y: 0, width: 1512, height: 982 } }];
+    const phase = mockState.ipcOn.get(IPC_CHANNELS.recordingRecorderPhase)!;
+    hub.prepareRegionCountdown(2, { x: 100, y: 50, width: 640, height: 360 });
+    phase({}, { phase: "counting", value: 3 });
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(1);
+
+    // The overlay opens: Esc is released, and the next countdown tick does not grab it back.
+    hub.suspendEscapeForCapture();
+    expect(mockState.shortcutUnregister).toHaveBeenCalledWith("Escape");
+    phase({}, { phase: "counting", value: 2 });
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(1);
+
+    // The overlay closed while the countdown still runs: the countdown has its Esc again.
+    hub.resumeEscapeAfterCapture();
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not grab Esc on resume when the countdown ended meanwhile", async () => {
+    mockState.shortcutRegister.mockClear();
+    const { registerSettings } = await import("../infrastructure/settings-store");
+    const { registerRecordingHub } = await import("./recording-hub");
+    registerSettings();
+    const hub = registerRecordingHub(() => fakeMainWindow() as never);
+    mockState.displays = [{ id: 2, bounds: { x: 0, y: 0, width: 1512, height: 982 } }];
+    const phase = mockState.ipcOn.get(IPC_CHANNELS.recordingRecorderPhase)!;
+    hub.prepareRegionCountdown(2, { x: 100, y: 50, width: 640, height: 360 });
+    phase({}, { phase: "counting", value: 3 });
+    hub.suspendEscapeForCapture();
+    phase({}, { phase: "idle" });
+    hub.resumeEscapeAfterCapture();
+    expect(mockState.shortcutRegister).toHaveBeenCalledTimes(1);
+  });
+
   it("answers that the countdown is visible only once the region's shade has shown it", async () => {
     const { registerSettings } = await import("../infrastructure/settings-store");
     const { registerRecordingHub } = await import("./recording-hub");
@@ -1333,6 +1373,28 @@ describe("recording hub — a Dock dropped by a floating panel comes back", () =
     }
   });
 
+  it("screenshots use the active take's frozen area after settings change", async () => {
+    mockState.displays = [{ id: 2, bounds: { x: -1920, y: 0, width: 1920, height: 1080 } }];
+    mockState.getSources.mockResolvedValue([
+      { id: "screen:2:0", name: "Screen 2", display_id: "2" },
+    ]);
+    const { registerSettings } = await import("../infrastructure/settings-store");
+    const { registerRecordingHub } = await import("./recording-hub");
+    registerSettings();
+    const hub = registerRecordingHub(() => fakeMainWindow() as never);
+    const rect = { x: 100, y: 50, width: 640, height: 360 };
+    await hub.selectArea(2, rect);
+    expect(await hub.screenshotTarget()).toEqual({ displayId: 2, rect });
+    mockState.ipcOn.get(IPC_CHANNELS.recordingStart)!(
+      {},
+      { sourceId: "screen:2:0", sourceName: "Screen 2" },
+    );
+    await hub.selectArea(2, null);
+    expect(await hub.screenshotTarget()).toEqual({ displayId: 2, rect });
+    mockState.displays[0]!.bounds.width = 50;
+    expect(await hub.screenshotTarget()).toBeNull();
+  });
+
   it("a pending take is busy: isPending and the broadcast say so until it starts", async () => {
     const { registerSettings } = await import("../infrastructure/settings-store");
     const { registerRecordingHub } = await import("./recording-hub");
@@ -1724,6 +1786,20 @@ describe("recording hub — choosing an area or a display on the overlay", () =>
     stop({});
     expect(mockState.bubble.anchorTo).toHaveBeenLastCalledWith(null);
     expect(mockState.bubble.show).not.toHaveBeenCalled();
+  });
+
+  it("a screenshot during a take never hides the camera bubble", async () => {
+    const { handle } = await hub();
+    mockState.ipcOn.get(IPC_CHANNELS.recordingSettingsUpdate)!({}, { isCameraEnabled: true });
+    mockState.ipcOn.get(IPC_CHANNELS.recordingStart)!(
+      {},
+      { sourceId: "screen:1:0", sourceName: "Screen 1" },
+    );
+    mockState.bubble.isVisible.mockReturnValue(true);
+    mockState.bubble.hide.mockClear();
+
+    handle.hideCameraBubbleForCapture();
+    expect(mockState.bubble.hide).not.toHaveBeenCalled();
   });
 
   it("a forced reset releases the writer's open takes, so no file handle outlives the renderer", async () => {

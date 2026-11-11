@@ -75,7 +75,8 @@ test("seeking on the ruler then pressing play resumes playback", async () => {
     expect((await videoState(page))?.error).toBeNull();
 
     // Press Play and assert currentTime actually advances (the bug: it never did).
-    await page.getByRole("button", { name: "Play" }).click();
+    // exact: the transport also has "Playback speed 1×", which a substring match would hit too.
+    await page.getByRole("button", { name: "Play", exact: true }).click();
     const t0 = (await videoState(page))!.currentTime;
     await expect
       .poll(async () => (await videoState(page))?.currentTime, { timeout: 10_000 })
