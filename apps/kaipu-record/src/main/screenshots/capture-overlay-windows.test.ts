@@ -775,6 +775,8 @@ describe("CaptureOverlayWindows: switching mode inside the overlay", () => {
     }
     const count = states(first).length;
     first.send(IPC_CHANNELS.screenshotOverlayIntent, { intent: "film" });
+    // `instant` is a request intent for the shortcut, never one an overlay can switch to.
+    first.send(IPC_CHANNELS.screenshotOverlayIntent, { intent: "instant" });
     first.send(IPC_CHANNELS.screenshotOverlayIntent, { intent: "record" });
     expect(states(first)).toHaveLength(count);
   });
