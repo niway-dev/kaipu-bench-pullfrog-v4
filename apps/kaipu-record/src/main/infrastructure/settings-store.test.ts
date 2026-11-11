@@ -398,4 +398,41 @@ describe("shortcuts written before the trim", () => {
     expect(onDisk.shortcuts).not.toHaveProperty("captureFrame");
     expect(onDisk.shortcuts.captureScreenshot).toBe("Command+Shift+1");
   });
+
+  it("keeps a binding picked after the upgrade, even when it equals an old default", async () => {
+    const file = join(mockState.userDataDir, "settings.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        shortcuts: {
+          captureScreenshot: "Command+Control+X",
+          toggleMicrophone: "Command+Control+M",
+        },
+      }),
+    );
+    let store = await loadStore();
+    store.registerSettings();
+    expect(store.getAppSettings().shortcuts.captureScreenshot).toBe("Command+Shift+1");
+
+    // The user rebinds to the old default, then restarts.
+    store.updateAppSettings({
+      shortcuts: { ...store.getAppSettings().shortcuts, captureScreenshot: "Command+Control+X" },
+    });
+    mockState.handlers.clear();
+    store = await loadStore();
+    store.registerSettings();
+
+    expect(store.getAppSettings().shortcuts.captureScreenshot).toBe("Command+Control+X");
+    const onDisk = JSON.parse(await readFile(file, "utf-8"));
+    expect(onDisk.shortcutsVersion).toBe(1);
+  });
+
+  it("stamps a first run so its later bindings are never migrated", async () => {
+    const store = await loadStore();
+    store.registerSettings();
+    const onDisk = JSON.parse(
+      await readFile(join(mockState.userDataDir, "settings.json"), "utf-8"),
+    );
+    expect(onDisk.shortcutsVersion).toBe(1);
+  });
 });

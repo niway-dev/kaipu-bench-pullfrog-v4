@@ -8,6 +8,7 @@ import {
   mergeSettings as mergeSettingsFor,
   mergeShortcuts as mergeShortcutsFor,
   migrateLegacyShortcuts,
+  SHORTCUTS_VERSION,
 } from "./settings.service";
 
 // Pin the platform so these tests do not depend on the machine running them.
@@ -615,6 +616,17 @@ describe("migrateLegacyShortcuts", () => {
   it("leaves a current file alone and reports nothing to persist", () => {
     const current = { startRecording: "Command+Control+G", captureScreenshot: "Command+Shift+1" };
     expect(migrateLegacyShortcuts(current)).toEqual({ shortcuts: current, migrated: false });
+  });
+
+  it("does nothing for a file already at the current version", () => {
+    const stored = {
+      captureScreenshot: "Command+Control+X",
+      recordArea: "Command+Control+Shift+R",
+    };
+    expect(migrateLegacyShortcuts(stored, SHORTCUTS_VERSION)).toEqual({
+      shortcuts: stored,
+      migrated: false,
+    });
   });
 
   it("passes anything that is not an object through", () => {

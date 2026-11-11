@@ -95,16 +95,27 @@ const MOVED_SHORTCUT_DEFAULTS: Partial<Record<ShortcutAction, readonly string[]>
 };
 
 /**
+ * Version of the shortcut set the migration below brings a settings file to. The store writes
+ * it next to the settings (`shortcutsVersion`); a file without it, or with an older one,
+ * predates the trim. Bump it only for a migration that must run once more.
+ */
+export const SHORTCUTS_VERSION = 1;
+
+/**
  * Upgrade a persisted `shortcuts` object written before the trim: drop the removed actions'
  * keys and, for an action still on its old default, drop that value too so `mergeShortcuts`
  * falls back to this platform's new default. A custom binding is never touched.
  *
- * Runs at load only, never inside `mergeSettings` (which runs on every write). The load
- * persists the result when `migrated` is true, so it is a one-off in practice; the one case
- * it cannot tell apart is a user who deliberately picks the old default afterwards, who gets
- * the new one at the next launch. Returns the input untouched for anything that is not an object.
+ * Runs at load only, never inside `mergeSettings` (which runs on every write), and only for
+ * a file whose `fromVersion` is older than `SHORTCUTS_VERSION`. The store persists the new
+ * version with the result, so a user who later rebinds an action to an old default keeps it.
+ * Returns the input untouched for anything that is not an object.
  */
-export function migrateLegacyShortcuts(stored: unknown): { shortcuts: unknown; migrated: boolean } {
+export function migrateLegacyShortcuts(
+  stored: unknown,
+  fromVersion = 0,
+): { shortcuts: unknown; migrated: boolean } {
+  if (fromVersion >= SHORTCUTS_VERSION) return { shortcuts: stored, migrated: false };
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
     return { shortcuts: stored, migrated: false };
   }
