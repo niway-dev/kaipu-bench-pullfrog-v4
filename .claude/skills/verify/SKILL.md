@@ -146,7 +146,7 @@ instance does not interfere (separate `--user-data-dir`).
 | `kaipu-black`  | A plain launch at the default size, every main page at 1440×900, a rail tooltip                                                                        | `bun run proof:run kaipu-black`  | `00-plain-launch.png` … `06-sidebar-tooltip.png`, `video.webm`                                                                  |
 | `image-canvas` | Flag `image-canvas`: export parity with the flag off (plain and beautified), text outside the image grows the export, zoom out, pan, export-frame tool | `bun run proof:run image-canvas` | `01-flag-off-editor.png` … `06-export-frame-tool.png`, `parity*.json`, `text-outside.json`, clipboard PNGs, `video-flag-*.webm` |
 
-Not covered yet: recording itself (needs screen-capture permission), screenshot editor, settings, auth.
+Not covered yet: recording itself (needs screen-capture permission), the screenshot editor outside the `image-canvas` flag, settings, auth.
 Add a scenario when a PR's criterion lands there.
 
 ## Before / after in the real app
