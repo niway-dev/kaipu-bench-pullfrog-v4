@@ -5,7 +5,7 @@ import {
   BLUR_STD,
   HAND_FONT,
   STEP_FONT,
-  STEP_PX,
+  stepDiameterPx,
   STROKE_WIDTHS,
   TEXT_LINE_HEIGHT,
   resolveFontPx,
@@ -286,7 +286,7 @@ function annotationSvg(
   steps: Map<string, number>,
 ): string {
   if (a.kind === "step") {
-    const d = STEP_PX[a.size] ?? STEP_PX[1];
+    const d = stepDiameterPx(a.size);
     const n = steps.get(a.id) ?? 1;
     const ink = stepInk(a.color);
     const cx = a.x * W;

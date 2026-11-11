@@ -70,6 +70,12 @@ export const TEXT_PX = [14, 19, 27, 37] as const;
 /** Step badge DIAMETER in display px per size index; lines up with TEXT_SIZES labels. */
 export const STEP_PX = [22, 28, 36, 46] as const;
 
+/** Diameter in display px of a badge at size index `size` — the single lookup for the preview,
+ * hit test, handle box, canvas bounds and export, so they cannot disagree. */
+export function stepDiameterPx(size: number): number {
+  return STEP_PX[size] ?? STEP_PX[1]!;
+}
+
 /** Font stack of the number in a step badge — a clean sans, unlike the hand font. */
 export const STEP_FONT =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";

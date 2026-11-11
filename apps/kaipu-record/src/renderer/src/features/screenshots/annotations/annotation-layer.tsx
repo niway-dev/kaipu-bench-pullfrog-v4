@@ -4,7 +4,7 @@ import {
   BLUR_STD,
   HAND_FONT,
   STEP_FONT,
-  STEP_PX,
+  stepDiameterPx,
   STROKE_WIDTHS,
   TEXT_LINE_HEIGHT,
   resolveFontPx,
@@ -563,7 +563,7 @@ const Shape = React.memo(function Shape({
   const { w: W, h: H } = size;
 
   if (a.kind === "step") {
-    const d = STEP_PX[a.size] ?? STEP_PX[1];
+    const d = stepDiameterPx(a.size);
     const num = n ?? 1;
     const ink = stepInk(a.color);
     const cx = a.x * W;
@@ -808,7 +808,7 @@ function hitTest(annotations: Annotation[], p: Pt, size: Size): Annotation | nul
         return a;
       }
     } else if (a.kind === "step") {
-      const r = (STEP_PX[a.size] ?? STEP_PX[1]) / 2 + 4;
+      const r = stepDiameterPx(a.size) / 2 + 4;
       if (Math.hypot((p.x - a.x) * (size.w || 1), (p.y - a.y) * (size.h || 1)) <= r) return a;
     } else if (a.kind === "path") {
       for (let j = 0; j < a.points.length - 1; j += 1) {

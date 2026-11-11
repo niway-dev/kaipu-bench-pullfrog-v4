@@ -1,6 +1,6 @@
 import {
   HAND_FONT,
-  STEP_PX,
+  stepDiameterPx,
   STROKE_WIDTHS,
   TEXT_LINE_HEIGHT,
   stepRingPx,
@@ -158,7 +158,7 @@ export function annotationBounds(
     return b ? grow(b, m) : null;
   }
   if (a.kind === "step") {
-    const d = STEP_PX[a.size] ?? STEP_PX[1];
+    const d = stepDiameterPx(a.size);
     const r = ((d + stepRingPx(d)) / 2) * scale;
     return grow(
       { x1: a.x * naturalW, y1: a.y * naturalH, x2: a.x * naturalW, y2: a.y * naturalH },

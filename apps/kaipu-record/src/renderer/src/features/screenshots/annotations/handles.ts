@@ -10,7 +10,7 @@
  *                  size level), the E edge sets the wrap width.
  */
 
-import { clampFontPx, resolveFontPx, STEP_PX, TEXT_LINE_HEIGHT, textBoxPx } from "./tools";
+import { clampFontPx, resolveFontPx, stepDiameterPx, TEXT_LINE_HEIGHT, textBoxPx } from "./tools";
 import type { Annotation } from "./scene";
 
 export type HandleId = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "p1" | "p2";
@@ -68,7 +68,7 @@ export function annotationBox(a: Annotation, size: Size): Box | null {
     };
   }
   if (a.kind === "step") {
-    const r = (STEP_PX[a.size] ?? STEP_PX[1]) / 2;
+    const r = stepDiameterPx(a.size) / 2;
     return {
       x: a.x - r / (size.w || 1),
       y: a.y - r / (size.h || 1),
