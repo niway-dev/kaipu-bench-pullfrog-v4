@@ -341,7 +341,7 @@ describe("LibraryVault.renameItem", () => {
     expect(await readdir(meta)).toEqual(["Named.json"]);
   });
 
-  it.each(["Demo.edit", "Demo.cursor", "Demo.edit.meta", "Demo.EDIT", "Demo.canvas"])(
+  it.each(["Demo.edit", "Demo.cursor", "Demo.edit.meta", "Demo.EDIT", "Demo.canvas", "Demo.text"])(
     "renaming Demo to %j never lands on Demo's own companion paths",
     async (title) => {
       // No edit project, no cursor track: the overlapping paths are free on disk.
