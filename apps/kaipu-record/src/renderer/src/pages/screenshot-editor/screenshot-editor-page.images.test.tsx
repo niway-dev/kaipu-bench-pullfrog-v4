@@ -244,6 +244,44 @@ describe("ScreenshotEditor — adding images (image-canvas)", () => {
     expect(second.x).toBeGreaterThan(first.x + first.w);
   });
 
+  describe("the view fits the content", () => {
+    // The canvas is 200 px (clientWidth stub); the frame's laid-out size is `frame` px.
+    let frame = 100;
+    const canvasView = () => document.querySelector('[data-canvas="true"]')!;
+    beforeEach(() => {
+      for (const prop of ["offsetWidth", "offsetHeight"]) {
+        Object.defineProperty(HTMLElement.prototype, prop, {
+          configurable: true,
+          get: () => frame,
+        });
+      }
+    });
+    afterEach(() => {
+      // @ts-expect-error — drop the stubs
+      delete HTMLElement.prototype.offsetWidth;
+      // @ts-expect-error — see above
+      delete HTMLElement.prototype.offsetHeight;
+    });
+
+    it("a content box that fits opens at 100%, and an added image that overflows zooms out", async () => {
+      frame = 100;
+      mountPaste();
+      await loadImage();
+      expect(canvasView()).toHaveAttribute("data-zoomed-out", "false");
+      frame = 400; // the added image makes the frame twice as wide as the canvas
+      pasteImage();
+      await waitFor(() => expect(annotations()).toHaveLength(1));
+      await waitFor(() => expect(canvasView()).toHaveAttribute("data-zoomed-out", "true"));
+    });
+
+    it("a document wider than the canvas opens fitted", async () => {
+      frame = 400;
+      mountPaste();
+      await loadImage();
+      await waitFor(() => expect(canvasView()).toHaveAttribute("data-zoomed-out", "true"));
+    });
+  });
+
   it("paste inside a text field is left to the field", async () => {
     mountPaste();
     await loadImage();
