@@ -16,16 +16,35 @@ export function smoothPath(points: Pt[]): string {
   if (points.length === 2) return `M ${first.x} ${first.y} L ${points[1].x} ${points[1].y}`;
 
   let d = `M ${first.x} ${first.y}`;
+  for (const [cp1, cp2, p2] of smoothSegments(points)) {
+    d += ` C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+/** The cubic segments `smoothPath` draws for 3+ points: [control 1, control 2, end]. */
+function smoothSegments(points: Pt[]): [Pt, Pt, Pt][] {
+  const out: [Pt, Pt, Pt][] = [];
   for (let i = 0; i < points.length - 1; i += 1) {
     const p0 = points[i === 0 ? 0 : i - 1];
     const p1 = points[i];
     const p2 = points[i + 1];
     const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y}`;
+    out.push([
+      { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 },
+      { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 },
+      p2,
+    ]);
   }
-  return d;
+  return out;
+}
+
+/**
+ * Every point `smoothPath` draws through or steers by: the stored points plus each
+ * segment's Bézier control points. A cubic lies inside the hull of its control points,
+ * so their bounding box contains the whole stroke (the curve can overshoot the points).
+ */
+export function pathControlPoints(points: Pt[]): Pt[] {
+  if (points.length < 3) return points;
+  return [points[0], ...smoothSegments(points).flat()];
 }

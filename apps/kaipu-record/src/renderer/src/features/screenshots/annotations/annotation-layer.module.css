@@ -37,3 +37,11 @@
   font-weight: 600;
   line-height: 1;
 }
+
+/* Canvas mode: an invisible surface far larger than the shot, so a press anywhere on the
+   canvas reaches the layer. The canvas area clips it (overflow hidden in canvas mode), so
+   it never grows a scroll area. */
+.hitSurface {
+  position: absolute;
+  inset: -20000px;
+}

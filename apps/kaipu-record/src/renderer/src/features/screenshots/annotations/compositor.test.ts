@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSvg, type Geom } from "./compositor";
+import { intersectFrame, worldToFrame } from "./canvas-geometry";
+import { buildSvg, frameWindow, type Geom } from "./compositor";
 import { TEXT_SIZES } from "./tools";
 import type { Annotation, Scene } from "./scene";
 
@@ -170,5 +171,105 @@ describe("compositor buildSvg", () => {
     // so an arrow head at 1.1 (past the shot edge, into the padding) isn't truncated.
     expect(svg).toContain(`<g transform="translate(40,40)">`);
     expect(svg).not.toContain("rcLocal");
+  });
+});
+
+describe("compositor canvas mode", () => {
+  const ZERO = { left: 0, top: 0, right: 0, bottom: 0 };
+  const inside: Annotation[] = [
+    { id: "b", kind: "box", x: 0.1, y: 0.1, w: 0.2, h: 0.2, color: "#f00", stroke: 1, seed: 3 },
+    { id: "t", kind: "text", x: 0.5, y: 0.5, text: "Hi", color: "#fff", size: 1 },
+    { id: "u", kind: "blur", x: 0.6, y: 0.6, w: 0.2, h: 0.1 },
+  ];
+  const noPad: Scene["beautify"] = { bg: "none", padding: 0, radius: 0, shadow: 0 };
+  const scenes: Scene[] = [
+    scene([]),
+    scene(inside),
+    { beautify: { bg: "ocean", padding: 24, radius: 8, shadow: 40 }, annotations: inside },
+    { beautify: noPad, annotations: inside },
+  ];
+
+  it("with zero extents is byte-identical to the non-canvas SVG", () => {
+    scenes.forEach((s, i) => {
+      const pad = Math.round(s.beautify.padding * 2);
+      const g = { ...geom, pad };
+      expect(buildSvg(s, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(s, g));
+    });
+  });
+
+  it("grows the frame for a text outside the image and keeps the shot at the padding", () => {
+    const extR = 300;
+    const s = scene([
+      { id: "t", kind: "text", x: 1.2, y: 0.1, text: "Hi", color: "#fff", size: 1 },
+    ]);
+    const svg = buildSvg(s, { ...geom, extents: { ...ZERO, right: extR } });
+    const fullW = 1000 + extR + 80;
+    expect(svg).toContain(`width="${fullW}" height="${600 + 80}" viewBox="0 0 ${fullW} 680"`);
+    expect(svg).toContain(`<use href="#shot" x="40" y="40"/>`);
+    expect(svg).toContain(`translate(40,40)`);
+    expect(svg).toContain(`x="1200"`); // text x in shot space, inside the viewBox once translated
+  });
+
+  it("shifts the shot by the left/top extents", () => {
+    const svg = buildSvg(scene([]), {
+      ...geom,
+      extents: { left: 100, top: 50, right: 0, bottom: 0 },
+    });
+    expect(svg).toContain(`<use href="#shot" x="140" y="90"/>`);
+    expect(svg).toContain(`translate(140,90)`);
+  });
+
+  it("with bg none fills only the union box, never the padding", () => {
+    const s = scene([], "none");
+    const g = { ...geom, extents: { ...ZERO, right: 300 } };
+    const svg = buildSvg(s, g);
+    expect(svg).toContain(`<rect x="40" y="40" width="1300" height="600" fill="#ffffff"/>`);
+    expect(svg).not.toMatch(/<rect width="\d+" height="\d+"/);
+  });
+
+  it("draws no neutral fill for bg none when extents are zero", () => {
+    expect(buildSvg(scene([], "none"), { ...geom, extents: ZERO })).not.toContain("#ffffff");
+  });
+
+  it("an export frame sets exactly the output rect in natural px", () => {
+    const s: Scene = { ...scene([]), exportFrame: { x: -0.1, y: 0.2, w: 1.5, h: 0.5 } };
+    const g = { ...geom, extents: { left: 100, top: 0, right: 400, bottom: 0 } };
+    const svg = buildSvg(s, g);
+    // origin x = pad + left = 140; vb x = 140 - 100 = 40, y = 40 + 120 = 160
+    expect(svg).toContain(`width="1500" height="300" viewBox="40 160 1500 300"`);
+  });
+
+  it("an export frame past the composed frame is intersected with it", () => {
+    const s: Scene = { ...scene([]), exportFrame: { x: -1, y: -1, w: 5, h: 5 } };
+    const w = frameWindow(s, { ...geom, extents: ZERO });
+    expect(w).toMatchObject({ vbX: 0, vbY: 0, outW: w.fullW, outH: w.fullH });
+    const t: Scene = { ...scene([]), exportFrame: { x: 0.5, y: 0.5, w: 5, h: 5 } };
+    const v = frameWindow(t, { ...geom, extents: ZERO });
+    expect(v.vbX + v.outW).toBeLessThanOrEqual(v.fullW);
+    expect(v.vbY + v.outH).toBeLessThanOrEqual(v.fullH);
+  });
+
+  it("one-sided overflow gives the same window in the preview rule and in frameWindow", () => {
+    const g = { ...geom, extents: ZERO };
+    const frame = { x: 0.7, y: 0, w: 0.5, h: 1 };
+    const w = frameWindow({ ...scene([]), exportFrame: frame }, g);
+    const c = intersectFrame(worldToFrame(frame, g))!;
+    expect(w.vbX).toBe(Math.round(c.x * w.fullW));
+    expect(w.vbX + w.outW).toBe(w.fullW);
+    expect(w.outW).toBeLessThan(Math.round(0.5 * w.fullW));
+  });
+
+  it("an export frame fully outside the composed frame exports the whole frame, like the preview", () => {
+    const g = { ...geom, extents: ZERO };
+    const frame = { x: 5, y: 5, w: 1, h: 1 };
+    expect(intersectFrame(worldToFrame(frame, g))).toBeUndefined();
+    const w = frameWindow({ ...scene([]), exportFrame: frame }, g);
+    expect(w).toMatchObject({ vbX: 0, vbY: 0, outW: w.fullW, outH: w.fullH });
+  });
+
+  it("ignores scene.crop in canvas mode", () => {
+    const s: Scene = { ...scene([]), crop: { x: 0.5, y: 0.5, w: 0.25, h: 0.25 } };
+    const svg = buildSvg(s, { ...geom, extents: ZERO });
+    expect(svg).toContain(`viewBox="0 0 1080 680"`);
   });
 });

@@ -306,3 +306,28 @@ describe("annotationBox agrees with what is drawn", () => {
     expect(box.h).toBeCloseTo(drawn.h / size.h, 6);
   });
 });
+
+describe("resizeAnnotation — canvas mode (NIW2-698)", () => {
+  it("keeps a box inside the image by default", () => {
+    const patch = resizeAnnotation(box, "se", { x: 1.4, y: 1.2 }, size) as { w: number; h: number };
+    expect(patch.w).toBeCloseTo(1 - 0.2);
+    expect(patch.h).toBeCloseTo(1 - 0.2);
+  });
+
+  it("lets a box edge follow the pointer past the image when canvas is on", () => {
+    const patch = resizeAnnotation(box, "se", { x: 1.4, y: 1.2 }, size, true) as {
+      w: number;
+      h: number;
+    };
+    expect(patch.w).toBeCloseTo(1.4 - 0.2);
+    expect(patch.h).toBeCloseTo(1.2 - 0.2);
+  });
+
+  it("lets an arrow endpoint leave the image when canvas is on, and not otherwise", () => {
+    expect(resizeAnnotation(arrow, "p2", { x: -0.3, y: 1.5 }, size)).toEqual({ x2: 0, y2: 1 });
+    expect(resizeAnnotation(arrow, "p2", { x: -0.3, y: 1.5 }, size, true)).toEqual({
+      x2: -0.3,
+      y2: 1.5,
+    });
+  });
+});

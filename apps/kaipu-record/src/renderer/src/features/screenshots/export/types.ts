@@ -15,6 +15,11 @@ export interface ExportInput {
   bytes: ArrayBuffer;
   /** On-screen width of the shot; beautify px are display-relative (see compositor). */
   displayedW: number;
+  /**
+   * Canvas mode (NIW2-698, behind `image-canvas`): export the content box, windowed by
+   * `scene.exportFrame`. Absent = today's export. Part of the memo key.
+   */
+  canvas?: boolean;
 }
 
 export interface Exporter {

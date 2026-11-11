@@ -9,6 +9,14 @@ import {
   resolveFontPx,
   textLines,
 } from "./tools";
+import {
+  canvasLayout,
+  contentExtents,
+  hasExtents,
+  intersectFrame,
+  worldToFrame,
+  type Extents,
+} from "./canvas-geometry";
 import type { Annotation, Scene } from "./scene";
 
 /**
@@ -39,6 +47,12 @@ export interface CompositeOptions {
    * zoomed; clamped by `clampRasterScale`.
    */
   rasterScale?: number;
+  /**
+   * Canvas mode (NIW2-698, behind `image-canvas`). false (default) = today's behavior.
+   * true = the frame grows to the content box (image + every annotation's bounds, plus
+   * padding), and `scene.exportFrame` (not `scene.crop`) selects the output window.
+   */
+  canvas?: boolean;
 }
 
 export interface CompositeResult {
@@ -65,8 +79,9 @@ export async function compositeScene(
   scene: Scene,
   bytes: ArrayBuffer,
   displayedW: number,
+  options?: CompositeOptions,
 ): Promise<ArrayBuffer> {
-  return (await compositeSceneAt(scene, bytes, displayedW)).png;
+  return (await compositeSceneAt(scene, bytes, displayedW, options)).png;
 }
 
 /**
@@ -89,12 +104,12 @@ export async function compositeSceneAt(
   const radius = Math.round(scene.beautify.radius * scale);
   // The crop is a window of the fully-composed frame (bg + padding + shot), normalized
   // 0–1 of that frame. The raster size is that window in native px; no crop = the whole frame.
-  const fullW = naturalW + pad * 2;
-  const fullH = naturalH + pad * 2;
-  const c = scene.crop ?? { x: 0, y: 0, w: 1, h: 1 };
-  const outW = Math.round(c.w * fullW);
-  const outH = Math.round(c.h * fullH);
-  const svg = buildSvg(scene, { href, naturalW, naturalH, pad, radius, scale });
+  const geom: Geom = { href, naturalW, naturalH, pad, radius, scale };
+  if (options.canvas) {
+    geom.extents = contentExtents(scene.annotations, naturalW, naturalH, scale);
+  }
+  const { outW, outH } = frameWindow(scene, geom);
+  const svg = buildSvg(scene, geom);
   const rasterScale = clampRasterScale(options.rasterScale ?? 1, outW, outH);
   const png = await rasterize(svg, outW, outH, rasterScale);
   return { png, width: outW, height: outH, scale: rasterScale };
@@ -116,6 +131,65 @@ export interface Geom {
   pad: number;
   radius: number;
   scale: number;
+  /**
+   * Canvas mode: present = on. How far the content box sticks out past each side of the
+   * image (natural px). All zero + no `exportFrame` yields the exact non-canvas SVG.
+   */
+  extents?: Extents;
+}
+
+/**
+ * The output window over the composed frame, in natural px: its origin (`vbX`, `vbY`)
+ * and size. Non-canvas: `scene.crop` (frame-normalized) or the whole frame. Canvas:
+ * `scene.exportFrame` (world-normalized, relative to the image) or the whole frame.
+ */
+export function frameWindow(
+  scene: Scene,
+  g: Geom,
+): { vbX: number; vbY: number; outW: number; outH: number; fullW: number; fullH: number } {
+  if (g.extents) {
+    const l = canvasLayout({
+      naturalW: g.naturalW,
+      naturalH: g.naturalH,
+      pad: g.pad,
+      extents: g.extents,
+    });
+    const whole = { vbX: 0, vbY: 0, outW: l.fullW, outH: l.fullH, fullW: l.fullW, fullH: l.fullH };
+    if (!scene.exportFrame) return whole;
+    // The frame is in world units and can outlive a shrinking content box. The same rule
+    // as the live preview (`intersectFrame`) clips it to the composed frame; nothing left
+    // means no frame: the whole composed frame is exported.
+    const c = intersectFrame(
+      worldToFrame(scene.exportFrame, {
+        naturalW: g.naturalW,
+        naturalH: g.naturalH,
+        pad: g.pad,
+        extents: g.extents,
+      }),
+    );
+    if (!c) return whole;
+    const x1 = Math.round(c.x * l.fullW);
+    const y1 = Math.round(c.y * l.fullH);
+    return {
+      vbX: x1,
+      vbY: y1,
+      outW: Math.max(1, Math.round((c.x + c.w) * l.fullW) - x1),
+      outH: Math.max(1, Math.round((c.y + c.h) * l.fullH) - y1),
+      fullW: l.fullW,
+      fullH: l.fullH,
+    };
+  }
+  const fullW = g.naturalW + g.pad * 2;
+  const fullH = g.naturalH + g.pad * 2;
+  const c = scene.crop ?? { x: 0, y: 0, w: 1, h: 1 };
+  return {
+    vbX: Math.round(c.x * fullW),
+    vbY: Math.round(c.y * fullH),
+    outW: Math.round(c.w * fullW),
+    outH: Math.round(c.h * fullH),
+    fullW,
+    fullH,
+  };
 }
 
 /** Pure: builds the export SVG string from the scene + geometry. Exported for tests. */
@@ -145,16 +219,15 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // window over that frame — normalized 0–1 of the FRAME (not the base image), undefined =
   // whole frame. Padding is never re-added around the crop; the crop is a window of the
   // already-padded frame, so it can span into the background/padding.
-  const fullW = g.naturalW + g.pad * 2;
-  const fullH = g.naturalH + g.pad * 2;
-  const c = scene.crop ?? { x: 0, y: 0, w: 1, h: 1 };
-  const vbX = Math.round(c.x * fullW);
-  const vbY = Math.round(c.y * fullH);
-  const outW = Math.round(c.w * fullW);
-  const outH = Math.round(c.h * fullH);
+  const { vbX, vbY, outW, outH, fullW, fullH } = frameWindow(scene, g);
+  // Where the image's top-left sits in the frame: the padding, plus (canvas mode) how far
+  // the content box sticks out left/top. Everything drawn in shot space is placed from here.
+  const ext = g.extents;
+  const ox = g.pad + (ext?.left ?? 0);
+  const oy = g.pad + (ext?.top ?? 0);
 
   defs.push(
-    `<clipPath id="rc"><rect x="${g.pad}" y="${g.pad}" width="${g.naturalW}" height="${g.naturalH}" rx="${g.radius}"/></clipPath>`,
+    `<clipPath id="rc"><rect x="${ox}" y="${oy}" width="${g.naturalW}" height="${g.naturalH}" rx="${g.radius}"/></clipPath>`,
   );
   // The base image, defined ONCE and referenced by <use> for the base + every blur box,
   // so a redacted export doesn't re-embed the (huge) data URL per blur (which blew up
@@ -170,27 +243,33 @@ export function buildSvg(scene: Scene, g: Geom): string {
     bgFill === "none"
       ? ""
       : `<rect width="${fullW}" height="${fullH}" rx="${outerR}" fill="${bgFill}"/>`;
+  // Canvas mode with no background: the union box (not the padding ring) gets a neutral
+  // solid under the shot, so content outside the image does not sit on a see-through void.
+  const boxFill =
+    ext && bgFill === "none" && hasExtents(ext)
+      ? `<rect x="${g.pad}" y="${g.pad}" width="${fullW - 2 * g.pad}" height="${fullH - 2 * g.pad}" fill="#ffffff"/>`
+      : "";
   const shadow =
     sv > 0
-      ? `<rect x="${g.pad}" y="${g.pad}" width="${g.naturalW}" height="${g.naturalH}" rx="${g.radius}" fill="#000" filter="url(#sh)"/>`
+      ? `<rect x="${ox}" y="${oy}" width="${g.naturalW}" height="${g.naturalH}" rx="${g.radius}" fill="#000" filter="url(#sh)"/>`
       : "";
   // Clip via a wrapping <g>, NOT on the translated <use>: a clip-path on an element that
   // also carries an x/y translation is resolved in the translated user space, so `rc`
   // (authored at (pad,pad)) would land at (2·pad,2·pad) and shear the shot's top-left off.
   // The group has no transform, so `rc` clips in root space where the shot actually is.
-  const image = `<g clip-path="url(#rc)"><use href="#shot" x="${g.pad}" y="${g.pad}"/></g>`;
+  const image = `<g clip-path="url(#rc)"><use href="#shot" x="${ox}" y="${oy}"/></g>`;
   // Annotations are NOT clipped to the shot rect: the live preview renders them
   // with overflow visible, so an arrow head / pen stroke / text that lands in the
   // beautify padding is shown there — clipping to the shot truncated it in the
   // export only. The output viewBox (the crop window, or the whole frame) is the
   // natural bound, so they render exactly as previewed.
-  const anno = `<g transform="translate(${g.pad},${g.pad})">${scene.annotations
+  const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
     .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale))
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
   // window in native px, so it rasterizes 1:1 (no scaling).
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${vbX} ${vbY} ${outW} ${outH}"><defs>${defs.join("")}</defs>${bg}${shadow}${image}${anno}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${vbX} ${vbY} ${outW} ${outH}"><defs>${defs.join("")}</defs>${bg}${boxFill}${shadow}${image}${anno}</svg>`;
 }
 
 function annotationSvg(a: Annotation, W: number, H: number, scale: number): string {

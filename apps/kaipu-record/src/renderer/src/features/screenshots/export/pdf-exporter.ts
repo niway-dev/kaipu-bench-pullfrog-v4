@@ -48,9 +48,10 @@ export const pdfExporter: Exporter = {
   format: "pdf",
   mimeType: "application/pdf",
   extension: "pdf",
-  async export({ scene, bytes, displayedW }) {
+  async export({ scene, bytes, displayedW, canvas }) {
     const frame = await compositeSceneAt(scene, bytes, displayedW, {
       rasterScale: PDF_RASTER_SCALE,
+      ...(canvas ? { canvas: true } : {}),
     });
     return buildPdfOffThread(frame.png, frame.width, frame.height);
   },

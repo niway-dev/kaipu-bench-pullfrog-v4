@@ -39,7 +39,12 @@ export function clearExportCache(): void {
 }
 
 function sameInput(a: ExportInput, b: ExportInput): boolean {
-  return a.bytes === b.bytes && a.displayedW === b.displayedW && sameScene(a.scene, b.scene);
+  return (
+    a.bytes === b.bytes &&
+    a.displayedW === b.displayedW &&
+    Boolean(a.canvas) === Boolean(b.canvas) &&
+    sameScene(a.scene, b.scene)
+  );
 }
 
 /**

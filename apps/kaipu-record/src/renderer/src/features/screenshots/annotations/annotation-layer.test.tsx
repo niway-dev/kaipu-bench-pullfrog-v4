@@ -35,6 +35,7 @@ function makeScene(annotations: Annotation[], selectedId: string | null): Editor
     removeSelected: vi.fn(),
     crop: undefined,
     setCrop: vi.fn(),
+    setExportFrame: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
     canUndo: false,
@@ -361,5 +362,112 @@ describe("AnnotationLayer — pen tool", () => {
     fireEvent.pointerUp(layer);
     expect(addAnnotation).toHaveBeenCalledTimes(1);
     expect(addAnnotation.mock.calls[0][0].kind).toBe("path");
+  });
+});
+
+describe("AnnotationLayer — canvas mode (NIW2-698)", () => {
+  // The layer measures the SHOT (100×100 here); the canvas is bigger, so a press can land
+  // outside it. The hit surface carries such a press to the layer's handler.
+  function renderCanvasLayer(scene: EditorScene, tools: AnnotationToolsController, canvas = true) {
+    for (const prop of ["clientWidth", "clientHeight"]) {
+      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 100 });
+    }
+    const utils = render(<AnnotationLayer scene={scene} tools={tools} src="" canvas={canvas} />);
+    const layer = utils.container.firstChild as HTMLElement;
+    layer.setPointerCapture = vi.fn();
+    layer.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: 100,
+        bottom: 100,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    return { ...utils, layer };
+  }
+
+  it("renders an invisible hit surface only in canvas mode", () => {
+    const on = renderCanvasLayer(makeScene([], null), makeTools());
+    expect(screen.queryByTestId("canvas-hit-surface")).not.toBeNull();
+    on.unmount();
+    renderCanvasLayer(makeScene([], null), makeTools(), false);
+    expect(screen.queryByTestId("canvas-hit-surface")).toBeNull();
+  });
+
+  it("a press outside the shot (on the hit surface) draws a box with coordinates outside 0–1", () => {
+    const scene = makeScene([], null);
+    const tools = makeTools({ tool: "box" });
+    renderCanvasLayer(scene, tools);
+    const surface = screen.getByTestId("canvas-hit-surface");
+    surface.setPointerCapture = vi.fn();
+    // Shot is 100×100 at (0,0): from (-50,-40) to (-10,-5) is entirely left/above it.
+    fireEvent.pointerDown(surface, { clientX: -50, clientY: -40 });
+    fireEvent.pointerMove(surface, { clientX: -10, clientY: -5 });
+    fireEvent.pointerUp(surface);
+    expect(scene.addAnnotation).toHaveBeenCalledTimes(1);
+    const added = (scene.addAnnotation as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as BoxAnnotation;
+    expect(added.kind).toBe("box");
+    expect(added.x).toBeCloseTo(-0.5);
+    expect(added.y).toBeCloseTo(-0.4);
+    expect(added.w).toBeCloseTo(0.4);
+    expect(added.h).toBeCloseTo(0.35);
+  });
+
+  it("text can be placed and committed outside the shot", () => {
+    const scene = makeScene([], null);
+    renderCanvasLayer(scene, makeTools({ tool: "text" }));
+    fireEvent.pointerDown(screen.getByTestId("canvas-hit-surface"), { clientX: 160, clientY: 130 });
+    const input = screen.getByPlaceholderText("Type…");
+    fireEvent.change(input, { target: { value: "outside" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    const added = (scene.addAnnotation as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(added).toMatchObject({ kind: "text", text: "outside" });
+    expect(added.x).toBeCloseTo(1.6);
+    expect(added.y).toBeCloseTo(1.3);
+  });
+
+  it("a placed label outside the shot can be re-opened for editing", () => {
+    const out: Annotation = {
+      id: "t9",
+      kind: "text",
+      x: 1.6,
+      y: 1.3,
+      text: "Far",
+      color: ANNOTATION_COLORS[0].value,
+      size: 1,
+    };
+    const scene = makeScene([out], "t9");
+    const { layer } = renderCanvasLayer(scene, makeTools({ tool: "select" }));
+    fireEvent.doubleClick(layer, { clientX: 162, clientY: 132 });
+    const input = screen.getByDisplayValue("Far");
+    fireEvent.change(input, { target: { value: "Farther" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(scene.commitAnnotation).toHaveBeenCalledWith("t9", { text: "Farther" });
+  });
+
+  it("a shape can be moved from inside the shot to outside it", () => {
+    // Not selected: a selected box's corner handles would take the press (they are within
+    // 12 px of its centre at this size) and resize instead of move.
+    const scene = makeScene([box], null);
+    const { layer } = renderCanvasLayer(scene, makeTools({ tool: "select" }));
+    fireEvent.pointerDown(layer, { clientX: 20, clientY: 20 }); // on the box
+    fireEvent.pointerMove(layer, { clientX: 220, clientY: 20 });
+    fireEvent.pointerUp(layer);
+    const [, patch] = (scene.commitAnnotation as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(patch.x).toBeCloseTo(0.1 + 2);
+  });
+
+  it("the crop tool's presses outside the frame do not draw anything", () => {
+    const scene = makeScene([], null);
+    renderCanvasLayer(scene, makeTools({ tool: "crop" }));
+    const surface = screen.getByTestId("canvas-hit-surface");
+    fireEvent.pointerDown(surface, { clientX: -50, clientY: -40 });
+    fireEvent.pointerMove(surface, { clientX: -10, clientY: -5 });
+    fireEvent.pointerUp(surface);
+    expect(scene.addAnnotation).not.toHaveBeenCalled();
   });
 });

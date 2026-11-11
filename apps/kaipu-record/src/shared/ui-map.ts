@@ -269,6 +269,10 @@ export const UI_MAP = {
       toolbar: { states: ["default", "saved"] },
       tools: { states: ["select", "annotate", "crop"] },
       canvas: { states: ["default", "crop", "annotate"] },
+      canvasView: {
+        states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light"],
+        gatedBy: [{ flag: "image-canvas" }],
+      },
       beautify: { states: ["default"] },
     },
   },

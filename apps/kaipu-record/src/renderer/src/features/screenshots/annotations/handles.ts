@@ -51,6 +51,8 @@ export function handleCursor(id: HandleId): string {
 }
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
+const unbounded = (v: number): number => v;
+type Clamp = (v: number) => number;
 
 /** The annotation's bounding box in normalized coords, or null when it has none
  *  (e.g. an empty path). `size` is the layer's pixel size — only text needs it, since
@@ -130,15 +132,15 @@ export function handlesFor(a: Annotation, size: Size): Handle[] {
 }
 
 /** The resized box after dragging `handle` to point `p` (edges clamped, sign-normalized). */
-function resizeBox(orig: Box, handle: HandleId, p: Pt): Box {
+function resizeBox(orig: Box, handle: HandleId, p: Pt, clamp: Clamp): Box {
   let left = orig.x;
   let right = orig.x + orig.w;
   let top = orig.y;
   let bottom = orig.y + orig.h;
-  if (WEST.has(handle)) left = clamp01(p.x);
-  if (EAST.has(handle)) right = clamp01(p.x);
-  if (NORTH.has(handle)) top = clamp01(p.y);
-  if (SOUTH.has(handle)) bottom = clamp01(p.y);
+  if (WEST.has(handle)) left = clamp(p.x);
+  if (EAST.has(handle)) right = clamp(p.x);
+  if (NORTH.has(handle)) top = clamp(p.y);
+  if (SOUTH.has(handle)) bottom = clamp(p.y);
   return {
     x: Math.min(left, right),
     y: Math.min(top, bottom),
@@ -156,11 +158,17 @@ export function resizeAnnotation(
   handle: HandleId,
   p: Pt,
   size: Size,
+  /**
+   * Canvas mode (NIW2-698): the pointer may leave the image, so edges are not clamped to
+   * 0–1. Default (false) keeps a resize inside the image, as before.
+   */
+  canvas = false,
 ): Partial<Annotation> {
+  const clamp: Clamp = canvas ? unbounded : clamp01;
   if (a.kind === "arrow") {
     return handle === "p1"
-      ? { x1: clamp01(p.x), y1: clamp01(p.y) }
-      : { x2: clamp01(p.x), y2: clamp01(p.y) };
+      ? { x1: clamp(p.x), y1: clamp(p.y) }
+      : { x2: clamp(p.x), y2: clamp(p.y) };
   }
   if (a.kind === "text") {
     const fs = resolveFontPx(a.size, a.fontPx);
@@ -169,10 +177,10 @@ export function resizeAnnotation(
       // A side sets the wrap width; the text reflows to it by words. Dragging the
       // west side keeps the right edge put by moving x as the width grows.
       const minWidth = (fs * 2) / (size.w || 1); // never collapse below ~2 glyphs
-      if (handle === "e") return { width: Math.max(minWidth, clamp01(p.x) - a.x) };
+      if (handle === "e") return { width: Math.max(minWidth, clamp(p.x) - a.x) };
       const right = a.x + (a.width ?? textBoxPx(a.text, fs, wrapPx).w / (size.w || 1));
-      const width = Math.max(minWidth, right - clamp01(p.x));
-      return { width, x: clamp01(right - width) };
+      const width = Math.max(minWidth, right - clamp(p.x));
+      return { width, x: clamp(right - width) };
     }
     // The se corner scales the font. It compares the dragged height against the
     // CURRENT box height and applies that RATIO to the font — the raw height can't
@@ -185,18 +193,18 @@ export function resizeAnnotation(
     // preset: the four levels are a starting point, not the only sizes that exist,
     // and snapping is what made a slow drag jump.
     const anchorY = handle === "nw" || handle === "ne" ? a.y + origH / (size.h || 1) : a.y;
-    const draggedH = Math.abs(clamp01(p.y) - anchorY) * (size.h || 1);
+    const draggedH = Math.abs(clamp(p.y) - anchorY) * (size.h || 1);
     const ratio = draggedH / origH;
     const fontPx = clampFontPx(fs * ratio);
     if (a.width === undefined) return { fontPx };
     // With a width set, it scales by the same factor so the label keeps its shape
     // instead of reflowing into a taller, narrower block.
     const minWidth = (fontPx * 2) / (size.w || 1);
-    return { fontPx, width: clamp01(Math.max(minWidth, a.width * (fontPx / fs))) };
+    return { fontPx, width: clamp(Math.max(minWidth, a.width * (fontPx / fs))) };
   }
   const orig = annotationBox(a, size);
   if (!orig) return {};
-  const nb = resizeBox(orig, handle, p);
+  const nb = resizeBox(orig, handle, p, clamp);
   if (a.kind === "path") {
     // Scale every point from the old box into the new one (a straight axis keeps its
     // coordinate when that dimension is zero, so a flat stroke doesn't collapse to NaN).

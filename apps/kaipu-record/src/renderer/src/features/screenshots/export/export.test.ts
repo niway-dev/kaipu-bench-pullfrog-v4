@@ -161,3 +161,43 @@ describe("clampRasterScale", () => {
     expect(clampRasterScale(0, 10, 10)).toBe(1);
   });
 });
+
+describe("canvas mode (NIW2-698)", () => {
+  it("png asks the compositor for the content box", async () => {
+    const png = await tinyPng();
+    compositeSceneAt.mockResolvedValue({ png, width: 2, height: 2, scale: 1 });
+    await exportScene("png", { scene, bytes: png, displayedW: 2, canvas: true });
+    expect(compositeSceneAt).toHaveBeenCalledWith(scene, png, 2, { canvas: true });
+  });
+
+  it("pdf keeps its raster scale and adds the canvas option", async () => {
+    const png = await tinyPng();
+    compositeSceneAt.mockResolvedValue({ png, width: 2, height: 2, scale: PDF_RASTER_SCALE });
+    await exportScene("pdf", { scene, bytes: png, displayedW: 2, canvas: true });
+    expect(compositeSceneAt).toHaveBeenCalledWith(scene, png, 2, {
+      rasterScale: PDF_RASTER_SCALE,
+      canvas: true,
+    });
+  });
+
+  it("does not share a result between the classic and the canvas export", async () => {
+    const png = await tinyPng();
+    compositeSceneAt.mockResolvedValue({ png, width: 2, height: 2, scale: 1 });
+    await exportScene("png", { scene, bytes: png, displayedW: 2 });
+    await exportScene("png", { scene, bytes: png, displayedW: 2, canvas: true });
+    expect(compositeSceneAt).toHaveBeenCalledTimes(2);
+  });
+
+  it("recomposites when the export frame changes", async () => {
+    const png = await tinyPng();
+    compositeSceneAt.mockResolvedValue({ png, width: 2, height: 2, scale: 1 });
+    await exportScene("png", { scene, bytes: png, displayedW: 2, canvas: true });
+    await exportScene("png", {
+      scene: { ...scene, exportFrame: { x: -1, y: -1, w: 3, h: 3 } },
+      bytes: png,
+      displayedW: 2,
+      canvas: true,
+    });
+    expect(compositeSceneAt).toHaveBeenCalledTimes(2);
+  });
+});

@@ -11,7 +11,24 @@ export {
   type CompositeOptions,
   type CompositeResult,
 } from "./compositor";
-export type { Scene, Annotation } from "./scene";
+export type { Scene, Annotation, CropRect } from "./scene";
+export {
+  annotationBounds,
+  contentExtents,
+  extentsToDisplay,
+  hasExtents,
+  canvasLayout,
+  frameToWorld,
+  worldToFrame,
+  intersectFrame,
+  defaultTextMeasure,
+  ZERO_EXTENTS,
+  type Bounds,
+  type Extents,
+  type TextMeasure,
+  type CanvasGeom,
+  type CanvasLayout,
+} from "./canvas-geometry";
 export {
   ANNOTATION_COLORS,
   STROKE_WIDTHS,

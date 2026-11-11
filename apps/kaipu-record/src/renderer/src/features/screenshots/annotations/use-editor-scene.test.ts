@@ -96,4 +96,25 @@ describe("useEditorScene", () => {
     act(() => result.current.undo());
     expect(result.current.crop).toBeUndefined();
   });
+
+  it("setExportFrame commits one undoable change and leaves the crop alone", () => {
+    const { result } = renderHook(() => useEditorScene());
+    act(() => result.current.setExportFrame({ x: -0.2, y: -0.1, w: 1.5, h: 1.3 }));
+    expect(result.current.exportFrame).toEqual({ x: -0.2, y: -0.1, w: 1.5, h: 1.3 });
+    expect(result.current.crop).toBeUndefined();
+    expect(result.current.canUndo).toBe(true);
+    act(() => result.current.undo());
+    expect(result.current.exportFrame).toBeUndefined();
+    act(() => result.current.redo());
+    expect(result.current.exportFrame).toEqual({ x: -0.2, y: -0.1, w: 1.5, h: 1.3 });
+  });
+
+  it("setExportFrame(undefined) clears the frame as one undoable change", () => {
+    const { result } = renderHook(() => useEditorScene());
+    act(() => result.current.setExportFrame({ x: 0, y: 0, w: 2, h: 2 }));
+    act(() => result.current.setExportFrame(undefined));
+    expect(result.current.exportFrame).toBeUndefined();
+    act(() => result.current.undo());
+    expect(result.current.exportFrame).toEqual({ x: 0, y: 0, w: 2, h: 2 });
+  });
 });
