@@ -246,6 +246,50 @@ describe("ScreenshotEditor — adding images (image-canvas)", () => {
     expect(second.x).toBeGreaterThan(first.x + first.w);
   });
 
+  it("a paste before the base has a known size says so instead of dropping the image", async () => {
+    // A local shot without a document and with no size in its source: until the base image
+    // loads, its size is unknown.
+    readCanvas.mockResolvedValue(null);
+    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", {
+      configurable: true,
+      get: () => 0,
+    });
+    mountLocal();
+    await screen.findAllByRole("img");
+    pasteImage();
+    await waitFor(() =>
+      expect(getToasts().map((x) => x.message)).toContain("Couldn't add the image."),
+    );
+    expect(annotations()).toHaveLength(0);
+  });
+
+  it("a New capture that answers after the editor closed adds nothing", async () => {
+    let answer: (v: unknown) => void = () => {};
+    window.electronAPI.captureScreenshot = vi.fn(
+      () => new Promise((resolve) => (answer = resolve)),
+    ) as never;
+    const view = mountPaste();
+    await loadImage();
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "New capture" }));
+    const created = (URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls.length;
+    view.unmount();
+    answer({
+      kind: "captured",
+      after: "editor",
+      png: libraryBytes,
+      width: 300,
+      height: 150,
+      mode: "frame",
+      saved: null,
+      copied: false,
+      policy: null,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    // No asset registered for a closed editor: its URL would never be revoked.
+    expect((URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls.length).toBe(created);
+  });
+
   it("a paste while a modal is open adds nothing behind it", async () => {
     mountPaste();
     await loadImage();

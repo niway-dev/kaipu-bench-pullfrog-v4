@@ -592,8 +592,15 @@ function ScreenshotEditorBody({
    * It goes through `addAnnotation`, so it is an undoable edit that marks the scene dirty.
    */
   const addImage = (png: ArrayBuffer, pixelWidth: number, pixelHeight: number): void => {
+    // A capture or a Library read that answers after the editor closed adds nothing.
+    if (!alive.current) return;
     const { width: naturalW, height: naturalH } = basePixels();
-    if (naturalW <= 0 || naturalH <= 0 || pixelWidth <= 0 || pixelHeight <= 0) return;
+    if (naturalW <= 0 || naturalH <= 0 || pixelWidth <= 0 || pixelHeight <= 0) {
+      // Usually a paste before the base has loaded (its size is not known yet): say so
+      // rather than drop the image the user just pasted.
+      showToast({ message: t("addImageError") });
+      return;
+    }
     // The same scale the live extents use; before the first measurement the displayed width
     // is unknown and 1 only affects the size of text bounds.
     const scale = metrics && metrics.w > 0 ? naturalW / metrics.w : 1;
