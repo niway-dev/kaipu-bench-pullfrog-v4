@@ -46,8 +46,12 @@ export function toEnabledCaptureMode(
  * Why the overlay opened: to take a screenshot (`capture`, every entry point until now) or
  * to choose what to record (`record`: the `recordArea` shortcut). The intent only changes
  * which action Enter fires and which frame memory the overlay uses; both bars offer both.
+ *
+ * `instant` (the `captureInstant` shortcut) is the exception: no overlay opens at all. The
+ * display under the cursor is grabbed as soon as the app is out of the shot, so a menu or
+ * state that lasts a fraction of a second is still there. It never changes the stored mode.
  */
-export const CAPTURE_INTENTS = ["capture", "record"] as const;
+export const CAPTURE_INTENTS = ["capture", "record", "instant"] as const;
 export type CaptureIntent = (typeof CAPTURE_INTENTS)[number];
 
 export function isCaptureIntent(value: unknown): value is CaptureIntent {

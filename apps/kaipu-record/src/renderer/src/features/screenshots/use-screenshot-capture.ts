@@ -33,7 +33,7 @@ export function useScreenshotCapture(): {
       // answer itself and replies `cancelled`, so the rest of this flow is screenshot-only.
       let shot;
       try {
-        shot = await (intent === "record"
+        shot = await (intent !== "capture"
           ? window.electronAPI.captureScreenshot(mode, intent)
           : window.electronAPI.captureScreenshot(mode));
       } catch (error) {

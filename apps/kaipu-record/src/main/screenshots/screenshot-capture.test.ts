@@ -11,6 +11,7 @@ import {
   UnsupportedProvider,
   WindowsProvider,
   createScreenshotProvider,
+  displayAtPoint,
   type CapturedImage,
   type ScreenSource,
   type WindowsDeps,
@@ -81,6 +82,47 @@ describe("MacProvider", () => {
         getDisplays: async () => displays,
         settle,
       });
+
+    describe("instant capture", () => {
+      it("grabs the display under the cursor without opening the overlay", async () => {
+        displays = [main, left];
+        const out = await new MacProvider({
+          runCli,
+          readPng: async () => PNG,
+          fileExists,
+          tempPath: () => "/tmp/x.png",
+          getDisplays: async () => displays,
+          settle,
+          getCursorPoint: async () => ({ x: -500, y: 300 }),
+        }).capture({ mode: "screen", overlay: fake, intent: "instant" });
+        expect(out).toEqual({ kind: "captured", png: PNG, mode: "screen", action: "capture" });
+        expect(fake.pick).not.toHaveBeenCalled();
+        expect(log).toEqual([
+          "settle",
+          "hideAll",
+          "runCli:-R -1920,0,1920,1080 -x /tmp/x.png",
+          "destroyAll",
+        ]);
+      });
+
+      it("falls back to the first display when the cursor cannot be read", async () => {
+        displays = [main, left];
+        const out = await new MacProvider({
+          runCli,
+          readPng: async () => PNG,
+          fileExists,
+          tempPath: () => "/tmp/x.png",
+          getDisplays: async () => displays,
+          settle,
+          getCursorPoint: async () => {
+            throw new Error("no cursor");
+          },
+        }).capture({ mode: "screen", overlay: fake, intent: "instant" });
+        expect(out.kind).toBe("captured");
+        expect(log).toContain("runCli:-R 0,0,1440,900 -x /tmp/x.png");
+        expect(fake.pick).not.toHaveBeenCalled();
+      });
+    });
 
     it.each([
       [null, "-1920,0,1920,1080", "screen"],
@@ -837,5 +879,22 @@ describe("createScreenshotProvider", () => {
     expect(createScreenshotProvider("darwin")).toBeInstanceOf(MacProvider);
     expect(createScreenshotProvider("win32")).toBeInstanceOf(WindowsProvider);
     expect(createScreenshotProvider("linux")).toBeInstanceOf(UnsupportedProvider);
+  });
+});
+
+describe("displayAtPoint", () => {
+  const d = (id: number, x: number, width: number): Display =>
+    ({ id, bounds: { x, y: 0, width, height: 900 } }) as Display;
+  const displays = [d(1, 0, 1440), d(2, 1440, 1920)];
+
+  it("picks the display whose bounds contain the point", () => {
+    expect(displayAtPoint(displays, { x: 1500, y: 10 })?.id).toBe(2);
+    expect(displayAtPoint(displays, { x: 0, y: 0 })?.id).toBe(1);
+  });
+
+  it("falls back to the first display off every display or with no point", () => {
+    expect(displayAtPoint(displays, { x: -10, y: 10 })?.id).toBe(1);
+    expect(displayAtPoint(displays, null)?.id).toBe(1);
+    expect(displayAtPoint([], null)).toBeUndefined();
   });
 });

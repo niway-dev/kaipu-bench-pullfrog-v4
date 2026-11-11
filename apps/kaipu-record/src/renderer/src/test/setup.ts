@@ -316,6 +316,7 @@ window.electronAPI = {
     captureScreen: true,
     captureFrame: true,
     captureWindow: true,
+    captureInstant: true,
     recordArea: true,
     toggleMicrophone: true,
     toggleSystemAudio: true,

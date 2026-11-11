@@ -40,6 +40,7 @@ export const SHORTCUT_ACTIONS = [
   "captureScreen",
   "captureFrame",
   "captureWindow",
+  "captureInstant",
   "recordArea",
   "toggleMicrophone",
   "toggleSystemAudio",
@@ -144,6 +145,16 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     label: "Capture window",
     description: "Capture one window, not the screen around it",
     statusWord: "window",
+  },
+  // The exception to "choose, then capture": grabs the display under the cursor the moment
+  // it is pressed, for states that vanish before a selector could open.
+  {
+    action: "captureInstant",
+    defaultAccelerator: { mac: "Command+Control+I", win: "Control+Alt+I" },
+    group: "app",
+    label: "Instant capture",
+    description: "Capture the screen under the cursor at once, no selector",
+    statusWord: "instant",
   },
   // Opens the capture overlay to choose what to record (ADR 0030): Enter keeps the area as
   // the recording target, R records it at once.

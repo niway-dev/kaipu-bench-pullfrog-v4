@@ -1011,6 +1011,7 @@ app.whenReady().then(async () => {
       captureScreen: () => triggerShortcutCapture("captureScreen"),
       captureFrame: () => triggerShortcutCapture("captureFrame"),
       captureWindow: () => triggerShortcutCapture("captureWindow"),
+      captureInstant: () => triggerCaptureScreenshot({ mode: "screen", intent: "instant" }),
       recordArea: triggerRecordArea,
       // Live input toggles write the shared RecordingSettings, never the engine:
       // mid-take the recorder forwards the change, outside a take it is just the

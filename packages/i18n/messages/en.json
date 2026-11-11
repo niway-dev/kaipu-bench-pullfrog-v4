@@ -1728,6 +1728,8 @@
     "captureFrameDesc": "Capture what is inside a remembered frame",
     "captureWindowLabel": "Capture window",
     "captureWindowDesc": "Capture one window, not the screen around it",
+    "captureInstantLabel": "Instant capture",
+    "captureInstantDesc": "Capture the screen under the cursor at once, no selector",
     "recordAreaLabel": "Record an area",
     "recordAreaDesc": "Choose part of the screen to record",
     "toggleMicrophoneLabel": "Mute / unmute microphone",

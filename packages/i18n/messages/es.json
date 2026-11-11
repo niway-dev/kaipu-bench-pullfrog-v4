@@ -1728,6 +1728,8 @@
     "captureFrameDesc": "Captura lo que hay dentro de un marco recordado",
     "captureWindowLabel": "Capturar ventana",
     "captureWindowDesc": "Captura una sola ventana, sin la pantalla que la rodea",
+    "captureInstantLabel": "Captura instantánea",
+    "captureInstantDesc": "Captura al instante la pantalla bajo el cursor, sin selector",
     "recordAreaLabel": "Grabar un área",
     "recordAreaDesc": "Elige qué parte de la pantalla grabar",
     "toggleMicrophoneLabel": "Silenciar / activar micrófono",

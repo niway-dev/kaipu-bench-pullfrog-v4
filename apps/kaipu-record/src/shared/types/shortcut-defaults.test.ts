@@ -29,6 +29,7 @@ describe("the desktop shortcut defaults", () => {
     expect(mac.captureScreen).toBe("Command+Control+Shift+X");
     expect(mac.captureFrame).toBe("Command+Control+Shift+F");
     expect(mac.captureWindow).toBe("Command+Control+W");
+    expect(mac.captureInstant).toBe("Command+Control+I");
   });
 
   it("pins the capture shortcuts to their documented Windows combos", () => {
@@ -37,6 +38,7 @@ describe("the desktop shortcut defaults", () => {
     expect(win.captureScreen).toBe("Control+Alt+Shift+X");
     expect(win.captureFrame).toBe("Control+Alt+Shift+F");
     expect(win.captureWindow).toBe("Control+Alt+W");
+    expect(win.captureInstant).toBe("Control+Alt+I");
   });
 
   it("keeps the new capture actions in the app group with their status words", () => {

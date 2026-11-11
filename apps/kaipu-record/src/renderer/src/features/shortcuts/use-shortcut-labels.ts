@@ -25,6 +25,7 @@ export function useShortcutLabels(): ShortcutLabels | null {
         captureScreen: formatAccelerator(settings.shortcuts.captureScreen),
         captureFrame: formatAccelerator(settings.shortcuts.captureFrame),
         captureWindow: formatAccelerator(settings.shortcuts.captureWindow),
+        captureInstant: formatAccelerator(settings.shortcuts.captureInstant),
         recordArea: formatAccelerator(settings.shortcuts.recordArea),
         toggleMicrophone: formatAccelerator(settings.shortcuts.toggleMicrophone),
         toggleSystemAudio: formatAccelerator(settings.shortcuts.toggleSystemAudio),
