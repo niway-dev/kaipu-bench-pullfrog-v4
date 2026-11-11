@@ -91,10 +91,19 @@ describe("annotationBounds", () => {
     ).toBeNull();
   });
 
-  it("blur: exactly the rect", () => {
+  it("blur: the rect, clipped to the image", () => {
     expect(
-      annotationBounds({ id: "u", kind: "blur", x: 0.5, y: 0.5, w: 0.7, h: 0.1 }, W, H, 2),
-    ).toEqual({ x1: 500, y1: 300, x2: 1200, y2: 360 });
+      annotationBounds({ id: "u", kind: "blur", x: 0.5, y: 0.5, w: 0.3, h: 0.1 }, W, H, 2),
+    ).toEqual({ x1: 500, y1: 300, x2: 800, y2: 360 });
+    expect(
+      annotationBounds({ id: "u", kind: "blur", x: -0.25, y: 0.5, w: 0.75, h: 0.8 }, W, H, 2),
+    ).toEqual({ x1: 0, y1: 300, x2: 500, y2: 600 });
+  });
+
+  it("blur: fully outside the image paints nothing and adds no extent", () => {
+    const outside = { id: "u", kind: "blur" as const, x: 1.2, y: 0, w: 0.3, h: 0.3 };
+    expect(annotationBounds(outside, W, H, 1)).toBeNull();
+    expect(contentExtents([outside], W, H, 1)).toEqual({ left: 0, top: 0, right: 0, bottom: 0 });
   });
 
   it("text: top-left anchored, width from the measure, height from the line count", () => {
@@ -151,8 +160,9 @@ describe("contentExtents", () => {
   });
 
   it("rounds up to whole natural px", () => {
-    const e = contentExtents([{ id: "u", kind: "blur", x: 0.5, y: 0, w: 0.5001, h: 0.1 }], W, H, 1);
-    expect(e.right).toBe(1);
+    const e = contentExtents([text({ x: 1.0001, text: "" })], W, H, 1, measure);
+    expect(e.right).toBeGreaterThan(0);
+    expect(Number.isInteger(e.right)).toBe(true);
   });
 });
 

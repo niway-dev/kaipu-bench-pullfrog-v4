@@ -46,6 +46,7 @@ import {
   ZERO_EXTENTS,
   contentExtents,
   extentsToDisplay,
+  clampCrop,
   frameToWorld,
   useAnnotationTools,
   useEditorScene,
@@ -326,7 +327,9 @@ export function ScreenshotEditor({
       ? { naturalW: metrics.w, naturalH: metrics.h, pad: scene.beautify.state.padding, extents }
       : null;
   const exportFrameCrop: CropRect | undefined =
-    canvasGeom && scene.exportFrame ? worldToFrame(scene.exportFrame, canvasGeom) : undefined;
+    canvasGeom && scene.exportFrame
+      ? clampCrop(worldToFrame(scene.exportFrame, canvasGeom))
+      : undefined;
   // In canvas mode the Crop tool edits the export frame: the same overlay and Reset button,
   // fed a scene whose `crop` is the frame and whose `setCrop` writes the frame.
   const cropScene: EditorScene = canvasMode

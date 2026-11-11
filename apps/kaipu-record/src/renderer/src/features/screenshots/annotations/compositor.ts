@@ -149,11 +149,17 @@ export function frameWindow(
     });
     const f = scene.exportFrame;
     if (!f) return { vbX: 0, vbY: 0, outW: l.fullW, outH: l.fullH, fullW: l.fullW, fullH: l.fullH };
+    // The frame is in world units and can outlive a shrinking content box, so intersect
+    // it with the composed frame: the viewBox never runs past what is painted.
+    const x1 = Math.max(0, Math.round(l.originX + f.x * g.naturalW));
+    const y1 = Math.max(0, Math.round(l.originY + f.y * g.naturalH));
+    const x2 = Math.min(l.fullW, Math.round(l.originX + (f.x + f.w) * g.naturalW));
+    const y2 = Math.min(l.fullH, Math.round(l.originY + (f.y + f.h) * g.naturalH));
     return {
-      vbX: Math.round(l.originX + f.x * g.naturalW),
-      vbY: Math.round(l.originY + f.y * g.naturalH),
-      outW: Math.round(f.w * g.naturalW),
-      outH: Math.round(f.h * g.naturalH),
+      vbX: x1,
+      vbY: y1,
+      outW: Math.max(1, x2 - x1),
+      outH: Math.max(1, y2 - y1),
       fullW: l.fullW,
       fullH: l.fullH,
     };

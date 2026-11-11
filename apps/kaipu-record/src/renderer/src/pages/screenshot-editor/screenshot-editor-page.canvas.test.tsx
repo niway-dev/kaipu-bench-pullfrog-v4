@@ -201,7 +201,7 @@ describe("ScreenshotEditorPage — pan and zoom (image-canvas)", () => {
     fireEvent.pointerUp(canvasEl(), { pointerId: 1 });
     fireEvent.keyUp(window, { key: " ", code: "Space" });
     await waitFor(() => expect(canvasEl().dataset.pan).toBe("idle"));
-    // Panning is view-only: the scene is untouched, so nothing is dirty beyond the open.
+    // Panning is view-only: it does not set an export frame.
     expect(canvasEl().dataset.exportFrame).toBe("false");
   });
 
@@ -249,6 +249,21 @@ describe("ScreenshotEditorPage — pan and zoom (image-canvas)", () => {
     await loadImage();
     const title = screen.getByRole("textbox", { name: /title/i });
     fireEvent.keyDown(title, { key: " ", code: "Space" });
+    expect(canvasEl().dataset.pan).toBe("idle");
+  });
+
+  it("flag on: Space pans after a mouse click on a button, but a keyboard-focused button keeps it", async () => {
+    imageCanvas = true;
+    mount(PASTE);
+    await loadImage();
+    const btn = screen.getByRole("button", { name: "Box" });
+    const spy = vi.spyOn(btn, "matches").mockImplementation((s) => s !== ":focus-visible");
+    fireEvent.keyDown(btn, { key: " ", code: "Space" });
+    await waitFor(() => expect(canvasEl().dataset.pan).toBe("ready"));
+    fireEvent.keyUp(window, { key: " ", code: "Space" });
+    await waitFor(() => expect(canvasEl().dataset.pan).toBe("idle"));
+    spy.mockImplementation((s) => s === ":focus-visible");
+    fireEvent.keyDown(btn, { key: " ", code: "Space" });
     expect(canvasEl().dataset.pan).toBe("idle");
   });
 
@@ -351,6 +366,12 @@ describe("ScreenshotEditorPage — preview matches the export (image-canvas)", (
     sizeTheCanvas();
     mount(PASTE);
     await loadImage();
+    expect(frameEl().style.padding).toBe("0px");
+    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    // The same drag as the flag-on test, on the canvas itself (there is no hit surface).
+    fireEvent.pointerDown(canvasEl(), { button: 0, clientX: -60, clientY: -40, pointerId: 6 });
+    fireEvent.pointerMove(canvasEl(), { clientX: -10, clientY: -10, pointerId: 6 });
+    fireEvent.pointerUp(canvasEl(), { pointerId: 6 });
     expect(frameEl().style.padding).toBe("0px");
     expect(screen.queryByTestId("canvas-box-fill")).toBeNull();
     expect(screen.queryByTestId("canvas-hit-surface")).toBeNull();

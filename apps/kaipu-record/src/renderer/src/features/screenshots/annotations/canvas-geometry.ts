@@ -66,12 +66,12 @@ export function annotationBounds(
   measure: TextMeasure = defaultTextMeasure,
 ): Bounds | null {
   if (a.kind === "blur") {
-    return {
-      x1: a.x * naturalW,
-      y1: a.y * naturalH,
-      x2: (a.x + a.w) * naturalW,
-      y2: (a.y + a.h) * naturalH,
-    };
+    // A blur only paints over the image, so the part outside it adds nothing.
+    const x1 = Math.max(0, a.x * naturalW);
+    const y1 = Math.max(0, a.y * naturalH);
+    const x2 = Math.min(naturalW, (a.x + a.w) * naturalW);
+    const y2 = Math.min(naturalH, (a.y + a.h) * naturalH);
+    return x2 > x1 && y2 > y1 ? { x1, y1, x2, y2 } : null;
   }
   if (a.kind === "box") {
     const m = (STROKE_WIDTHS[a.stroke] ?? STROKE_WIDTHS[0]) * scale * 0.5 + ROUGH_JITTER;

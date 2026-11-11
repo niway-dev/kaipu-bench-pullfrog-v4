@@ -25,7 +25,7 @@ export const editorImage = catalog(
         "editorImage.canvas:default",
         "editorImage.beautify:default",
       ],
-      // The flag is off in this profile: the canvas area is not drawn, this is the other side.
+      // The flag is off in this profile: the `canvasView` area is not drawn, this is the other side.
       gates: [{ flag: "image-canvas", side: "off" }],
     },
     "tool-box": {

@@ -12,6 +12,7 @@ export {
   type CompositeResult,
 } from "./compositor";
 export type { Scene, Annotation, CropRect } from "./scene";
+export { clampCrop } from "./crop";
 export {
   annotationBounds,
   contentExtents,

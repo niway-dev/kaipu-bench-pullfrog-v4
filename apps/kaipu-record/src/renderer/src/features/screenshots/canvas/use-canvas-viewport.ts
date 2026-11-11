@@ -35,11 +35,21 @@ function measure(canvas: HTMLElement): PanBounds | null {
 function ownsSpaceKey(target: EventTarget | null): boolean {
   if (document.querySelector('[aria-modal="true"]')) return true;
   if (!(target instanceof HTMLElement)) return false;
+  if (target.tagName === "BUTTON") return focusedByKeyboard(target);
   return (
     target.isContentEditable ||
-    ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName) ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
     target.closest('[role="dialog"]') !== null
   );
+}
+
+/** A button keeps Space only when keyboard focus reached it; after a mouse click Space pans. */
+function focusedByKeyboard(el: HTMLElement): boolean {
+  try {
+    return el.matches(":focus-visible") || el.closest('[role="dialog"]') !== null;
+  } catch {
+    return true;
+  }
 }
 
 const isSpace = (e: KeyboardEvent): boolean => e.code === "Space" || e.key === " ";

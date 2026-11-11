@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSvg, type Geom } from "./compositor";
+import { buildSvg, frameWindow, type Geom } from "./compositor";
 import { TEXT_SIZES } from "./tools";
 import type { Annotation, Scene } from "./scene";
 
@@ -236,6 +236,16 @@ describe("compositor canvas mode", () => {
     const svg = buildSvg(s, g);
     // origin x = pad + left = 140; vb x = 140 - 100 = 40, y = 40 + 120 = 160
     expect(svg).toContain(`width="1500" height="300" viewBox="40 160 1500 300"`);
+  });
+
+  it("an export frame past the composed frame is intersected with it", () => {
+    const s: Scene = { ...scene([]), exportFrame: { x: -1, y: -1, w: 5, h: 5 } };
+    const w = frameWindow(s, { ...geom, extents: ZERO });
+    expect(w).toMatchObject({ vbX: 0, vbY: 0, outW: w.fullW, outH: w.fullH });
+    const t: Scene = { ...scene([]), exportFrame: { x: 0.5, y: 0.5, w: 5, h: 5 } };
+    const v = frameWindow(t, { ...geom, extents: ZERO });
+    expect(v.vbX + v.outW).toBeLessThanOrEqual(v.fullW);
+    expect(v.vbY + v.outH).toBeLessThanOrEqual(v.fullH);
   });
 
   it("ignores scene.crop in canvas mode", () => {

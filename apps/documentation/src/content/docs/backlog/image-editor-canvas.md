@@ -17,8 +17,9 @@ screenshot:
 
 - **Content-box export.** The exported image is the shot plus whatever annotations reach past its
   edge, so nothing drawn outside the image is cut off.
-- **Pan and zoom.** Space and drag, or the middle button, pan the canvas. The zoom buttons work
-  below 100% as well as above it.
+- **Pan and zoom.** A plain mouse wheel or two-finger scroll pans; Space and drag, or the middle
+  button, pan too. ⌘/Ctrl + wheel and a trackpad pinch zoom around the pointer. The zoom floor
+  drops from 50% to 25%; the classic editor already zooms below 100%.
 - **Drawing outside the image.** Annotations can be placed past the image edge.
 - **Crop is the export frame.** With the flag on, the Crop tool sets the rectangle the export
   writes, not a crop of the shot. Reset returns to the full canvas.
