@@ -22,8 +22,9 @@ async function helper(opts: { version?: string; stdin: string }) {
   const path = join(directory, "helper");
   const body = `
 if (process.argv[2] === "--version") { console.log(${JSON.stringify(opts.version ?? TEXT_RECOGNITION_HELPER_VERSION)}); process.exit(0); }
-process.stdin.resume();
-process.stdin.on("end", () => { ${opts.stdin} });
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => { const input = Buffer.concat(chunks); ${opts.stdin} });
 `;
   await writeFile(path, `#!/usr/bin/env node\n${body}`, { mode: 0o700 });
   return path;
@@ -41,10 +42,13 @@ it("returns the words of a valid helper output", async () => {
 });
 
 it("receives the png on stdin", async () => {
+  // The fake answers with the bytes it read as the word's text, so the test sees them.
   const helperPath = await helper({
-    stdin: `console.log(JSON.stringify({ version: 1, width: 1, height: 1, words: [] }));`,
+    stdin: `console.log(JSON.stringify({ version: 1, width: 1, height: 1, words: [{ text: Array.from(input).join(","), rect: { x: 0, y: 0, w: 1, h: 1 }, line: 0, confidence: 1 }] }));`,
   });
-  expect(await new MacVisionTextRecognizer({ helperPath }).recognize(png)).toEqual([]);
+  const result = await new MacVisionTextRecognizer({ helperPath }).recognize(png);
+  expect(result).not.toBe("unavailable");
+  expect((result as { text: string }[])[0].text).toBe(Array.from(png).join(","));
 });
 
 it("is unavailable when the output is off-schema", async () => {
