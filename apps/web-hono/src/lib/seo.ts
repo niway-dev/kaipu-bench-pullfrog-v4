@@ -11,7 +11,7 @@ export const SITE_URL = "https://kaipu.app";
 export const SITE_NAME = "Kaipu Record";
 // Bump `v` whenever og-image.png changes: link previews are cached by image URL, so
 // pages shared before keep the old picture until the URL itself changes.
-export const OG_IMAGE = `${SITE_URL}/og-image.png?v=2`;
+export const OG_IMAGE = `${SITE_URL}/og-image.png?v=3`;
 
 /**
  * SEO copy is read straight from the message catalogs rather than through
