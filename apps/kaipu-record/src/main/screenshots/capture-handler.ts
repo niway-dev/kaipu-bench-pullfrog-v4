@@ -213,6 +213,9 @@ export function createCaptureHandler(
         // The instant shortcut is an exception: it never becomes the current mode.
         if (!duringTake && intent !== "instant") remember(deps, result.mode);
         answer = await finish(deps, result, workspace, policy, duringTake, insert);
+      } else if (result.kind === "record" && insert) {
+        // The overlay's Record switch, from the editor's Add image: an insert only adds a
+        // picture, so it never starts a recording. Answered as a cancel.
       } else if (result.kind === "record") {
         // A recording target, not a screenshot: no save, no mode memory, no analytics here.
         const { displayId, rect, start, ratio } = result;

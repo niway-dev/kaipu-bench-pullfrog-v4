@@ -880,6 +880,18 @@ describe("createCaptureHandler — insert into the open editor", () => {
     expect(track).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" }));
   });
 
+  it("never starts a recording when the overlay's Record switch answers an insert", async () => {
+    const { handler, onRecordTarget, windows } = setup(async () => ({
+      kind: "record",
+      start: true,
+      displayId: 2,
+      rect: { x: 100, y: 50, width: 640, height: 360 },
+    }));
+    expect(await handler({ mode: "frame", insert: true })).toEqual({ kind: "cancelled" });
+    expect(onRecordTarget).not.toHaveBeenCalled();
+    expect(windows.afterCapture).toHaveBeenCalledWith("cancelled");
+  });
+
   it("refuses an insert that is not a boolean", async () => {
     const capture = vi.fn();
     const { handler } = setup(capture);
