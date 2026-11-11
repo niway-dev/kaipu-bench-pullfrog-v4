@@ -594,6 +594,14 @@ function ScreenshotEditorBody({
   // The paste listener below outlives a render: it calls the latest closure.
   const addImageRef = useRef(addImage);
   addImageRef.current = addImage;
+  // What the Add image control gets: a capture or a Library read finishes after an await,
+  // when the props it was rendered with may be stale (another image added meanwhile), so it
+  // always calls the latest closure.
+  const addImageLatest = useCallback(
+    (png: ArrayBuffer, pixelWidth: number, pixelHeight: number): void =>
+      addImageRef.current(png, pixelWidth, pixelHeight),
+    [],
+  );
 
   // Pasting an image adds it to the canvas (canvas mode only). Text fields keep their own
   // paste. Like the home pages, the paste event's image wins and main's clipboard reader
@@ -952,7 +960,7 @@ function ScreenshotEditorBody({
         <div className={styles.actions}>
           {canvasMode && (
             <AddImageControl
-              onAdd={addImage}
+              onAdd={addImageLatest}
               excludeId={savedId}
               excludeAssetId={savedAssetIdRef.current ?? null}
               buttonClassName={styles.secondary}

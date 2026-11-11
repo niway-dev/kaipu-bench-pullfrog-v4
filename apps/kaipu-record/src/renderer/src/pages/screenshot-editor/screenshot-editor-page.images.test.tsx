@@ -350,6 +350,35 @@ describe("ScreenshotEditor — adding images (image-canvas)", () => {
     expect(annotations()).toEqual([]);
   });
 
+  it("a Library shot that finishes loading after a paste lands past the pasted image", async () => {
+    window.electronAPI.listLocalRecordings = vi.fn(async () => [
+      shot({ id: "lib-1", title: "Dashboard draft", createdAt: 5 }),
+    ]);
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn(async () => ({ width: 300, height: 150, close: vi.fn() })),
+    );
+    let release: (bytes: ArrayBuffer) => void = () => {};
+    window.electronAPI.readScreenshotBytes = vi.fn((id: string) =>
+      id === "lib-1"
+        ? new Promise<ArrayBuffer>((resolve) => {
+            release = resolve;
+          })
+        : Promise.resolve(flatBytes),
+    );
+    mountLocal();
+    await loadImage();
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "From Library" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Dashboard draft" }));
+    pasteImage();
+    await waitFor(() => expect(annotations()).toHaveLength(1));
+    release(libraryBytes);
+    await waitFor(() => expect(annotations()).toHaveLength(2));
+    const [pasted, picked] = annotations();
+    expect(picked.x).toBeGreaterThan(pasted.x + pasted.w);
+  });
+
   it("the picker says so when the Library has no other screenshot", async () => {
     mountPaste();
     await loadImage();
