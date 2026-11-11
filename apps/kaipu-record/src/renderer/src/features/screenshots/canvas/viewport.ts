@@ -170,3 +170,41 @@ export function viewTransform(view: View): string | undefined {
   if (view.panX === 0 && view.panY === 0) return `scale(${view.zoom})`;
   return `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`;
 }
+
+/** The dot grid's spacing at zoom 1, in layout px (Excalidraw-like density). */
+export const DOT_SPACING = 24;
+
+/** On-screen spacing bounds: zoomed out the dots thin out, zoomed in they fill in. */
+const DOT_MIN = 16;
+const DOT_MAX = 48;
+
+/** The dot grid as CSS background values: the tile size and the tile offset, in screen px. */
+export interface DotGrid {
+  size: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * The canvas's dot grid for a view. The dots are pinned to the shot: one sits on the
+ * shot's top-left corner (`anchor`, in px from the frame's top-left, unscaled), and they
+ * pan and zoom with it. The on-screen spacing stays inside 16–48 px by doubling or halving
+ * the spacing in world px, so every dot shown is still a world point and none slides.
+ *
+ * `origin` is the frame's rest origin in the canvas element. The background tile draws its
+ * dot in the tile's centre, so the offset is shifted back by half a tile.
+ */
+export function dotGrid(view: View, origin: Point, anchor: Point): DotGrid {
+  let size = DOT_SPACING * view.zoom;
+  while (size < DOT_MIN) size *= 2;
+  while (size > DOT_MAX) size /= 2;
+  const at = (o: number, pan: number, a: number): number => {
+    const p = o + pan + a * view.zoom - size / 2;
+    return ((p % size) + size) % size;
+  };
+  return {
+    size,
+    x: at(origin.x, view.panX, anchor.x),
+    y: at(origin.y, view.panY, anchor.y),
+  };
+}

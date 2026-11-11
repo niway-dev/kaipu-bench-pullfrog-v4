@@ -5,6 +5,7 @@ import {
   clampPan,
   clampZoom,
   compensateExtents,
+  dotGrid,
   isIdentityView,
   panBy,
   panByWheel,
@@ -12,6 +13,7 @@ import {
   wheelPx,
   zoomAt,
   zoomByWheel,
+  type DotGrid,
   type View,
 } from "./viewport";
 
@@ -199,5 +201,54 @@ describe("viewTransform", () => {
     expect(viewTransform({ zoom: 0.5, panX: 10, panY: -4 })).toBe(
       "translate(10px, -4px) scale(0.5)",
     );
+  });
+});
+
+describe("dotGrid", () => {
+  const origin = { x: 100, y: 50 };
+  const anchor = { x: 30, y: 30 };
+  // The screen point of the shot's top-left: origin + pan + anchor·zoom.
+  const corner = (v: View) => ({
+    x: origin.x + v.panX + anchor.x * v.zoom,
+    y: origin.y + v.panY + anchor.y * v.zoom,
+  });
+  // A dot sits at offset + size/2 + k·size; the shot's corner must be one of them.
+  const onDot = (g: DotGrid, p: { x: number; y: number }) => {
+    const rx = (((p.x - g.x - g.size / 2) % g.size) + g.size) % g.size;
+    const ry = (((p.y - g.y - g.size / 2) % g.size) + g.size) % g.size;
+    expect(Math.min(rx, g.size - rx)).toBeCloseTo(0, 6);
+    expect(Math.min(ry, g.size - ry)).toBeCloseTo(0, 6);
+  };
+
+  it("puts a dot on the shot's corner at rest, 24 px apart", () => {
+    const g = dotGrid(IDENTITY_VIEW, origin, anchor);
+    expect(g.size).toBe(24);
+    onDot(g, corner(IDENTITY_VIEW));
+  });
+
+  it("keeps the dot on the corner after a pan and a zoom", () => {
+    const v = zoomAt({ zoom: 1, panX: 37, panY: -11 }, { x: 200, y: 120 }, 1.5);
+    const g = dotGrid(v, origin, anchor);
+    expect(g.size).toBe(36);
+    onDot(g, corner(v));
+  });
+
+  it("thins the dots out when zoomed far out and fills them in when zoomed far in", () => {
+    const out = { zoom: 0.25, panX: 0, panY: 0 };
+    const gOut = dotGrid(out, origin, anchor);
+    expect(gOut.size).toBeGreaterThanOrEqual(16);
+    onDot(gOut, corner(out));
+    const inn = { zoom: 6, panX: 0, panY: 0 };
+    const gIn = dotGrid(inn, origin, anchor);
+    expect(gIn.size).toBeLessThanOrEqual(48);
+    onDot(gIn, corner(inn));
+  });
+
+  it("returns offsets inside one tile, so the CSS value stays small", () => {
+    const g = dotGrid({ zoom: 1, panX: -5000, panY: 9000 }, origin, anchor);
+    expect(g.x).toBeGreaterThanOrEqual(0);
+    expect(g.x).toBeLessThan(g.size);
+    expect(g.y).toBeGreaterThanOrEqual(0);
+    expect(g.y).toBeLessThan(g.size);
   });
 });

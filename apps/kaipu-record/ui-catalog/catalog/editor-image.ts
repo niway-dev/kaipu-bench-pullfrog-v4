@@ -6,6 +6,10 @@ const open = (assetId: string): Step => ({ navigate: `/editor/image/${assetId}` 
 const zoomOut: Step = {
   click: { area: "editorImage.canvas", part: { role: "button", name: "Zoom out", exact: true } },
 };
+const theme = (value: "light" | "dark"): Step => ({
+  call: "updateSettings",
+  args: [{ theme: value }],
+});
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
@@ -71,6 +75,14 @@ export const editorImage = catalog(
       how: "With the flag forced on, open “Settings page” and press Zoom out once: the zoom goes below 100%.",
       steps: [open(ASSETS.settingsShot), zoomOut],
       demonstrates: ["editorImage.canvasView:zoomedOut"],
+    },
+    "canvas-light": {
+      profile: "image-canvas",
+      how: "With the flag forced on, switch to the light theme and open “Settings page”: the canvas's dot grid takes the light colours.",
+      steps: [theme("light"), open(ASSETS.settingsShot)],
+      demonstrates: ["editorImage.canvasView:light"],
+      gates: [{ setting: "theme", side: "light" }],
+      after: [theme("dark")],
     },
   },
   {

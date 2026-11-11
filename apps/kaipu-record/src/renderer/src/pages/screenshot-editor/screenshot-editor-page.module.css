@@ -314,6 +314,11 @@
   overflow: hidden;
   align-items: center;
   justify-content: center;
+  /* The dot grid: one dot per tile, centred. useDotGrid pins the tiles to the shot so the
+     dots pan and zoom with it; the defaults are its rest values before the first measure. */
+  background-image: radial-gradient(circle, var(--canvas-dot) 1.2px, transparent 1.6px);
+  background-size: var(--dot-size, 24px) var(--dot-size, 24px);
+  background-position: var(--dot-x, 0) var(--dot-y, 0);
 }
 
 /* Space held / middle-button drag: the hand, over every child's own cursor. */

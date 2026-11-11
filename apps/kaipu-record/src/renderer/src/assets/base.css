@@ -79,3 +79,15 @@ body {
   --tone-saving-strong: #0d9488;
   --tone-heavy: #b45309;
 }
+
+/*
+ * Image editor canvas dot grid (NIW2-698): the dots behind the frame, Excalidraw-style.
+ * Desktop-only, like the tones above.
+ */
+:root {
+  --canvas-dot: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme="light"] {
+  --canvas-dot: rgba(0, 0, 0, 0.18);
+}

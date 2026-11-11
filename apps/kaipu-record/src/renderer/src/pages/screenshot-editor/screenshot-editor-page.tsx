@@ -60,6 +60,7 @@ import {
   CANVAS_ZOOM,
   isIdentityView,
   useCanvasViewport,
+  useDotGrid,
   useShotMetrics,
 } from "@renderer/features/screenshots/canvas";
 import { useFlag } from "@renderer/features/analytics/use-flag";
@@ -337,6 +338,11 @@ export function ScreenshotEditor({
       compensate(prev, extents);
     }
   }, [extents, compensate]);
+  // The dot grid behind the frame: pinned to the shot's top-left, so it pans and zooms with it.
+  useDotGrid(canvasRef, canvasMode, viewport.view, {
+    x: scene.beautify.state.padding + extents.left,
+    y: scene.beautify.state.padding + extents.top,
+  });
   const hasContentOutside =
     extents.left > 0 || extents.top > 0 || extents.right > 0 || extents.bottom > 0;
   // The composed frame in display px, to move the crop tool's 0–1 rect to and from the
