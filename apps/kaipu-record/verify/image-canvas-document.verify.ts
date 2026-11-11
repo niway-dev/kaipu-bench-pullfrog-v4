@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { dismissOnboarding, localIdForAssetId, SCREENSHOT_ASSET_ID } from "../e2e/helpers/launch";
 import { startScenario, type Scenario } from "./helpers";
@@ -189,6 +189,7 @@ test("image-canvas document: save, reopen from the Library, redaction baked, fla
 
     // Reopen from the Library: the annotations are objects, and the arrow can be dragged.
     await openFromLibrary(s);
+    await s.shot("reopened");
     // The locked blur is baked into the asset and draws nothing: only the arrow is an object.
     await expect(annotationObjects(s.page)).toHaveCount(1);
     const arrowShape = s.page.locator(`[data-annotation="${arrow!.id}"]`);
@@ -221,6 +222,10 @@ test("image-canvas document: save, reopen from the Library, redaction baked, fla
       )
       .toBe(true);
     await leaveEditor(s);
+
+    // Keep the stored document and base asset beside the shots as evidence.
+    await copyFile(metaPath(s, id, "<id>.canvas.json"), path.join(s.outDir, "canvas.json"));
+    await copyFile(assetPath, path.join(s.outDir, "base.png"));
 
     // Without the document, the editor opens the flattened PNG: no annotation objects.
     await rm(metaPath(s, id, "<id>.canvas.json"));
