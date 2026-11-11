@@ -73,7 +73,9 @@ With `image-text` off, the editor is unchanged.
    `text-selection/geometry.ts` find the block under the pointer (within 6 display px) and the
    rect to redact: its box grown by a quarter of its height (2 to 16 px), on whole pixels, inside
    the image. The margin halves, then drops, rather than touch a word of another line, so the
-   click hides exactly that line and the save drops exactly its words from the cache. The
+   click hides exactly that line and the save drops exactly its words from the cache, unless
+   Vision's boxes for two lines already overlap: then the redaction also touches the other
+   line's overlapping words, and the cache drops those too. The
    redaction is an ordinary `blur` annotation, so baking, the cache filter (step 4), undo and the
    style control need nothing new. Real-app proof: `verify/image-text-hide.verify.ts`.
 
