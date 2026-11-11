@@ -383,8 +383,8 @@ export interface KaipuElectronAPI {
   listTags(): Promise<TagSummary[]>;
   /** Create a tag; rejects when the name (case-insensitively) is taken. */
   createTag(name: string, color?: TagColor): Promise<TagSummary>;
-  renameTag(id: string, name: string): Promise<TagSummary>;
-  recolorTag(id: string, color: TagColor): Promise<TagSummary>;
+  renameTag(id: string, name: string): Promise<void>;
+  recolorTag(id: string, color: TagColor): Promise<void>;
   /** Delete a tag and take it off every item. */
   deleteTag(id: string): Promise<void>;
   /** Replace a local item's tags; resolves to the ids actually stored. */
@@ -467,8 +467,12 @@ export interface KaipuElectronAPI {
   onLibraryMaintenanceEnded(callback: () => void): () => void;
   /** One entry per logical item (local, cloud, or both) plus vault/catalog status. */
   listLibraryItems(): Promise<LibraryListResult>;
-  /** Re-fetch the cloud catalog for the signed-in account; resolves with why it could not. */
-  refreshCloudCatalog(): Promise<CatalogRefreshResult>;
+  /**
+   * Re-fetch the cloud catalog for the signed-in account; resolves with why it could not
+   * (never rejects for a cloud failure). Main skips a fetch made less than 30 s ago unless
+   * `force` is set (the Sync button).
+   */
+  refreshCloudCatalog(force?: boolean): Promise<CatalogRefreshResult>;
   /** Remove the local media file of an item that has an identical cloud copy. */
   removeLocalCopy(id: string): Promise<RemoveLocalCopyResult>;
 

@@ -139,7 +139,12 @@ export interface LibraryListResult {
 }
 
 export type CatalogRefreshResult =
-  | { ok: true; verifiedAt: number }
+  | {
+      ok: true;
+      verifiedAt: number;
+      /** False when the server catalog equals the cached one, or the call was throttled. */
+      changed: boolean;
+    }
   | { ok: false; reason: "signed-out" | "unauthorized" | "network" };
 
 export type RemoveLocalCopyResult =

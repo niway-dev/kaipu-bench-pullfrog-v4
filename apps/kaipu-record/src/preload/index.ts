@@ -244,7 +244,8 @@ const kaipuApi: KaipuElectronAPI = {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.libraryMaintenanceEnded, listener);
   },
   listLibraryItems: () => scopedInvoke(IPC_CHANNELS.listLibraryItems),
-  refreshCloudCatalog: () => ipcRenderer.invoke(IPC_CHANNELS.refreshCloudCatalog),
+  refreshCloudCatalog: (force) =>
+    ipcRenderer.invoke(IPC_CHANNELS.refreshCloudCatalog, force === true),
   removeLocalCopy: (id) => scopedInvoke(IPC_CHANNELS.removeLocalCopy, id),
   recordingCreate: (sessionId, kind) =>
     ipcRenderer.invoke(IPC_CHANNELS.recordingCreate, sessionId, kind),
