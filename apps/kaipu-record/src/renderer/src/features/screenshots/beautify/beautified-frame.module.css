@@ -56,10 +56,11 @@
   transform-origin: top left;
 }
 
-/* Canvas mode: the view's pan moves with the pointer, so the transform must not ease. */
+/* Canvas mode: the view's pan moves with the pointer, so the transform must not ease.
+   Padding does not ease either: the page re-pans in the same instant the extents change
+   (to keep the shot still), and an eased padding would slide the shot back after that. */
 .panned {
   transition:
-    padding 0.12s ease,
     border-radius 0.12s ease,
     background 0.12s ease;
 }

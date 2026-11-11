@@ -109,8 +109,12 @@ export function BeautifiedFrame({
     borderRadius: `${frameRadius(beautify.bg, beautify.radius)}px`,
     // The extents live inside the frame's border-box, so let it outgrow its container by
     // exactly that much: the shot then fits the canvas as it does without extents.
+    // `flexShrink: 0` matters: the frame is a flex item of the canvas, and with the default
+    // shrink a capture that fills the width would be squeezed back to the container width,
+    // so the shot would get smaller (and the export scale change) as the extents grow.
     ...(ext
       ? {
+          flexShrink: 0,
           maxWidth: `calc(100% + ${ext.left + ext.right}px)`,
           maxHeight: `calc(100% + ${ext.top + ext.bottom}px)`,
         }

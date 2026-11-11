@@ -21,6 +21,7 @@ describe("BeautifiedFrame — canvas extents (NIW2-698)", () => {
     expect(frame.style.padding).toBe("20px");
     expect(frame.style.maxWidth).toBe("");
     expect(frame.style.maxHeight).toBe("");
+    expect(frame.style.flexShrink).toBe("");
     expect(frame.style.transform).toBe("");
     expect(screen.queryByTestId("canvas-box-fill")).toBeNull();
   });
@@ -36,6 +37,7 @@ describe("BeautifiedFrame — canvas extents (NIW2-698)", () => {
     const frame = frameOf();
     expect(frame.style.padding).toBe("20px");
     expect(frame.style.maxWidth).toBe("");
+    expect(frame.style.flexShrink).toBe("");
     expect(screen.queryByTestId("canvas-box-fill")).toBeNull();
   });
 
@@ -63,6 +65,17 @@ describe("BeautifiedFrame — canvas extents (NIW2-698)", () => {
     const frame = frameOf();
     expect(frame.style.maxWidth).toBe("calc(100% + 20px)");
     expect(frame.style.maxHeight).toBe("calc(100% + 40px)");
+  });
+
+  it("with extents the frame does not shrink, so the shot keeps its zero-extents size", () => {
+    render(
+      <BeautifiedFrame
+        src="x"
+        beautify={beautify()}
+        extents={{ left: 5, top: 10, right: 15, bottom: 30 }}
+      />,
+    );
+    expect(frameOf().style.flexShrink).toBe("0");
   });
 
   it("with no background and extents, a white block covers the union box, inside the padding ring", () => {
