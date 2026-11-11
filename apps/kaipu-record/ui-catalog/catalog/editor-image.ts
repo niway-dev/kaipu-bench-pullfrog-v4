@@ -88,6 +88,28 @@ export const editorImage = catalog(
       steps: [open(ASSETS.settingsShot), zoomOut],
       demonstrates: ["editorImage.canvasView:zoomedOut"],
     },
+    "redaction-blur": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page” and pick the Blur tool: the panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
+      steps: [open(ASSETS.settingsShot), tool("Blur")],
+      demonstrates: ["editorImage.redactionStyle:blur"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "redaction-solid": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page”, pick the Blur tool and press Solid in the panel: Solid is now the selected style.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Blur"),
+        {
+          click: {
+            area: "editorImage.redactionStyle",
+            part: { role: "button", name: "Solid", exact: true },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.redactionStyle:solid"],
+    },
     "inspect-off": {
       profile: "image-inspect",
       how: "With the flag forced on, open “Settings page”: the Inspect button is in the toolbar, off.",

@@ -23,6 +23,7 @@ import {
   worldToFrame,
   type Extents,
 } from "./canvas-geometry";
+import { bakeRedactions } from "./redaction";
 import { stepNumbers, type Annotation, type Scene } from "./scene";
 
 /**
@@ -102,7 +103,10 @@ export async function compositeSceneAt(
   displayedW: number,
   options: CompositeOptions = {},
 ): Promise<CompositeResult> {
-  const href = await bytesToDataUrl(bytes);
+  // Canvas mode: redactions are destructive, so their pixels go into the base image here
+  // (locked ones are already in it) and buildSvg draws no blur. Untouched = same bytes.
+  const base = options.canvas ? await bakeRedactions(bytes, scene.annotations) : bytes;
+  const href = await bytesToDataUrl(base);
   // Decode the PNG for its TRUE pixel size (Retina-safe — `getSize` can differ).
   const { width: naturalW, height: naturalH } = await imageSize(href);
   const scale = displayedW > 0 ? naturalW / displayedW : 1;
@@ -269,9 +273,11 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // beautify padding is shown there — clipping to the shot truncated it in the
   // export only. The output viewBox (the crop window, or the whole frame) is the
   // natural bound, so they render exactly as previewed.
+  // Canvas mode (`ext` set): blurs were baked into the base bytes. Each one still redraws
+  // the (baked) base over its rect, in z-order, so it covers an annotation drawn before it.
   const steps = stepNumbers(scene.annotations);
   const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
-    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps))
+    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps, Boolean(ext)))
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
@@ -285,7 +291,15 @@ function annotationSvg(
   H: number,
   scale: number,
   steps: Map<string, number>,
+  baked = false,
 ): string {
+  if (a.kind === "blur" && baked) {
+    // The base already holds the redacted pixels: a clipped, unfiltered copy of them.
+    return (
+      `<defs><clipPath id="bclip-${a.id}"><rect x="${a.x * W}" y="${a.y * H}" width="${a.w * W}" height="${a.h * H}"/></clipPath></defs>` +
+      `<use href="#shot" clip-path="url(#bclip-${a.id})"/>`
+    );
+  }
   if (a.kind === "step") {
     const d = stepDiameterPx(a.size);
     const n = steps.get(a.id) ?? 1;

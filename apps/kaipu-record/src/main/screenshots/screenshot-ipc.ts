@@ -26,17 +26,26 @@ import {
   onSettingsChanged,
   updateAppSettings,
 } from "../infrastructure/settings-store";
-import { scopedAdmitted, screenshotFilePath } from "../library";
+import { currentVault, scopedAdmitted, screenshotFilePath } from "../library";
+import { readCanvas } from "./screenshot-canvas";
+import type { CanvasReadResult, CanvasSavePayload } from "@shared/types/screenshot-canvas";
 import { activeWorkspace, refreshActiveWorkspaceSettings } from "../workspaces";
 import {
   captureWhileRecordingEnabled,
   setReportedCaptureWhileRecording,
 } from "./capture-while-recording";
 import { saveCaptureToWorkspace, saveEditedScreenshot } from "./screenshot-save";
+import { isPlainItemId } from "../library/library-vault";
 import { vaultActivity } from "../library/vault-activity";
 import type { CaptureToastShowRequest } from "./capture-toast-window";
 import { deferToastUntilAfterCapture } from "./toast-after-capture";
 import { PREVIEW_THUMBNAIL_MAX_SIDE } from "@shared/capture-preview-layout";
+
+/** A copy as ArrayBuffer of IPC bytes (ArrayBuffer or Uint8Array). */
+function toArrayBuffer(bytes: ArrayBuffer | Uint8Array): ArrayBuffer {
+  const buf = Buffer.from(bytes as ArrayBuffer);
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
 
 let overlayWindows: CaptureOverlayWindows | null = null;
 /** Whether something (a take) would rather the overlay windows did not load now. */
@@ -278,8 +287,18 @@ export function registerScreenshotHandlers(
   ipcMain.handle(
     IPC_CHANNELS.screenshotReadBytes,
     scopedAdmitted("library", async (id: string): Promise<ArrayBuffer> => {
+      if (typeof id !== "string" || !isPlainItemId(id)) throw new Error("read: invalid id");
       const buf = await readFile(await screenshotFilePath(id));
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    }),
+  );
+
+  // The canvas document beside a shot, or null: null tells the editor to open the flat PNG.
+  ipcMain.handle(
+    IPC_CHANNELS.screenshotReadCanvas,
+    scopedAdmitted("library", async (id: string): Promise<CanvasReadResult | null> => {
+      // readCanvas refuses an id that is not a plain item id (no path out of the vault).
+      return readCanvas(currentVault(), id);
     }),
   );
 
@@ -290,9 +309,31 @@ export function registerScreenshotHandlers(
       _event,
       stamp: unknown,
       png: ArrayBuffer,
-      meta: { title: string; overwriteId?: string; overwriteAssetId?: string; manual?: boolean },
+      meta: {
+        title: string;
+        overwriteId?: string;
+        overwriteAssetId?: string;
+        manual?: boolean;
+        canvas?: CanvasSavePayload;
+      },
     ): Promise<LocalRecording> =>
-      vaultActivity.run("screenshot", () => saveEditedScreenshot(stamp, Buffer.from(png), meta)),
+      vaultActivity.run("screenshot", () =>
+        saveEditedScreenshot(stamp, Buffer.from(png), {
+          ...meta,
+          // Binary arrives as ArrayBuffer or Uint8Array depending on the IPC path.
+          ...(meta.canvas
+            ? {
+                canvas: {
+                  docJson: meta.canvas.docJson,
+                  assets: (meta.canvas.assets ?? []).map((a) => ({
+                    assetId: a.assetId,
+                    png: toArrayBuffer(a.png),
+                  })),
+                },
+              }
+            : {}),
+        }),
+      ),
   );
 
   // Exports (PDF) are files to hand to someone, not library items: they go where

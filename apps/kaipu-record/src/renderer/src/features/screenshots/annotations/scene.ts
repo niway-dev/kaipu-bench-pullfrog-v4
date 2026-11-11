@@ -49,7 +49,10 @@ export interface PathAnnotation {
   color: string;
   stroke: number;
 }
-/** A redaction box: the base image under this rect is blurred (baked into the export). */
+/** How a redaction destroys its pixels: a strong blur, or an opaque fill. */
+export type RedactionStyle = "blur" | "solid";
+
+/** A redaction box: the base image under this rect is destroyed (baked into the export). */
 export interface BlurAnnotation {
   id: string;
   kind: "blur";
@@ -57,6 +60,11 @@ export interface BlurAnnotation {
   y: number;
   w: number;
   h: number;
+  /** Absent = "blur" (the strong blur; a redaction made with the old gaussian is read as it). */
+  style?: RedactionStyle;
+  /** True = its pixels were baked into the stored asset by an earlier save. It is kept in
+   * the document but not drawn again and not selectable. */
+  locked?: boolean;
 }
 /**
  * A pinned ruler measurement (NIW2-702). Unlike the other kinds it is stored in the image's
@@ -157,4 +165,14 @@ let counter = 0;
 export function nextAnnotationId(): { id: string; seed: number } {
   counter += 1;
   return { id: `a${counter}`, seed: (counter * 1103515245 + 12345) % 100000 };
+}
+
+/** Bump the id counter past every `a<number>` id present, so a reopened document does
+ * not collide with ids it already contains. */
+export function reserveAnnotationIds(annotations: readonly Annotation[]): void {
+  for (const a of annotations) {
+    const m = /^a(\d+)$/.exec(a.id);
+    // An id too large for a safe integer would stall the counter at Infinity: skip it.
+    if (m && Number.isSafeInteger(Number(m[1]))) counter = Math.max(counter, Number(m[1]));
+  }
 }

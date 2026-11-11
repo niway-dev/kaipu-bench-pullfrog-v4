@@ -37,10 +37,15 @@ export interface EditorScene {
 
 /** Unified editor scene (beautify + annotations) with one undo/redo history. The
  *  initial beautify can be overridden (a re-opened flat screenshot starts unframed). */
-export function useEditorScene(initialBeautify: BeautifyState = DEFAULT_BEAUTIFY): EditorScene {
+export function useEditorScene(
+  initialBeautify: BeautifyState = DEFAULT_BEAUTIFY,
+  /** A reopened document's content (ADR 0053): the scene starts as saved, with an empty history. */
+  initial?: Pick<Scene, "annotations" | "exportFrame">,
+): EditorScene {
   const [scene, setScene] = useState<Scene>(() => ({
     beautify: initialBeautify,
-    annotations: [],
+    annotations: initial?.annotations ?? [],
+    ...(initial?.exportFrame ? { exportFrame: initial.exportFrame } : {}),
   }));
   const [past, setPast] = useState<Scene[]>([]);
   const [future, setFuture] = useState<Scene[]>([]);

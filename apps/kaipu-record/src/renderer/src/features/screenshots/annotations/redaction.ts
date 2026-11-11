@@ -1,0 +1,156 @@
+import type { Annotation, RedactionStyle } from "./scene";
+
+/** A redaction block is at least this many image pixels on a side. */
+export const REDACTION_MIN_BLOCK_PX = 24;
+/** The opaque fill of the "solid" style. */
+export const REDACTION_SOLID_RGB = [26, 26, 26] as const;
+
+/** Block size in image px: at least 24, and at least a quarter of the region's shorter side. */
+export function redactionBlockSize(w: number, h: number): number {
+  return Math.max(REDACTION_MIN_BLOCK_PX, Math.ceil(Math.min(w, h) / 4));
+}
+
+/** Raw RGBA pixels; structurally compatible with `ImageData`. */
+export interface PixelRegion {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+}
+
+/** For each coordinate along one axis: the two block indices to blend and the weight of the second. */
+function axisSamples(
+  length: number,
+  block: number,
+): { i0: Uint32Array; i1: Uint32Array; t: Float64Array } {
+  const count = Math.ceil(length / block);
+  const centers: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const start = i * block;
+    centers.push(start + (Math.min(start + block, length) - start) / 2);
+  }
+  const i0 = new Uint32Array(length);
+  const i1 = new Uint32Array(length);
+  const t = new Float64Array(length);
+  for (let p = 0; p < length; p++) {
+    const pos = p + 0.5;
+    let k = Math.min(Math.floor(p / block), count - 1);
+    if (pos < centers[k] && k > 0) k -= 1;
+    const next = Math.min(k + 1, count - 1);
+    i0[p] = k;
+    i1[p] = next;
+    const span = centers[next] - centers[k];
+    t[p] = span > 0 ? Math.min(1, Math.max(0, (pos - centers[k]) / span)) : 0;
+  }
+  return { i0, i1, t };
+}
+
+/**
+ * Destroys a region in place. The output of "blur" is a function of the block averages
+ * only, so the original pixels cannot be recovered from it (unlike a gaussian blur,
+ * which can be partly reversed).
+ */
+export function redactRegion(region: PixelRegion, style: RedactionStyle): void {
+  const { data, width, height } = region;
+  if (width <= 0 || height <= 0) return;
+  if (style === "solid") {
+    for (let i = 0; i < width * height * 4; i += 4) {
+      data[i] = REDACTION_SOLID_RGB[0];
+      data[i + 1] = REDACTION_SOLID_RGB[1];
+      data[i + 2] = REDACTION_SOLID_RGB[2];
+      data[i + 3] = 255;
+    }
+    return;
+  }
+  const block = redactionBlockSize(width, height);
+  const cols = Math.ceil(width / block);
+  const rows = Math.ceil(height / block);
+  const avg = new Float64Array(cols * rows * 4);
+  for (let by = 0; by < rows; by++) {
+    for (let bx = 0; bx < cols; bx++) {
+      const x0 = bx * block;
+      const y0 = by * block;
+      const x1 = Math.min(x0 + block, width);
+      const y1 = Math.min(y0 + block, height);
+      const sum = [0, 0, 0, 0];
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const o = (y * width + x) * 4;
+          sum[0] += data[o];
+          sum[1] += data[o + 1];
+          sum[2] += data[o + 2];
+          sum[3] += data[o + 3];
+        }
+      }
+      const n = (x1 - x0) * (y1 - y0);
+      const a = (by * cols + bx) * 4;
+      for (let c = 0; c < 4; c++) avg[a + c] = sum[c] / n;
+    }
+  }
+  const xs = axisSamples(width, block);
+  const ys = axisSamples(height, block);
+  for (let y = 0; y < height; y++) {
+    const ty = ys.t[y];
+    for (let x = 0; x < width; x++) {
+      const tx = xs.t[x];
+      const o = (y * width + x) * 4;
+      for (let c = 0; c < 4; c++) {
+        const top =
+          avg[(ys.i0[y] * cols + xs.i0[x]) * 4 + c] * (1 - tx) +
+          avg[(ys.i0[y] * cols + xs.i1[x]) * 4 + c] * tx;
+        const bottom =
+          avg[(ys.i1[y] * cols + xs.i0[x]) * 4 + c] * (1 - tx) +
+          avg[(ys.i1[y] * cols + xs.i1[x]) * 4 + c] * tx;
+        data[o + c] = Math.round(top * (1 - ty) + bottom * ty);
+      }
+    }
+  }
+}
+
+/**
+ * Bakes every unlocked redaction into the PNG's pixels and returns the new PNG. With
+ * nothing to redact it returns the SAME `bytes` object, untouched (one-image export
+ * parity depends on that).
+ */
+export async function bakeRedactions(
+  bytes: ArrayBuffer,
+  annotations: readonly Annotation[],
+): Promise<ArrayBuffer> {
+  const pending = annotations.filter(
+    (a): a is Extract<Annotation, { kind: "blur" }> => a.kind === "blur" && !a.locked,
+  );
+  if (pending.length === 0) return bytes;
+  const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }), {
+    // Untouched pixels must come out as they went in: no color-space or alpha conversion.
+    colorSpaceConversion: "none",
+    premultiplyAlpha: "none",
+  });
+  const { width, height } = bitmap;
+  try {
+    const rects = pending
+      .map((a) => {
+        const x0 = Math.max(0, Math.floor(a.x * width));
+        const y0 = Math.max(0, Math.floor(a.y * height));
+        const x1 = Math.min(width, Math.ceil((a.x + a.w) * width));
+        const y1 = Math.min(height, Math.ceil((a.y + a.h) * height));
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, style: a.style ?? "blur" };
+      })
+      .filter((r) => r.w > 0 && r.h > 0);
+    if (rects.length === 0) return bytes;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("2D canvas unavailable");
+    ctx.drawImage(bitmap, 0, 0);
+    for (const r of rects) {
+      const img = ctx.getImageData(r.x, r.y, r.w, r.h);
+      redactRegion(img, r.style);
+      ctx.putImageData(img, r.x, r.y);
+    }
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("PNG encoding failed");
+    return await blob.arrayBuffer();
+  } finally {
+    bitmap.close();
+  }
+}

@@ -18,6 +18,8 @@ function makeTools(overrides: Partial<AnnotationToolsController> = {}): Annotati
     setStroke: vi.fn(),
     textSize: 1,
     setTextSize: vi.fn(),
+    redactionStyle: "blur",
+    setRedactionStyle: vi.fn(),
     stepSize: 1,
     setStepSize: vi.fn(),
     ...overrides,
@@ -63,6 +65,39 @@ afterEach(() => {
   delete HTMLElement.prototype.clientWidth;
   // @ts-expect-error — see above
   delete HTMLElement.prototype.clientHeight;
+});
+
+describe("AnnotationLayer — canvas-mode redaction", () => {
+  const unlocked: Annotation = { id: "u1", kind: "blur", x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+  const locked: Annotation = { ...unlocked, id: "l1", locked: true };
+
+  it("keeps the gaussian filter with the flag off", () => {
+    const { container } = render(
+      <AnnotationLayer scene={makeScene([unlocked], null)} tools={makeTools()} src="" />,
+    );
+    expect(container.querySelector("feGaussianBlur")).not.toBeNull();
+  });
+
+  it("draws no gaussian in canvas mode and nothing at all for a locked blur", () => {
+    const { container } = render(
+      <AnnotationLayer
+        scene={makeScene([unlocked, locked], null)}
+        tools={makeTools()}
+        src=""
+        canvasMode
+      />,
+    );
+    expect(container.querySelector("feGaussianBlur")).toBeNull();
+    expect(container.querySelector('[data-annotation="u1"]')).not.toBeNull();
+    expect(container.querySelector('[data-annotation="l1"]')).toBeNull();
+  });
+
+  it("does not delete a locked blur on Backspace in canvas mode", () => {
+    const scene = makeScene([locked], "l1");
+    render(<AnnotationLayer scene={scene} tools={makeTools()} src="" canvasMode />);
+    fireEvent.keyDown(window, { key: "Backspace" });
+    expect(scene.removeSelected).not.toHaveBeenCalled();
+  });
 });
 
 describe("AnnotationLayer — keyboard", () => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -19,7 +19,8 @@ import {
   openKindOf,
 } from "@renderer/features/screenshots/auto-capture-policy";
 import { DiscardChangesDialog } from "@renderer/features/screenshots/discard-changes-dialog";
-import { reportError } from "@renderer/features/analytics";
+import type { CanvasSavePayload } from "@shared/types/screenshot-canvas";
+import { captureException, reportError } from "@renderer/features/analytics";
 import { screenshotTitle } from "@shared/screenshot-title";
 import {
   isAmbiguousIdentityError,
@@ -49,12 +50,17 @@ import {
   AnnotationLayer,
   AnnotationOptions,
   AnnotationToolbar,
+  BASE_ASSET_ID,
   ZERO_EXTENTS,
+  bakeRedactions,
+  buildCanvasDoc,
   contentExtents,
   extentsToDisplay,
   frameToWorld,
   intersectFrame,
   nextAnnotationId,
+  parseCanvasDoc,
+  reserveAnnotationIds,
   useAnnotationTools,
   useEditorScene,
   worldToFrame,
@@ -68,6 +74,7 @@ import {
   isIdentityView,
   useCanvasViewport,
   useDotGrid,
+  useExtentsCompensation,
   useShotMetrics,
 } from "@renderer/features/screenshots/canvas";
 import { useFlag } from "@renderer/features/analytics/use-flag";
@@ -120,7 +127,62 @@ export function ScreenshotEditorPage(): React.JSX.Element {
   return <ScreenshotEditor key={location.key} source={source} fresh />;
 }
 
-/** The image editor itself. The Editor workspace routes render it, keyed per item. */
+/**
+ * A reopened canvas document (ADR 0053), validated and ready to mount: the base asset's
+ * bytes as the editor's image, and the scene it was saved with.
+ */
+interface LoadedCanvasDoc {
+  bytes: ArrayBuffer;
+  scene: Scene;
+  /** The base image's pixel size as the document recorded it. */
+  pixelWidth: number;
+  pixelHeight: number;
+}
+
+/**
+ * Read and validate the document saved beside a vault shot. Null means "open the flattened
+ * PNG instead": no document, a corrupt or unsupported one, a missing base asset, or a read
+ * that failed. It never rejects, so a bad document can never keep the editor from opening.
+ */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const isPng = (bytes: ArrayBuffer): boolean => {
+  const head = new Uint8Array(bytes, 0, Math.min(8, bytes.byteLength));
+  return head.length === 8 && PNG_SIGNATURE.every((b, i) => head[i] === b);
+};
+
+async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
+  try {
+    const stored = await window.electronAPI.readScreenshotCanvas(id);
+    if (!stored) return null;
+    const parsed = parseCanvasDoc(stored.docJson);
+    if (!parsed) return null;
+    const bytes = stored.assets[parsed.base.assetId];
+    // Not a PNG: the image would never load and the editor would stay disabled.
+    if (!bytes || !isPng(bytes)) return null;
+    // New annotations must not reuse an id the document already holds.
+    reserveAnnotationIds(parsed.scene.annotations);
+    return {
+      bytes,
+      scene: parsed.scene,
+      pixelWidth: parsed.base.pixelWidth,
+      pixelHeight: parsed.base.pixelHeight,
+    };
+  } catch (error) {
+    // The next save replaces the document with one built on the flat PNG, so a read that
+    // failed (not a missing or invalid document) loses the editable layers: record it.
+    captureException(error, { phase: "read-canvas" });
+    return null;
+  }
+}
+
+/**
+ * The image editor. The Editor workspace routes render it, keyed per item.
+ *
+ * In canvas mode a vault shot is reopened from its document, when it has a valid one. The
+ * document is read BEFORE the editor body mounts, so the body's initial scene is the saved
+ * one, set synchronously: a clean reopen is never marked dirty and never autosaves. Until
+ * the read settles this renders nothing, as the body does while its image loads.
+ */
 export function ScreenshotEditor({
   source,
   fresh = false,
@@ -129,26 +191,73 @@ export function ScreenshotEditor({
   /** A capture that is not in the vault yet (`/editor/capture`), not a saved item. */
   fresh?: boolean;
 }): React.JSX.Element {
+  // Latched at mount, here and handed down: a shot never mixes the two models (see below).
+  const [canvasMode] = useState(useFlag("image-canvas"));
+  const needsRead = canvasMode && source.kind === "local";
+  const localId = source.kind === "local" ? source.id : null;
+  const [loaded, setLoaded] = useState<{ id: string; doc: LoadedCanvasDoc | null } | null>(null);
+  useEffect(() => {
+    if (!needsRead || localId === null) return;
+    let cancelled = false;
+    void loadCanvasDoc(localId).then((doc) => {
+      if (!cancelled) setLoaded({ id: localId, doc });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsRead, localId]);
+  if (needsRead && loaded?.id !== localId) return <></>;
+  return (
+    <ScreenshotEditorBody
+      source={source}
+      fresh={fresh}
+      canvasMode={canvasMode}
+      doc={needsRead ? (loaded?.doc ?? null) : null}
+    />
+  );
+}
+
+function ScreenshotEditorBody({
+  source,
+  fresh,
+  canvasMode,
+  doc,
+}: {
+  source: ImageSource;
+  fresh: boolean;
+  canvasMode: boolean;
+  /** The document a canvas-mode reopen found, or null (flat PNG, no annotations). */
+  doc: LoadedCanvasDoc | null;
+}): React.JSX.Element {
   const t = useTranslations("screenshots");
   const tLibrary = useTranslations("library");
   const tCommon = useTranslations("common");
-  const image = useImageSource(source);
+  // A reopened document shows its base asset, resolved like a blob. Everything else below
+  // (open kind, save binding, auto actions) still reads the ORIGINAL `source`: a reopen is
+  // a vault item, never a fresh capture to auto-save or auto-copy.
+  const imageSource = useMemo<ImageSource>(
+    () => (doc ? { kind: "blob", bytes: doc.bytes, origin: "quiet" } : source),
+    [doc, source],
+  );
+  const image = useImageSource(imageSource);
   // A re-opened saved shot is already framed/flattened — start it unframed so the
   // editor doesn't beautify it twice; a fresh capture gets the default frame.
   // A pasted image is the user's own picture (often a photo), not a screenshot to
   // show off, so it opens unframed too.
   const openKind = openKindOf(source);
-  const scene = useEditorScene(openKind === "capture" ? DEFAULT_BEAUTIFY : FLAT_BEAUTIFY);
+  const scene = useEditorScene(
+    doc ? doc.scene.beautify : openKind === "capture" ? DEFAULT_BEAUTIFY : FLAT_BEAUTIFY,
+    doc?.scene,
+  );
   const tools = useAnnotationTools();
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   // Infinite canvas (NIW2-698): content may leave the image, the view pans, export is the
-  // content box. Latched at mount: `useFlag` is reactive, but a shot must never mix the two
-  // models (a classic crop would be dropped, or outside content clipped, on the next export
-  // or autosave). A flag change applies to the next editor that opens. Everything below
-  // branches on this boolean. Off = today's editor.
-  const [canvasMode] = useState(useFlag("image-canvas"));
+  // content box. `canvasMode` is latched at mount by `ScreenshotEditor`: `useFlag` is
+  // reactive, but a shot must never mix the two models (a classic crop would be dropped, or
+  // outside content clipped, on the next export or autosave). A flag change applies to the
+  // next editor that opens. Everything below branches on this boolean. Off = today's editor.
   // Inspect mode (NIW2-699): latched like `canvasMode`. Off = no button, no key, no listener,
   // no decode: the editor is exactly what it was.
   const [inspectEnabled] = useState(useFlag("image-inspect"));
@@ -360,20 +469,14 @@ export function ScreenshotEditor({
   }, [canvasMode, metrics, scene.annotations]);
   // Growing or shrinking the content box re-centres the frame, which would slide the shot
   // on screen. Move the pan by the same amount so the shot stays where the user left it.
-  const prevExtents = useRef(ZERO_EXTENTS);
+  // The first measurement is the baseline, so a reopened document with content outside the
+  // image opens with its content box in view instead of panned off-centre.
   const { compensate } = viewport;
-  useLayoutEffect(() => {
-    const prev = prevExtents.current;
-    prevExtents.current = extents;
-    if (
-      prev.left !== extents.left ||
-      prev.top !== extents.top ||
-      prev.right !== extents.right ||
-      prev.bottom !== extents.bottom
-    ) {
-      compensate(prev, extents);
-    }
-  }, [extents, compensate]);
+  useExtentsCompensation(
+    extents,
+    canvasMode && metrics != null && metrics.w > 0 && metrics.naturalW > 0,
+    compensate,
+  );
   // The dot grid behind the frame: pinned to the shot's top-left, so it pans and zooms with it.
   useDotGrid(canvasRef, canvasMode, viewport.view, {
     x: scene.beautify.state.padding + extents.left,
@@ -453,6 +556,29 @@ export function ScreenshotEditor({
     if (await copyToClipboard()) showFeedback({ kind: "copied" });
   };
 
+  /**
+   * The document and base asset a canvas-mode save stores beside the PNG (ADR 0053).
+   *
+   * The asset is the in-memory image with this session's redactions baked in; the document
+   * marks every blur `locked` (see `buildCanvasDoc`). The in-memory image itself stays the
+   * UNREDACTED bytes until the editor closes, so a redaction drawn this session can still
+   * be moved, resized or deleted. After a reopen the stored asset no longer has those
+   * pixels, so the locked redaction is fixed.
+   *
+   * Null when the image's pixel size is unknown (the document would be invalid): the save
+   * then stores the flat PNG alone, and main drops any stale document.
+   */
+  const buildCanvasPayload = async (snap: Scene): Promise<CanvasSavePayload | null> => {
+    // The decoded image first; the known sizes cover an image that has not reported one. A
+    // reopened document's base size comes before the source's, which is the flat export's.
+    const pixelWidth = imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0;
+    const pixelHeight = imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0;
+    if (pixelWidth <= 0 || pixelHeight <= 0) return null;
+    const baked = await bakeRedactions(await image!.getBytes(), snap.annotations);
+    const docJson = JSON.stringify(buildCanvasDoc(snap, { pixelWidth, pixelHeight }));
+    return { docJson, assets: [{ assetId: BASE_ASSET_ID, png: baked }] };
+  };
+
   /** Returns the saved title, or null when the save failed (already reported). */
   const persist = (opts: {
     overwriteId?: string;
@@ -482,7 +608,9 @@ export function ScreenshotEditor({
             ? (savedIdRef.current ?? undefined)
             : undefined;
       try {
-        const saved = await window.electronAPI.saveScreenshot(await exportAs("png", snap), {
+        const png = await exportAs("png", snap);
+        const canvas = canvasMode ? await buildCanvasPayload(snap) : null;
+        const saved = await window.electronAPI.saveScreenshot(png, {
           // The live field, not only its committed value: Save must write what the
           // user sees even if the field has not blurred yet (e.g. a shortcut).
           title: opts.title ?? resolveCaptureTitle(draftAtStart, captureTitle.autoTitle),
@@ -490,6 +618,8 @@ export function ScreenshotEditor({
           ...(overwriteId !== undefined ? { overwriteAssetId: savedAssetIdRef.current } : {}),
           // The auto-save on open is not the user's work; every other save is.
           manual: opts.manual ?? !opts.silent,
+          // Flag off sends no `canvas` at all: the flat PNG stays the truth.
+          ...(canvas ? { canvas } : {}),
         });
         savedIdRef.current = saved.id;
         savedAssetIdRef.current = saved.assetId;
@@ -822,6 +952,7 @@ export function ScreenshotEditor({
                   tools={tools}
                   src={image.displayUrl}
                   canvas={canvasMode}
+                  canvasMode={canvasMode}
                 />
               }
               frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}
@@ -839,7 +970,7 @@ export function ScreenshotEditor({
             {inspect.active ? (
               <InspectBar inspect={inspect} />
             ) : (
-              <AnnotationOptions tools={tools} scene={cropScene} />
+              <AnnotationOptions tools={tools} scene={cropScene} canvasMode={canvasMode} />
             )}
           </div>
 

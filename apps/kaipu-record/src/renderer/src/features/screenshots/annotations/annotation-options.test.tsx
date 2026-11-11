@@ -16,6 +16,8 @@ function makeTools(overrides: Partial<AnnotationToolsController> = {}): Annotati
     setStroke: vi.fn(),
     textSize: 1,
     setTextSize: vi.fn(),
+    redactionStyle: "blur",
+    setRedactionStyle: vi.fn(),
     stepSize: 1,
     setStepSize: vi.fn(),
     ...overrides,
@@ -180,6 +182,54 @@ describe("a label sized by dragging a corner", () => {
         /pickerOn/,
       );
     }
+  });
+
+  describe("redaction style (canvas mode)", () => {
+    const blur: Annotation = { id: "u1", kind: "blur", x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+    const NOTE = "Only Solid hides content for certain. Blur keeps a trace of the original colors.";
+
+    it("is hidden with the flag off, even for a selected blur", () => {
+      render(<AnnotationOptions tools={makeTools()} scene={makeScene([blur], "u1")} />);
+      expect(screen.queryByRole("button", { name: "Solid" })).toBeNull();
+      expect(screen.queryByText(NOTE)).toBeNull();
+    });
+
+    it("shows for the blur tool with the note, and a pick sets the next style", () => {
+      const tools = makeTools({ tool: "blur" });
+      render(<AnnotationOptions tools={tools} scene={makeScene([], null)} canvasMode />);
+      expect(screen.getByText(NOTE)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Blur" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Solid" }));
+      expect(tools.setRedactionStyle).toHaveBeenCalledWith("solid");
+    });
+
+    it("switching with a blur selected updates that blur as one change", () => {
+      const scene = makeScene([blur], "u1");
+      render(<AnnotationOptions tools={makeTools()} scene={scene} canvasMode />);
+      fireEvent.click(screen.getByRole("button", { name: "Solid" }));
+      expect(scene.commitAnnotation).toHaveBeenCalledTimes(1);
+      expect(scene.commitAnnotation).toHaveBeenCalledWith("u1", { style: "solid" });
+    });
+
+    it("reflects the selected blur's own style", () => {
+      render(
+        <AnnotationOptions
+          tools={makeTools()}
+          scene={makeScene([{ ...blur, style: "solid" }], "u1")}
+          canvasMode
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Solid" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
+    });
+
+    it("stays hidden in canvas mode for a non-blur selection", () => {
+      render(<AnnotationOptions tools={makeTools()} scene={makeScene([box], "b1")} canvasMode />);
+      expect(screen.queryByText(NOTE)).toBeNull();
+    });
   });
 });
 

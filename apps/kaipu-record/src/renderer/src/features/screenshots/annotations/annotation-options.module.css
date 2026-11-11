@@ -146,3 +146,32 @@
   opacity: 0.45;
   cursor: default;
 }
+
+/* ── Redaction style (canvas mode) ───────────── */
+
+.redaction {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.styleItem {
+  width: auto;
+  padding: 0 var(--space-md);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.pickerOn.styleItem {
+  color: var(--text-primary);
+}
+
+.note {
+  margin: 0;
+  max-width: 220px;
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-label);
+  color: var(--text-4);
+}

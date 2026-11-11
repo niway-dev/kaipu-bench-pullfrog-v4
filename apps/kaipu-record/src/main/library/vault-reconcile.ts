@@ -132,6 +132,7 @@ const META_ALLOWLIST = new Set(["tags.json", "reconcile", "orphans", "drag", "tm
 const COMPANION_SUFFIXES: { suffix: string; role: keyof CompanionPaths }[] = [
   { suffix: ".edit.meta.json", role: "editMeta" },
   { suffix: ".edit.json", role: "editSession" },
+  { suffix: ".canvas.json", role: "canvasDoc" },
   { suffix: ".cursor.json", role: "cursorTrack" },
   { suffix: ".json", role: "sidecar" },
   { suffix: ".jpg", role: "thumbnail" },

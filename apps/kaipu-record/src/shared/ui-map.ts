@@ -273,6 +273,10 @@ export const UI_MAP = {
         states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      redactionStyle: {
+        states: ["blur", "solid"],
+        gatedBy: [{ flag: "image-canvas" }],
+      },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },

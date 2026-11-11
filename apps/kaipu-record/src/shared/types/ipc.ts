@@ -506,6 +506,8 @@ export const IPC_CHANNELS = {
   screenshotCopyById: "screenshot:copy-by-id",
   // Read a saved screenshot's PNG bytes by id (for re-opening it in the editor).
   screenshotReadBytes: "screenshot:read-bytes",
+  // Read the editable canvas document + assets beside a saved screenshot (null: open the PNG).
+  screenshotReadCanvas: "screenshot:read-canvas",
   screenshotSave: "screenshot:save",
   // Read the image on the system clipboard as PNG (the Editor's New → Paste).
   clipboardReadImage: "clipboard:read-image",

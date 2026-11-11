@@ -28,6 +28,7 @@ import type { RecordingWriterKind } from "../webcam-track";
 import type { AppSettings, ShortcutAction, TagSummary, UpdateStatus } from "./ipc";
 import type { TagColor } from "@kaipu/domain/constants";
 import type { LocalRecording, RenameResult } from "./library-storage";
+import type { CanvasReadResult, CanvasSavePayload } from "./screenshot-canvas";
 import type {
   ReconcileFixResult,
   ReconcileProgress,
@@ -688,6 +689,12 @@ export interface KaipuElectronAPI {
   copyScreenshotById(id: string): Promise<void>;
   /** Read a saved screenshot's PNG bytes by id (re-opening it in the editor). */
   readScreenshotBytes(id: string): Promise<ArrayBuffer>;
+  /**
+   * The editable canvas document saved beside a screenshot, with its image assets, or null
+   * when there is none or it is unusable (missing, oversized, corrupt, an asset absent).
+   * Any other read error rejects. Either way the editor opens the flattened PNG.
+   */
+  readScreenshotCanvas(id: string): Promise<CanvasReadResult | null>;
   /** The image on the system clipboard as PNG, or null when it holds no image. */
   readClipboardImage(): Promise<{ png: ArrayBuffer; width: number; height: number } | null>;
   /** The clipboard image's size, or null when it holds no image. No bytes cross IPC. */
@@ -701,7 +708,14 @@ export interface KaipuElectronAPI {
   saveScreenshot(
     png: ArrayBuffer,
     /** `manual`: the user pressed Save (stamps the Editor home's "Saved"), not the auto-save. */
-    meta: { title: string; overwriteId?: string; overwriteAssetId?: string; manual?: boolean },
+    meta: {
+      title: string;
+      overwriteId?: string;
+      overwriteAssetId?: string;
+      manual?: boolean;
+      /** The editable document and assets stored beside the PNG (ADR 0053). */
+      canvas?: CanvasSavePayload;
+    },
   ): Promise<LocalRecording>;
   /**
    * Ask where to put an exported capture (a native save dialog seeded with

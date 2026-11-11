@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { intersectFrame, worldToFrame } from "./canvas-geometry";
-import { buildSvg, frameWindow, type Geom } from "./compositor";
+import { buildSvg, compositeSceneAt, frameWindow, type Geom } from "./compositor";
 import { TEXT_SIZES } from "./tools";
 import type { Annotation, Scene } from "./scene";
 
@@ -174,6 +174,12 @@ describe("compositor buildSvg", () => {
   });
 });
 
+const bakeMock = vi.hoisted(() => vi.fn());
+vi.mock("./redaction", async (orig) => ({
+  ...(await orig<typeof import("./redaction")>()),
+  bakeRedactions: bakeMock,
+}));
+
 describe("compositor canvas mode", () => {
   const ZERO = { left: 0, top: 0, right: 0, bottom: 0 };
   const inside: Annotation[] = [
@@ -193,8 +199,44 @@ describe("compositor canvas mode", () => {
     scenes.forEach((s, i) => {
       const pad = Math.round(s.beautify.padding * 2);
       const g = { ...geom, pad };
-      expect(buildSvg(s, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(s, g));
+      // Canvas mode bakes blurs into the base bytes, so only the blur layer differs.
+      const noBlur = { ...s, annotations: s.annotations.filter((a) => a.kind !== "blur") };
+      expect(buildSvg(noBlur, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(noBlur, g));
     });
+  });
+
+  it("draws no blur filter in canvas mode (its pixels are in the base image)", () => {
+    const svg = buildSvg(scene(inside), { ...geom, extents: ZERO });
+    expect(svg).not.toContain("feGaussianBlur");
+    expect(buildSvg(scene(inside), geom)).toContain("feGaussianBlur");
+  });
+
+  it("canvas mode: a redaction covers an annotation drawn before it, locked or not", () => {
+    for (const locked of [false, true]) {
+      const s = scene([
+        { id: "t", kind: "text", x: 0.1, y: 0.1, text: "secret", color: "#fff", size: 1 },
+        { id: "r", kind: "blur", x: 0, y: 0, w: 0.5, h: 0.5, style: "solid", locked },
+      ]);
+      const svg = buildSvg(s, { ...geom, extents: ZERO });
+      const copy = svg.indexOf(`<use href="#shot" clip-path="url(#bclip-r)"/>`);
+      expect(copy, `locked ${locked}`).toBeGreaterThan(svg.indexOf("secret"));
+    }
+  });
+
+  it("bakes redactions into the base bytes in canvas mode only", async () => {
+    bakeMock.mockReset();
+    bakeMock.mockRejectedValue(new Error("baked"));
+    const bytes = new ArrayBuffer(4);
+    await expect(compositeSceneAt(scene(inside), bytes, 100, { canvas: true })).rejects.toThrow(
+      "baked",
+    );
+    expect(bakeMock).toHaveBeenCalledWith(bytes, inside);
+    // Flag off: the export goes straight to decoding the bytes, which never settles for
+    // these fake bytes in jsdom; the bake would have run before that, so one tick is enough.
+    bakeMock.mockClear();
+    void compositeSceneAt(scene(inside), bytes, 100).catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(bakeMock).not.toHaveBeenCalled();
   });
 
   it("grows the frame for a text outside the image and keeps the shot at the padding", () => {

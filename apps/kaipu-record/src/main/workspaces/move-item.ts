@@ -129,7 +129,14 @@ const defaultFs: MoverFs = {
 };
 
 /** The item's files besides the media and the sidecar, in the order they are copied. */
-const COMPANION_FILES = ["thumbnail", "cursorTrack", "editSession", "editMeta", "webcam"] as const;
+const COMPANION_FILES = [
+  "thumbnail",
+  "cursorTrack",
+  "editSession",
+  "editMeta",
+  "canvasDoc",
+  "webcam",
+] as const;
 
 export interface MoveJournal {
   version: 1;
