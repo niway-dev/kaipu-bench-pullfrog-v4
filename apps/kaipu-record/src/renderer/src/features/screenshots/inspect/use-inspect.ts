@@ -59,6 +59,9 @@ export interface InspectController {
   status: InspectStatus;
   /** The second decode behind "as captured" and the out-of-sRGB mark failed for this image. */
   capturedUnavailable: boolean;
+  /** The decoded sRGB pixels, once read; the colors panel (NIW2-704) counts from them.
+   * Kept while the editor is mounted and the image is the same, also after Inspect exits. */
+  buffer: PixelBuffer | null;
 }
 
 interface Options {
@@ -91,6 +94,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
   const [loupe, setLoupe] = useState<Uint8ClampedArray | null>(null);
   const [copied, setCopied] = useState(false);
   const [capturedUnavailable, setCapturedUnavailable] = useState(false);
+  const [buffer, setBuffer] = useState<PixelBuffer | null>(null);
 
   const activeRef = useRef(false);
   const alive = useRef(true);
@@ -264,6 +268,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
       if (stale) return;
       bytesRef.current = bytes;
       bufferRef.current = buffer;
+      setBuffer(buffer);
       setStatus("ready");
       // The pointer may already be over the image: show its pixel without another move.
       scheduleFlush();
@@ -379,6 +384,7 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
   const displayUrl = image?.displayUrl;
   useEffect(() => {
     bufferRef.current = null;
+    setBuffer(null);
     bytesRef.current = null;
     tileRef.current = null;
     lastHoverRef.current = null;
@@ -421,5 +427,6 @@ export function useInspect({ enabled, image, imgRef, onEnter }: Options): Inspec
     copied,
     status,
     capturedUnavailable,
+    buffer,
   };
 }

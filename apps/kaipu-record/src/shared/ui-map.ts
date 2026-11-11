@@ -277,6 +277,8 @@ export const UI_MAP = {
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
+      // The colors panel (NIW2-704): the list, and the list with one color highlighted.
+      inspectColors: { states: ["list", "located"], gatedBy: [{ flag: "image-inspect" }] },
       beautify: { states: ["default"] },
     },
   },

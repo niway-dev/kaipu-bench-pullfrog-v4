@@ -104,8 +104,8 @@ export function srgbToHsl([r, g, b]: Rgb): { h: number; s: number; l: number } {
   return { h, s: s * 100, l: l * 100 };
 }
 
-/** OKLCH from sRGB (Björn Ottosson's OKLab). L 0-1, chroma, hue in degrees 0-360. */
-export function srgbToOklch([r, g, b]: Rgb): { l: number; c: number; h: number } {
+/** OKLab from sRGB (Björn Ottosson). L 0-1; a and b roughly -0.4 to 0.4. */
+export function srgbToOklab([r, g, b]: Rgb): { l: number; a: number; b: number } {
   const lr = toLinear(r / 255);
   const lg = toLinear(g / 255);
   const lb = toLinear(b / 255);
@@ -115,6 +115,12 @@ export function srgbToOklch([r, g, b]: Rgb): { l: number; c: number; h: number }
   const L = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_;
   const a = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_;
   const bb = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_;
+  return { l: L, a, b: bb };
+}
+
+/** OKLCH from sRGB, through OKLab. L 0-1, chroma, hue in degrees 0-360. */
+export function srgbToOklch(rgb: Rgb): { l: number; c: number; h: number } {
+  const { l: L, a, b: bb } = srgbToOklab(rgb);
   const c = Math.hypot(a, bb);
   let h = c < 1e-4 ? 0 : (Math.atan2(bb, a) * 180) / Math.PI;
   if (h < 0) h += 360;

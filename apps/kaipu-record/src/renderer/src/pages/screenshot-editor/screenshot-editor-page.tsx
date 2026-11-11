@@ -34,9 +34,12 @@ import {
   FLAT_BEAUTIFY,
 } from "@renderer/features/screenshots/beautify";
 import {
+  ColorsPanel,
   InspectBar,
   InspectLayer,
   InspectToggle,
+  LocateOverlay,
+  useColors,
   useInspect,
 } from "@renderer/features/screenshots/inspect";
 import { SaveOptionsDialog } from "@renderer/features/screenshots/save-options-dialog";
@@ -161,6 +164,8 @@ export function ScreenshotEditor({
       scene.select(null);
     },
   });
+  // The colors panel (NIW2-704) counts Inspect's decoded pixels in a worker.
+  const colors = useColors({ active: inspect.active, buffer: inspect.buffer });
   const [zoom, setZoom] = useState(1);
   // One transient "last action" indicator — copied or saved-with-name — that
   // auto-clears; avoids the illegal "both shown" state two flags allowed.
@@ -800,12 +805,15 @@ export function ScreenshotEditor({
               beautify={scene.beautify.state}
               crop={tools.tool === "crop" ? undefined : canvasMode ? exportFrameCrop : scene.crop}
               overlay={
-                <AnnotationLayer
-                  scene={scene}
-                  tools={tools}
-                  src={image.displayUrl}
-                  canvas={canvasMode}
-                />
+                <>
+                  <AnnotationLayer
+                    scene={scene}
+                    tools={tools}
+                    src={image.displayUrl}
+                    canvas={canvasMode}
+                  />
+                  {inspectEnabled && <LocateOverlay image={colors.overlay} />}
+                </>
               }
               frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}
               imgRef={imgRef}
@@ -820,7 +828,16 @@ export function ScreenshotEditor({
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
             {inspect.active ? (
-              <InspectBar inspect={inspect} />
+              <>
+                <InspectBar inspect={inspect} colors={colors} />
+                {colors.open && (
+                  <ColorsPanel
+                    colors={colors}
+                    format={inspect.format}
+                    reading={inspect.status === "decoding"}
+                  />
+                )}
+              </>
             ) : (
               <AnnotationOptions tools={tools} scene={cropScene} />
             )}

@@ -13,6 +13,12 @@ const theme = (value: "light" | "dark"): Step => ({
 const inspectToggle: Step = {
   click: { area: "editorImage.inspectToggle" },
 };
+const inspectColors: Step = {
+  click: {
+    area: "editorImage.inspectBar",
+    part: { role: "button", name: "Colors", exact: true },
+  },
+};
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
@@ -125,6 +131,32 @@ export const editorImage = catalog(
       ],
       keepPointer: true,
       demonstrates: ["editorImage.inspectHud:reading"],
+    },
+    "inspect-colors": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors: the panel lists the image's colors, largest first, with their share; a group with more than one exact value lists them under it.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        inspectColors,
+        { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
+      ],
+      demonstrates: ["editorImage.inspectColors:list"],
+    },
+    "inspect-colors-located": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors, and click the second color: the image dims everywhere except the pixels of that color.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        inspectColors,
+        { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
+        { click: { area: "editorImage.inspectColors", part: { css: "li > button" }, nth: 1 } },
+        {
+          waitFor: { area: "editorImage.canvas", part: { css: "[data-testid='inspect-locate']" } },
+        },
+      ],
+      demonstrates: ["editorImage.inspectColors:located"],
     },
     "canvas-light": {
       profile: "image-canvas",
