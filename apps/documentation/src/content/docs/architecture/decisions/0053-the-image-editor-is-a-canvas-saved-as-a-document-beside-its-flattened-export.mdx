@@ -94,7 +94,9 @@ and moves the document to world units (see "Several images" below).
     movable, if the owner chooses it.
 - **Redaction over several images.** A redaction is baked into every image it overlaps, the
   base and each added image, whatever their order. The pixels under an image on top are not
-  visible, but they are still on disk.
+  visible, but they are still on disk. On screen and in the export, a redaction draws at its
+  z-position the redacted base and the redacted images below it, so it covers the
+  annotations under it and never paints over an image above it.
 - **Not built.** "Reset edits" and keeping an unredacted original (from the re-editable
   screenshots analysis) contradict a destructive redaction and are left out.
 
