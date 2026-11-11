@@ -16,7 +16,9 @@ const toGamma = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4
 const mul = (m, v) => m.map((r) => r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
 
 // Returns { rgb: clipped 8-bit sRGB, oog: true when any linear channel is outside [0,1] by
-// more than half an 8-bit step (rounding noise at the gamut edge is not "out of gamut"). }
+// more than a fixed 0.0005 (rounding noise at the gamut edge is not "out of gamut"). That is a
+// tolerance in linear light, not half an 8-bit step: half a step is about 0.00015 near black
+// and about 0.0045 near white. The P3 swatches are classified with this value. }
 function p3ToSrgb(p3) {
   const lin = mul(
     XYZ_TO_SRGB,
