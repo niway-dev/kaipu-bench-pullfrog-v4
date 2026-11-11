@@ -29,6 +29,18 @@ const annotations: Annotation[] = [
   { id: "a5", kind: "blur", x: 0.5, y: 0.5, w: 0.1, h: 0.1 },
   { id: "a6", kind: "blur", x: 0.6, y: 0.6, w: 0.1, h: 0.1, style: "solid" },
   { id: "a7", kind: "step", x: 0.7, y: 0.2, color: "#f00", size: 2 },
+  // A ruler (NIW2-702) is kept in the base's source px, not normalized.
+  {
+    id: "a8",
+    kind: "measure",
+    axis: "y",
+    from: 60,
+    to: 240,
+    at: 80,
+    imageW: 800,
+    imageH: 600,
+    color: "#0f0",
+  },
 ];
 const scene: Scene = {
   beautify: { bg: "ocean", padding: 24, radius: 8, shadow: 30 },
@@ -234,13 +246,36 @@ describe("canvas document", () => {
         },
         // A step badge's centre is a position; its size is a level and stays as it is.
         { id: "a8", kind: "step", x: 660, y: 170, color: "#f00", size: 2 },
+        // A vertical ruler: from/to are world y, at is world x; back in the base's source px.
+        {
+          id: "a9",
+          kind: "measure",
+          axis: "y",
+          from: 110,
+          to: 290,
+          at: 180,
+          imageW: 800,
+          imageH: 600,
+          color: "#0f0",
+        },
       ],
       frame: { bg: "none", padding: 0, radius: 0, shadow: 0 },
       exportFrame: { x: 100, y: 50, w: 1300, h: 600 },
     };
     const parsed = parseCanvasDoc(JSON.stringify(v2))!;
     expect(parsed.base).toMatchObject({ x: 100, y: 50, w: 800, h: 600 });
-    const [box, text, path, image, step] = parsed.scene.annotations as any[];
+    const [box, text, path, image, step, measure] = parsed.scene.annotations as any[];
+    expectClose(measure, {
+      id: "a9",
+      kind: "measure",
+      axis: "y",
+      from: 60,
+      to: 240,
+      at: 80,
+      imageW: 800,
+      imageH: 600,
+      color: "#0f0",
+    });
     expectClose(step, { id: "a8", kind: "step", x: 0.7, y: 0.2, color: "#f00", size: 2 });
     expect(box).toMatchObject({ x: 0.1, y: 0.1, w: 0.2, h: 0.2 });
     expect(text).toMatchObject({ x: 0.1, y: 0.1, width: 0.2 });

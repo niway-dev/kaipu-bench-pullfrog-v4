@@ -66,13 +66,20 @@ export interface CanvasDocV2 {
 /** The base image's rect in world units: the unit all geometry is converted by. */
 type WorldBase = { x: number; y: number; w: number; h: number };
 
-/** Applies one axis mapping to every geometry field of an annotation (and nothing else). */
+/**
+ * Applies one axis mapping to every geometry field of an annotation (and nothing else).
+ * The maps take and return base-normalized values on the editor side. A measure is the one
+ * kind the editor keeps in the base's SOURCE pixels (NIW2-702), so it is turned into
+ * normalized values before a map to world (`toWorld`) and back into pixels after a map from
+ * world.
+ */
 function mapGeometry(
   a: Annotation,
   px: (v: number) => number,
   py: (v: number) => number,
   sw: (v: number) => number,
   sh: (v: number) => number,
+  toWorld: boolean,
 ): Annotation {
   switch (a.kind) {
     case "box":
@@ -91,6 +98,16 @@ function mapGeometry(
     case "step":
       // The centre is a position; `size` is a display size level, like a stroke.
       return { ...a, x: px(a.x), y: py(a.y) };
+    case "measure": {
+      // Along the axis: `from`/`to`; across it: `at` (a row for axis x, a column for y).
+      // `imageW`/`imageH` are the base's pixel size and stay as they are.
+      const viaNorm = (map: (v: number) => number, size: number) => (v: number) =>
+        toWorld ? map(v / size) : map(v) * size;
+      const x = viaNorm(px, a.imageW);
+      const y = viaNorm(py, a.imageH);
+      const [along, across] = a.axis === "x" ? [x, y] : [y, x];
+      return { ...a, from: along(a.from), to: along(a.to), at: across(a.at) };
+    }
   }
 }
 
@@ -146,7 +163,7 @@ export function buildCanvasDoc(
   };
   const maps = toWorldMaps(image);
   const annotations = scene.annotations.map((a): Annotation => {
-    const world = mapGeometry(a, ...maps);
+    const world = mapGeometry(a, ...maps, true);
     return world.kind === "blur" ? { ...world, locked: true } : world;
   });
   const doc: CanvasDocV2 = {
@@ -223,6 +240,14 @@ function parseAnnotation(o: Obj): Annotation | null {
       return nums(o, ["x", "y", "size"]) && level(o.size, STEP_PX) && str(o.color)
         ? (o as unknown as Annotation)
         : null;
+    case "measure":
+      return (o.axis === "x" || o.axis === "y") &&
+        nums(o, ["from", "to", "at", "imageW", "imageH"]) &&
+        (o.imageW as number) > 0 &&
+        (o.imageH as number) > 0 &&
+        str(o.color)
+        ? (o as unknown as Annotation)
+        : null;
     case "blur":
       if (!nums(o, ["x", "y", "w", "h"])) return null;
       if (o.style !== undefined && o.style !== "blur" && o.style !== "solid") return null;
@@ -273,7 +298,7 @@ export function parseCanvasDoc(json: string): ParsedCanvasDoc | null {
   base = parseImage(first);
   if (!base) return null;
   const [px, py, sw, sh] = version === 2 ? toNormMaps(base) : [null, null, null, null];
-  const convert = (a: Annotation): Annotation => (px ? mapGeometry(a, px, py, sw, sh) : a);
+  const convert = (a: Annotation): Annotation => (px ? mapGeometry(a, px, py, sw, sh, false) : a);
   for (let i = 1; i < items.length; i++) {
     const item: unknown = items[i];
     if (!isObj(item)) return null;

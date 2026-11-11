@@ -15,7 +15,7 @@ import styles from "./annotation-options.module.css";
  */
 interface ContextualControls {
   /** "size" for text, "stroke" for box/arrow. */
-  mode: "stroke" | "size";
+  mode: "stroke" | "size" | "color";
   color: string;
   setColor(color: string): void;
   /** Index into STROKE_WIDTHS or TEXT_SIZES. */
@@ -37,6 +37,19 @@ function resolveControls(
   if (selected) {
     // An added image has no colour or stroke either.
     if (selected.kind === "blur" || selected.kind === "image") return null;
+    if (selected.kind === "measure") {
+      // Colour only: a measure has one fixed stroke and its label is not text you size.
+      return {
+        mode: "color",
+        color: selected.color,
+        setColor: (color) => {
+          scene.commitAnnotation(selected.id, { color });
+          tools.setColor(color);
+        },
+        level: -1,
+        setLevel: () => {},
+      };
+    }
     if (selected.kind === "step") {
       return {
         mode: "size",
@@ -179,7 +192,7 @@ export function AnnotationOptions({
             ))}
           </div>
 
-          {controls.mode === "size" ? (
+          {controls.mode === "color" ? null : controls.mode === "size" ? (
             <>
               <span className={styles.label}>{t("sizeLabel")}</span>
               <div className={styles.picker}>

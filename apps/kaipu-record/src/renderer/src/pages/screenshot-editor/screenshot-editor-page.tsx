@@ -58,6 +58,7 @@ import {
   extentsToDisplay,
   frameToWorld,
   intersectFrame,
+  nextAnnotationId,
   parseCanvasDoc,
   reserveAnnotationIds,
   useAnnotationTools,
@@ -81,7 +82,6 @@ import {
 } from "@renderer/features/screenshots/canvas";
 import { decodeToPng, imageFileFromPaste } from "@renderer/features/editor/paste-image";
 import { isTextField, readFromMain } from "@renderer/features/editor/use-paste-to-editor";
-import { nextAnnotationId } from "@renderer/features/screenshots/annotations/scene";
 import { useFlag } from "@renderer/features/analytics/use-flag";
 import {
   clearExportCache,
@@ -295,6 +295,22 @@ function ScreenshotEditorBody({
     onEnter: () => {
       tools.setTool("select");
       scene.select(null);
+    },
+    // A click while the ruler shows a run pins it (NIW2-702). It stays in image pixels, so it
+    // moves with the image and its label is the same at any zoom; Inspect stays on, so the
+    // next run can be measured straight away. Esc + Select edits it like any annotation.
+    onPin: (run) => {
+      scene.addAnnotation({
+        id: nextAnnotationId().id,
+        kind: "measure",
+        axis: run.axis,
+        from: run.from,
+        to: run.to,
+        at: run.at,
+        imageW: run.imageW,
+        imageH: run.imageH,
+        color: tools.color,
+      });
     },
   });
   const [zoom, setZoom] = useState(1);
