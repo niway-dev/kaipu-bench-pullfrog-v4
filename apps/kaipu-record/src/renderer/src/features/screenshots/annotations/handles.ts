@@ -10,7 +10,7 @@
  *                  size level), the E edge sets the wrap width.
  */
 
-import { clampFontPx, resolveFontPx, TEXT_LINE_HEIGHT, textBoxPx } from "./tools";
+import { clampFontPx, resolveFontPx, STEP_PX, TEXT_LINE_HEIGHT, textBoxPx } from "./tools";
 import type { Annotation } from "./scene";
 
 export type HandleId = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "p1" | "p2";
@@ -67,6 +67,15 @@ export function annotationBox(a: Annotation, size: Size): Box | null {
       h: Math.abs(a.y2 - a.y1),
     };
   }
+  if (a.kind === "step") {
+    const r = (STEP_PX[a.size] ?? STEP_PX[1]) / 2;
+    return {
+      x: a.x - r / (size.w || 1),
+      y: a.y - r / (size.h || 1),
+      w: (2 * r) / (size.w || 1),
+      h: (2 * r) / (size.h || 1),
+    };
+  }
   if (a.kind === "path") {
     if (a.points.length === 0) return null;
     const xs = a.points.map((p) => p.x);
@@ -92,6 +101,8 @@ export function annotationBox(a: Annotation, size: Size): Box | null {
 
 /** The drag handles for a selected annotation, in normalized coords. */
 export function handlesFor(a: Annotation, size: Size): Handle[] {
+  // A badge is not resizable: its size comes from the options panel.
+  if (a.kind === "step") return [];
   if (a.kind === "arrow") {
     return [
       { id: "p1", x: a.x1, y: a.y1 },
@@ -170,6 +181,8 @@ export function resizeAnnotation(
       ? { x1: clamp(p.x), y1: clamp(p.y) }
       : { x2: clamp(p.x), y2: clamp(p.y) };
   }
+  // A badge has no handles; nothing to patch if one is asked for anyway.
+  if (a.kind === "step") return {};
   if (a.kind === "text") {
     const fs = resolveFontPx(a.size, a.fontPx);
     const wrapPx = a.width ? a.width * (size.w || 1) : undefined;

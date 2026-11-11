@@ -3,15 +3,20 @@ import { useTranslations } from "@kaipu/i18n";
 import {
   BLUR_STD,
   HAND_FONT,
+  STEP_FONT,
+  STEP_PX,
   STROKE_WIDTHS,
   TEXT_LINE_HEIGHT,
   resolveFontPx,
+  stepFontPx,
+  stepInk,
+  stepRingPx,
   textBoxPx,
   textLines,
 } from "./tools";
 import { roughArrow, roughRect } from "./rough";
 import { smoothPath } from "./smooth";
-import { nextAnnotationId, type Annotation } from "./scene";
+import { nextAnnotationId, stepNumbers, type Annotation } from "./scene";
 import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } from "./handles";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
@@ -214,6 +219,21 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
       setEditing({ x: p.x, y: p.y });
       return;
     }
+    if (tools.tool === "step") {
+      // Each click drops the next number. The tool stays active (unlike the drawing
+      // tools) so consecutive clicks number 1, 2, 3; the new badge is selected.
+      const { id } = nextAnnotationId();
+      scene.addAnnotation({
+        id,
+        kind: "step",
+        x: p.x,
+        y: p.y,
+        color: tools.color,
+        size: tools.stepSize,
+      });
+      scene.select(id);
+      return;
+    }
     if (tools.tool === "pen") {
       drag.current = { mode: "draw-pen", start: p };
       setDraft({
@@ -380,6 +400,7 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
         : scene.annotations,
     [scene.annotations, live],
   );
+  const numbers = useMemo(() => stepNumbers(shown), [shown]);
   const selectedAnnotation =
     tools.tool === "select" && !editing
       ? (shown.find((a) => a.id === scene.selectedId) ?? null)
@@ -402,7 +423,14 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
         {shown.map((a) =>
           // Hide the label being re-edited — the inline editor sits on top of it.
           a.id === editing?.id ? null : (
-            <Shape key={a.id} a={a} size={size} selected={scene.selectedId === a.id} src={src} />
+            <Shape
+              key={a.id}
+              a={a}
+              size={size}
+              selected={scene.selectedId === a.id}
+              src={src}
+              n={numbers.get(a.id)}
+            />
           ),
         )}
         {draft && <Shape a={draft} size={size} selected={false} src={src} />}
@@ -483,7 +511,8 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.tool === n.tools.tool &&
     p.tools.color === n.tools.color &&
     p.tools.stroke === n.tools.stroke &&
-    p.tools.textSize === n.tools.textSize
+    p.tools.textSize === n.tools.textSize &&
+    p.tools.stepSize === n.tools.stepSize
   );
 }
 
@@ -517,13 +546,43 @@ const Shape = React.memo(function Shape({
   size,
   selected,
   src,
+  n,
 }: {
   a: Annotation;
   size: Size;
   selected: boolean;
   src: string;
+  /** The badge's number, for a `step` annotation (see `stepNumbers`). */
+  n?: number;
 }): React.JSX.Element {
   const { w: W, h: H } = size;
+
+  if (a.kind === "step") {
+    const d = STEP_PX[a.size] ?? STEP_PX[1];
+    const num = n ?? 1;
+    const ink = stepInk(a.color);
+    const cx = a.x * W;
+    const cy = a.y * H;
+    return (
+      <g data-annotation={a.id}>
+        <circle cx={cx} cy={cy} r={d / 2} fill={a.color} stroke={ink} strokeWidth={stepRingPx(d)} />
+        <text
+          x={cx}
+          y={cy}
+          fill={ink}
+          fontFamily={STEP_FONT}
+          fontSize={stepFontPx(d, num)}
+          fontWeight={700}
+          textAnchor="middle"
+          dominantBaseline="central"
+          style={{ userSelect: "none" }}
+        >
+          {num}
+        </text>
+        {selected && <circle className={styles.selOutline} cx={cx} cy={cy} r={d / 2 + 4} />}
+      </g>
+    );
+  }
 
   if (a.kind === "blur") {
     const bx = a.x * W;
@@ -696,7 +755,7 @@ function isBigEnough(a: Annotation): boolean {
   if (a.kind === "box" || a.kind === "blur") return a.w > 0.01 && a.h > 0.01;
   if (a.kind === "arrow") return Math.hypot(a.x2 - a.x1, a.y2 - a.y1) > 0.02;
   if (a.kind === "path") return a.points.length >= 1;
-  return true;
+  return true; // text and step are placed by a click, never dragged out
 }
 
 function moveBy(a: Annotation, dx: number, dy: number): Partial<Annotation> {
@@ -743,6 +802,9 @@ function hitTest(annotations: Annotation[], p: Pt, size: Size): Annotation | nul
       ) {
         return a;
       }
+    } else if (a.kind === "step") {
+      const r = (STEP_PX[a.size] ?? STEP_PX[1]) / 2 + 4;
+      if (Math.hypot((p.x - a.x) * (size.w || 1), (p.y - a.y) * (size.h || 1)) <= r) return a;
     } else if (a.kind === "path") {
       for (let j = 0; j < a.points.length - 1; j += 1) {
         if (distToSegment(p, a.points[j], a.points[j + 1]) < 0.02) return a;
