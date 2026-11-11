@@ -82,10 +82,22 @@ export interface Scene {
   beautify: BeautifyState;
   annotations: Annotation[];
   crop?: CropRect;
+  /**
+   * Canvas mode only (NIW2-698): the export window in WORLD-normalized units — the same
+   * units as annotations (relative to the base image, may exceed 0–1). The output is
+   * exactly this rect in natural px; padding is not added around it. Ignored when canvas
+   * mode is off, where `crop` keeps its meaning.
+   */
+  exportFrame?: CropRect;
 }
 
 export function sameScene(a: Scene, b: Scene): boolean {
-  return a.beautify === b.beautify && a.annotations === b.annotations && a.crop === b.crop;
+  return (
+    a.beautify === b.beautify &&
+    a.annotations === b.annotations &&
+    a.crop === b.crop &&
+    a.exportFrame === b.exportFrame
+  );
 }
 
 /** The default crop: the whole image (used as the starting rect for the crop tool). */

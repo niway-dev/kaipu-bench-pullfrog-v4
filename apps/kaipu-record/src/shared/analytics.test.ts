@@ -20,6 +20,7 @@ describe("flag model", () => {
     // Login is bypassed pre-auth.
     expect(FLAG_DEFAULTS["bypass-login"]).toBe(true);
     expect(FLAG_DEFAULTS["native-cursor-capture"]).toBe(true);
+    expect(FLAG_DEFAULTS["image-canvas"]).toBe(false);
   });
 
   it("uses stable identity defaults", () => {

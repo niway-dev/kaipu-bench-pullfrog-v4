@@ -172,3 +172,75 @@ describe("compositor buildSvg", () => {
     expect(svg).not.toContain("rcLocal");
   });
 });
+
+describe("compositor canvas mode", () => {
+  const ZERO = { left: 0, top: 0, right: 0, bottom: 0 };
+  const inside: Annotation[] = [
+    { id: "b", kind: "box", x: 0.1, y: 0.1, w: 0.2, h: 0.2, color: "#f00", stroke: 1, seed: 3 },
+    { id: "t", kind: "text", x: 0.5, y: 0.5, text: "Hi", color: "#fff", size: 1 },
+    { id: "u", kind: "blur", x: 0.6, y: 0.6, w: 0.2, h: 0.1 },
+  ];
+  const noPad: Scene["beautify"] = { bg: "none", padding: 0, radius: 0, shadow: 0 };
+  const scenes: Scene[] = [
+    scene([]),
+    scene(inside),
+    { beautify: { bg: "ocean", padding: 24, radius: 8, shadow: 40 }, annotations: inside },
+    { beautify: noPad, annotations: inside },
+  ];
+
+  it("with zero extents is byte-identical to the non-canvas SVG", () => {
+    scenes.forEach((s, i) => {
+      const pad = Math.round(s.beautify.padding * 2);
+      const g = { ...geom, pad };
+      expect(buildSvg(s, { ...g, extents: ZERO }), `scene ${i}`).toBe(buildSvg(s, g));
+    });
+  });
+
+  it("grows the frame for a text outside the image and keeps the shot at the padding", () => {
+    const extR = 300;
+    const s = scene([
+      { id: "t", kind: "text", x: 1.2, y: 0.1, text: "Hi", color: "#fff", size: 1 },
+    ]);
+    const svg = buildSvg(s, { ...geom, extents: { ...ZERO, right: extR } });
+    const fullW = 1000 + extR + 80;
+    expect(svg).toContain(`width="${fullW}" height="${600 + 80}" viewBox="0 0 ${fullW} 680"`);
+    expect(svg).toContain(`<use href="#shot" x="40" y="40"/>`);
+    expect(svg).toContain(`translate(40,40)`);
+    expect(svg).toContain(`x="1200"`); // text x in shot space, inside the viewBox once translated
+  });
+
+  it("shifts the shot by the left/top extents", () => {
+    const svg = buildSvg(scene([]), {
+      ...geom,
+      extents: { left: 100, top: 50, right: 0, bottom: 0 },
+    });
+    expect(svg).toContain(`<use href="#shot" x="140" y="90"/>`);
+    expect(svg).toContain(`translate(140,90)`);
+  });
+
+  it("with bg none fills only the union box, never the padding", () => {
+    const s = scene([], "none");
+    const g = { ...geom, extents: { ...ZERO, right: 300 } };
+    const svg = buildSvg(s, g);
+    expect(svg).toContain(`<rect x="40" y="40" width="1300" height="600" fill="#ffffff"/>`);
+    expect(svg).not.toMatch(/<rect width="\d+" height="\d+"/);
+  });
+
+  it("draws no neutral fill for bg none when extents are zero", () => {
+    expect(buildSvg(scene([], "none"), { ...geom, extents: ZERO })).not.toContain("#ffffff");
+  });
+
+  it("an export frame sets exactly the output rect in natural px", () => {
+    const s: Scene = { ...scene([]), exportFrame: { x: -0.1, y: 0.2, w: 1.5, h: 0.5 } };
+    const g = { ...geom, extents: { left: 100, top: 0, right: 400, bottom: 0 } };
+    const svg = buildSvg(s, g);
+    // origin x = pad + left = 140; vb x = 140 - 100 = 40, y = 40 + 120 = 160
+    expect(svg).toContain(`width="1500" height="300" viewBox="40 160 1500 300"`);
+  });
+
+  it("ignores scene.crop in canvas mode", () => {
+    const s: Scene = { ...scene([]), crop: { x: 0.5, y: 0.5, w: 0.25, h: 0.25 } };
+    const svg = buildSvg(s, { ...geom, extents: ZERO });
+    expect(svg).toContain(`viewBox="0 0 1080 680"`);
+  });
+});
