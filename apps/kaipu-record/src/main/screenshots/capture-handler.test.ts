@@ -838,8 +838,8 @@ describe("createCaptureHandler — insert into the open editor", () => {
       height: 1,
       mode: "frame",
       workspaceId: null,
-      policy: { copy: "auto", afterCapture: "preview" },
-    } as Parameters<typeof keepLastQuietCapture>[0]);
+      policy: { workspaceId: null, screenshotCopy: "auto" },
+    });
     const { handler } = setup(async () => shot());
     await handler({ mode: "frame", insert: true });
     expect(takeLastQuietCapture()?.png).toEqual(Buffer.from([9, 8, 7]));
