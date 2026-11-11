@@ -691,8 +691,8 @@ export interface KaipuElectronAPI {
   readScreenshotBytes(id: string): Promise<ArrayBuffer>;
   /**
    * The editable canvas document saved beside a screenshot, with its image assets, or null
-   * when there is none or it cannot be read (missing, oversized, corrupt, an asset absent).
-   * Null never signals an error: the editor opens the flattened PNG instead.
+   * when there is none or it is unusable (missing, oversized, corrupt, an asset absent).
+   * Any other read error rejects. Either way the editor opens the flattened PNG.
    */
   readScreenshotCanvas(id: string): Promise<CanvasReadResult | null>;
   /** The image on the system clipboard as PNG, or null when it holds no image. */

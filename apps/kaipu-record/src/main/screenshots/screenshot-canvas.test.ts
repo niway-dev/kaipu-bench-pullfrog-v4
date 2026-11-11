@@ -167,6 +167,12 @@ describe("screenshot canvas storage", () => {
       expect(await readCanvas(vault, "S")).toBeNull();
     });
 
+    it("rejects on a read error other than a missing file", async () => {
+      await seed(doc("a"));
+      await mkdir(join(vault.companionPaths("S").assetsDir, "a.png"), { recursive: true });
+      await expect(readCanvas(vault, "S")).rejects.toMatchObject({ code: "EISDIR" });
+    });
+
     it("returns null for a document over 5 MB", async () => {
       await seed(JSON.stringify({ items: [], pad: "x".repeat(5 * 1024 * 1024) }));
       expect(await readCanvas(vault, "S")).toBeNull();

@@ -94,7 +94,11 @@ function imageAssetIds(docJson: string): string[] | null {
 const toArrayBuffer = (buf: Buffer): ArrayBuffer =>
   buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 
-/** The stored document and its assets, or null for anything missing, oversized or corrupt. */
+/**
+ * The stored document and its assets, or null for anything missing, oversized or corrupt.
+ * Any other read error (permissions, I/O, a cloud placeholder) rejects instead, so the
+ * renderer can record it before it falls back to the flat PNG.
+ */
 export async function readCanvas(
   vault: LibraryVault,
   id: string,
@@ -111,7 +115,8 @@ export async function readCanvas(
       assets[assetId] = toArrayBuffer(await readFile(join(paths.assetsDir, `${assetId}.png`)));
     }
     return { docJson, assets };
-  } catch {
-    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
 }
