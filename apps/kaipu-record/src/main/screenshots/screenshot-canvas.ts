@@ -26,13 +26,21 @@ function isValidPayload(canvas: CanvasSavePayload): boolean {
   return true;
 }
 
-/** Best-effort removal of `<id>.canvas.json` and `<id>.assets/`, so a reopen uses the flat PNG. */
+/**
+ * Best-effort removal of `<id>.canvas.json` and `<id>.assets/`, so a reopen uses the flat PNG.
+ * Either removal alone is enough for that: without its assets a document reads as null.
+ * Both failing leaves the older document loadable, so a failure is logged, never thrown
+ * (a canvas failure never fails the save).
+ */
 export async function clearCanvas(vault: LibraryVault, id: string): Promise<void> {
   const paths = vault.companionPaths(id);
-  await Promise.allSettled([
+  const results = await Promise.allSettled([
     rm(paths.canvasDoc, { force: true }),
     rm(paths.assetsDir, { recursive: true, force: true }),
   ]);
+  for (const r of results) {
+    if (r.status === "rejected") console.warn("[screenshot-canvas] clearing failed:", r.reason);
+  }
 }
 
 /**
