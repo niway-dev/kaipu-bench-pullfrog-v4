@@ -20,7 +20,7 @@ import {
 } from "@renderer/features/screenshots/auto-capture-policy";
 import { DiscardChangesDialog } from "@renderer/features/screenshots/discard-changes-dialog";
 import type { CanvasSavePayload } from "@shared/types/screenshot-canvas";
-import { reportError } from "@renderer/features/analytics";
+import { captureException, reportError } from "@renderer/features/analytics";
 import { screenshotTitle } from "@shared/screenshot-title";
 import {
   isAmbiguousIdentityError,
@@ -153,7 +153,10 @@ async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
       pixelWidth: parsed.base.pixelWidth,
       pixelHeight: parsed.base.pixelHeight,
     };
-  } catch {
+  } catch (error) {
+    // The next save replaces the document with one built on the flat PNG, so a read that
+    // failed (not a missing or invalid document) loses the editable layers: record it.
+    captureException(error, { phase: "read-canvas" });
     return null;
   }
 }
