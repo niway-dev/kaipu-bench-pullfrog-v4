@@ -4,7 +4,7 @@ import type { Annotation, Scene } from "./scene";
 
 const annotations: Annotation[] = [
   { id: "a1", kind: "box", x: 0.1, y: 0.1, w: 0.2, h: 0.2, color: "#f00", stroke: 2, seed: 5 },
-  { id: "a2", kind: "arrow", x1: -0.2, y1: 0, x2: 1.4, y2: 0.5, color: "#0f0", stroke: 3, seed: 6 },
+  { id: "a2", kind: "arrow", x1: -0.2, y1: 0, x2: 1.4, y2: 0.5, color: "#0f0", stroke: 1, seed: 6 },
   {
     id: "a3",
     kind: "text",
@@ -72,6 +72,12 @@ describe("canvas document", () => {
     // JSON has no NaN: a null coordinate is what NaN serializes to.
     expect(parseCanvasDoc(docWith((d) => (d.items[1].x = null)))).toBeNull();
     expect(parseCanvasDoc(docWith((d) => (d.items[2].y2 = "1")))).toBeNull();
+  });
+  it("returns null for a stroke or text size outside its preset table", () => {
+    // A stroke level indexes STROKE_WIDTHS: 4 would draw a NaN stroke.
+    expect(parseCanvasDoc(docWith((d) => (d.items[2].stroke = 4)))).toBeNull();
+    expect(parseCanvasDoc(docWith((d) => (d.items[2].stroke = 1.5)))).toBeNull();
+    expect(parseCanvasDoc(docWith((d) => (d.items[4].stroke = -1)))).toBeNull();
   });
   it("returns null for an unknown background", () => {
     expect(parseCanvasDoc(docWith((d) => (d.frame.bg = "nope")))).toBeNull();

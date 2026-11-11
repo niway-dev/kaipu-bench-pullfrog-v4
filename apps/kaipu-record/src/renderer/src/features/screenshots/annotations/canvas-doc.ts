@@ -1,6 +1,12 @@
 import { CANVAS_ASSET_ID_PATTERN } from "@shared/types/screenshot-canvas";
 import { BACKGROUND_IDS, type BeautifyState } from "../beautify/backgrounds";
 import type { Annotation, CropRect, Scene } from "./scene";
+import { STROKE_WIDTHS, TEXT_SIZES } from "./tools";
+
+/** A stored preset index (stroke level, text size): an integer inside its table. Anything
+ * else would draw a NaN stroke, so the document is refused instead. */
+const level = (v: unknown, table: readonly unknown[]): boolean =>
+  Number.isInteger(v) && (v as number) >= 0 && (v as number) < table.length;
 
 /**
  * The canvas document (ADR 0053), serialized as `.kaipu/<id>.canvas.json`. Main stores it
@@ -99,20 +105,26 @@ function parseAnnotation(o: Obj): Annotation | null {
   if (!str(o.id)) return null;
   switch (o.kind) {
     case "box":
-      return nums(o, ["x", "y", "w", "h", "stroke", "seed"]) && str(o.color)
+      return nums(o, ["x", "y", "w", "h", "stroke", "seed"]) &&
+        level(o.stroke, STROKE_WIDTHS) &&
+        str(o.color)
         ? (o as unknown as Annotation)
         : null;
     case "arrow":
-      return nums(o, ["x1", "y1", "x2", "y2", "stroke", "seed"]) && str(o.color)
+      return nums(o, ["x1", "y1", "x2", "y2", "stroke", "seed"]) &&
+        level(o.stroke, STROKE_WIDTHS) &&
+        str(o.color)
         ? (o as unknown as Annotation)
         : null;
     case "text":
       if (!nums(o, ["x", "y", "size"]) || !str(o.text) || !str(o.color)) return null;
+      if (!level(o.size, TEXT_SIZES)) return null;
       if (o.width !== undefined && !num(o.width)) return null;
       if (o.fontPx !== undefined && !num(o.fontPx)) return null;
       return o as unknown as Annotation;
     case "path":
-      if (!nums(o, ["stroke"]) || !str(o.color) || !Array.isArray(o.points)) return null;
+      if (!nums(o, ["stroke"]) || !level(o.stroke, STROKE_WIDTHS)) return null;
+      if (!str(o.color) || !Array.isArray(o.points)) return null;
       return o.points.every((p) => isObj(p) && nums(p, ["x", "y"]))
         ? (o as unknown as Annotation)
         : null;
