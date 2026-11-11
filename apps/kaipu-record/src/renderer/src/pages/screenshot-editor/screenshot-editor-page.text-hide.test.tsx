@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import type { ImageSource } from "@renderer/features/screenshots/image-source";
 import type { RecognizedWord } from "@shared/types/text-recognition";
+import { redactionRectsInPixels } from "@renderer/features/screenshots/text-selection";
 import { ScreenshotEditorPage } from "./screenshot-editor-page";
 
 import type { Annotation } from "@renderer/features/screenshots/annotations/scene";
@@ -56,8 +57,8 @@ const WORLD = word("world", 0, 140, 40, 80); // display x 70-110, y 20-30
 const SECOND = word("second", 1, 40, 100, 100); // display x 20-70, y 50-60
 const LINE = word("line", 1, 160, 100, 60); // display x 80-110, y 50-60
 const WORDS = [HELLO, WORLD, SECOND, LINE];
-// The first line's box (40,40)-(220,60) px grown by a quarter of its height (5 px), normalized.
-const FIRST_LINE_REDACTION = { x: 35 / 400, y: 35 / 400, w: 190 / 400, h: 30 / 400 };
+// The first line's box (40,40)-(220,60) px grown by a quarter of its height (5 px).
+const FIRST_LINE_REDACTION = { x: 35, y: 35, w: 190, h: 30 };
 
 const recognize = vi.fn();
 const saveScreenshot = vi.fn();
@@ -147,12 +148,8 @@ const save = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(saveScreenshot).toHaveBeenCalled());
 };
-const geometry = (a: Annotation) => (a.kind === "blur" ? { x: a.x, y: a.y, w: a.w, h: a.h } : null);
-const expectRect = (got: ReturnType<typeof geometry>, want: typeof FIRST_LINE_REDACTION) => {
-  expect(got).not.toBeNull();
-  // Each edge sits a thousandth of a pixel inside the whole-pixel rect (`pixelRectToNorm`).
-  for (const k of ["x", "y", "w", "h"] as const) expect(got![k]).toBeCloseTo(want[k], 5);
-};
+/** The pixels a stored redaction covers, rounded the way the save bakes it. */
+const bakedPixels = (a: Annotation) => redactionRectsInPixels([a], { w: 400, h: 400 });
 
 describe("text hide — one click", () => {
   it("hovering a line outlines the redaction a click would make", async () => {
@@ -187,7 +184,7 @@ describe("text hide — one click", () => {
     expect(shapes()).toHaveLength(1);
     await save();
     expect(baked()).toHaveLength(1);
-    expectRect(geometry(baked()[0]), FIRST_LINE_REDACTION);
+    expect(bakedPixels(baked()[0])).toEqual([FIRST_LINE_REDACTION]);
     expect(baked()[0]).not.toHaveProperty("style");
   });
 
@@ -251,7 +248,7 @@ describe("text hide — one click", () => {
     // Like any drawn shape, it is selected on release (its Delete button shows).
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
     await save();
-    expectRect(geometry(baked()[0]), { x: 40 / 200, y: 25 / 200, w: 110 / 200, h: 125 / 200 });
+    expect(bakedPixels(baked()[0])).toEqual([{ x: 80, y: 50, w: 220, h: 250 }]);
   });
 });
 
