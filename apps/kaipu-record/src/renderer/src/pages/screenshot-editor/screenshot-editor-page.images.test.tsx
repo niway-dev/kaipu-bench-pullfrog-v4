@@ -284,6 +284,34 @@ describe("ScreenshotEditor — adding images (image-canvas)", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  it("Escape while the picked shot loads adds nothing", async () => {
+    window.electronAPI.listLocalRecordings = vi.fn(async () => [
+      shot({ id: "lib-1", title: "Dashboard draft", createdAt: 5 }),
+    ]);
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn(async () => ({ width: 300, height: 150, close: vi.fn() })),
+    );
+    let release: (bytes: ArrayBuffer) => void = () => {};
+    window.electronAPI.readScreenshotBytes = vi.fn((id: string) =>
+      id === "lib-1"
+        ? new Promise<ArrayBuffer>((resolve) => {
+            release = resolve;
+          })
+        : Promise.resolve(flatBytes),
+    );
+    mountLocal();
+    await loadImage();
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "From Library" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Dashboard draft" }));
+    fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    release(libraryBytes);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(annotations()).toEqual([]);
+  });
+
   it("the picker says so when the Library has no other screenshot", async () => {
     mountPaste();
     await loadImage();

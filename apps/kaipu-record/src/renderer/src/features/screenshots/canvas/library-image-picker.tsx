@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { ModalActions, ModalButton, ModalOverlay, ModalText, ModalTitle } from "@kaipu/ui";
@@ -40,6 +40,14 @@ export function LibraryImagePicker({
   // Null while the list loads, so "empty" is never shown for a list that has not arrived.
   const [shots, setShots] = useState<LocalRecording[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // False once the dialog unmounts, so a load that finishes after Cancel adds nothing.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -76,6 +84,8 @@ export function LibraryImagePicker({
     try {
       const png = await window.electronAPI.readScreenshotBytes(shot.id);
       const { width, height } = await pixelSize(png);
+      // Escape or Cancel closed the dialog while the shot loaded: the user said no.
+      if (!mounted.current) return;
       onPick(png, width, height);
       onClose();
     } catch (error) {
