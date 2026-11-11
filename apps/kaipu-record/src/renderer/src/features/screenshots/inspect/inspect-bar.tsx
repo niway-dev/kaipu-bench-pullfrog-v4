@@ -1,8 +1,9 @@
 import React from "react";
-import { Check, Copy, Minus, MoveHorizontal, MoveVertical, Plus, X } from "lucide-react";
+import { Check, Copy, Minus, MoveHorizontal, MoveVertical, Palette, Plus, X } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { uiArea } from "@renderer/lib/ui-area";
 import { COLOR_FORMATS, capturedFormat, type ColorFormat } from "./color";
+import type { ColorsController } from "./colors/use-colors";
 import { MAX_TOLERANCE, MIN_TOLERANCE } from "./pixel-run";
 import type { InspectController } from "./use-inspect";
 import styles from "./inspect.module.css";
@@ -18,7 +19,14 @@ const FORMAT_LABEL: Record<ColorFormat, string> = {
  * The Inspect bar: format switch, "As captured", Copy and exit. Every key Inspect answers to
  * has a control here. It takes the place of the per-tool options while Inspect is on.
  */
-export function InspectBar({ inspect }: { inspect: InspectController }): React.JSX.Element {
+export function InspectBar({
+  inspect,
+  colors,
+}: {
+  inspect: InspectController;
+  /** The colors panel's toggle (NIW2-704). */
+  colors?: ColorsController;
+}): React.JSX.Element {
   const t = useTranslations("screenshots");
   const shownFormat = inspect.asCaptured ? capturedFormat(inspect.format) : inspect.format;
   return (
@@ -132,6 +140,18 @@ export function InspectBar({ inspect }: { inspect: InspectController }): React.J
           {inspect.copied ? <Check size={14} /> : <Copy size={14} />}
           {inspect.copied ? t("inspectCopied") : t("inspectCopy")}
         </button>
+        {colors && (
+          <button
+            type="button"
+            className={`${styles.barBtn} ${colors.open ? styles.barBtnOn : ""}`}
+            aria-pressed={colors.open}
+            title={t("inspectColorsTitle")}
+            onClick={colors.toggle}
+          >
+            <Palette size={14} />
+            {t("inspectColors")}
+          </button>
+        )}
         <button
           type="button"
           className={styles.barBtn}

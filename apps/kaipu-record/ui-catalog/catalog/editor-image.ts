@@ -25,6 +25,12 @@ const fromLibrary: Step = {
 const inspectToggle: Step = {
   click: { area: "editorImage.inspectToggle" },
 };
+const inspectColors: Step = {
+  click: {
+    area: "editorImage.inspectBar",
+    part: { role: "button", name: "Colors", exact: true },
+  },
+};
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
@@ -201,6 +207,32 @@ export const editorImage = catalog(
       keepPointer: true,
       demonstrates: ["editorImage.inspectHud:reading"],
     },
+    "inspect-colors": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors: the panel lists the image's colors, largest first, with their share; a group with more than one exact value lists them under it.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        inspectColors,
+        { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
+      ],
+      demonstrates: ["editorImage.inspectColors:list"],
+    },
+    "inspect-colors-located": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors, and click the second color: the image dims everywhere except the pixels of that color.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        inspectColors,
+        { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
+        { click: { area: "editorImage.inspectColors", part: { css: "li > button" }, nth: 1 } },
+        {
+          waitFor: { area: "editorImage.canvas", part: { css: "[data-testid='inspect-locate']" } },
+        },
+      ],
+      demonstrates: ["editorImage.inspectColors:located"],
+    },
     "inspect-ruler": {
       profile: "image-inspect",
       how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 1: the horizontal pixel run under the cursor is drawn with its length, and Horizontal is on in the bar.",
@@ -259,6 +291,14 @@ export const editorImage = catalog(
       "editorImage.libraryPicker:empty": nc(
         "needsSetup",
         "the picker leaves out the shot being edited, and the seeded vault holds three screenshots, so it always lists two; a vault with a single screenshot would show it (not built)",
+      ),
+      "editorImage.inspectColors:counting": nc(
+        "transient",
+        "the count of a catalog-sized image ends in well under a second, before a screenshot can be taken",
+      ),
+      "editorImage.inspectColors:error": nc(
+        "inducedFailure",
+        "shown only when the image cannot be decoded or the colors worker fails; the page tests pin it",
       ),
       "editorImage.canvasView:exportFrame": nc(
         "needsSetup",
