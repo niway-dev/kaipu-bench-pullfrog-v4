@@ -220,6 +220,9 @@ function AnnotationLayerImpl({ scene, tools, src, canvas = false }: LayerProps):
       return;
     }
     if (tools.tool === "step") {
+      // Only the primary button places a badge: a right-click, or the middle-button drag
+      // that pans the canvas, must not commit a number.
+      if (e.button !== 0) return;
       // Each click drops the next number. The tool stays active (unlike the drawing
       // tools) so consecutive clicks number 1, 2, 3. The new badge is NOT selected: the
       // options panel edits the selection, so picking a colour for the next badge would

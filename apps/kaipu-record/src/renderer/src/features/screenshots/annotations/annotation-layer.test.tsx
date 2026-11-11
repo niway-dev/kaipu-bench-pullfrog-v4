@@ -526,6 +526,11 @@ describe("AnnotationLayer — step badges", () => {
         y: 0,
       }) as DOMRect;
 
+    // A right-click and a middle-button press (canvas pan) place nothing.
+    fireEvent.pointerDown(layer, { clientX: 30, clientY: 30, button: 2 });
+    fireEvent.pointerDown(layer, { clientX: 30, clientY: 30, button: 1 });
+    expect(numbers(container)).toEqual([]);
+
     fireEvent.pointerDown(layer, { clientX: 20, clientY: 20 });
     fireEvent.pointerDown(layer, { clientX: 50, clientY: 50 });
     fireEvent.pointerDown(layer, { clientX: 80, clientY: 80 });
