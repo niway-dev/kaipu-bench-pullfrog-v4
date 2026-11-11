@@ -1,7 +1,9 @@
 import type { LocalRecording } from "@shared/types/library-storage";
 import { broadcastLibraryChanged, currentVault } from "../library";
+import type { CanvasSavePayload } from "@shared/types/screenshot-canvas";
 import { withItemLock } from "../library/item-lock";
 import type { NewMedia } from "../library/library-vault";
+import { clearCanvas, writeCanvas } from "./screenshot-canvas";
 import { activeWorkspace, requireCaptureWorkspace, workspaceGate } from "../workspaces";
 
 export interface SaveScreenshotMeta {
@@ -15,6 +17,12 @@ export interface SaveScreenshotMeta {
   overwriteAssetId?: string;
   /** A save the user asked for (not the capture's auto-save): puts the shot on the Continue list. */
   manual?: boolean;
+  /**
+   * The editable canvas document and its image assets (ADR 0053). Stored beside the PNG after
+   * it is written; a failure there never fails the save. An overwrite without it removes any
+   * stored document, so a stale one never overrides newer flat pixels.
+   */
+  canvas?: CanvasSavePayload;
 }
 
 /**
@@ -57,6 +65,7 @@ export async function saveScreenshotToVault(
       await vault.discardCreated(reservation, media).catch(() => {});
       throw error;
     }
+    if (meta.canvas) await writeCanvas(vault, id, meta.canvas);
   } else {
     // Checked and written under the vault's names lock, so a rename cannot slip in
     // between and leave the PNG resurrected under the old name. The original createdAt
@@ -66,14 +75,18 @@ export async function saveScreenshotToVault(
     }
     const { overwriteId, overwriteAssetId } = meta;
     // Under the item lock: an overwrite never interleaves with a move of the same shot.
-    id = await withItemLock(vault.workspaceId ?? vault.directory, overwriteId, () =>
-      vault.overwriteImage(
+    id = await withItemLock(vault.workspaceId ?? vault.directory, overwriteId, async () => {
+      const written = await vault.overwriteImage(
         overwriteId,
         png,
         { title: meta.title, ...(meta.manual ? { editorSavedAt: now } : {}) },
         overwriteAssetId,
-      ),
-    );
+      );
+      // After the PNG, with the id it ended up under (a rename may have moved it).
+      if (meta.canvas) await writeCanvas(vault, written, meta.canvas);
+      else await clearCanvas(vault, written);
+      return written;
+    });
   }
   const saved = await vault.describe(id);
   if (!saved) throw new Error(`screenshot save: could not describe ${id} after writing`);

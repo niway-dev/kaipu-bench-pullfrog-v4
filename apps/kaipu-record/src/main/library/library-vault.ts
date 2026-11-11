@@ -267,6 +267,8 @@ export interface CompanionPaths {
   cursorTrackTemp: string;
   editSession: string;
   editMeta: string;
+  /** A screenshot's editable canvas document (ADR 0053); its images live in `assetsDir`. */
+  canvasDoc: string;
   assetsDir: string;
   /** The take's webcam file (ADR 0037): moved and removed with the item like the others. */
   webcam: string;
@@ -446,6 +448,7 @@ export class LibraryVault {
       cursorTrackTemp: `${this.cursorTrackPath(id)}.tmp`,
       editSession: join(meta, `${id}.edit.json`),
       editMeta: join(meta, `${id}.edit.meta.json`),
+      canvasDoc: join(meta, `${id}.canvas.json`),
       assetsDir: join(meta, `${id}.assets`),
       webcam: this.webcamFilePath(id),
     };
@@ -769,6 +772,7 @@ export class LibraryVault {
               "cursorTrack",
               "editSession",
               "editMeta",
+              "canvasDoc",
               "webcam",
             ] as const;
             for (const key of copied) {
@@ -927,6 +931,7 @@ export class LibraryVault {
       "cursorTrack",
       "editSession",
       "editMeta",
+      "canvasDoc",
       "assetsDir",
       "webcam",
     ];

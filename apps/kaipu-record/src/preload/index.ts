@@ -430,6 +430,7 @@ const kaipuApi: KaipuElectronAPI = {
   copyImageToClipboard: (png) => ipcRenderer.invoke(IPC_CHANNELS.screenshotCopy, png),
   copyScreenshotById: (id) => scopedInvoke(IPC_CHANNELS.screenshotCopyById, id),
   readScreenshotBytes: (id) => scopedInvoke(IPC_CHANNELS.screenshotReadBytes, id),
+  readScreenshotCanvas: (id) => scopedInvoke(IPC_CHANNELS.screenshotReadCanvas, id),
   readClipboardImage: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadImage),
   peekClipboardImage: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardPeekImage),
   saveScreenshot: (png, meta) => scopedInvoke(IPC_CHANNELS.screenshotSave, png, meta),
