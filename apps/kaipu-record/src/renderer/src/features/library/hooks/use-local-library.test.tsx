@@ -139,13 +139,101 @@ describe("useLocalLibrary", () => {
   });
 
   it("kicks off a cloud catalog refresh on mount", async () => {
-    const refreshCloudCatalog = vi.fn(async () => ({ ok: true as const, verifiedAt: 1 }));
+    const refreshCloudCatalog = vi.fn(async () => ({
+      ok: true as const,
+      verifiedAt: 1,
+      changed: false,
+    }));
     window.electronAPI.refreshCloudCatalog = refreshCloudCatalog;
 
     const { result } = renderHook(() => useLocalLibrary());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(refreshCloudCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the list visible and isLoading false during a background re-list", async () => {
+    let notify: (() => void) | null = null;
+    window.electronAPI.onLibraryChanged = (cb: () => void) => {
+      notify = cb;
+      return () => {};
+    };
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.videos).toHaveLength(2));
+    expect(result.current.isLoading).toBe(false);
+
+    let resolve!: (value: Awaited<ReturnType<typeof window.electronAPI.listLibraryItems>>) => void;
+    window.electronAPI.listLibraryItems = vi.fn(
+      () => new Promise((r) => (resolve = r)),
+    ) as typeof window.electronAPI.listLibraryItems;
+    await act(async () => notify?.());
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isRefreshing).toBe(true);
+    expect(result.current.videos).toHaveLength(2);
+
+    await act(async () => resolve({ items: [], vaultError: null, catalogVerifiedAt: null }));
+    expect(result.current.isRefreshing).toBe(false);
+    expect(result.current.videos).toHaveLength(0);
+  });
+
+  it("sync() forces the cloud refresh and re-lists locally", async () => {
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const listed = vi.mocked(window.electronAPI.listLibraryItems).mock.calls.length;
+
+    await act(async () => {
+      await result.current.sync();
+    });
+
+    expect(window.electronAPI.refreshCloudCatalog).toHaveBeenCalledWith(true);
+    expect(vi.mocked(window.electronAPI.listLibraryItems).mock.calls.length).toBe(listed + 1);
+  });
+
+  it("refreshCloud() is not forced unless asked", async () => {
+    const refreshCloudCatalog = vi.fn(async () => ({
+      ok: false as const,
+      reason: "signed-out" as const,
+    }));
+    window.electronAPI.refreshCloudCatalog = refreshCloudCatalog;
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(refreshCloudCatalog).toHaveBeenLastCalledWith(false);
+    await act(async () => {
+      await result.current.refreshCloud(true);
+    });
+    expect(refreshCloudCatalog).toHaveBeenLastCalledWith(true);
+  });
+
+  it("a rejecting cloud refresh never blanks or blocks the local list", async () => {
+    window.electronAPI.refreshCloudCatalog = vi.fn(async () => {
+      throw new Error("ipc blew up");
+    });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const { result } = renderHook(() => useLocalLibrary());
+      await waitFor(() => expect(result.current.videos).toHaveLength(2));
+      expect(result.current.isLoading).toBe(false);
+
+      // Sync: the cloud half fails, the local re-list still lands and nothing rejects.
+      await act(async () => {
+        await result.current.sync();
+      });
+      expect(result.current.videos).toHaveLength(2);
+      expect(reportError).not.toHaveBeenCalled();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
+  it("does not wait for the cloud before listing the local items", async () => {
+    window.electronAPI.refreshCloudCatalog = vi.fn(() => new Promise<never>(() => {}));
+    const { result } = renderHook(() => useLocalLibrary());
+    await waitFor(() => expect(result.current.videos).toHaveLength(2));
+    expect(result.current.isLoading).toBe(false);
   });
 
   it("removes a recording from state after delete resolves", async () => {
