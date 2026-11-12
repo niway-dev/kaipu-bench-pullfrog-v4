@@ -274,7 +274,18 @@ export const UI_MAP = {
       drawMenu: { states: ["closed", "open"] },
       moreMenu: { states: ["closed", "open"] },
       panelToggle: { states: ["closed", "open"] },
-      canvas: { states: ["default", "crop", "annotate", "step"] },
+      canvas: {
+        states: [
+          "default",
+          "crop",
+          "annotate",
+          "step",
+          "steps",
+          "stepSelected",
+          "stepSizes",
+          "redacted",
+        ],
+      },
       canvasView: {
         states: [
           "default",

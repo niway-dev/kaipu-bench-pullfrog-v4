@@ -1178,6 +1178,7 @@ async function runProfile(name: ProfileName, entries: CatalogEntry[]): Promise<v
           cursorRecording: profile.cursorRecording,
           textScreenshot: profile.textScreenshot,
           lockedRedaction: profile.lockedRedaction,
+          mockShots: profile.mockShots,
           corruptCanvas: profile.corruptCanvas,
           reconcile: profile.reconcile,
         }),

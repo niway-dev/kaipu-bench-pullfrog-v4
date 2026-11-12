@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FIXTURE_FILES, FIXTURES_DIR, type RecordingCut } from "./make-fixtures";
+import { redactionPng, stepSizesPng } from "./mock-shots";
 
 /**
  * The neutral workspace every catalog profile opens (spec "Fixtures"): six recordings cut
@@ -37,6 +38,14 @@ export const ASSETS = {
   textShot: "c0a1a10c-0000-4000-8000-000000000104",
   /** Seeded only where `lockedRedaction` is on: a screenshot saved with one locked redaction. */
   lockedShot: "c0a1a10c-0000-4000-8000-000000000105",
+  /**
+   * Seeded only where `mockShots` is on: one screenshot per image-editor mock state that edits
+   * its item (autosave writes the document), so no state opens another's edits.
+   */
+  stepsShot: "c0a1a10c-0000-4000-8000-000000000106",
+  stepSelectedShot: "c0a1a10c-0000-4000-8000-000000000107",
+  stepSizesShot: "c0a1a10c-0000-4000-8000-000000000108",
+  redactionShot: "c0a1a10c-0000-4000-8000-000000000109",
   loopGif: "c0a1a10c-0000-4000-8000-000000000201",
 } as const;
 
@@ -55,6 +64,17 @@ export const LOCKED_SHOT = {
   ago: 5 * HOUR,
   savedAgo: 5 * HOUR,
 } as const;
+
+/**
+ * The screenshots `mockShots` adds. The first two copy the settings fixture; the other two are
+ * drawn by `mock-shots.ts` (dark over light for the badge sizes, text-like rows to redact).
+ */
+export const MOCK_SHOTS = [
+  { stem: "Steps demo", assetId: ASSETS.stepsShot, source: "settings", ago: 7 * HOUR },
+  { stem: "Step selected", assetId: ASSETS.stepSelectedShot, source: "settings", ago: 8 * HOUR },
+  { stem: "Step sizes", assetId: ASSETS.stepSizesShot, source: "sizes", ago: 9 * HOUR },
+  { stem: "Redaction demo", assetId: ASSETS.redactionShot, source: "redaction", ago: 10 * HOUR },
+] as const;
 
 /**
  * The second workspace a state creates (`workspaces.create`). Main puts its folder next to the
@@ -208,6 +228,11 @@ export interface SeedOptions {
    * "Permanent" tag. Only the profile that needs it turns it on, so no other state's vault changes.
    */
   lockedRedaction?: boolean;
+  /**
+   * Add `MOCK_SHOTS`, the screenshots of the image editor's step badge and Redact card states.
+   * Only the profile that needs them turns it on, so no other state's vault changes.
+   */
+  mockShots?: boolean;
   /**
    * Leave a canvas document that cannot be parsed beside "Settings page" (the image editor's
    * reopen then opens the flat image and says so).
@@ -494,6 +519,23 @@ export async function seedCatalogVault(vaultDir: string, options: SeedOptions): 
       title: TEXT_SHOT.title,
       createdAt: now - TEXT_SHOT.ago,
     });
+  }
+
+  if (options.mockShots) {
+    for (const shot of MOCK_SHOTS) {
+      const target = path.join(vaultDir, `${shot.stem}.png`);
+      if (shot.source === "settings") {
+        await copyFile(path.join(fixtures, FIXTURE_FILES.screens[0]), target);
+      } else {
+        await writeFile(target, shot.source === "sizes" ? stepSizesPng() : redactionPng());
+      }
+      await writeJson(path.join(meta, `${shot.stem}.json`), {
+        sidecarVersion: 2,
+        assetId: shot.assetId,
+        title: shot.stem,
+        createdAt: now - shot.ago,
+      });
+    }
   }
 
   if (options.lockedRedaction) await seedLockedRedactionShot(vaultDir, meta, fixtures, now);

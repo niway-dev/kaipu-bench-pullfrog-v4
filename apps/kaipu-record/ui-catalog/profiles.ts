@@ -22,6 +22,8 @@ export interface Profile {
   readonly textScreenshot?: boolean;
   /** Add the screenshot saved with one locked redaction (`seed-vault.ts`), for the Permanent tag. */
   readonly lockedRedaction?: boolean;
+  /** Add the screenshots of the step badge and Redact card states (`seed-vault.ts`). */
+  readonly mockShots?: boolean;
   /** Leave an unparseable canvas document beside "Settings page" (`seed-vault.ts`). */
   readonly corruptCanvas?: boolean;
   /** Seed something "Check and fix files" reports (`seed-vault.ts`). */
@@ -121,6 +123,13 @@ export const PROFILES = {
       "Flags image-canvas, image-inspect and image-text forced on together: the image editor's whole toolbar (mode switch, Export frame, Add image, Select text).",
     seed: "demo",
     flags: { "image-canvas": true, "image-inspect": true, "image-text": true },
+  },
+  "image-mocks": {
+    description:
+      "Flags image-canvas, image-inspect and image-text forced on, and the vault adds four screenshots of its own (Steps demo, Step selected, Step sizes, Redaction demo): the step badge and Redact card states, each editing its own item. A profile of its own, so the Library picker of the other toolbar states lists the same screenshots.",
+    seed: "demo",
+    flags: { "image-canvas": true, "image-inspect": true, "image-text": true },
+    mockShots: true,
   },
   exporting: {
     description:
