@@ -491,8 +491,13 @@ export const editorImage = catalog(
         { window: "editor-min" },
         open(ASSETS.settingsShot),
         inspectToggle,
-        // The floating card sits over the canvas; the toolbar row would carry data-inline="true".
-        inCanvas("[data-ui-area='editorImage.inspectBar'][data-inline='false']"),
+        // The floating card, not the toolbar row (which carries data-inline="true").
+        {
+          waitFor: {
+            area: "editorImage.page",
+            part: { css: "[data-ui-area='editorImage.inspectBar'][data-inline='false']" },
+          },
+        },
       ],
       demonstrates: ["editorImage.inspectBar:floating"],
     },
