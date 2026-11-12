@@ -103,6 +103,7 @@ import {
   registerScreenshotHandlers,
   type ScreenshotHandlers,
 } from "./screenshots/screenshot-ipc";
+import { startTextRecognitionWarmUp } from "./screenshots/text-recognition-service";
 import { resolveShortcutCapture, type CaptureShortcut } from "./screenshots/shortcut-capture";
 import { routeCaptureRequest } from "./screenshots/capture-request";
 import {
@@ -1073,6 +1074,8 @@ app.whenReady().then(async () => {
     () => (hub?.isActive() || hub?.isPending()) ?? false,
     async () => (await hub?.screenshotTarget()) ?? null,
   );
+  // Pays Vision's first-use compile in the background, once the renderer reports `image-text`.
+  startTextRecognitionWarmUp();
 
   /**
    * Raise the window's minimum size for a screen that cannot reflow, growing the

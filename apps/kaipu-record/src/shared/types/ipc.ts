@@ -522,6 +522,9 @@ export const IPC_CHANNELS = {
   screenshotReveal: "screenshot:reveal",
   // Renderer → main: the resolved `capture-while-recording` flag (main has no PostHog client).
   screenshotCaptureWhileRecordingFlag: "screenshot:capture-while-recording-flag",
+  // Renderer → main: the resolved `image-text` flag; main starts the text recognition warm-up
+  // from it (main has no PostHog client).
+  screenshotImageTextFlag: "screenshot:image-text-flag",
   // Main → renderer: global hotkey fired, run the region capture flow.
   screenshotHotkey: "screenshot:hotkey",
   // Capture overlay: one window per display (main/screenshots/capture-overlay-windows.ts).
