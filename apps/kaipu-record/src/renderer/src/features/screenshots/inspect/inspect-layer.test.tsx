@@ -156,7 +156,7 @@ describe("InspectLayer HUD", () => {
     expect(label).toHaveAttribute("data-sub", "OUTER · ⇧");
   });
 
-  it("puts the tolerance card on the side the HUD did not take, inside the layer", () => {
+  it("puts the tolerance card beside the pointer, never over the HUD", () => {
     const { rerender } = render(
       <InspectLayer inspect={controller({ hover: hoverAt(300, 100), toleranceShown: true })} />,
     );
@@ -164,11 +164,12 @@ describe("InspectLayer HUD", () => {
     // HUD right and below: the card goes left of the pointer, below it.
     expect(card().style.left).toBe(`${300 - 12 - 150}px`);
     expect(card().style.top).toBe(`${100 + 12}px`);
-    // At the bottom-right corner the HUD flips both ways; the card stays inside the layer.
+    // At the bottom-right corner the HUD flips both ways and the right side has no room:
+    // the card goes past the HUD's far edge (HUD at 780 - 22 - 200 = 558).
     rerender(
       <InspectLayer inspect={controller({ hover: hoverAt(780, 580), toleranceShown: true })} />,
     );
-    expect(card().style.left).toBe(`${800 - 150}px`);
+    expect(card().style.left).toBe(`${558 - 12 - 150}px`);
     expect(card().style.top).toBe(`${580 - 12 - 44}px`);
   });
 

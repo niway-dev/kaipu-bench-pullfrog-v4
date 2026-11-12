@@ -135,7 +135,7 @@ function useHudPlacement(layer: React.RefObject<HTMLDivElement | null>, at: Poin
   const flipY = y + HUD_OFFSET + size.height > height;
   const left = Math.max(0, flipX ? x - HUD_OFFSET - size.width : x + HUD_OFFSET);
   const top = Math.max(0, flipY ? y - HUD_OFFSET - size.height : y + HUD_OFFSET);
-  return { ref, left, top, flipX, flipY, x, y, width, height };
+  return { ref, left, top, flipX, flipY, x, y, width, height, hudWidth: size.width };
 }
 
 function Hud({
@@ -147,7 +147,7 @@ function Hud({
 }): React.JSX.Element | null {
   const t = useTranslations("screenshots");
   const { hover, readout, run } = inspect;
-  const { ref, left, top, flipX, flipY, x, y, width, height } = useHudPlacement(
+  const { ref, left, top, flipX, flipY, x, y, width, height, hudWidth } = useHudPlacement(
     layer,
     hover ?? { clientX: 0, clientY: 0 },
   );
@@ -155,13 +155,20 @@ function Hud({
   const tag = inspect.asCaptured
     ? t(hover.outOfGamut ? "inspectTagAsCapturedP3" : "inspectTagAsCaptured")
     : inspect.format.toUpperCase();
-  // The tolerance card goes on the side the HUD did not take (its measured flip).
-  // Kept inside the layer, which clips: above the pointer when the HUD went up.
-  const toleranceLeft = Math.min(
-    Math.max(0, flipX ? x + 12 : x - 12 - TOLERANCE_CARD_WIDTH),
-    width - TOLERANCE_CARD_WIDTH,
+  // The tolerance card sits beside the pointer, on the side the HUD did not take (its measured
+  // flip). Where that side has no room it goes past the HUD's far edge instead, so it never
+  // covers the loupe. Vertically it follows the pointer, kept inside the layer, which clips.
+  const besidePointer = flipX ? x + 12 : x - 12 - TOLERANCE_CARD_WIDTH;
+  const toleranceLeft =
+    besidePointer >= 0 && besidePointer + TOLERANCE_CARD_WIDTH <= width
+      ? besidePointer
+      : flipX
+        ? left - 12 - TOLERANCE_CARD_WIDTH
+        : left + hudWidth + 12;
+  const toleranceTop = Math.min(
+    Math.max(0, flipY ? y - 12 - TOLERANCE_CARD_HEIGHT : y + 12),
+    height - TOLERANCE_CARD_HEIGHT,
   );
-  const toleranceTop = Math.max(0, flipY ? y - 12 - TOLERANCE_CARD_HEIGHT : y + 12);
   const toleranceFill =
     ((inspect.tolerance - MIN_TOLERANCE) / (MAX_TOLERANCE - MIN_TOLERANCE)) * 100;
   return (
@@ -222,8 +229,8 @@ function Hud({
           className={styles.toleranceCard}
           data-testid="inspect-tolerance-card"
           style={{
-            left: Math.max(0, toleranceLeft),
-            top: Math.min(toleranceTop, height - TOLERANCE_CARD_HEIGHT),
+            left: toleranceLeft,
+            top: toleranceTop,
           }}
         >
           <div className={styles.toleranceCardRow}>
