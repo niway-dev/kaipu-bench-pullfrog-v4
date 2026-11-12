@@ -110,9 +110,19 @@ export const editorImage = catalog(
     "library-picker": {
       profile: "image-canvas",
       how: "With the flag forced on, open “Settings page”, press Add image and choose From Library: the picker lists the other screenshots in the Library.",
-      steps: [open(ASSETS.settingsShot), addImageButton, fromLibrary],
+      steps: [
+        open(ASSETS.settingsShot),
+        addImageButton,
+        fromLibrary,
+        // The list loads after the picker opens: wait for an item, not just the dialog.
+        {
+          waitFor: {
+            area: "editorImage.libraryPicker",
+            part: { role: "button", name: "Dashboard draft", exact: true },
+          },
+        },
+      ],
       demonstrates: ["editorImage.libraryPicker:open"],
-      ready: { area: "editorImage.libraryPicker" },
     },
     "two-images": {
       profile: "image-canvas",
