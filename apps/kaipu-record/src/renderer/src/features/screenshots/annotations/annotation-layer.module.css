@@ -85,6 +85,16 @@
   fill-opacity: 0.3;
 }
 
+/* The text block a click in the redact tool would hide (NIW2-706). */
+.textTarget rect {
+  fill: var(--ie-accent);
+  fill-opacity: 0.12;
+  stroke: var(--ie-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
 /* "Select text" (mock G2): every recognized line gets a 1 px dotted underline; the line under
    the pointer gets a soft fill and a small tag below it. */
 .textLines line {

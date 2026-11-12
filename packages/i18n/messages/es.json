@@ -1389,6 +1389,8 @@
     "redactionBlur": "Desenfocar",
     "redactionSolid": "Sólido",
     "redactionNote": "Solo Sólido oculta el contenido con certeza. Desenfocar conserva un rastro de los colores originales.",
+    "textHidePending": "Reconociendo texto… Mientras tanto, arrastra sobre lo que quieras ocultar.",
+    "textHideReady": "Haz clic en una línea de texto para ocultarla, o arrastra sobre una región.",
     "redactionPermanent": "Permanente",
     "redactionPermanentSaved": "Permanente · guardada el {date}",
     "redactionLockedNote": "Sus píxeles se eliminaron al guardar.",

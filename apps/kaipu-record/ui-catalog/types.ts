@@ -149,6 +149,7 @@ export type Step =
    * covers (the Inspect layer sits over the image).
    */
   | ({ readonly click: Target; readonly at?: DragPoint } & On)
+  /** Hover the target's centre, or `at` (fractions of its box, like a drag point). */
   | ({ readonly hover: Target; readonly at?: DragPoint } & On)
   /**
    * Move the pointer over the target, then turn the wheel by (`deltaX`, `deltaY`) px, `times`
@@ -382,9 +383,9 @@ export function describeStep(step: Step): string {
     const which = t.hasText ? ` "${t.hasText}"` : "";
     return `\`${t.area}\`${which}${part}${t.nth ? ` #${t.nth + 1}` : ""}`;
   };
+  const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
   if ("navigate" in step) return `Go to \`#${step.navigate}\``;
-  const at = (p?: DragPoint): string =>
-    p ? ` at (${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)` : "";
+  const at = (p?: DragPoint): string => (p ? ` at ${pt(p)}` : "");
   if ("click" in step) return `Click ${target(step.click)}${at(step.at)}`;
   if ("hover" in step) return `Hover ${target(step.hover)}${at(step.at)}`;
   if ("wheel" in step) {
@@ -393,7 +394,6 @@ export function describeStep(step: Step): string {
     return `Turn the wheel over ${target(step.wheel)} by (${dx}, ${dy}) px${times}`;
   }
   if ("drag" in step) {
-    const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
     return `Drag across ${target(step.drag)} from ${pt(step.from)} to ${pt(step.to)}`;
   }
   if ("press" in step)

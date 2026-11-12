@@ -452,9 +452,11 @@ function ScreenshotEditorBody({
   }, [recognized, natural, scene.annotations]);
   const textSelection = useTextSelection(visibleWords);
   const textActive = textEnabled && tools.tool === "selectText";
+  // The redact tool hides recognized lines in one click (NIW2-706), canvas mode only.
+  const hideActive = textEnabled && canvasMode && tools.tool === "blur";
   useEffect(() => {
-    if (textActive) setTextPicks((n) => n + 1);
-  }, [textActive]);
+    if (textActive || hideActive) setTextPicks((n) => n + 1);
+  }, [textActive, hideActive]);
   // Leaving the tool drops the selection: a highlight nobody can see must not be copied.
   const { clear: clearTextSelection } = textSelection;
   useEffect(() => {

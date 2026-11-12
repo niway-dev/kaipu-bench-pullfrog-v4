@@ -1389,6 +1389,8 @@
     "redactionBlur": "Blur",
     "redactionSolid": "Solid",
     "redactionNote": "Only Solid hides content for certain. Blur keeps a trace of the original colors.",
+    "textHidePending": "Recognizing text… Drag over what to hide meanwhile.",
+    "textHideReady": "Click a line of text to hide it, or drag over a region.",
     "redactionPermanent": "Permanent",
     "redactionPermanentSaved": "Permanent · saved {date}",
     "redactionLockedNote": "Its pixels were removed when it was saved.",

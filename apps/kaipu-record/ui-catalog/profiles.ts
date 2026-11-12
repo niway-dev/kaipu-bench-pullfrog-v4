@@ -124,6 +124,13 @@ export const PROFILES = {
     flags: { "image-text": true },
     textScreenshot: true,
   },
+  "image-text-canvas": {
+    description:
+      "Flags image-text and image-canvas forced on: the redact tool's one-click hide of recognized text.",
+    seed: "demo",
+    flags: { "image-text": true, "image-canvas": true },
+    textScreenshot: true,
+  },
   "image-text-slow": {
     description:
       "Like image-text, with text recognition held for 60 s (KAIPU_TEXT_RECOGNITION=delay:60000, unpackaged builds only): the pending states.",
