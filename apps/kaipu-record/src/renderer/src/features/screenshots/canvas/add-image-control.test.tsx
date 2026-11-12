@@ -52,8 +52,19 @@ describe("AddImageControl menu", () => {
 
   it("stays active while the Library picker is open", () => {
     window.electronAPI.listLocalRecordings = vi.fn(async () => []);
-    mount(true);
+    const { rerender } = mount(true);
     fireEvent.click(screen.getByRole("menuitem", { name: /library/i }));
+    // The page closes the menu when From Library is chosen: only the picker keeps it active.
+    rerender(
+      <AddImageControl
+        onAdd={vi.fn()}
+        excludeId={null}
+        excludeAssetId={null}
+        open={false}
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add image" })).toHaveAttribute(
       "data-active",

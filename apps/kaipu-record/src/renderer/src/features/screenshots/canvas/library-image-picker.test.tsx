@@ -114,6 +114,27 @@ describe("LibraryImagePicker", () => {
     expect(readScreenshotBytes).toHaveBeenCalledWith("b");
   });
 
+  it("an Enter that confirms an IME composition places nothing", async () => {
+    mount();
+    await screen.findByRole("button", { name: "Alpha" });
+    fireEvent.keyDown(screen.getByLabelText("Search captures"), {
+      key: "Enter",
+      isComposing: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readScreenshotBytes).not.toHaveBeenCalled();
+  });
+
+  it("hovering a card while another card has focus moves the focus with it", async () => {
+    mount();
+    const beta = await screen.findByRole("button", { name: "Beta report" });
+    beta.focus();
+    const gamma = screen.getByRole("button", { name: "Gamma" });
+    fireEvent.mouseEnter(gamma);
+    expect(selectedTitle()).toBe("Gamma");
+    expect(gamma).toHaveFocus();
+  });
+
   it("the close button calls onClose", async () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));

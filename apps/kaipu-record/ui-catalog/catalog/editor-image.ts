@@ -39,6 +39,16 @@ const libraryListed: Step = {
     part: { role: "button", name: "Dashboard draft", exact: true },
   },
 };
+/**
+ * After a state that added an image: leave the editor first (leaving autosaves the image into
+ * “Settings page”, and the Library shows only once that save is done), then put the vault
+ * back. Restoring while the editor is still open would let the save land afterwards.
+ */
+const leaveAndRestore: readonly Step[] = [
+  { navigate: "/library" },
+  { waitFor: { area: "library.page" } },
+  { action: "restoreVault" },
+];
 const inspectToggle: Step = {
   click: { area: "editorImage.inspectToggle" },
 };
@@ -273,8 +283,7 @@ export const editorImage = catalog(
         { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
       ],
       demonstrates: ["editorImage.canvasView:justAdded"],
-      // Leaving the editor saves the added image into “Settings page”: put the vault back.
-      after: [{ action: "restoreVault" }],
+      after: leaveAndRestore,
     },
     "two-images": {
       profile: "image-canvas",
@@ -298,7 +307,7 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.canvasView:twoImages"],
-      after: [{ action: "restoreVault" }],
+      after: leaveAndRestore,
     },
     "canvas-export-box": {
       profile: "image-canvas",

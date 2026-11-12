@@ -127,7 +127,8 @@ export function LibraryImagePicker({
     const inGrid =
       target instanceof HTMLButtonElement && cardRefs.current.has(target.dataset.shotId ?? "");
     if (!inSearch && !inGrid) return;
-    if (e.key === "Enter" && inSearch) {
+    // The Enter that confirms an IME composition is the field's, not a "place it".
+    if (e.key === "Enter" && inSearch && !e.nativeEvent.isComposing) {
       e.preventDefault();
       if (selected) void pick(selected);
       return;
@@ -211,7 +212,18 @@ export function LibraryImagePicker({
                       aria-current={isSelected ? "true" : undefined}
                       data-selected={isSelected ? "true" : undefined}
                       disabled={busy}
-                      onMouseEnter={() => setSelectedId(shot.id)}
+                      onMouseEnter={(e) => {
+                        setSelectedId(shot.id);
+                        // Keyboard focus in the grid follows the pointer, so Enter places the
+                        // card the ring is on, not a focused card that no longer shows it.
+                        const focused = document.activeElement;
+                        if (
+                          focused instanceof HTMLButtonElement &&
+                          focused !== e.currentTarget &&
+                          cardRefs.current.has(focused.dataset.shotId ?? "")
+                        )
+                          e.currentTarget.focus();
+                      }}
                       onFocus={() => setSelectedId(shot.id)}
                       onClick={() => void pick(shot)}
                     >
