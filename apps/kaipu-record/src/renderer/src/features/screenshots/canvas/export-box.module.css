@@ -1,0 +1,50 @@
+/*
+ * The export box (mock A1). It lives inside the beautify frame, which the canvas scales by the
+ * view's zoom; `--canvas-zoom` (written on the canvas element by the page) lets the line and
+ * the label undo that, so they stay one screen pixel and one font size at any zoom.
+ */
+.box {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Under the content: the stage colour, so the dot grid does not show inside the box. */
+.fill {
+  position: absolute;
+  inset: 0;
+  background: var(--ie-stage);
+}
+
+/* 1 px dashed, 1 px outside the box (the border's inner edge is 1 px away). */
+.dash {
+  position: absolute;
+  inset: calc(-2px / var(--canvas-zoom, 1));
+  border: calc(1px / var(--canvas-zoom, 1)) dashed var(--ie-export-dash);
+}
+
+/* Above the top-left corner, undoing the zoom around its bottom-left corner. */
+.label {
+  position: absolute;
+  left: calc(-1px / var(--canvas-zoom, 1));
+  bottom: calc(100% + 7px / var(--canvas-zoom, 1));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transform: scale(calc(1 / var(--canvas-zoom, 1)));
+  transform-origin: left bottom;
+  font-family: var(--ie-font-mono);
+}
+
+.tag {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ie-mut);
+}
+
+.size {
+  font-size: 10.5px;
+  color: var(--ie-tx2);
+}

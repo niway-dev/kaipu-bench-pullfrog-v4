@@ -47,3 +47,15 @@ describe("toast store", () => {
     expect(visible.some((t) => t.id === ids[0])).toBe(false);
   });
 });
+
+describe("toast detail", () => {
+  it("keeps a second line with the toast", () => {
+    const id = showToast({
+      message: "Text copied",
+      detail: "2 lines",
+    });
+    const found = getToasts().find((x) => x.id === id);
+    expect(found?.detail).toBe("2 lines");
+    dismissToast(id);
+  });
+});

@@ -11,6 +11,13 @@ import {
   resolveFontPx,
   stepFontPx,
   stepInk,
+  STEP_HAIRLINE_ALPHA,
+  STEP_HAIRLINE_PX,
+  STEP_RING_COLOR,
+  STEP_SELECTED_RING_PX,
+  STEP_SHADOW_ALPHA,
+  STEP_SHADOW_DY,
+  STEP_SHADOW_STD,
   stepRingPx,
   textBoxPx,
   textLines,
@@ -25,7 +32,13 @@ import {
   measureTextColor,
   moveMeasure,
 } from "./measure";
-import { nextAnnotationId, stepNumbers, type Annotation } from "./scene";
+import {
+  nextAnnotationId,
+  stepNumbers,
+  type Annotation,
+  type BlurAnnotation,
+  type ImageAnnotation,
+} from "./scene";
 import { useRedactionTile } from "./redaction-preview";
 import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } from "./handles";
 import type { EditorScene } from "./use-editor-scene";
@@ -33,6 +46,7 @@ import type { AnnotationToolsController } from "./use-annotation-tools";
 import type { RecognizedWord } from "@kaipu/domain/schemas";
 import {
   blockRedactionRect,
+  lineBoxesNorm,
   nearestBlock,
   nearestWord,
   pixelRectToNorm,
@@ -41,6 +55,9 @@ import {
   type TextBlock,
   type TextLayerModel,
 } from "../text-selection";
+import { gapMeasures, type WorldRect } from "../canvas/image-gap";
+import { ImageSelection } from "../canvas/image-selection";
+import { RedactionLockTag } from "../canvas/redaction-lock-tag";
 import styles from "./annotation-layer.module.css";
 
 interface Size {
@@ -88,6 +105,12 @@ interface LayerProps {
    */
   canvasMode?: boolean;
   /**
+   * Canvas mode (NIW2-703): display URL of each added image's asset, by asset id. An image
+   * annotation whose asset has no URL here draws nothing. Kept referentially stable by the
+   * editor (a new object only when an asset is added), since the layer is memoized on it.
+   */
+  imageUrls?: Readonly<Record<string, string>>;
+  /**
    * The recognized words and the selection over them (`image-text`). Present while the flag
    * is on; the words take pointer input only with the "Select text" tool active. The words
    * live in the base image's pixels and are normalized like annotations, so they follow the
@@ -95,6 +118,18 @@ interface LayerProps {
    * that one click hides (NIW2-706).
    */
   text?: TextLayerModel;
+  /**
+   * Canvas mode (NIW2-711): told, on every change, which annotations are on screen while a
+   * shape is being drawn or moved (the stored ones with the drag applied, plus the draft), and
+   * null once nothing is in flight. The editor measures them so the export box grows with the
+   * drag instead of jumping on release. Must be referentially stable: the layer is memoized.
+   */
+  onLive?: (shown: readonly Annotation[] | null) => void;
+  /**
+   * Canvas mode (NIW2-711): the base image's pixel size. With it, a selected added image
+   * shows the gap to its nearest neighbour in source px. Absent = no gap measure.
+   */
+  natural?: { w: number; h: number };
 }
 
 /**
@@ -109,31 +144,46 @@ function AnnotationLayerImpl({
   src,
   canvas = false,
   canvasMode = false,
+  imageUrls,
   text,
+  onLive,
+  natural,
 }: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Annotation | null>(null);
-  // The pointer is over a recognized word (the "Select text" tool): shows the text cursor.
-  const [overWord, setOverWord] = useState(false);
+  // The line of the recognized word under the pointer (the "Select text" tool): shows the text
+  // cursor, the line's soft fill and the "drag to select" tag. Null off the words.
+  const [hoverLine, setHoverLine] = useState<number | null>(null);
+  const overWord = hoverLine !== null;
+  // The saved (locked) redaction under the pointer, for its "Permanent" tag (mock H4a). A locked
+  // redaction is not a hit target, so this is a separate, read-only hover: it selects nothing.
+  const [hoverLockedId, setHoverLockedId] = useState<string | null>(null);
   const activeText = tools.tool === "selectText" ? text : undefined;
   // The redact tool's text targets (NIW2-706): canvas mode only, where a redaction really
   // replaces the pixels; the classic editor's gaussian is partly reversible, so it offers none.
   const redactText = canvasMode && tools.tool === "blur" ? text : undefined;
   const textWords = text?.words;
   const blocks = useMemo(() => (textWords ? textBlocks(textWords) : []), [textWords]);
-  // The line under the pointer, by line number: a hide removes its block, and an index would
+  // The line the redact tool would hide, by line number (separate from the "Select text"
+  // hover above): a hide removes its block, and an index would
   // then name the next one.
-  const [hoverLine, setHoverLine] = useState<number | null>(null);
+  const [hoverHideLine, setHoverHideLine] = useState<number | null>(null);
   // Leaving the tool forgets the hover, so coming back does not outline a stale line.
-  if (!redactText && hoverLine !== null) setHoverLine(null);
-  const hoverBlock = redactText ? (blocks.find((b) => b.line === hoverLine) ?? null) : null;
+  if (!redactText && hoverHideLine !== null) setHoverHideLine(null);
+  const hoverBlock = redactText ? (blocks.find((b) => b.line === hoverHideLine) ?? null) : null;
   const blockAt = (p: Pt): TextBlock | null => {
     if (!redactText) return null;
     const hit = nearestBlock(blocks, p, redactText.natural, size);
     return hit && hit.distPx <= TEXT_HIT_PX ? blocks[hit.index] : null;
   };
+  // One underline per line, under the words' union box. Cheap, and only for the active tool.
+  const recognizedLines = useMemo(
+    () => (activeText ? lineBoxesNorm(activeText.words, activeText.natural) : []),
+    [activeText],
+  );
+  const hoverTag = recognizedLines.find((l) => l.line === hoverLine)?.box ?? null;
   // A move/resize in flight lives here, not in the scene: the dragged shape renders as
   // `{ ...a, ...patch }` and the scene is touched once, on release, so a drag re-renders
   // this layer only (not the whole editor page) and ends up as one undo entry. The ref
@@ -226,6 +276,12 @@ function AnnotationLayerImpl({
     return () => cancelAnimationFrame(raf);
   }, [editing]);
 
+  // The hover is stale once the tool changes or the layer is resized (a zoom moves the content
+  // under a still pointer); the next pointer move sets it again.
+  useEffect(() => {
+    setHoverLockedId(null);
+  }, [tools.tool, size.w, size.h]);
+
   const toNorm = (e: { clientX: number; clientY: number }): Pt => {
     const r = ref.current!.getBoundingClientRect();
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
@@ -252,6 +308,7 @@ function AnnotationLayerImpl({
   };
 
   const onPointerDown = (e: React.PointerEvent): void => {
+    setHoverLockedId(null);
     // The crop tool's overlay owns presses on the frame; one that reaches the hit surface
     // outside it must not start a drawing.
     if (canvas && tools.tool === "crop") return;
@@ -359,11 +416,17 @@ function AnnotationLayerImpl({
   const onPointerMove = (e: React.PointerEvent): void => {
     const d = drag.current;
     if (!d) {
+      if (canvasMode) {
+        const locked = hitLockedBlur(scene.annotations, toNorm(e));
+        setHoverLockedId(locked?.id ?? null);
+      }
       if (activeText) {
         const hit = nearestWord(activeText.words, toNorm(e), activeText.natural, size);
-        setOverWord(hit !== null && hit.distPx <= TEXT_HIT_PX);
+        setHoverLine(
+          hit !== null && hit.distPx <= TEXT_HIT_PX ? activeText.words[hit.index].line : null,
+        );
       }
-      if (redactText) setHoverLine(blockAt(toNorm(e))?.line ?? null);
+      if (redactText) setHoverHideLine(blockAt(toNorm(e))?.line ?? null);
       return;
     }
     const p = toNorm(e);
@@ -489,7 +552,7 @@ function AnnotationLayerImpl({
       ...(tools.redactionStyle === "solid" ? { style: "solid" as const } : {}),
     });
     scene.select(null);
-    setHoverLine(null);
+    setHoverHideLine(null);
   };
 
   // A pointer gesture can end without a pointerup (system gesture, capture stolen).
@@ -549,11 +612,65 @@ function AnnotationLayerImpl({
         : scene.annotations,
     [scene.annotations, live],
   );
+  // Tell the editor what is on screen while a drag is in flight (see `onLive`).
+  const inFlight = draft != null || live != null;
+  useEffect(() => {
+    onLive?.(inFlight ? (draft ? [...shown, draft] : shown) : null);
+  }, [onLive, inFlight, draft, shown]);
+  // Added images (NIW2-703) wear the base's corner radius and shadow, in the same display
+  // px (the layer's size IS the displayed shot). `state` is absent only in test doubles.
+  const radius = scene.beautify.state?.radius ?? 0;
+  const shadow = scene.beautify.state?.shadow ?? 0;
+  // Every blur still to be baked, drafts included: each one previews on the images it
+  // touches, as the save bakes it into them (see `bakeCanvasRedactions`).
+  // Keyed on the blur draft only: any other draft changes on every pointer move, and a new
+  // array would re-render every memoized added image (filter included) while drawing.
+  const blurDraft = draft?.kind === "blur" ? draft : null;
+  const redactions = useMemo(
+    () =>
+      canvasMode
+        ? [
+            ...shown.filter((a): a is BlurAnnotation => a.kind === "blur" && !a.locked),
+            ...(blurDraft ? [blurDraft] : []),
+          ]
+        : NO_BLURS,
+    [canvasMode, shown, blurDraft],
+  );
   const numbers = useMemo(() => stepNumbers(shown), [shown]);
   const selectedAnnotation =
     tools.tool === "select" && !editing
       ? (shown.find((a) => a.id === scene.selectedId) ?? null)
       : null;
+  // A selected added image shows the gap to its nearest neighbour (mock A4). The base image
+  // is a neighbour too. World units: 1 = one source px of the base, so the number is the one
+  // the export has. Follows the drag, because it reads `shown`.
+  const selectedImage =
+    canvasMode && selectedAnnotation?.kind === "image" ? selectedAnnotation : null;
+  // A selected saved redaction says it is permanent (mock H4a). It is part of the stored image:
+  // the card offers no style or delete for it either.
+  const hoveredLocked = canvasMode
+    ? ((shown.find((a) => a.id === hoverLockedId && a.kind === "blur" && a.locked) as
+        | BlurAnnotation
+        | undefined) ?? null)
+    : null;
+  const selectedLocked =
+    hoveredLocked ??
+    (canvasMode && selectedAnnotation?.kind === "blur" && selectedAnnotation.locked
+      ? selectedAnnotation
+      : null);
+  const gaps = useMemo(() => {
+    if (!selectedImage || !natural || natural.w <= 0 || natural.h <= 0) return [];
+    const world = (a: { x: number; y: number; w: number; h: number }): WorldRect => ({
+      x: a.x * natural.w,
+      y: a.y * natural.h,
+      w: a.w * natural.w,
+      h: a.h * natural.h,
+    });
+    const others: WorldRect[] = [{ x: 0, y: 0, w: natural.w, h: natural.h }];
+    for (const a of shown)
+      if (a.kind === "image" && a.id !== selectedImage.id) others.push(world(a));
+    return gapMeasures(world(selectedImage), others);
+  }, [selectedImage, natural, shown]);
 
   return (
     <div
@@ -578,7 +695,11 @@ function AnnotationLayerImpl({
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerLeave={() => setHoverLine(null)}
+      onPointerLeave={() => {
+        setHoverLockedId(null);
+        setHoverLine(null);
+        setHoverHideLine(null);
+      }}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerAbort}
       onLostPointerCapture={onPointerAbort}
@@ -586,24 +707,77 @@ function AnnotationLayerImpl({
     >
       {canvas && <div className={styles.hitSurface} data-testid="canvas-hit-surface" aria-hidden />}
       <svg className={styles.svg} width={size.w} height={size.h}>
-        {shown.map((a) =>
+        {shown.map((a, i) =>
           // Hide the label being re-edited — the inline editor sits on top of it.
-          a.id === editing?.id ? null : (
-            <Shape
+          a.id === editing?.id ? null : a.kind === "image" ? (
+            <ImageShape
               key={a.id}
               a={a}
               size={size}
               selected={scene.selectedId === a.id}
-              src={src}
-              canvasMode={canvasMode}
-              n={numbers.get(a.id)}
+              url={imageUrls?.[a.assetId]}
+              radius={radius}
+              shadow={shadow}
+              redactions={redactions}
             />
+          ) : (
+            <React.Fragment key={a.id}>
+              <Shape
+                a={a}
+                size={size}
+                selected={scene.selectedId === a.id}
+                src={src}
+                canvasMode={canvasMode}
+                n={numbers.get(a.id)}
+              />
+              {canvasMode && a.kind === "blur" && (
+                <BlurOverImagesBelow
+                  blur={a}
+                  below={shown.slice(0, i)}
+                  imageUrls={imageUrls}
+                  size={size}
+                />
+              )}
+            </React.Fragment>
           ),
         )}
         {draft && (
-          <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+          <>
+            <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+            {canvasMode && draft.kind === "blur" && (
+              <BlurOverImagesBelow blur={draft} below={shown} imageUrls={imageUrls} size={size} />
+            )}
+          </>
         )}
-        {selectedAnnotation && <Handles a={selectedAnnotation} size={size} />}
+        {/* An added image's handles are drawn by `ImageSelection` (mock A4), not here. */}
+        {selectedAnnotation && selectedAnnotation.kind !== "image" && (
+          <Handles a={selectedAnnotation} size={size} />
+        )}
+        {activeText && recognizedLines.length > 0 && (
+          <g data-testid="text-lines" className={styles.textLines}>
+            {recognizedLines.map(({ line, box }) => (
+              <React.Fragment key={line}>
+                {/* Transparent until hovered: it is also the line's box for the catalog's hover. */}
+                <rect
+                  data-testid="text-line-box"
+                  data-hover={line === hoverLine || undefined}
+                  className={styles.textLineBox}
+                  x={box.x * size.w}
+                  y={box.y * size.h}
+                  width={box.w * size.w}
+                  height={box.h * size.h}
+                />
+                <line
+                  data-testid="text-line-underline"
+                  x1={box.x * size.w}
+                  x2={(box.x + box.w) * size.w}
+                  y1={(box.y + box.h) * size.h}
+                  y2={(box.y + box.h) * size.h}
+                />
+              </React.Fragment>
+            ))}
+          </g>
+        )}
         {hoverBlock && redactText && !draft && (
           <TextTarget block={hoverBlock} model={redactText} size={size} />
         )}
@@ -627,6 +801,36 @@ function AnnotationLayerImpl({
           </g>
         )}
       </svg>
+      {hoverTag && (
+        <span
+          data-testid="text-line-tag"
+          className={styles.textLineTag}
+          style={{ left: hoverTag.x * size.w, top: (hoverTag.y + hoverTag.h) * size.h + 4 }}
+        >
+          {t("textLineTag")}
+        </span>
+      )}
+      {selectedImage && (
+        <ImageSelection
+          rect={{
+            x: selectedImage.x * size.w,
+            y: selectedImage.y * size.h,
+            w: selectedImage.w * size.w,
+            h: selectedImage.h * size.h,
+          }}
+          pixelWidth={selectedImage.pixelWidth}
+          pixelHeight={selectedImage.pixelHeight}
+          gaps={gaps}
+          unit={natural && natural.w > 0 ? size.w / natural.w : 1}
+        />
+      )}
+      {selectedLocked && (
+        <RedactionLockTag
+          left={(selectedLocked.x + selectedLocked.w) * size.w}
+          top={selectedLocked.y * size.h}
+          lockedAt={selectedLocked.lockedAt}
+        />
+      )}
       {editing && (
         <textarea
           ref={textInputRef}
@@ -706,7 +910,14 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.redactionStyle === n.tools.redactionStyle &&
     p.tools.stepSize === n.tools.stepSize &&
     p.canvasMode === n.canvasMode &&
-    p.text === n.text
+    p.imageUrls === n.imageUrls &&
+    // Added images follow the beautify radius and shadow; nothing else of it is read.
+    p.scene.beautify.state?.radius === n.scene.beautify.state?.radius &&
+    p.scene.beautify.state?.shadow === n.scene.beautify.state?.shadow &&
+    p.text === n.text &&
+    p.onLive === n.onLive &&
+    p.natural?.w === n.natural?.w &&
+    p.natural?.h === n.natural?.h
   );
 }
 
@@ -776,15 +987,50 @@ const Shape = React.memo(function Shape({
 }): React.JSX.Element {
   const { w: W, h: H } = size;
 
+  // An added image (NIW2-703) is drawn by `ImageShape`, which needs its URL and the
+  // redactions over it; the layer never routes one here.
+  if (a.kind === "image") return <g />;
+
   if (a.kind === "step") {
     const d = stepDiameterPx(a.size);
     const num = n ?? 1;
     const ink = stepInk(a.color);
     const cx = a.x * W;
     const cy = a.y * H;
+    const ring = stepRingPx(d);
+    const filterId = `stepf-${a.id}`;
     return (
       <g data-annotation={a.id}>
-        <circle cx={cx} cy={cy} r={d / 2} fill={a.color} stroke={ink} strokeWidth={stepRingPx(d)} />
+        <defs>
+          <filter id={filterId} x="-100%" y="-100%" width="300%" height="300%">
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius={STEP_HAIRLINE_PX}
+              result="halo"
+            />
+            <feFlood floodColor="#000" floodOpacity={STEP_HAIRLINE_ALPHA} />
+            <feComposite in2="halo" operator="in" result="hair" />
+            <feGaussianBlur in="halo" stdDeviation={STEP_SHADOW_STD} result="blur" />
+            <feOffset in="blur" dx={0} dy={STEP_SHADOW_DY} result="off" />
+            <feFlood floodColor="#000" floodOpacity={STEP_SHADOW_ALPHA} />
+            <feComposite in2="off" operator="in" result="shadow" />
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="hair" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={d / 2}
+          fill={a.color}
+          stroke={STEP_RING_COLOR}
+          strokeWidth={ring}
+          filter={`url(#${filterId})`}
+        />
         <text
           x={cx}
           y={cy}
@@ -798,7 +1044,16 @@ const Shape = React.memo(function Shape({
         >
           {num}
         </text>
-        {selected && <circle className={styles.selOutline} cx={cx} cy={cy} r={d / 2 + 4} />}
+        {selected && (
+          <circle
+            data-step-selected=""
+            className={styles.stepSelected}
+            cx={cx}
+            cy={cy}
+            r={d / 2 + ring / 2 + STEP_SELECTED_RING_PX / 2}
+            strokeWidth={STEP_SELECTED_RING_PX}
+          />
+        )}
       </g>
     );
   }
@@ -1012,6 +1267,217 @@ const Shape = React.memo(function Shape({
   );
 });
 
+const NO_BLURS: readonly BlurAnnotation[] = [];
+
+/** The drop shadow of the base's `shadowCss`, as an SVG filter (CSS box-shadow cannot style
+ *  an SVG element). Same constants as the export's `#sh` filter, so live and export agree:
+ *  blur radius = 2 × stdDeviation, and the spread is dropped there too. */
+function shadowFilter(value: number): { dy: number; std: number; alpha: string } {
+  return {
+    dy: Math.round(value * 0.45),
+    std: Math.round(value * 0.9 + 8) / 2,
+    alpha: (0.12 + (value / 100) * 0.5).toFixed(2),
+  };
+}
+
+/**
+ * An image added to the canvas (NIW2-703): its asset at its rect, with the beautify radius
+ * as a rounded clip and the beautify shadow behind it, like the base shot. Nothing while
+ * the editor has no URL for the asset. Unlocked blurs that touch it draw their own tile
+ * from THIS image's pixels inside the clip, previewing what the save bakes into it.
+ */
+const ImageShape = React.memo(function ImageShape({
+  a,
+  size,
+  selected,
+  url,
+  radius,
+  shadow,
+  redactions,
+}: {
+  a: ImageAnnotation;
+  size: Size;
+  selected: boolean;
+  url: string | undefined;
+  radius: number;
+  shadow: number;
+  redactions: readonly BlurAnnotation[];
+}): React.JSX.Element | null {
+  if (!url) return null;
+  const x = a.x * size.w;
+  const y = a.y * size.h;
+  const w = a.w * size.w;
+  const h = a.h * size.h;
+  const clip = `iclip-${a.id}`;
+  const sh = shadow > 0 ? shadowFilter(shadow) : null;
+  return (
+    <g data-annotation={a.id}>
+      <defs>
+        <clipPath id={clip}>
+          <rect x={x} y={y} width={w} height={h} rx={radius} />
+        </clipPath>
+        {sh && (
+          <filter id={`ishadow-${a.id}`} x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow
+              dx={0}
+              dy={sh.dy}
+              stdDeviation={sh.std}
+              floodColor="#000"
+              floodOpacity={sh.alpha}
+            />
+          </filter>
+        )}
+      </defs>
+      {sh && (
+        <rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          rx={radius}
+          fill="#000"
+          filter={`url(#ishadow-${a.id})`}
+        />
+      )}
+      {/* The clip sits on a wrapper that carries no transform, so it resolves in the
+          layer's own space. */}
+      <g clipPath={`url(#${clip})`}>
+        <image
+          data-testid="canvas-image"
+          href={url}
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          preserveAspectRatio="none"
+        />
+        {redactions
+          .filter((b) => b.x < a.x + a.w && b.x + b.w > a.x && b.y < a.y + a.h && b.y + b.h > a.y)
+          .map((b) => (
+            <ImageRedactionTile key={b.id} a={a} blur={b} url={url} size={size} />
+          ))}
+      </g>
+      {/* The accent frame sits on the image's own edge (mock A4), a fixed 1.5 px on screen at
+          any zoom; the layer's HTML chrome adds the white halo, handles and tag. */}
+      {selected && (
+        <rect
+          className={`${styles.selOutline} ${styles.imageFrame}`}
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+        />
+      )}
+    </g>
+  );
+});
+
+/** A blur's real redaction of one added image, in that image's local coordinates (the
+ *  same mapping `bakeCanvasRedactions` uses), drawn over the image. */
+function ImageRedactionTile({
+  a,
+  blur,
+  url,
+  size,
+}: {
+  a: ImageAnnotation;
+  blur: BlurAnnotation;
+  url: string;
+  size: Size;
+}): React.JSX.Element | null {
+  const tile = useRedactionTile(
+    url,
+    {
+      x: (blur.x - a.x) / a.w,
+      y: (blur.y - a.y) / a.h,
+      w: blur.w / a.w,
+      h: blur.h / a.h,
+    },
+    blur.style ?? "blur",
+    true,
+  );
+  if (!tile) return null;
+  const w = a.w * size.w;
+  const h = a.h * size.h;
+  return (
+    <image
+      data-testid="image-redaction-tile"
+      data-blur={blur.id}
+      href={tile.url}
+      x={a.x * size.w + (tile.rect.x / tile.naturalW) * w}
+      y={a.y * size.h + (tile.rect.y / tile.naturalH) * h}
+      width={(tile.rect.w / tile.naturalW) * w}
+      height={(tile.rect.h / tile.naturalH) * h}
+      preserveAspectRatio="none"
+    />
+  );
+}
+
+/**
+ * Canvas mode: what a blur shows, at its z-position, of the added images BELOW it. The
+ * export redraws those images' baked pixels over the blur's rect (see `bakedBlurSvg`), so
+ * an annotation stacked between them and the blur is covered, while an image above the
+ * blur still draws over it. Unlocked: each image's own redaction tile. Locked: the image's
+ * pixels (its asset already holds the redaction), clipped to the rect.
+ */
+function BlurOverImagesBelow({
+  blur,
+  below,
+  imageUrls,
+  size,
+}: {
+  blur: BlurAnnotation;
+  below: readonly Annotation[];
+  imageUrls: Readonly<Record<string, string>> | undefined;
+  size: Size;
+}): React.JSX.Element | null {
+  const hits = below.filter(
+    (b): b is ImageAnnotation =>
+      b.kind === "image" &&
+      imageUrls?.[b.assetId] !== undefined &&
+      blur.x < b.x + b.w &&
+      blur.x + blur.w > b.x &&
+      blur.y < b.y + b.h &&
+      blur.y + blur.h > b.y,
+  );
+  if (hits.length === 0) return null;
+  const clip = `under-clip-${blur.id}`;
+  return (
+    <g data-testid="redaction-over-images" data-blur={blur.id}>
+      <clipPath id={clip}>
+        <rect
+          x={blur.x * size.w}
+          y={blur.y * size.h}
+          width={blur.w * size.w}
+          height={blur.h * size.h}
+        />
+      </clipPath>
+      <g clipPath={`url(#${clip})`}>
+        {hits.map((b) => {
+          const url = imageUrls![b.assetId]!;
+          // Inside the image's own rounded clip (drawn by its ImageShape), as the export does.
+          return (
+            <g key={b.id} clipPath={`url(#iclip-${b.id})`}>
+              {blur.locked ? (
+                <image
+                  href={url}
+                  x={b.x * size.w}
+                  y={b.y * size.h}
+                  width={b.w * size.w}
+                  height={b.h * size.h}
+                  preserveAspectRatio="none"
+                />
+              ) : (
+                <ImageRedactionTile a={b} blur={blur} url={url} size={size} />
+              )}
+            </g>
+          );
+        })}
+      </g>
+    </g>
+  );
+}
+
 /**
  * Canvas-mode blur: the real redaction as a raster tile over the rect. A locked one is
  * already in the image, so it redraws the image's own pixels over the rect: in z-order it
@@ -1113,7 +1579,7 @@ function hitTest(
     const a = annotations[i];
     // A locked redaction is already part of the stored image: nothing to grab.
     if (canvasMode && a.kind === "blur" && a.locked) continue;
-    if (a.kind === "box" || a.kind === "blur") {
+    if (a.kind === "box" || a.kind === "blur" || a.kind === "image") {
       if (
         p.x >= a.x - 0.01 &&
         p.x <= a.x + a.w + 0.01 &&
@@ -1162,6 +1628,16 @@ function hitTest(
     } else if (distToSegment(p, { x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }) < 0.02) {
       return a;
     }
+  }
+  return null;
+}
+
+/** The topmost saved redaction under `p`, for the hover tag: no margin, and never a selection. */
+function hitLockedBlur(annotations: Annotation[], p: Pt): BlurAnnotation | null {
+  for (let i = annotations.length - 1; i >= 0; i -= 1) {
+    const a = annotations[i];
+    if (a.kind !== "blur" || !a.locked) continue;
+    if (p.x >= a.x && p.x <= a.x + a.w && p.y >= a.y && p.y <= a.y + a.h) return a;
   }
   return null;
 }

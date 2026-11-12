@@ -4,11 +4,19 @@ import {
   DIM_ALPHA,
   MAX_GROUPS,
   MAX_MEMBERS,
+  MIN_AREA_PX,
+  PHOTO_COVERAGE,
+  PHOTO_MIN_DISTINCT,
   analyzeColors,
   binOf,
+  coverageGroups,
+  deltaE,
+  flatColors,
   formatShare,
+  isPhoto,
   locateMask,
   packRgb,
+  regionsOf,
   unpackRgb,
 } from "./histogram";
 
@@ -179,5 +187,172 @@ describe("formatShare", () => {
     [1, 3, "33.3%"],
   ])("%i of %i is %s", (count, total, text) => {
     expect(formatShare(count, total)).toBe(text);
+  });
+});
+
+/** A width x height grid from rows of "#" (hit) and "." (miss). */
+function grid(rows: string[]): { hit: (i: number) => boolean; width: number; height: number } {
+  const width = rows[0].length;
+  const flat = rows.join("");
+  return { hit: (i) => flat[i] === "#", width, height: rows.length };
+}
+const block = (w: number, h: number): string[] => Array.from({ length: h }, () => "#".repeat(w));
+
+describe("exact values", () => {
+  it("lists all seven equally frequent greys, not just the top MAX_MEMBERS of their group", () => {
+    const greys = [0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe];
+    const { data, width, height } = image(greys.map((v) => [[v, v, v], 10] as [Px, number]));
+    const { analysis } = analyzeColors(data, width, height);
+    expect(analysis.distinct).toBe(7);
+    expect(analysis.exact).toHaveLength(7);
+    expect(flatColors(analysis).map((m) => m.rgb)).toEqual(greys.map((v) => packRgb(v, v, v)));
+  });
+
+  it("leaves exact empty for a photograph", () => {
+    const n = PHOTO_MIN_DISTINCT + 5;
+    const data = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) {
+      data.set([i >> 8, i & 255, 7, 255], i * 4);
+    }
+    const { analysis } = analyzeColors(data, n, 1);
+    expect(analysis.distinct).toBeGreaterThanOrEqual(PHOTO_MIN_DISTINCT);
+    expect(analysis.exact).toEqual([]);
+  });
+});
+
+describe("regionsOf", () => {
+  it("merges labels that meet late (a U shape is one region)", () => {
+    const g = grid(["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", "#####"]);
+    const result = regionsOf(g.hit, g.width, g.height);
+    expect(result.areas).toBe(1);
+    expect(result.bounds).toEqual({ x: 0, y: 0, w: 5, h: 7 });
+  });
+
+  it("joins alternating one-pixel columns through a top row", () => {
+    const width = 41;
+    const rows = ["#".repeat(width)];
+    for (let y = 0; y < 5; y++) {
+      rows.push(Array.from({ length: width }, (_, x) => (x % 2 === 0 ? "#" : ".")).join(""));
+    }
+    const g = grid(rows);
+    const result = regionsOf(g.hit, g.width, g.height);
+    expect(result.areas).toBe(1);
+    expect(result.bounds).toEqual({ x: 0, y: 0, w: 41, h: 6 });
+  });
+
+  it("counts two separate blobs as two areas and bounds the largest", () => {
+    const small = block(4, 4); // 16 px = MIN_AREA_PX
+    const big = block(6, 5);
+    const rows: string[] = [];
+    for (let y = 0; y < 5; y++) rows.push((y < 4 ? small[y] : "....") + "..." + big[y]);
+    const g = grid(rows);
+    const result = regionsOf(g.hit, g.width, g.height);
+    expect(MIN_AREA_PX).toBe(16);
+    expect(result.areas).toBe(2);
+    expect(result.bounds).toEqual({ x: 7, y: 0, w: 6, h: 5 });
+  });
+
+  it("joins a diagonal touch into one region (8-connectivity)", () => {
+    const rows = [...block(4, 4).map((r) => r + "...."), ...block(4, 4).map((r) => "...." + r)];
+    // Two 4x4 blocks touching only at one corner.
+    const g = grid(rows);
+    const result = regionsOf(g.hit, g.width, g.height);
+    expect(result.areas).toBe(1);
+    expect(result.bounds).toEqual({ x: 0, y: 0, w: 8, h: 8 });
+  });
+
+  it("does not count regions under MIN_AREA_PX", () => {
+    const g = grid(["#...#", "....."]);
+    expect(regionsOf(g.hit, g.width, g.height)).toEqual({ areas: 0, bounds: null });
+  });
+
+  it("merges a U shape whose arms only meet on a later row", () => {
+    const g = grid(["###.###", "###.###", "###.###", "#######"]);
+    expect(regionsOf(g.hit, g.width, g.height).areas).toBe(1);
+  });
+});
+
+describe("photo summary", () => {
+  const group = (id: number, count: number) => ({
+    id,
+    rgb: 0,
+    count,
+    distinct: 1,
+    members: [],
+  });
+  const analysis = (distinct: number, counts: number[]) => ({
+    width: 1,
+    height: 1,
+    counted: counts.reduce((a, b) => a + b, 0),
+    distinct,
+    totalGroups: counts.length,
+    groups: counts.map((c, i) => group(i, c)),
+    exact: [],
+  });
+
+  it("is a photo from PHOTO_MIN_DISTINCT exact values", () => {
+    expect(isPhoto(analysis(PHOTO_MIN_DISTINCT - 1, [1]))).toBe(false);
+    expect(isPhoto(analysis(PHOTO_MIN_DISTINCT, [1]))).toBe(true);
+  });
+
+  it("keeps the groups that cover PHOTO_COVERAGE and folds the rest into other", () => {
+    expect(PHOTO_COVERAGE).toBe(0.8);
+    const a = analysis(2000, [50, 20, 10, 10, 10]);
+    const { groups, other } = coverageGroups(a);
+    expect(groups.map((g) => g.id)).toEqual([0, 1, 2]);
+    expect(other).toBe(20);
+  });
+
+  it("keeps at least one group", () => {
+    const { groups, other } = coverageGroups(
+      analysis(2000, [10, 10, 10, 10, 10, 10, 10, 10, 10, 10]),
+    );
+    expect(groups.length).toBe(8);
+    expect(other).toBe(20);
+    expect(coverageGroups(analysis(2000, [1])).groups.length).toBe(1);
+  });
+});
+
+describe("deltaE", () => {
+  it("is about 100 between white and black", () => {
+    expect(deltaE(0xffffff, 0x000000)).toBeGreaterThan(99);
+    expect(deltaE(0xffffff, 0x000000)).toBeLessThan(101);
+  });
+  it("is small between white and #fafafa and zero for equal colors", () => {
+    expect(deltaE(0xffffff, 0xfafafa)).toBeGreaterThan(0);
+    expect(deltaE(0xffffff, 0xfafafa)).toBeLessThan(3);
+    expect(deltaE(0x123456, 0x123456)).toBe(0);
+  });
+});
+
+describe("flatColors", () => {
+  it("lists every member by count descending, ties by rgb ascending", () => {
+    // Runs are given out of order on purpose: the order comes from analyzeColors, not the input.
+    const img = image([
+      [[0x10, 0, 0], 2],
+      [[0x30, 0, 0], 5],
+      [[0x40, 0, 0], 9],
+      [[0x20, 0, 0], 5],
+    ]);
+    const { analysis } = analyzeColors(img.data, img.width, img.height);
+    expect(isPhoto(analysis)).toBe(false);
+    const expected = [0x400000, 0x200000, 0x300000, 0x100000];
+    expect(analysis.exact.map((m) => m.rgb)).toEqual(expected);
+    expect(flatColors(analysis).map((m) => m.rgb)).toEqual(expected);
+    expect(flatColors(analysis).map((m) => m.count)).toEqual([9, 5, 5, 2]);
+  });
+});
+
+describe("analyzeColors progress", () => {
+  it("reports 0..1 at most about 20 times and ends at 1", () => {
+    const width = 4;
+    const height = 100;
+    const data = new Uint8ClampedArray(width * height * 4).fill(255);
+    const calls: number[] = [];
+    analyzeColors(data, width, height, (d) => calls.push(d));
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.length).toBeLessThanOrEqual(21);
+    expect(calls[calls.length - 1]).toBe(1);
+    expect([...calls].sort((a, b) => a - b)).toEqual(calls);
   });
 });

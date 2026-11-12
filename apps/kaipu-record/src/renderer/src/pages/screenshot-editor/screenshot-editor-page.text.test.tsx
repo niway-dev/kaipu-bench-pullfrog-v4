@@ -25,6 +25,11 @@ vi.mock("@renderer/features/screenshots/annotations/redaction", async (importOri
     typeof import("@renderer/features/screenshots/annotations/redaction")
   >()),
   bakeRedactions: vi.fn(async (bytes: ArrayBuffer) => bytes),
+  // Canvas saves bake through this one since M6 (NIW2-703): the base and each added asset.
+  bakeCanvasRedactions: vi.fn(async (base: ArrayBuffer, assets: Record<string, ArrayBuffer>) => ({
+    base,
+    assets,
+  })),
 }));
 
 const originalRect = Element.prototype.getBoundingClientRect;
@@ -147,7 +152,7 @@ const drag = (from: [number, number], to: [number, number]) => {
 };
 /** Draw a redaction over display px (10,15)-(120,35): it covers the first line. */
 function redactFirstLine(): void {
-  fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+  fireEvent.click(screen.getByRole("button", { name: "Redact" }));
   const surface = screen.getByTestId("canvas-hit-surface");
   fireEvent.pointerDown(surface, { button: 0, clientX: 10, clientY: 15, pointerId: 1 });
   fireEvent.pointerMove(surface, { clientX: 120, clientY: 35, pointerId: 1 });

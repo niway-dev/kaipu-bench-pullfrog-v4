@@ -13,6 +13,7 @@ export function BeautifiedFrame({
   beautify,
   overlay,
   frameOverlay,
+  boxLayer,
   imgRef,
   zoom = 1,
   pan,
@@ -28,6 +29,12 @@ export function BeautifiedFrame({
    * padding and shot. Rendered only while the crop is edited un-windowed.
    */
   frameOverlay?: React.ReactNode;
+  /**
+   * Canvas mode (NIW2-711): the export box. It fills the frame's border-box, which IS the
+   * exported rectangle (content box plus padding), and sits under the shot. Not rendered
+   * when the frame is windowed by an export frame: the window replaces the box.
+   */
+  boxLayer?: React.ReactNode;
   imgRef?: React.Ref<HTMLImageElement>;
   /**
    * View magnification. Scales the frame visually; the annotation layer keeps
@@ -135,6 +142,7 @@ export function BeautifiedFrame({
 
   const inner = (
     <>
+      {boxLayer}
       {boxFill}
       <div className={styles.shotWrap}>
         <img

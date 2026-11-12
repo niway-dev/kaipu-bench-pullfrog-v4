@@ -58,8 +58,9 @@ each text block as a target to hide.
    1920×1080 image, over the 1.5 s target; later calls took 0.5–0.8 s. The owner decides
    between keeping it, a compiled helper and the WASM fallback (ADR 0055, What would reopen
    this).
-2. **Mock.** The Inspect HUD and the canvas chrome need an approved picture before code. It
-   is the first step of M1 and of M2, not part of this document.
+2. **Mocks.** The owner makes them with Claude Design from the
+   [design brief](/specs/2026-11-11-image-editor-design-brief/). The milestones build the
+   logic on the current editor chrome; M11 applies the mocks (owner, 2026-11-11).
 
 ## Out of scope
 
@@ -136,9 +137,9 @@ merged. Every UI milestone adds its areas and states to `ui-map.ts` (ADR 0046).
 
 | #   | Milestone            | Delivers                                                                                                                                                                             | Depends on | Flag            |
 | --- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | --------------- |
-| M0  | Spikes               | Color fixtures through capture, decode and readout; memory at 6K; Vision latency; Windows text recognition from PowerShell. Results written into ADR 0054 and 0055.                  | —          | —               |
-| M1  | Inspect HUD          | Mock approved, then: Inspect mode, loupe, live color, `C` to copy, format switch, "as captured" switch.                                                                              | M0         | `image-inspect` |
-| M2  | Canvas               | Mock approved, then: world coordinates, pan and zoom, content-box export, export frame replaces crop. One-image parity test.                                                         | —          | `image-canvas`  |
+| M0  | Spikes               | Color fixtures through capture, decode and readout; memory at 6K; Vision latency. macOS only. Results written into ADR 0054 and 0055.                                                | —          | —               |
+| M1  | Inspect HUD          | Inspect mode, loupe, live color, `C` to copy, format switch, "as captured" switch.                                                                                                   | M0         | `image-inspect` |
+| M2  | Canvas               | World coordinates, pan and zoom, content-box export, export frame replaces crop. One-image parity test.                                                                              | —          | `image-canvas`  |
 | M3  | Editable saves       | Canvas document and assets on disk, reopen editable, flattened fallback, destructive redaction with the strong blur (minimum block size tested) and `solid`, light gaussian retired. | M2         | `image-canvas`  |
 | M4  | Ruler                | Pixel-run scan, tolerance on the wheel, `1`/`2`, pinned `measure` annotation with draggable endpoints.                                                                               | M1, M2     | `image-inspect` |
 | M5  | Step counter         | `step` annotation, auto-numbering, renumber on delete.                                                                                                                               | M2         | —               |
@@ -146,8 +147,11 @@ merged. Every UI milestone adds its areas and states to `ui-map.ts` (ADR 0046).
 | M7  | Colors panel         | Quantized histogram in a worker, grouping of near-identical colors, click to locate.                                                                                                 | M1         | `image-inspect` |
 | M8  | Text recognition     | Port, macOS helper, cache, select and copy text (Windows backend: M10).                                                                                                              | M0, M3     | `image-text`    |
 | M9  | Hide recognized text | Recognized blocks as one-click redaction targets.                                                                                                                                    | M8, M3     | `image-text`    |
+| M10 | Windows text         | The Windows spike moved out of M0, then the Windows backend behind the port.                                                                                                         | M8         | `image-text`    |
+| M11 | Final UI             | The owner's mocks applied to every surface. Views and styles only. A surface can be done as soon as its logic is merged and its mock exists.                                         | the mocks  | —               |
 
-M1 and M2 do not depend on each other and can run in parallel.
+M1 and M2 do not depend on each other and can run in parallel. M0 to M9 build the logic with
+the current editor chrome and only the UI needed to use it; the final look is M11.
 
 ---
 
@@ -225,6 +229,12 @@ The quiet capture path (ADR 0042: capture and copy without opening the editor) w
 **As built in M3 (NIW2-700).** Coordinates stay normalized to the base image until M6 adds a
 second image; the base asset is `base.png`; the strong blur's block is
 `max(24, ceil(min(w, h) / 4))` pixels. The details are in ADR 0053's Implementation status.
+
+**As built in M6 (NIW2-703).** The document is `schemaVersion: 2` with every geometry in world
+units (one unit per base source pixel, base at 0,0); version 1 still opens. Inside the editor
+the geometry stays normalized to the base, which remains the anchor. An added image is an
+`image` item with its own `img-<random>` asset, and a redaction bakes into every image it
+overlaps. ADR 0053's Implementation status has the reasoning.
 
 ### 3. Inspect mode
 

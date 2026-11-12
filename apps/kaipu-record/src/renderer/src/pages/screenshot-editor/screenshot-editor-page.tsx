@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useBlocker, useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -19,6 +19,7 @@ import {
   openKindOf,
 } from "@renderer/features/screenshots/auto-capture-policy";
 import { DiscardChangesDialog } from "@renderer/features/screenshots/discard-changes-dialog";
+import { FitIcon } from "@renderer/features/screenshots/toolbar/editor-icons";
 import type { CanvasSavePayload } from "@shared/types/screenshot-canvas";
 import type { TextCacheSavePayload } from "@shared/types/text-recognition";
 import { captureException, reportError } from "@renderer/features/analytics";
@@ -40,12 +41,23 @@ import {
   InspectBar,
   InspectLayer,
   InspectToggle,
+  formatColor,
+  formatShare,
+  isEditingTarget,
   LocateOverlay,
+  locatedColor,
+  unpackRgb,
   useColors,
   useInspect,
 } from "@renderer/features/screenshots/inspect";
 import { SaveOptionsDialog } from "@renderer/features/screenshots/save-options-dialog";
 import { CaptureTitleInput } from "@renderer/features/screenshots/capture-title-input";
+import {
+  savedAtOf,
+  whyNoDocument,
+  type CanvasLoad,
+} from "@renderer/features/screenshots/reopen/canvas-load";
+import { ReopenNoticeSlot } from "@renderer/features/screenshots/reopen/reopen-notice";
 import {
   resolveCaptureTitle,
   useCaptureTitle,
@@ -56,9 +68,10 @@ import {
   AnnotationToolbar,
   BASE_ASSET_ID,
   ZERO_EXTENTS,
-  bakeRedactions,
+  bakeCanvasRedactions,
   buildCanvasDoc,
   contentExtents,
+  exportPixelSize,
   extentsToDisplay,
   frameToWorld,
   intersectFrame,
@@ -68,23 +81,44 @@ import {
   useAnnotationTools,
   useEditorScene,
   worldToFrame,
+  type AnnotationTool,
+  type CanvasAssets,
   type CanvasGeom,
+  type Annotation,
   type CropRect,
+  type Extents,
+  type ImageAnnotation,
   type EditorScene,
   type Scene,
 } from "@renderer/features/screenshots/annotations";
 import {
+  AddImageControl,
   CANVAS_ZOOM,
+  ExportBox,
+  ExportFrameCard,
+  OffContentNotice,
+  RedactionNotice,
+  SidePanel,
+  contentBoxFrame,
+  hasSeenRedactionNotice,
+  markRedactionNoticeSeen,
   isIdentityView,
   useCanvasViewport,
+  useOffContent,
   useDotGrid,
   useExtentsCompensation,
   useShotMetrics,
+  type PanelTab,
 } from "@renderer/features/screenshots/canvas";
+import { decodeToPng, imageFileFromPaste } from "@renderer/features/editor/paste-image";
+import { isTextField, readFromMain } from "@renderer/features/editor/use-paste-to-editor";
 import { useFlag } from "@renderer/features/analytics/use-flag";
 import {
   redactionRectsInPixels,
   useRecognizedText,
+  distinctLineCount,
+  TextNotice,
+  TextShimmer,
   useTextSelection,
   useTextSelectionKeys,
   type PixelSize,
@@ -98,13 +132,19 @@ import {
   type ExportFormat,
 } from "@renderer/features/screenshots/export";
 import { useTransientValue } from "@renderer/ui/use-transient-value";
-import { useCompactRow } from "@renderer/ui/use-compact-row";
+import { PanelToggle } from "@renderer/features/screenshots/toolbar/panel-toggle";
+import { MoreMenu } from "@renderer/features/screenshots/toolbar/more-menu";
+import { useCompactEditor } from "@renderer/features/screenshots/toolbar/use-compact-editor";
+import { useToolShortcuts } from "@renderer/features/screenshots/toolbar/use-tool-shortcuts";
 import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
 import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
 import styles from "./screenshot-editor-page.module.css";
+import "../../features/screenshots/theme/image-editor-theme.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
+/** The gap, in source px, between the content box and an image added to its right. */
+const ADDED_IMAGE_GAP_PX = 32;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
@@ -151,12 +191,22 @@ interface LoadedCanvasDoc {
   /** The base image's pixel size as the document recorded it. */
   pixelWidth: number;
   pixelHeight: number;
+  /** The bytes of every image annotation's asset (NIW2-703). */
+  assets: CanvasAssets;
+}
+
+/** A new asset id for an added image: matches `CANVAS_ASSET_ID_PATTERN`, never "base". */
+function newImageAssetId(): string {
+  let id = "";
+  while (id.length < 12) id += Math.random().toString(36).slice(2);
+  return `img-${id.slice(0, 12)}`;
 }
 
 /**
- * Read and validate the document saved beside a vault shot. Null means "open the flattened
- * PNG instead": no document, a corrupt or unsupported one, a missing base asset, or a read
- * that failed. It never rejects, so a bad document can never keep the editor from opening.
+ * Read and validate the document saved beside a vault shot. Anything but `loaded` means
+ * "open the flattened PNG instead": `absent` when there is no document (a plain screenshot),
+ * `unreadable` when one exists but is corrupt or unsupported, lacks its base asset, or could
+ * not be read. It never rejects, so a bad document can never keep the editor from opening.
  */
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const isPng = (bytes: ArrayBuffer): boolean => {
@@ -164,28 +214,44 @@ const isPng = (bytes: ArrayBuffer): boolean => {
   return head.length === 8 && PNG_SIGNATURE.every((b, i) => head[i] === b);
 };
 
-async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
+async function loadCanvasDoc(id: string): Promise<CanvasLoad<LoadedCanvasDoc>> {
+  const unreadable: CanvasLoad<LoadedCanvasDoc> = { status: "unreadable" };
   try {
     const stored = await window.electronAPI.readScreenshotCanvas(id);
-    if (!stored) return null;
+    // The reader answers null for a missing document and an unusable one alike.
+    if (!stored) return { status: await whyNoDocument(id) };
     const parsed = parseCanvasDoc(stored.docJson);
-    if (!parsed) return null;
+    if (!parsed) return unreadable;
     const bytes = stored.assets[parsed.base.assetId];
     // Not a PNG: the image would never load and the editor would stay disabled.
-    if (!bytes || !isPng(bytes)) return null;
+    if (!bytes || !isPng(bytes)) return unreadable;
+    // An image whose asset is gone or not a PNG cannot be drawn or exported: like a bad base,
+    // open the flattened PNG (which still shows it) instead of a document that would throw.
+    const assets: CanvasAssets = {};
+    for (const a of parsed.scene.annotations) {
+      if (a.kind !== "image") continue;
+      const asset = stored.assets[a.assetId];
+      if (!asset || !isPng(asset)) return unreadable;
+      assets[a.assetId] = asset;
+    }
     // New annotations must not reuse an id the document already holds.
     reserveAnnotationIds(parsed.scene.annotations);
     return {
-      bytes,
-      scene: parsed.scene,
-      pixelWidth: parsed.base.pixelWidth,
-      pixelHeight: parsed.base.pixelHeight,
+      status: "loaded",
+      doc: {
+        bytes,
+        scene: parsed.scene,
+        pixelWidth: parsed.base.pixelWidth,
+        pixelHeight: parsed.base.pixelHeight,
+        assets,
+      },
+      savedAt: await savedAtOf(id),
     };
   } catch (error) {
     // The next save replaces the document with one built on the flat PNG, so a read that
     // failed (not a missing or invalid document) loses the editable layers: record it.
     captureException(error, { phase: "read-canvas" });
-    return null;
+    return unreadable;
   }
 }
 
@@ -209,12 +275,14 @@ export function ScreenshotEditor({
   const [canvasMode] = useState(useFlag("image-canvas"));
   const needsRead = canvasMode && source.kind === "local";
   const localId = source.kind === "local" ? source.id : null;
-  const [loaded, setLoaded] = useState<{ id: string; doc: LoadedCanvasDoc | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; load: CanvasLoad<LoadedCanvasDoc> } | null>(
+    null,
+  );
   useEffect(() => {
     if (!needsRead || localId === null) return;
     let cancelled = false;
-    void loadCanvasDoc(localId).then((doc) => {
-      if (!cancelled) setLoaded({ id: localId, doc });
+    void loadCanvasDoc(localId).then((load) => {
+      if (!cancelled) setLoaded({ id: localId, load });
     });
     return () => {
       cancelled = true;
@@ -226,7 +294,8 @@ export function ScreenshotEditor({
       source={source}
       fresh={fresh}
       canvasMode={canvasMode}
-      doc={needsRead ? (loaded?.doc ?? null) : null}
+      doc={needsRead && loaded?.load.status === "loaded" ? loaded.load.doc : null}
+      reopen={needsRead ? (loaded?.load ?? null) : null}
     />
   );
 }
@@ -236,12 +305,15 @@ function ScreenshotEditorBody({
   fresh,
   canvasMode,
   doc,
+  reopen,
 }: {
   source: ImageSource;
   fresh: boolean;
   canvasMode: boolean;
   /** The document a canvas-mode reopen found, or null (flat PNG, no annotations). */
   doc: LoadedCanvasDoc | null;
+  /** What the reopen found, for the notice on the stage (null: not a canvas-mode reopen). */
+  reopen: CanvasLoad<LoadedCanvasDoc> | null;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const tLibrary = useTranslations("library");
@@ -266,7 +338,7 @@ function ScreenshotEditorBody({
   const tools = useAnnotationTools();
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const toolbarRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   // Infinite canvas (NIW2-698): content may leave the image, the view pans, export is the
   // content box. `canvasMode` is latched at mount by `ScreenshotEditor`: `useFlag` is
   // reactive, but a shot must never mix the two models (a classic crop would be dropped, or
@@ -277,6 +349,7 @@ function ScreenshotEditorBody({
   const [inspectEnabled] = useState(useFlag("image-inspect"));
   const inspect = useInspect({
     enabled: inspectEnabled,
+    canvasMode,
     image,
     imgRef,
     // Inspect reads the image, it does not edit it: leave any drawing tool (a crop included).
@@ -360,10 +433,12 @@ function ScreenshotEditorBody({
   const recognizedRef = useRef(recognized);
   recognizedRef.current = recognized;
   // The base image's pixel size: the space the recognized words are in. The decoded image
-  // first; the known sizes cover an image that has not reported one (see buildCanvasPayload).
+  // first; the known sizes cover an image that has not reported one, in `basePixels`' order:
+  // a reopened document's base before the source, whose size is the flat export's (with added
+  // images, the whole content box).
   const naturalNow = (): PixelSize => ({
-    w: imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0,
-    h: imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0,
+    w: imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0,
+    h: imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0,
   });
   const [natural, setNatural] = useState<PixelSize | null>(null);
   // The words a person can select: those no redaction of this session (saved or not) covers.
@@ -388,7 +463,10 @@ function ScreenshotEditorBody({
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      showToast({ message: t("textCopied") });
+      showToast({
+        message: t("textCopied"),
+        detail: t("textCopiedLines", { count: distinctLineCount(textSelection.selected) }),
+      });
     } catch (error) {
       reportError(t("textCopyError"), error, { context: { phase: "copy-text" } });
     }
@@ -560,24 +638,71 @@ function ScreenshotEditorBody({
   const metrics = useShotMetrics(imgRef, canvasMode, imageReady);
   // How far the content sticks out past each side of the shot, in display px, from the
   // live annotations (the same measure the export uses, at the same scale).
+  // While a shape is drawn or moved the stored annotations do not hold it yet: the layer
+  // reports what is on screen (`onLive`) and the extents (in source px) follow the drag, so
+  // the box and its label grow live instead of jumping on release (mock A3). Only the
+  // extents are kept, and only when they change, so a drag that stays inside the shot does
+  // not re-render the page on every pointer move.
+  const metricsRef = useRef(metrics);
+  metricsRef.current = metrics;
+  const [liveExtents, setLiveExtents] = useState<Extents | null>(null);
+  const onLive = useCallback((shown: readonly Annotation[] | null): void => {
+    const m = metricsRef.current;
+    if (!shown || !m || m.w <= 0 || m.naturalW <= 0) {
+      setLiveExtents(null);
+      return;
+    }
+    const next = contentExtents(shown, m.naturalW, m.naturalH, m.naturalW / m.w);
+    setLiveExtents((prev) =>
+      prev &&
+      prev.left === next.left &&
+      prev.top === next.top &&
+      prev.right === next.right &&
+      prev.bottom === next.bottom
+        ? prev
+        : next,
+    );
+  }, []);
+  // The content box's overhang in source px (the export's own measure), live or stored.
+  const extentsNatural = useMemo(() => {
+    if (!canvasMode || !metrics || metrics.w <= 0 || metrics.naturalW <= 0) return ZERO_EXTENTS;
+    return (
+      liveExtents ??
+      contentExtents(
+        scene.annotations,
+        metrics.naturalW,
+        metrics.naturalH,
+        metrics.naturalW / metrics.w,
+      )
+    );
+  }, [canvasMode, metrics, scene.annotations, liveExtents]);
   const extents = useMemo(() => {
     if (!canvasMode || !metrics || metrics.w <= 0 || metrics.naturalW <= 0) return ZERO_EXTENTS;
-    const scale = metrics.naturalW / metrics.w;
-    return extentsToDisplay(
-      contentExtents(scene.annotations, metrics.naturalW, metrics.naturalH, scale),
-      scale,
-    );
-  }, [canvasMode, metrics, scene.annotations]);
+    return extentsToDisplay(extentsNatural, metrics.naturalW / metrics.w);
+  }, [canvasMode, metrics, extentsNatural]);
   // Growing or shrinking the content box re-centres the frame, which would slide the shot
   // on screen. Move the pan by the same amount so the shot stays where the user left it.
   // The first measurement is the baseline, so a reopened document with content outside the
   // image opens with its content box in view instead of panned off-centre.
-  const { compensate } = viewport;
+  const { compensate, fit } = viewport;
+  // A reopened document wider or taller than the canvas opens fitted, not clipped.
+  const fitOnOpen = useCallback(() => fit({ onlyIfOverflowing: true }), [fit]);
   useExtentsCompensation(
     extents,
     canvasMode && metrics != null && metrics.w > 0 && metrics.naturalW > 0,
     compensate,
+    fitOnOpen,
   );
+  // An added image lands past the content box's right edge, often off screen: once its
+  // extents are laid out (after the compensation above), fit the view so it shows.
+  const fitAfterAdd = useRef(false);
+  useLayoutEffect(() => {
+    if (!fitAfterAdd.current) return;
+    fitAfterAdd.current = false;
+    fit();
+    // Keyed on the annotations too: an add always changes them, so the flag never outlives
+    // the render that placed the image.
+  }, [scene.annotations, extents, fit]);
   // The dot grid behind the frame: pinned to the shot's top-left, so it pans and zooms with it.
   useDotGrid(canvasRef, canvasMode, viewport.view, {
     x: scene.beautify.state.padding + extents.left,
@@ -591,6 +716,34 @@ function ScreenshotEditorBody({
     canvasMode && metrics && metrics.w > 0 && metrics.h > 0
       ? { naturalW: metrics.w, naturalH: metrics.h, pad: scene.beautify.state.padding, extents }
       : null;
+  // The exact pixel size Copy and Save produce (mock A1's label), from the export's own
+  // computation, so the label cannot say a size the export does not have.
+  const exportSize = useMemo(
+    () =>
+      canvasMode && metrics && metrics.w > 0 && metrics.naturalW > 0
+        ? exportPixelSize(
+            {
+              beautify: scene.beautify.state,
+              annotations: scene.annotations,
+              crop: scene.crop,
+              exportFrame: scene.exportFrame,
+            },
+            metrics.naturalW,
+            metrics.naturalH,
+            metrics.w,
+            extentsNatural,
+          )
+        : null,
+    [
+      canvasMode,
+      metrics,
+      scene.beautify.state,
+      scene.annotations,
+      scene.crop,
+      scene.exportFrame,
+      extentsNatural,
+    ],
+  );
   const exportFrameCrop: CropRect | undefined =
     canvasGeom && scene.exportFrame
       ? intersectFrame(worldToFrame(scene.exportFrame, canvasGeom))
@@ -612,9 +765,63 @@ function ScreenshotEditorBody({
         },
       }
     : scene;
+  // Mock A5: the exact size an export of a window of the frame has (0–1 of the composed
+  // frame), from the export's own computation, for the frame's label while it is dragged.
+  const framePixelSize = (c: CropRect): { w: number; h: number } | null =>
+    canvasGeom && metrics && metrics.naturalW > 0
+      ? exportPixelSize(
+          {
+            beautify: scene.beautify.state,
+            annotations: scene.annotations,
+            crop: scene.crop,
+            exportFrame: frameToWorld(c, canvasGeom),
+          },
+          metrics.naturalW,
+          metrics.naturalH,
+          metrics.w,
+          extentsNatural,
+        )
+      : null;
   const shownZoom = canvasMode ? viewport.view.zoom : zoom;
   const zoomMin = canvasMode ? CANVAS_ZOOM.min : ZOOM_MIN;
   const zoomMax = canvasMode ? CANVAS_ZOOM.max : ZOOM_MAX;
+  // Mock A6: which way the content went once most of it left the visible stage.
+  const offContent = useOffContent(canvasRef, canvasMode && hasImage, [
+    viewport.view,
+    extents,
+    metrics,
+    scene.beautify.state.padding,
+    scene.exportFrame,
+  ]);
+
+  // Images added to the canvas (NIW2-703). The bytes live in a ref: queued save and export jobs
+  // read them when they RUN, and nothing renders from the bytes themselves. The display side is
+  // `imageUrls`, assetId -> object URL, a new object only when an asset is added so the layer
+  // can depend on it. An undone image keeps its asset (redo brings it back); a save sends only
+  // what the scene still references.
+  const assetsRef = useRef<CanvasAssets>(doc ? { ...doc.assets } : {});
+  const [imageUrls, setImageUrls] = useState<Readonly<Record<string, string>>>({});
+  const urlsRef = useRef(new Map<string, string>());
+  const registerAsset = (assetId: string, png: ArrayBuffer): string => {
+    const known = urlsRef.current.get(assetId);
+    if (known) return known;
+    const url = URL.createObjectURL(new Blob([png], { type: "image/png" }));
+    urlsRef.current.set(assetId, url);
+    return url;
+  };
+  useEffect(() => {
+    if (!canvasMode) return;
+    const urls = urlsRef.current;
+    // Registered in the effect, not at render, so StrictMode's mount/unmount/mount pass
+    // revokes and recreates them together instead of leaving the state holding dead URLs.
+    for (const [assetId, png] of Object.entries(assetsRef.current)) registerAsset(assetId, png);
+    setImageUrls(Object.fromEntries(urls));
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, [canvasMode]);
 
   // Composite the beautify frame + annotations and encode them as `format`: PNG is
   // what Copy and Save use, PDF what Export writes. Only ever invoked once
@@ -625,8 +832,97 @@ function ScreenshotEditorBody({
       scene: snap,
       bytes: await image!.getBytes(),
       displayedW: imgRef.current?.clientWidth ?? 0,
-      ...(canvasMode ? { canvas: true } : {}),
+      ...(canvasMode ? { canvas: true, assets: assetsRef.current } : {}),
     });
+
+  /** The base image's pixel size: the decoded image first, then the sizes already known. */
+  const basePixels = (): { width: number; height: number } => ({
+    // A reopened document's base size comes before the source's, which is the flat export's.
+    width: imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0,
+    height: imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0,
+  });
+
+  /**
+   * Put a PNG on the canvas as an image annotation (NIW2-703): to the right of the content
+   * box, top-aligned with the base, selected, with the select tool active so it can be moved.
+   * It goes through `addAnnotation`, so it is an undoable edit that marks the scene dirty.
+   */
+  const addImage = (png: ArrayBuffer, pixelWidth: number, pixelHeight: number): void => {
+    // A capture or a Library read that answers after the editor closed adds nothing.
+    if (!alive.current) return;
+    const { width: naturalW, height: naturalH } = basePixels();
+    if (naturalW <= 0 || naturalH <= 0 || pixelWidth <= 0 || pixelHeight <= 0) {
+      // Usually a paste before the base has loaded (its size is not known yet): say so
+      // rather than drop the image the user just pasted.
+      showToast({ message: t("addImageError") });
+      return;
+    }
+    // The same scale the live extents use; before the first measurement the displayed width
+    // is unknown and 1 only affects the size of text bounds.
+    const scale = metrics && metrics.w > 0 ? naturalW / metrics.w : 1;
+    const { right } = contentExtents(scene.annotations, naturalW, naturalH, scale);
+    const assetId = newImageAssetId();
+    assetsRef.current = { ...assetsRef.current, [assetId]: png };
+    const url = registerAsset(assetId, png);
+    setImageUrls((prev) => ({ ...prev, [assetId]: url }));
+    const annotation: ImageAnnotation = {
+      id: nextAnnotationId().id,
+      kind: "image",
+      assetId,
+      x: (naturalW + right + ADDED_IMAGE_GAP_PX) / naturalW,
+      y: 0,
+      w: pixelWidth / naturalW,
+      h: pixelHeight / naturalH,
+      pixelWidth,
+      pixelHeight,
+    };
+    fitAfterAdd.current = true;
+    scene.addAnnotation(annotation);
+    scene.select(annotation.id);
+    tools.setTool("select");
+  };
+  // The paste listener below outlives a render: it calls the latest closure.
+  const addImageRef = useRef(addImage);
+  addImageRef.current = addImage;
+  // What the Add image control gets: a capture or a Library read finishes after an await,
+  // when the props it was rendered with may be stale (another image added meanwhile), so it
+  // always calls the latest closure.
+  const addImageLatest = useCallback(
+    (png: ArrayBuffer, pixelWidth: number, pixelHeight: number): void =>
+      addImageRef.current(png, pixelWidth, pixelHeight),
+    [],
+  );
+
+  // Pasting an image adds it to the canvas (canvas mode only). Text fields keep their own
+  // paste. Like the home pages, the paste event's image wins and main's clipboard reader
+  // answers when the event carries none; a clipboard with no image does nothing.
+  const pasting = useRef(false);
+  useEffect(() => {
+    if (!canvasMode) return;
+    const onPaste = (e: ClipboardEvent): void => {
+      if (isTextField(e.target)) return;
+      // A modal (the Library picker, the unsaved-changes dialog) owns the keyboard: nothing
+      // lands on the canvas behind it.
+      if (document.querySelector('[aria-modal="true"]')) return;
+      const file = imageFileFromPaste(e.clipboardData);
+      e.preventDefault();
+      if (pasting.current) return;
+      pasting.current = true;
+      void (async () => {
+        try {
+          const image = await (file ? decodeToPng(file) : readFromMain());
+          if (image && alive.current) addImageRef.current(image.png, image.width, image.height);
+        } catch (error) {
+          reportError(t("addImageError"), error, { context: { phase: "paste-image" } });
+        } finally {
+          pasting.current = false;
+        }
+      })();
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads latest state through refs
+  }, [canvasMode]);
 
   /**
    * Export the scene and put it on the clipboard. Reports its own failures; the
@@ -657,6 +953,47 @@ function ScreenshotEditorBody({
     if (await copyToClipboard()) showFeedback({ kind: "copied" });
   };
 
+  // The one-time notice before redactions become permanent (mock H4b). This editor saves as you
+  // edit and every save bakes redactions into the stored asset, so the notice opens the first
+  // time an unsaved redaction exists on a machine that has not acknowledged it. It is derived,
+  // not scheduled: no unsaved redaction (none drawn, all undone, or all already locked in a
+  // reopened document) means no notice. The edit autosave keeps running while it is open: the
+  // in-memory image stays unredacted, so "Undo redaction" still works after a save.
+  const [noticeSeen, setNoticeSeen] = useState(hasSeenRedactionNotice);
+  const [noticeHidden, setNoticeHidden] = useState(false);
+  const hasUnsavedRedaction =
+    canvasMode && scene.annotations.some((a) => a.kind === "blur" && !a.locked);
+  useEffect(() => {
+    // "Undo redaction" closes it without acknowledging; the next first redaction opens it again.
+    if (!hasUnsavedRedaction) setNoticeHidden(false);
+  }, [hasUnsavedRedaction]);
+  const noticeOpen = hasUnsavedRedaction && !noticeSeen && !noticeHidden;
+  // Queued saves run later than the render that enqueued them: they read the live value.
+  const noticeOpenRef = useRef(noticeOpen);
+  noticeOpenRef.current = noticeOpen;
+  const acknowledgeNotice = (): void => {
+    markRedactionNoticeSeen();
+    setNoticeSeen(true);
+  };
+  const undoLastRedaction = (): void => {
+    const last = scene.annotations.findLast((a) => a.kind === "blur" && !a.locked);
+    if (last) scene.removeAnnotation(last.id);
+    setNoticeHidden(true);
+  };
+
+  const firstSave = useRef(new Map<string, number>());
+  /**
+   * The first save that baked this redaction: later autosaves of the session keep it.
+   * A new stamp goes into `staged`, not `firstSave`: it only counts once the save succeeded.
+   */
+  const firstSaveAt = (id: string, staged: Map<string, number>): number => {
+    const known = firstSave.current.get(id) ?? staged.get(id);
+    if (known !== undefined) return known;
+    const now = Date.now();
+    staged.set(id, now);
+    return now;
+  };
+
   /**
    * The document and base asset a canvas-mode save stores beside the PNG (ADR 0053).
    *
@@ -669,15 +1006,39 @@ function ScreenshotEditorBody({
    * Null when the image's pixel size is unknown (the document would be invalid): the save
    * then stores the flat PNG alone, and main drops any stale document.
    */
-  const buildCanvasPayload = async (snap: Scene): Promise<CanvasSavePayload | null> => {
-    // The decoded image first; the known sizes cover an image that has not reported one. A
-    // reopened document's base size comes before the source's, which is the flat export's.
-    const pixelWidth = imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0;
-    const pixelHeight = imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0;
+  const buildCanvasPayload = async (
+    snap: Scene,
+    staged: Map<string, number>,
+  ): Promise<CanvasSavePayload | null> => {
+    // The decoded image first; the known sizes cover an image that has not reported one.
+    const { width: pixelWidth, height: pixelHeight } = basePixels();
     if (pixelWidth <= 0 || pixelHeight <= 0) return null;
-    const baked = await bakeRedactions(await image!.getBytes(), snap.annotations);
-    const docJson = JSON.stringify(buildCanvasDoc(snap, { pixelWidth, pixelHeight }));
-    return { docJson, assets: [{ assetId: BASE_ASSET_ID, png: baked }] };
+    const baked = await bakeCanvasRedactions(
+      await image!.getBytes(),
+      assetsRef.current,
+      snap.annotations,
+    );
+    const docJson = JSON.stringify(
+      buildCanvasDoc(
+        snap,
+        { pixelWidth, pixelHeight },
+        { lockedAt: (id) => firstSaveAt(id, staged) },
+      ),
+    );
+    // The base, then each image asset the scene still references, once (one asset may sit on
+    // the canvas twice). Main prunes whatever else the vault held for this shot.
+    const assets: CanvasSavePayload["assets"] = [{ assetId: BASE_ASSET_ID, png: baked.base }];
+    const sent = new Set<string>();
+    for (const a of snap.annotations) {
+      if (a.kind !== "image" || sent.has(a.assetId)) continue;
+      const png = baked.assets[a.assetId];
+      // Every image is added with its bytes, so this is a bug: fail the save visibly rather
+      // than store a document whose reopen would fall back to the flat PNG.
+      if (!png) throw new Error(`save: no bytes for image asset ${a.assetId}`);
+      sent.add(a.assetId);
+      assets.push({ assetId: a.assetId, png });
+    }
+    return { docJson, assets };
   };
 
   /**
@@ -713,6 +1074,8 @@ function ScreenshotEditorBody({
   }): Promise<string | null> =>
     enqueue(async () => {
       if (!alive.current) return null;
+      // An explicit save bakes the redactions in: it counts as having read the notice.
+      if (!opts.silent && noticeOpenRef.current) acknowledgeNotice();
       const revision = sceneRevision.current;
       const snap = latest.current.scene;
       const draftAtStart = latest.current.draft;
@@ -725,7 +1088,8 @@ function ScreenshotEditorBody({
             : undefined;
       try {
         const png = await exportAs("png", snap);
-        const canvas = canvasMode ? await buildCanvasPayload(snap) : null;
+        const stagedStamps = new Map<string, number>();
+        const canvas = canvasMode ? await buildCanvasPayload(snap, stagedStamps) : null;
         const text = canvas ? buildTextPayload(snap) : null;
         const saved = await window.electronAPI.saveScreenshot(png, {
           // The live field, not only its committed value: Save must write what the
@@ -742,6 +1106,10 @@ function ScreenshotEditorBody({
           // words are not known (flag off, still pending, unavailable).
           ...(text ? { text } : {}),
         });
+        // The save landed: its redaction stamps are now the first-save times.
+        for (const [id, at] of stagedStamps) {
+          if (!firstSave.current.has(id)) firstSave.current.set(id, at);
+        }
         savedIdRef.current = saved.id;
         savedAssetIdRef.current = saved.assetId;
         setSavedId(saved.id);
@@ -930,13 +1298,109 @@ function ScreenshotEditorBody({
     feedback?.kind === "saved" || feedback?.kind === "savedAndCopied" ? feedback.name : null;
   const exportedName = feedback?.kind === "exported" ? feedback.name : null;
 
-  // The toolbar drops the action labels only when the row cannot hold them (see
-  // useCompactRow). The revision names what changes the row's content without
-  // resizing it: the toolbar mounting with the image, a label flipping to its
-  // "done" wording (Saved, Exported), Discard appearing after an auto-save.
-  useCompactRow(
-    toolbarRef,
-    `${hasImage}:${copied}:${savedName ?? ""}:${exportedName ?? ""}:${autoSaved}`,
+  // Compact layout (mock B3): below 1000 px the toolbar folds and the right panel becomes a
+  // sheet. Measured on the page element; the revision re-measures once the image has mounted it.
+  const compact = useCompactEditor(pageRef, image !== null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const sheetOpen = compact && panelOpen;
+  // The Colors panel is the side panel's second tab. In compact the panel is the sheet, and
+  // the sheet opens when Colors does, so pressing Colors shows something.
+  const colorsShown = inspectEnabled && inspect.active && colors.open;
+  const colorsInSheet = compact && colorsShown;
+  useEffect(() => {
+    if (colorsInSheet) setPanelOpen(true);
+  }, [colorsInSheet]);
+  // Colors lives only in the sheet in compact, so closing the sheet turns it off: otherwise its
+  // button would read "on" with nothing visible, and the next press would only turn it off.
+  const colorsSetOpen = colors.setOpen;
+  const wasSheetOpen = useRef(false);
+  useEffect(() => {
+    if (wasSheetOpen.current && !sheetOpen && compact) colorsSetOpen(false);
+    wasSheetOpen.current = sheetOpen;
+  }, [sheetOpen, compact, colorsSetOpen]);
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      // A field or a dialog keeps its own Esc.
+      // A range slider or checkbox takes no text, so Esc on it still closes the sheet.
+      const t = e.target;
+      const keysOwnEsc =
+        isEditingTarget(t) &&
+        !(t instanceof HTMLInputElement && ["range", "checkbox", "radio"].includes(t.type));
+      if (keysOwnEsc || document.querySelector('[aria-modal="true"]')) return;
+      // An open toolbar menu takes this Esc; the sheet closes on the next one.
+      if (document.querySelector('[role="menu"]')) return;
+      // Capture phase + stop: the crop overlay also clears its frame on Esc.
+      e.stopPropagation();
+      setPanelOpen(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [sheetOpen]);
+
+  const colorsPanel = (
+    <ColorsPanel
+      colors={colors}
+      format={inspect.format}
+      reading={inspect.status === "decoding"}
+      unreadable={inspect.status === "error"}
+    />
+  );
+
+  // The tab is derived, never stored: Colors while its panel is open, Beautify otherwise.
+  // Colors reads Inspect's decoded pixels, so choosing it from Annotate turns Inspect on.
+  const panelTab: PanelTab = colorsShown ? "colors" : "beautify";
+  const selectPanelTab = (next: PanelTab): void => {
+    if (next === "colors") {
+      inspect.setActive(true);
+      colors.setOpen(true);
+    } else colors.setOpen(false);
+  };
+  const beautifyPanel = (
+    <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} embedded={inspectEnabled} />
+  );
+  const sidePanel = inspectEnabled ? (
+    <SidePanel tab={panelTab} onSelect={selectPanelTab}>
+      {colorsShown ? colorsPanel : beautifyPanel}
+    </SidePanel>
+  ) : (
+    beautifyPanel
+  );
+  // The tag under the largest area of the highlighted color (mock F3).
+  const locatedRgb = locatedColor(colors.analysis, colors.located);
+  const locateLabel =
+    colors.analysis && colors.overlay?.bounds && locatedRgb !== null
+      ? t("inspectColorsTag", {
+          color: formatColor(unpackRgb(locatedRgb), inspect.format),
+          areas: colors.overlay.areas,
+          share: formatShare(colors.overlay.matched, colors.analysis.counted),
+        })
+      : null;
+
+  // Picking a tool, by click or by key, leaves Inspect and starts the tool clean.
+  const pickTool = (tool: AnnotationTool): void => {
+    tools.setTool(tool);
+    scene.select(null);
+    inspect.setActive(false);
+  };
+  // The Add image menu is open: the page owns it so the `M` key and "•••" can open it too.
+  const [addOpen, setAddOpen] = useState(false);
+  useToolShortcuts({
+    onTool: pickTool,
+    ...(canvasMode ? { onAddImage: () => setAddOpen(true) } : {}),
+  });
+
+  // The Add image control: a toolbar button, or (compact) only its menu, opened from "•••".
+  const addImageControl = (showButton: boolean): React.JSX.Element => (
+    <AddImageControl
+      onAdd={addImageLatest}
+      excludeId={savedId}
+      excludeAssetId={savedAssetIdRef.current ?? null}
+      open={addOpen}
+      onOpenChange={setAddOpen}
+      showButton={showButton}
+    />
   );
 
   // `image` is null on the first render while the reader resolves — render nothing.
@@ -946,17 +1410,24 @@ function ScreenshotEditorBody({
   return (
     <div
       {...(fresh ? uiArea("editorCapture.page") : uiArea("editorImage.page"))}
+      ref={pageRef}
       className={styles.editor}
     >
       {/* "IN · Work ▾" once the shot is saved in a workspace (ADR 0033). */}
       <ItemWorkspaceChip assetId={savedId ? (savedAssetIdRef.current ?? null) : null} />
       <div
         {...uiArea("editorImage.toolbar")}
-        ref={toolbarRef}
         className={styles.toolbar}
         role="toolbar"
         aria-label={t("editorToolbar")}
+        data-compact={compact}
       >
+        {inspectEnabled && (
+          <>
+            <InspectToggle active={inspect.active} compact={compact} onSelect={inspect.setActive} />
+            <span className={styles.divider} aria-hidden />
+          </>
+        )}
         <AnnotationToolbar
           tools={tools}
           onPick={() => {
@@ -964,29 +1435,49 @@ function ScreenshotEditorBody({
             inspect.setActive(false);
           }}
           textTool={textEnabled}
+          canvasMode={canvasMode}
+          compact={compact}
+          idle={inspect.active}
+          addImage={canvasMode ? addImageControl(true) : undefined}
         />
-        {inspectEnabled && <InspectToggle active={inspect.active} onToggle={inspect.toggle} />}
-        <CaptureTitleInput title={captureTitle} />
+        {compact ? (
+          <>
+            <MoreMenu
+              canvasMode={canvasMode}
+              textTool={textEnabled}
+              onPick={pickTool}
+              onAddImage={() => setAddOpen(true)}
+              undo={{ onSelect: scene.undo, disabled: !scene.canUndo }}
+              redo={{ onSelect: scene.redo, disabled: !scene.canRedo }}
+              pdf={{ onSelect: () => void onExportPdf(), disabled: !imageReady }}
+            />
+            {canvasMode && addImageControl(false)}
+          </>
+        ) : (
+          <>
+            <span className={styles.divider} aria-hidden />
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title={t("undo")}
+              disabled={!scene.canUndo}
+              onClick={scene.undo}
+            >
+              <Undo2 size={17} />
+            </button>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title={t("redo")}
+              disabled={!scene.canRedo}
+              onClick={scene.redo}
+            >
+              <Redo2 size={17} />
+            </button>
+            <CaptureTitleInput title={captureTitle} />
+          </>
+        )}
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.iconBtn}
-            title={t("undo")}
-            disabled={!scene.canUndo}
-            onClick={scene.undo}
-          >
-            <Undo2 size={18} />
-          </button>
-          <button
-            type="button"
-            className={styles.iconBtn}
-            title={t("redo")}
-            disabled={!scene.canRedo}
-            onClick={scene.redo}
-          >
-            <Redo2 size={18} />
-          </button>
-          <span className={styles.divider} />
           <button
             type="button"
             className={styles.secondary}
@@ -1015,21 +1506,25 @@ function ScreenshotEditorBody({
             onClick={onSave}
           >
             {savedName ? <Check size={16} /> : <Download size={16} />}
-            <span className={styles.label}>{savedName ? t("saved") : t("save")}</span>
+            <span className={styles.saveLabel}>{savedName ? t("saved") : t("save")}</span>
           </button>
-          <button
-            type="button"
-            className={styles.secondary}
-            data-done={exportedName !== null}
-            disabled={!imageReady}
-            title={
-              exportedName ? t("exportedPdfTitle", { name: exportedName }) : t("exportPdfTitle")
-            }
-            onClick={() => void onExportPdf()}
-          >
-            {exportedName ? <Check size={16} /> : <FileText size={16} />}
-            <span className={styles.label}>{exportedName ? t("exportedPdf") : t("exportPdf")}</span>
-          </button>
+          {!compact && (
+            <button
+              type="button"
+              className={styles.secondary}
+              data-done={exportedName !== null}
+              disabled={!imageReady}
+              title={
+                exportedName ? t("exportedPdfTitle", { name: exportedName }) : t("exportPdfTitle")
+              }
+              onClick={() => void onExportPdf()}
+            >
+              {exportedName ? <Check size={16} /> : <FileText size={16} />}
+              <span className={styles.label}>
+                {exportedName ? t("exportedPdf") : t("exportPdf")}
+              </span>
+            </button>
+          )}
           {autoSaved && (
             <button
               type="button"
@@ -1042,6 +1537,7 @@ function ScreenshotEditorBody({
               <span className={styles.label}>{t("discardSaved")}</span>
             </button>
           )}
+          {compact && <PanelToggle open={sheetOpen} onToggle={() => setPanelOpen(!panelOpen)} />}
         </div>
       </div>
       <div className={styles.body}>
@@ -1050,6 +1546,13 @@ function ScreenshotEditorBody({
             ref={canvasRef}
             className={styles.canvas}
             data-zoomed={shownZoom > 1}
+            // The chrome drawn in the zoomed frame (the export box, selection frames) reads this
+            // to stay one screen pixel / one font size at any zoom.
+            style={
+              canvasMode
+                ? ({ "--canvas-zoom": viewport.view.zoom } as React.CSSProperties)
+                : undefined
+            }
             {...(inspectEnabled ? { "data-inspect": String(inspect.active) } : {})}
             {...(canvasMode
               ? {
@@ -1076,12 +1579,48 @@ function ScreenshotEditorBody({
                     src={image.displayUrl}
                     canvas={canvasMode}
                     canvasMode={canvasMode}
+                    {...(canvasMode
+                      ? {
+                          imageUrls,
+                          onLive,
+                          ...(metrics && metrics.naturalW > 0
+                            ? { natural: { w: metrics.naturalW, h: metrics.naturalH } }
+                            : {}),
+                        }
+                      : {})}
                     text={textLayer}
                   />
-                  {inspectEnabled && <LocateOverlay image={colors.overlay} />}
+                  <TextShimmer
+                    enabled={textEnabled}
+                    loaded={image != null}
+                    status={recognized.status}
+                  />
+                  {inspectEnabled && <LocateOverlay image={colors.overlay} label={locateLabel} />}
                 </>
               }
-              frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}
+              frameOverlay={
+                tools.tool === "crop" ? (
+                  <CropOverlay
+                    scene={cropScene}
+                    chrome={
+                      canvasMode
+                        ? { zoom: viewport.view.zoom, pixelSize: framePixelSize }
+                        : undefined
+                    }
+                  />
+                ) : undefined
+              }
+              boxLayer={
+                canvasMode && scene.exportFrame == null ? (
+                  <ExportBox
+                    size={exportSize}
+                    filled={scene.beautify.state.bg === "none"}
+                    labeled={
+                      !inspect.active && tools.tool !== "blur" && tools.tool !== "selectText"
+                    }
+                  />
+                ) : undefined
+              }
               imgRef={imgRef}
               zoom={shownZoom}
               pan={canvasMode ? { x: viewport.view.panX, y: viewport.view.panY } : undefined}
@@ -1097,17 +1636,7 @@ function ScreenshotEditorBody({
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
             {inspect.active ? (
-              <>
-                <InspectBar inspect={inspect} colors={colors} />
-                {colors.open && (
-                  <ColorsPanel
-                    colors={colors}
-                    format={inspect.format}
-                    reading={inspect.status === "decoding"}
-                    unreadable={inspect.status === "error"}
-                  />
-                )}
-              </>
+              <InspectBar inspect={inspect} colors={colors} />
             ) : (
               <AnnotationOptions
                 tools={tools}
@@ -1147,9 +1676,57 @@ function ScreenshotEditorBody({
             >
               <ZoomIn size={16} />
             </button>
+            {canvasMode && (
+              <>
+                <span className={styles.zoomDivider} aria-hidden />
+                <button
+                  type="button"
+                  className={styles.zoomFit}
+                  data-notice={offContent != null}
+                  title={t("zoomFit")}
+                  aria-label={t("zoomFitLabel")}
+                  onClick={() => viewport.fit()}
+                >
+                  <FitIcon size={16} />
+                </button>
+              </>
+            )}
           </div>
+          <ReopenNoticeSlot reopen={reopen} edited={dirty} />
+          <TextNotice
+            enabled={textEnabled}
+            loaded={image != null}
+            status={recognized.status}
+            wide={canvasMode}
+          />
+          {canvasMode && offContent && (
+            <OffContentNotice direction={offContent} onFit={() => viewport.fit()} />
+          )}
+          {noticeOpen && (
+            <RedactionNotice onUndo={undoLastRedaction} onAcknowledge={acknowledgeNotice} />
+          )}
+          {canvasMode && tools.tool === "crop" && (
+            <ExportFrameCard
+              hasFrame={scene.exportFrame != null}
+              onFit={() => {
+                if (canvasGeom) scene.setExportFrame(contentBoxFrame(canvasGeom));
+              }}
+              onRemove={() => scene.setExportFrame(undefined)}
+            />
+          )}
         </div>
-        <BeautifyPanel beautify={scene.beautify} />
+        {compact
+          ? sheetOpen && (
+              <>
+                <div
+                  className={styles.sheetScrim}
+                  onClick={() => setPanelOpen(false)}
+                  aria-hidden
+                />
+                <div className={styles.sheet}>{sidePanel}</div>
+              </>
+            )
+          : sidePanel}
       </div>
 
       {savedName && (

@@ -1,6 +1,6 @@
 import type { AreaId, Gate, ScreenId, StateId, WindowKind } from "../src/shared/ui-map";
 import type { KaipuElectronAPI } from "../src/shared/types/electron-api";
-import { WINDOW_PRESETS } from "../src/shared/window-size";
+import { WINDOW_PRESETS, type WindowPresetName } from "../src/shared/window-size";
 import type { NotCapturable } from "./catalog/not-capturable";
 import type { ProfileName } from "./profiles";
 
@@ -16,12 +16,33 @@ export const WINDOW_SIZES = {
   main: { width: WINDOW_PRESETS.main.width, height: WINDOW_PRESETS.main.height },
   "main-min": { width: WINDOW_PRESETS.main.minWidth, height: WINDOW_PRESETS.main.minHeight },
   editor: { width: WINDOW_PRESETS.editor.width, height: WINDOW_PRESETS.editor.height },
+  /** An open image opens at the editor's size. */
+  editorImage: {
+    width: WINDOW_PRESETS.editorImage.width,
+    height: WINDOW_PRESETS.editorImage.height,
+  },
+  /** The smallest an open image can be: its compact toolbar (mock B3). */
+  "editor-image-min": {
+    width: WINDOW_PRESETS.editorImage.minWidth,
+    height: WINDOW_PRESETS.editorImage.minHeight,
+  },
   "editor-min": {
     width: WINDOW_PRESETS.editor.minWidth,
     height: WINDOW_PRESETS.editor.minHeight,
   },
 } as const;
 export type WindowSize = keyof typeof WINDOW_SIZES;
+
+/**
+ * The size a route opens at, by the preset `presetForPath` gives it. `onboarding` is never
+ * the answer for a route (the takeover is not one); it maps to `main` to keep this total.
+ */
+export const WINDOW_SIZE_OF_PRESET = {
+  main: "main",
+  editor: "editor",
+  editorImage: "editorImage",
+  onboarding: "main",
+} as const satisfies Record<WindowPresetName, WindowSize>;
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -86,6 +107,12 @@ export const ACTIONS = [
    * vault. Pair it with the state's own undo only when that cannot be done in the UI.
    */
   "restoreVault",
+  /**
+   * Forget that the one-time redaction notice was acknowledged (removes the renderer's
+   * `kaipu.imageEditor.redactionNoticeSeen` localStorage key from the main window), so a
+   * second shot of a state that presses Got it sees the notice again.
+   */
+  "forgetRedactionNotice",
   /** Reload the main window, so per-session renderer state (the reconcile scan) starts over. */
   "reloadMain",
   /** Empty the system clipboard (`clipboard.clear()` in main), so "no image on it" is a state. */
@@ -119,6 +146,16 @@ export type Step =
   | ({ readonly click: Target } & On)
   /** Hover the target's centre, or `at` (fractions of its box, like a drag point). */
   | ({ readonly hover: Target; readonly at?: DragPoint } & On)
+  /**
+   * Move the pointer over the target, then turn the wheel by (`deltaX`, `deltaY`) px, `times`
+   * times (default 1), then settle briefly. A plain wheel pans a canvas; Ctrl or Cmd zooms.
+   */
+  | ({
+      readonly wheel: Target;
+      readonly deltaX?: number;
+      readonly deltaY?: number;
+      readonly times?: number;
+    } & On)
   /**
    * Press at `from`, move to `to` and release. Both points are fractions (0-1) of the target's
    * box, so a drag does not depend on the window size.
@@ -205,6 +242,11 @@ export interface CatalogState<S extends ScreenId> {
   readonly stillOnScreen?: Target;
   /** Keep the pointer where the steps left it (hover states). Default: parked in a corner. */
   readonly keepPointer?: boolean;
+  /**
+   * Leave toasts open for the shot. By default the runner closes them, because a toast a step
+   * caused is not part of the state; set this when the toast is the state (a copy confirmation).
+   */
+  readonly keepToasts?: boolean;
   /**
    * The image shows what was on the runner's screen (a source thumbnail, a capture's preview,
    * a take's first frame). It cannot be scanned as text, so `ui-catalog:lint` lists it for a
@@ -305,6 +347,22 @@ export function matchesOnly(id: string, only: string | undefined): boolean {
     });
 }
 
+/** The wheel events a `wheel` step sends: one `[deltaX, deltaY]` per turn. */
+export function wheelTurns(step: {
+  deltaX?: number;
+  deltaY?: number;
+  times?: number;
+}): [number, number][] {
+  const times = step.times ?? 1;
+  if (!Number.isInteger(times) || times < 1) {
+    throw new Error(`a wheel step needs a whole number of turns of at least 1, got ${times}`);
+  }
+  const dx = step.deltaX ?? 0;
+  const dy = step.deltaY ?? 0;
+  if (dx === 0 && dy === 0) throw new Error("a wheel step needs a deltaX or a deltaY");
+  return Array.from({ length: times }, () => [dx, dy]);
+}
+
 /** A readable sentence for one step, for the README's "How reached". */
 export function describeStep(step: Step): string {
   const target = (t: Target): string => {
@@ -325,6 +383,11 @@ export function describeStep(step: Step): string {
     return step.at
       ? `Hover ${target(step.hover)} at ${pt(step.at)}`
       : `Hover ${target(step.hover)}`;
+  }
+  if ("wheel" in step) {
+    const [dx, dy] = [step.deltaX ?? 0, step.deltaY ?? 0];
+    const times = step.times && step.times > 1 ? `, ${step.times} times` : "";
+    return `Turn the wheel over ${target(step.wheel)} by (${dx}, ${dy}) px${times}`;
   }
   if ("drag" in step) {
     return `Drag across ${target(step.drag)} from ${pt(step.from)} to ${pt(step.to)}`;

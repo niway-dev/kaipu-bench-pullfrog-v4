@@ -7,11 +7,13 @@ export {
   compositeScene,
   compositeSceneAt,
   clampRasterScale,
+  cropWindow,
+  exportPixelSize,
   MAX_RASTER_SIDE,
   type CompositeOptions,
   type CompositeResult,
 } from "./compositor";
-export type { Scene, Annotation, CropRect, MeasureAnnotation } from "./scene";
+export type { Scene, Annotation, CropRect, ImageAnnotation, MeasureAnnotation } from "./scene";
 export { nextAnnotationId } from "./scene";
 export { measureLabel, measureLength } from "./measure";
 export {
@@ -65,6 +67,8 @@ export {
   redactionBlockSize,
   redactRegion,
   bakeRedactions,
+  bakeCanvasRedactions,
+  type CanvasAssets,
   type PixelRegion,
 } from "./redaction";
 export {
@@ -74,5 +78,6 @@ export {
   parseCanvasDoc,
   type CanvasImageItem,
   type CanvasDocV1,
+  type CanvasDocV2,
   type ParsedCanvasDoc,
 } from "./canvas-doc";

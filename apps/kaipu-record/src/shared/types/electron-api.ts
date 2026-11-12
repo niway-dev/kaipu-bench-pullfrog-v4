@@ -624,7 +624,16 @@ export interface KaipuElectronAPI {
   // ── Screenshots ───────────────────────────────────────────────────────
   /** Run a capture in `mode`; always answers captured, cancelled or unsupported. */
   /** `intent: "record"` opens the overlay to choose what to record (ADR 0030). */
-  captureScreenshot(mode: CaptureMode, intent?: CaptureIntent): Promise<CaptureResult>;
+  /**
+   * `options.insert: true` takes the shot for the open image editor's canvas only: main skips
+   * the capture policy (no save, no copy, no toast) and answers the bytes with `saved: null`.
+   * Answers `cancelled` during a take.
+   */
+  captureScreenshot(
+    mode: CaptureMode,
+    intent?: CaptureIntent,
+    options?: { insert?: boolean },
+  ): Promise<CaptureResult>;
   /** Modes this platform can capture; an absent mode renders its entry point disabled. */
   screenshotSupportedModes(): Promise<CaptureMode[]>;
   /**
@@ -700,6 +709,13 @@ export interface KaipuElectronAPI {
    * Any other read error rejects. Either way the editor opens the flattened PNG.
    */
   readScreenshotCanvas(id: string): Promise<CanvasReadResult | null>;
+  /**
+   * When the canvas document beside a screenshot was last written, or null when no document
+   * file exists. `readScreenshotCanvas` answers null for a missing and an unusable document
+   * alike; this tells them apart (a null read with a document present is "unreadable"), and
+   * gives the saved time. Any other stat error (permissions, I/O) rejects with its code.
+   */
+  statScreenshotCanvas(id: string): Promise<{ savedAt: number } | null>;
   /**
    * The words recognized in one image of the editor (ADR 0055). Served from
    * `.kaipu/<id>.text.json` when the cached hash matches the bytes; otherwise the platform

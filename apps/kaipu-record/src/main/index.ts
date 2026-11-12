@@ -1158,6 +1158,15 @@ app.whenReady().then(async () => {
       boundsBeforeEditor = mainWindow.getBounds();
     }
 
+    // Between two Editor presets (home <-> open image <-> video) the window is
+    // already editor-sized and the user may have resized it: never apply the
+    // preset's size. A lower floor just lowers the minimum (no shrink); a higher
+    // one grows the window to it, which `setWindowFloor` does around the centre.
+    if (previous !== null && isEditorPreset(previous) && isEditorPreset(name)) {
+      setWindowFloor(true, minWidth, minHeight);
+      return;
+    }
+
     // The first screen of the session gets its starting size; after that only an
     // editor changes it, and `main` already matches what is on screen.
     if (previous === null && !isEditorPreset(name)) {

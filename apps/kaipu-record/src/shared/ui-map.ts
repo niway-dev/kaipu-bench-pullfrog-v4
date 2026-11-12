@@ -266,25 +266,65 @@ export const UI_MAP = {
     route: ROUTES.editorImage,
     areas: {
       page: { states: ["saved"] },
-      toolbar: { states: ["default", "saved"] },
+      // B1 (default), B2 (a tool's tooltip) and B3 (below 1000 px: the folded toolbar).
+      toolbar: { states: ["default", "saved", "tooltip", "compact"] },
       tools: { states: ["select", "annotate", "crop", "step"] },
-      canvas: { states: ["default", "crop", "annotate", "step"] },
+      // The compact toolbar's Draw and "..." menus and the button that opens the right panel
+      // as a sheet (mock B3).
+      drawMenu: { states: ["closed", "open"] },
+      moreMenu: { states: ["closed", "open"] },
+      panelToggle: { states: ["closed", "open"] },
+      canvas: {
+        states: [
+          "default",
+          "crop",
+          "annotate",
+          "step",
+          "steps",
+          "stepSelected",
+          "stepSizes",
+          "redacted",
+        ],
+      },
       canvasView: {
-        states: ["default", "contentOutside", "zoomedOut", "exportFrame", "light"],
+        states: [
+          "default",
+          "contentOutside",
+          "zoomedOut",
+          "exportFrame",
+          "light",
+          "twoImages",
+          "beautified",
+          "offContent",
+        ],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      // The canvas chrome (NIW2-711): the box Copy and Save export, the card the export frame
+      // tool opens, and the notice that says where the content went when it is off stage.
+      exportBox: { states: ["labeled", "quiet"], gatedBy: [{ flag: "image-canvas" }] },
+      exportFrameCard: { states: ["open"], gatedBy: [{ flag: "image-canvas" }] },
+      offContentNotice: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
+      addImage: { states: ["closed", "open"], gatedBy: [{ flag: "image-canvas" }] },
+      libraryPicker: { states: ["open", "empty"], gatedBy: [{ flag: "image-canvas" }] },
       redactionStyle: {
         states: ["blur", "solid"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      redactionLock: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
+      redactionNotice: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
-      // The colors panel (NIW2-704): the list, the list with one color highlighted, while it
-      // counts, and when the image could not be read.
+      // The side panel's tab strip (NIW2-714): only where Inspect exists, because the Colors
+      // tab is Inspect's. Beautify is selected unless the Colors panel is open.
+      panelTabs: { states: ["beautify", "colors"], gatedBy: [{ flag: "image-inspect" }] },
+      // The colors panel (NIW2-704), the Colors tab of the side panel (NIW2-714): the list
+      // (`list` is grouped, the default; `grouped` is the same list with a box of
+      // near-identical values; `flat` has Group off), one color highlighted, after a copy,
+      // a photograph, while it counts, and when the image could not be read.
       inspectColors: {
-        states: ["list", "located", "counting", "error"],
+        states: ["list", "flat", "grouped", "located", "copied", "photo", "counting", "error"],
         gatedBy: [{ flag: "image-inspect" }],
       },
       // The ruler (NIW2-702): its row in the Inspect bar, the run drawn under the cursor, and
@@ -301,7 +341,15 @@ export const UI_MAP = {
         states: ["pending", "ready", "noText", "unavailable"],
         gatedBy: [{ flag: "image-text" }],
       },
-      textSelection: { states: ["selected"], gatedBy: [{ flag: "image-text" }] },
+      // `copied`: the selection stays after Copy text, with the toast "Text copied" and how many
+      // lines (the toast lives in the app shell, so the shot shows it, not this area).
+      textSelection: { states: ["hover", "selected", "copied"], gatedBy: [{ flag: "image-text" }] },
+      // The quiet notice at the stage's bottom-left: `reading` while recognition is pending,
+      // `unavailable` when it cannot run on this computer. Never an error dialog.
+      textNotice: { states: ["reading", "unavailable"], gatedBy: [{ flag: "image-text" }] },
+      // The pill on the stage when a saved shot is reopened in canvas mode: `editable` says
+      // the document loaded (fades), `flat` that it could not be read (stays until dismissed).
+      reopenNotice: { states: ["editable", "flat"], gatedBy: [{ flag: "image-canvas" }] },
       // The redact tool's text targets (NIW2-706, canvas mode): the image while its lines are
       // click targets (a line outlined under the pointer, then hidden), and the options bar's hint.
       textHide: {

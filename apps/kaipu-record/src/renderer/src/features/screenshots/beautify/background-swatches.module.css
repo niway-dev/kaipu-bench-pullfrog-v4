@@ -25,6 +25,6 @@
 
 .selected {
   box-shadow:
-    0 0 0 2px var(--bg-sidebar),
-    0 0 0 3.5px var(--accent-primary);
+    0 0 0 2px var(--ie-panel),
+    0 0 0 3.5px var(--ie-accent);
 }

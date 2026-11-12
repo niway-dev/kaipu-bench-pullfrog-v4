@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
@@ -824,5 +824,219 @@ describe.each([
     fireEvent.pointerDown(layer(), { ...FILL, button: 0, pointerId: 1 });
     fireEvent.pointerUp(layer(), { ...FILL, button: 0, pointerId: 1 });
     expect(document.querySelector('[data-kind="measure"]')).toBeNull();
+  });
+});
+
+/** 20x10: #ffffff everywhere except two 5x4 cards of #fdfdfd (20 px each, so two areas). */
+function twoCards() {
+  const data = new Uint8ClampedArray(20 * 10 * 4);
+  for (let y = 0; y < 10; y++) {
+    for (let x = 0; x < 20; x++) {
+      const card = y >= 1 && y < 5 && ((x >= 1 && x < 6) || (x >= 12 && x < 17));
+      const v = card ? 253 : 255;
+      data.set([v, v, v, 255], (y * 20 + x) * 4);
+    }
+  }
+  return { width: 20, height: 10, data };
+}
+
+/** 64x32 pixels, every one a different color: a photograph by the panel's count. */
+function photoLike() {
+  const data = new Uint8ClampedArray(64 * 32 * 4);
+  for (let p = 0; p < 64 * 32; p++) {
+    data.set([p % 256, Math.floor(p / 256) * 30, 100 + (p % 5), 255], p * 4);
+  }
+  return { width: 64, height: 32, data };
+}
+
+describe.each([
+  ["image-canvas off", false],
+  ["image-canvas on", true],
+])("ScreenshotEditorPage — Colors tab of the side panel (%s)", (_label, canvas) => {
+  beforeEach(() => {
+    flags["image-inspect"] = true;
+    flags["image-canvas"] = canvas;
+    decodeSrgbBuffer.mockImplementation(async () => twoCards());
+  });
+
+  const tab = (name: string) => screen.getByRole("tab", { name });
+  const panel = () => document.querySelector('[data-ui-area="editorImage.inspectColors"]');
+  const overlay = () => screen.queryByTestId("inspect-locate");
+
+  async function openColors(): Promise<void> {
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(screen.getByRole("button", { name: "Colors" }));
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+  }
+
+  it("shows the tab strip with Beautify selected, and no heading of its own", async () => {
+    mount(PASTE);
+    await loadImage();
+    expect(screen.getByRole("tablist", { name: "Side panel" })).toBeInTheDocument();
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+    expect(tab("Colors")).toHaveAttribute("aria-selected", "false");
+    // The tab names the panel: one "Beautify" on screen, not a tab plus a heading.
+    expect(screen.getAllByText("Beautify")).toHaveLength(1);
+    expect(screen.getByRole("tabpanel")).toContainElement(
+      document.querySelector('[data-ui-area="editorImage.beautify"]') as HTMLElement,
+    );
+  });
+
+  it("has no tab strip where Inspect does not exist", async () => {
+    flags["image-inspect"] = false;
+    mount(PASTE);
+    await loadImage();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+  });
+
+  it("the Colors tab in Annotate turns Inspect on and opens the panel", async () => {
+    mount(PASTE);
+    await loadImage();
+    expect(canvasEl()).toHaveAttribute("data-inspect", "false");
+    fireEvent.click(tab("Colors"));
+    expect(canvasEl()).toHaveAttribute("data-inspect", "true");
+    expect(tab("Colors")).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+    expect(screen.getByRole("tabpanel")).toContainElement(panel() as HTMLElement);
+    // Nothing floats over the stage any more.
+    expect(panel()!.closest('[class*="optionsFloat"]')).toBeNull();
+  });
+
+  it("entering Inspect keeps Beautify, the Inspect bar's Colors button selects the tab, and Beautify closes it", async () => {
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Colors" }));
+    expect(tab("Colors")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(tab("Beautify"));
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+    expect(panel()).toBeNull();
+    // Inspect stays on: only the panel closed.
+    expect(canvasEl()).toHaveAttribute("data-inspect", "true");
+    expect(screen.getByRole("button", { name: "Colors" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("leaving Inspect returns to Beautify", async () => {
+    await openColors();
+    press("Escape");
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("Group is on by default: near-identical values sit in a box with their distance", async () => {
+    await openColors();
+    expect(screen.getByRole("switch", { name: "Group" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Almost the same")).toBeInTheDocument();
+    expect(screen.getByText(/^ΔE \d/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show both/ })).toHaveAttribute(
+      "title",
+      "Highlight #ffffff and the values grouped with it",
+    );
+    expect(screen.getByTitle("Highlight only #fdfdfd")).toBeInTheDocument();
+    expect(screen.getByText(/1 set of colors is nearly identical/)).toBeInTheDocument();
+  });
+
+  it("Group off lists every exact value as its own row, and Group on brings the boxes back", async () => {
+    await openColors();
+    fireEvent.click(screen.getByRole("switch", { name: "Group" }));
+    expect(screen.getByRole("switch", { name: "Group" })).toHaveAttribute("aria-checked", "false");
+    expect(panel()).toHaveAttribute("data-grouped", "false");
+    expect(screen.queryByText("Almost the same")).toBeNull();
+    expect(screen.queryByTitle(/and the values grouped with it/)).toBeNull();
+    expect(screen.getByTitle("Highlight only #ffffff")).toHaveTextContent("#ffffff");
+    expect(screen.getByTitle("Highlight only #fdfdfd")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Highlight only #fdfdfd"));
+    await waitFor(() => expect(overlay()).toHaveAttribute("data-matched", "40"));
+
+    // Switching lists drops a highlight the other list may not have.
+    fireEvent.click(screen.getByRole("switch", { name: "Group" }));
+    expect(overlay()).toBeNull();
+    expect(screen.getByText("Almost the same")).toBeInTheDocument();
+  });
+
+  it("highlighting a color tags its largest area on the image and tells how to stop", async () => {
+    await openColors();
+    fireEvent.click(screen.getByTitle("Highlight only #fdfdfd"));
+    await waitFor(() => expect(overlay()).toHaveAttribute("data-matched", "40"));
+    const tag = await screen.findByTestId("inspect-locate-tag");
+    expect(tag).toHaveTextContent("#fdfdfd · 2 areas · 20.0% of the image");
+    // A sibling of the highlight, so it is placed over the same image.
+    expect(tag.parentElement).toBe(overlay()!.parentElement);
+    expect(screen.getByTitle("Highlight only #fdfdfd")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Click the color again to stop highlighting.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Highlight only #fdfdfd"));
+    expect(screen.queryByTestId("inspect-locate-tag")).toBeNull();
+  });
+
+  it("copy puts the value in the Inspect format on the clipboard, shows Copied and a toast", async () => {
+    await openColors();
+    fireEvent.click(screen.getByRole("button", { name: "RGB" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy rgb(253, 253, 253)" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("rgb(253, 253, 253)"));
+    await waitFor(() =>
+      expect(screen.getByTitle("Highlight only rgb(253, 253, 253)")).toHaveTextContent("Copied"),
+    );
+    // The row's share is replaced for a moment, not the other rows'.
+    expect(screen.getByTitle("Highlight only rgb(253, 253, 253)")).not.toHaveTextContent("%");
+    expect(screen.getByTitle("Highlight only rgb(255, 255, 255)")).not.toHaveTextContent("Copied");
+    expect(getToasts().map((x) => x.message)).toContain("Copied rgb(253, 253, 253)");
+  });
+
+  it("the Copied mark goes away after a moment", async () => {
+    await openColors();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Copy #fdfdfd" }));
+      await vi.waitFor(() =>
+        expect(screen.getByTitle("Highlight only #fdfdfd")).toHaveTextContent("Copied"),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1600);
+      });
+      expect(screen.getByTitle("Highlight only #fdfdfd")).not.toHaveTextContent("Copied");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a failed copy says so and does not show Copied", async () => {
+    writeText.mockRejectedValueOnce(new Error("denied"));
+    await openColors();
+    fireEvent.click(screen.getByRole("button", { name: "Copy #fdfdfd" }));
+    await waitFor(() => expect(reportError).toHaveBeenCalled());
+    expect(screen.getByTitle("Highlight only #fdfdfd")).not.toHaveTextContent("Copied");
+    expect(getToasts()).toEqual([]);
+  });
+
+  it("reads the colors with a progress view while Inspect is still decoding", async () => {
+    decodeSrgbBuffer.mockImplementation(() => new Promise(() => {}));
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(screen.getByRole("button", { name: "Colors" }));
+    expect(panel()).toHaveTextContent("Reading colors…");
+    expect(panel()).not.toHaveTextContent("%");
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
+
+  it("lists a photograph by the groups that cover most of it, with Other last and a card", async () => {
+    decodeSrgbBuffer.mockImplementation(async () => photoLike());
+    mount(PASTE);
+    await loadImage();
+    press("i");
+    fireEvent.click(screen.getByRole("button", { name: "Colors" }));
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "photo"));
+    expect(screen.getByText("This looks like a photo")).toBeInTheDocument();
+    expect(panel()).toHaveTextContent("2,048 colors. Showing the");
+    expect(panel()).toHaveTextContent("groups that cover 80% of the image");
+    // Group has no meaning for a photo, and its rows are groups.
+    expect(screen.queryByRole("switch")).toBeNull();
+    const items = Array.from(panel()!.querySelectorAll("ul > li"));
+    const other = items[items.length - 1] as HTMLElement;
+    expect(other).toHaveTextContent("Other");
+    expect(other.querySelector("button")).toBeNull();
   });
 });

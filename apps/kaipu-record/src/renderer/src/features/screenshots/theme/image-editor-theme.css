@@ -1,0 +1,55 @@
+/*
+ * Image editor palette. These tokens come from the owner's M11 mock (NIW2-708) and are
+ * pinned value by value in image-editor-theme.test.ts.
+ *
+ * Rule: image-editor CSS reads only these `--ie-*` colors, never the app's global color
+ * variables (`--bg-*`, `--text*`, `--line`, `--border*`, `--accent*`, `--shadow-*`). A sweep
+ * test enforces it for the editor's CSS modules.
+ *
+ * Defined on :root, not on a page element, so portaled menus and dialogs get them too.
+ * Dark is the default; light applies under the selector apply-theme.ts already sets.
+ * The `--ie-ov-*` and `--ie-dim` tokens are chrome drawn over the image or outside an
+ * export frame: always dark, so the light block does not redefine them.
+ */
+:root {
+  --ie-app: #060607;
+  --ie-stage: #060607;
+  --ie-panel: #0b0b0d;
+  --ie-card: #0e0e10;
+  --ie-hover: #17171a;
+  --ie-sep: rgba(255, 255, 255, 0.08);
+  --ie-strong: rgba(255, 255, 255, 0.14);
+  --ie-tx: #e8e8ed;
+  --ie-tx2: #c8c8d0;
+  --ie-mut: #a1a1aa;
+  --ie-faint: #62626a;
+  --ie-dot: rgba(255, 255, 255, 0.08);
+  --ie-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+  --ie-export-dash: rgba(255, 255, 255, 0.3);
+  --ie-accent: #f6055c;
+  --ie-accent-soft: rgba(246, 5, 92, 0.14);
+  --ie-ov-bg: rgba(11, 11, 13, 0.94);
+  --ie-ov-bd: rgba(255, 255, 255, 0.24);
+  --ie-ov-tx: #e8e8ed;
+  --ie-dim: rgba(6, 6, 7, 0.68);
+  --ie-font-mono: var(--font-mono);
+}
+
+:root[data-theme="light"] {
+  --ie-app: #fafafa;
+  --ie-stage: #f1f1f3;
+  --ie-panel: #ffffff;
+  --ie-card: #ffffff;
+  --ie-hover: #eeeef1;
+  --ie-sep: rgba(0, 0, 0, 0.09);
+  --ie-strong: rgba(0, 0, 0, 0.18);
+  --ie-tx: #18181b;
+  --ie-tx2: #3f3f46;
+  --ie-mut: #6a6a73;
+  --ie-faint: #9a9aa2;
+  --ie-dot: rgba(0, 0, 0, 0.13);
+  --ie-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.3);
+  --ie-export-dash: rgba(0, 0, 0, 0.34);
+  --ie-accent: #f6055c;
+  --ie-accent-soft: rgba(246, 5, 92, 0.14);
+}

@@ -28,7 +28,11 @@ export function naturalRect(
 }
 
 /**
- * The decoded shot, loaded once per display URL (one entry: the editor shows one shot).
+ * Decoded images, loaded once per display URL: the base shot plus each image added to the
+ * canvas (NIW2-703), so a blur over an added image redacts THAT image's pixels. Small and
+ * least-recently-used: an entry is dropped once more than `MAX_IMAGES` others were used
+ * since, so a long session does not keep every decoded bitmap alive. Evicted bitmaps are
+ * not closed: a tile render may still hold one, and the GC frees it.
  *
  * Decoded from the fetched BYTES, not through an `<img>`: a vault shot's URL is
  * `kaipu-media://`, another origin than the page, so an `<img>` loaded without CORS taints
@@ -36,10 +40,17 @@ export function naturalRect(
  * the real app, NIW2-700). A bitmap made from a blob is never tainted. The decode options
  * are the ones `bakeRedactions` uses, so the preview shows the pixels the save writes.
  */
-let cached: { src: string; image: Promise<ImageBitmap | null> } | null = null;
+const images = new Map<string, Promise<ImageBitmap | null>>();
+export const MAX_IMAGES = 6;
 
-function loadImage(src: string): Promise<ImageBitmap | null> {
-  if (cached?.src === src) return cached.image;
+export function loadImage(src: string): Promise<ImageBitmap | null> {
+  const hit = images.get(src);
+  if (hit) {
+    // Re-insert so the Map's order is recency order.
+    images.delete(src);
+    images.set(src, hit);
+    return hit;
+  }
   const image = fetch(src)
     .then((response) => {
       if (!response.ok) throw new Error(`redaction preview: ${response.status}`);
@@ -49,12 +60,18 @@ function loadImage(src: string): Promise<ImageBitmap | null> {
       createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" }),
     )
     .catch(() => {
-      // Not cached: the next preview of this shot tries again.
-      if (cached?.src === src) cached = null;
+      // Not cached: the next preview of this image tries again.
+      if (images.get(src) === image) images.delete(src);
       return null;
     });
-  cached = { src, image };
+  images.set(src, image);
+  while (images.size > MAX_IMAGES) images.delete(images.keys().next().value as string);
   return image;
+}
+
+/** Test seam: forget every decoded image. */
+export function clearImageCache(): void {
+  images.clear();
 }
 
 /** Tiles by (src, rect, style); small and bounded, a drag evicts as it goes. */

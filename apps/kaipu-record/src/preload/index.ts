@@ -351,8 +351,12 @@ const kaipuApi: KaipuElectronAPI = {
     scopedInvoke(IPC_CHANNELS.videoEditSaveSession, id, sessionJson, assets, exported),
   loadVideoEditSession: (id) => scopedInvoke(IPC_CHANNELS.videoEditLoadSession, id),
   loadCursorTrack: (id) => scopedInvoke(IPC_CHANNELS.loadCursorTrack, id),
-  captureScreenshot: (mode, intent) =>
-    ipcRenderer.invoke(IPC_CHANNELS.screenshotCapture, intent ? { mode, intent } : { mode }),
+  captureScreenshot: (mode, intent, options) =>
+    ipcRenderer.invoke(IPC_CHANNELS.screenshotCapture, {
+      mode,
+      ...(intent ? { intent } : {}),
+      ...(options?.insert === true ? { insert: true } : {}),
+    }),
   screenshotSupportedModes: () => ipcRenderer.invoke(IPC_CHANNELS.screenshotSupportedModes),
   revealAfterCapture: () => ipcRenderer.send(IPC_CHANNELS.screenshotReveal),
   reportCaptureWhileRecording: (enabled) =>
@@ -431,6 +435,7 @@ const kaipuApi: KaipuElectronAPI = {
   copyScreenshotById: (id) => scopedInvoke(IPC_CHANNELS.screenshotCopyById, id),
   readScreenshotBytes: (id) => scopedInvoke(IPC_CHANNELS.screenshotReadBytes, id),
   readScreenshotCanvas: (id) => scopedInvoke(IPC_CHANNELS.screenshotReadCanvas, id),
+  statScreenshotCanvas: (id) => scopedInvoke(IPC_CHANNELS.screenshotStatCanvas, id),
   recognizeScreenshotText: (request) => scopedInvoke(IPC_CHANNELS.screenshotRecognizeText, request),
   readClipboardImage: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadImage),
   peekClipboardImage: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardPeekImage),

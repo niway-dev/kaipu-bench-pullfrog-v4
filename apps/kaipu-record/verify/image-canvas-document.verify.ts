@@ -163,7 +163,8 @@ test("image-canvas document: save, reopen from the Library, redaction baked, fla
     const doc = await readDoc(s, id);
     const arrow = doc.items.find((i) => i.kind === "arrow");
     const blur = doc.items.find((i) => i.kind === "blur");
-    expect(doc.schemaVersion).toBe(1);
+    // M6 (NIW2-703) writes v2: geometry in world units, 1 unit = 1 base source px.
+    expect(doc.schemaVersion).toBe(2);
     expect(doc.items[0].kind).toBe("image");
     expect(arrow, "the document has the arrow").toBeDefined();
     expect(blur?.locked, "the blur is locked in the document").toBe(true);
@@ -173,10 +174,10 @@ test("image-canvas document: save, reopen from the Library, redaction baked, fla
     expect(asset.width).toBe(original.width);
     expect(asset.height).toBe(original.height);
     const rect = {
-      x0: Math.floor((blur!.x ?? 0) * asset.width),
-      y0: Math.floor((blur!.y ?? 0) * asset.height),
-      x1: Math.ceil(((blur!.x ?? 0) + (blur!.w ?? 0)) * asset.width),
-      y1: Math.ceil(((blur!.y ?? 0) + (blur!.h ?? 0)) * asset.height),
+      x0: Math.floor(blur!.x ?? 0),
+      y0: Math.floor(blur!.y ?? 0),
+      x1: Math.ceil((blur!.x ?? 0) + (blur!.w ?? 0)),
+      y1: Math.ceil((blur!.y ?? 0) + (blur!.h ?? 0)),
     };
     const diff = diffInOut(original, asset, rect);
     const saved = {

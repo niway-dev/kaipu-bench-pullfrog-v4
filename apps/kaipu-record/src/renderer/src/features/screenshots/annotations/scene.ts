@@ -65,7 +65,31 @@ export interface BlurAnnotation {
   /** True = its pixels were baked into the stored asset by an earlier save. It is kept in
    * the document but not drawn again and not selectable. */
   locked?: boolean;
+  /** Epoch ms of the save that locked it; shown as "Permanent · saved Nov 11". Absent on a
+   * redaction locked before the time was recorded. */
+  lockedAt?: number;
 }
+/**
+ * Canvas mode only (NIW2-703): an image added to the canvas. Geometry is in the same
+ * base-normalized units as every annotation (it may lie outside 0–1); w/h keep the image
+ * at 1 world unit = 1 source px, so selection, move, delete, z-order and undo reuse the
+ * annotation machinery. The base image is not one of these: it stays the anchor.
+ */
+export interface ImageAnnotation {
+  id: string;
+  kind: "image";
+  /** Key into the editor's asset map and `.kaipu/<id>.assets/<assetId>.png`. */
+  assetId: string;
+  /** Top-left, normalized to the base image. */
+  x: number;
+  y: number;
+  /** pixelWidth / baseNaturalW and pixelHeight / baseNaturalH. */
+  w: number;
+  h: number;
+  pixelWidth: number;
+  pixelHeight: number;
+}
+
 /**
  * A pinned ruler measurement (NIW2-702). Unlike the other kinds it is stored in the image's
  * SOURCE pixels, not normalized units, so the label is exact and never depends on zoom: the
@@ -106,6 +130,7 @@ export type Annotation =
   | TextAnnotation
   | PathAnnotation
   | BlurAnnotation
+  | ImageAnnotation
   | MeasureAnnotation
   | StepAnnotation;
 

@@ -27,7 +27,7 @@ import {
   updateAppSettings,
 } from "../infrastructure/settings-store";
 import { currentVault, scopedAdmitted, screenshotFilePath } from "../library";
-import { readCanvas } from "./screenshot-canvas";
+import { readCanvas, statCanvas } from "./screenshot-canvas";
 import { recognizeScreenshotText } from "./screenshot-text";
 import { createTextRecognizer } from "./text-recognition";
 import type {
@@ -310,6 +310,15 @@ export function registerScreenshotHandlers(
     }),
   );
 
+  // Whether a canvas document exists beside a shot, and when it was written. Null only when it
+  // is missing; any other stat error rejects, so the renderer reports the document as unreadable.
+  ipcMain.handle(
+    IPC_CHANNELS.screenshotStatCanvas,
+    scopedAdmitted("library", async (id: string): Promise<{ savedAt: number } | null> => {
+      return statCanvas(currentVault(), id);
+    }),
+  );
+
   // Text recognition (ADR 0055): cached beside the item, never rejects to the renderer.
   let recognizer: TextRecognizer | null = null;
   ipcMain.handle(
@@ -321,6 +330,7 @@ export function registerScreenshotHandlers(
           recognizer ??= createTextRecognizer({
             resourcesPath: process.resourcesPath,
             appPath: app.isPackaged ? undefined : app.getAppPath(),
+            isPackaged: app.isPackaged,
           });
           return await recognizeScreenshotText({ vault: currentVault, recognizer }, request);
         } catch (error) {

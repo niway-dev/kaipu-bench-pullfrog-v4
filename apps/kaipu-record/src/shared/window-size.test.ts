@@ -31,17 +31,15 @@ describe("presetForPath", () => {
     for (const path of sidebar) expect(presetForPath(path), path).toBe("main");
   });
 
-  it("gives the whole Editor workspace the editor preset", () => {
-    // Home, New image, an open video and an open image all share one window, so
-    // moving between them never resizes it mid-session.
-    const editor = [
-      ROUTES.editor,
-      ROUTES.editorNew,
-      ROUTES.editorCapture,
-      "/editor/video/asset-1",
-      "/editor/image/asset-1",
-    ];
+  it("gives the Editor workspace the editor preset, except an open image", () => {
+    const editor = [ROUTES.editor, ROUTES.editorNew, "/editor/video/asset-1"];
     for (const path of editor) expect(presetForPath(path), path).toBe("editor");
+  });
+
+  it("gives an open image and a fresh capture the image preset, so their floor can be lower", () => {
+    // `/editor/capture` renders the same page (and compact toolbar) as an open image.
+    expect(presetForPath("/editor/image/asset-1")).toBe("editorImage");
+    expect(presetForPath(ROUTES.editorCapture)).toBe("editorImage");
   });
 
   it("matches /editor as a path segment, not as a string prefix", () => {
@@ -61,6 +59,7 @@ describe("presetForPath", () => {
 describe("isEditorPreset", () => {
   it("is true only for the screens that take the window over", () => {
     expect(isEditorPreset("editor")).toBe(true);
+    expect(isEditorPreset("editorImage")).toBe(true);
     expect(isEditorPreset("main")).toBe(false);
     expect(isEditorPreset("onboarding")).toBe(false);
   });
@@ -86,6 +85,20 @@ describe("WINDOW_PRESETS", () => {
     // Taking the editor's floor for every screen would make the whole app
     // needlessly large; the main window stays at the smallest usable size.
     expect(WINDOW_PRESETS.main.minWidth).toBeLessThan(WINDOW_PRESETS.editor.minWidth);
+  });
+});
+
+describe("the image editor preset", () => {
+  it("opens at the editor's size, so opening an item never resizes the window", () => {
+    expect(WINDOW_PRESETS.editorImage.width).toBe(WINDOW_PRESETS.editor.width);
+    expect(WINDOW_PRESETS.editorImage.height).toBe(WINDOW_PRESETS.editor.height);
+  });
+
+  it("goes down to 720x560, the app's base minimum, and no lower", () => {
+    expect(WINDOW_PRESETS.editorImage.minWidth).toBe(720);
+    expect(WINDOW_PRESETS.editorImage.minHeight).toBe(560);
+    expect(WINDOW_PRESETS.editor.minWidth).toBe(1180);
+    expect(WINDOW_PRESETS.editor.minHeight).toBe(760);
   });
 });
 

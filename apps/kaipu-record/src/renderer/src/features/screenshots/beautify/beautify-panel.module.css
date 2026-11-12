@@ -6,10 +6,20 @@
 .panel {
   width: 280px;
   flex-shrink: 0;
-  border-left: 1px solid var(--line);
-  background: var(--bg-panel);
+  border-left: 1px solid var(--ie-sep);
+  background: var(--ie-panel);
   padding: var(--space-lg) var(--space-md);
   overflow-y: auto;
+}
+
+/* In the tabbed side panel: its body is the frame, so this panel only lays out its content. */
+.embedded {
+  width: auto;
+  flex-shrink: 1;
+  padding: 0;
+  overflow: visible;
+  border-left: 0;
+  background: transparent;
 }
 
 .heading {
@@ -19,14 +29,14 @@
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-label);
   letter-spacing: 0;
-  color: var(--text-4);
+  color: var(--ie-faint);
 }
 
 .label {
   margin: 0 0 var(--space-sm);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 /* Spacing under the swatch grid (the grid itself is background-swatches.module.css). */
@@ -50,13 +60,13 @@
 .controlLabel {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 .controlValue {
-  font-family: var(--font-mono);
+  font-family: var(--ie-font-mono);
   font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
 }
 
 .range {
@@ -65,10 +75,10 @@
   width: 100%;
   height: 4px;
   border-radius: 2px;
-  background: var(--border);
+  background: var(--ie-sep);
   outline: none;
   cursor: pointer;
-  accent-color: var(--accent-primary);
+  accent-color: var(--ie-accent);
 }
 
 .range::-webkit-slider-thumb {
@@ -78,15 +88,15 @@
   height: 15px;
   border-radius: 50%;
   background: #fff;
-  border: 2px solid var(--accent-primary);
+  border: 2px solid var(--ie-accent);
   cursor: pointer;
 }
 
 .tip {
   margin: var(--space-md) 0 0;
   padding-top: var(--space-lg);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--ie-sep);
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
+  color: var(--ie-mut);
   line-height: 1.5;
 }

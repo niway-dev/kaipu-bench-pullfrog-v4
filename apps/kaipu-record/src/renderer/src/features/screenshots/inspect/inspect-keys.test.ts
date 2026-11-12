@@ -86,4 +86,21 @@ describe("inspectKeyAction", () => {
     expect(inspectKeyAction(key("Escape"), true, true)).toBeNull();
     expect(inspectKeyAction(key("c"), true, true)).toBeNull();
   });
+
+  describe("Shift+1 and the Fit shortcut", () => {
+    const shift1 = (extra: Partial<Parameters<typeof inspectKeyAction>[0]> = {}) =>
+      key("!", { shiftKey: true, code: "Digit1", ...extra });
+
+    it("picks the ruler when canvas mode is off", () => {
+      expect(inspectKeyAction(shift1(), true, false, false)).toBe("rulerX");
+    });
+
+    it("leaves Shift+Digit1 to Fit when canvas mode is on", () => {
+      expect(inspectKeyAction(shift1(), true, false, true)).toBeNull();
+    });
+
+    it("still picks the ruler on Shift+Numpad1 in canvas mode, which Fit ignores", () => {
+      expect(inspectKeyAction(shift1({ code: "Numpad1" }), true, false, true)).toBe("rulerX");
+    });
+  });
 });

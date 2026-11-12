@@ -42,6 +42,12 @@ export interface WindowSizePreset {
  * its window so moving within the workspace never resizes it. Entering it from
  * a sidebar page grows the window; leaving it restores the size the window had
  * before rather than a preset. Owner decision, 2026-10-15.
+ *
+ * One exception inside the exception: an open image (`editorImage`) has the
+ * same default size but a floor of 720x560, because its toolbar collapses to a
+ * compact state and the canvas reflows. The trade-off: leaving the image editor
+ * for another Editor route while the window is below 1180x760 grows the window
+ * to that route's floor.
  */
 export const WINDOW_PRESETS = {
   /**
@@ -49,14 +55,23 @@ export const WINDOW_PRESETS = {
    */
   main: { width: 1040, height: 760, minWidth: 900, minHeight: 670 },
   /**
-   * The only exception: the whole Editor workspace (`/editor` and everything
-   * under it). The video editor sets the size — a preview, an inspector and five
+   * The Editor workspace (`/editor` and everything under it) except an open
+   * image or a fresh capture. The video editor sets the size — a preview, an inspector and five
    * timeline lanes do not fit the shared window, and below this the lanes stop
-   * being readable rather than merely narrow — and the image editor, the Editor
-   * home and New image share it, so moving between the home and an open item
-   * never resizes the window mid-session.
+   * being readable rather than merely narrow — and the Editor home and New
+   * image share it, so moving between them never resizes the window
+   * mid-session.
    */
   editor: { width: 1440, height: 900, minWidth: 1180, minHeight: 760 },
+  /**
+   * An open image (`ROUTES.editorImage`) or a fresh capture (`ROUTES.editorCapture`). Same starting size as `editor`, so
+   * opening an item from the home never resizes the window, but it may be
+   * dragged down to the app's base minimum: the toolbar has a compact state for
+   * it. The minimum equals `BASE_MIN_WIDTH/HEIGHT` in `main/index.ts` (kept
+   * equal by hand: shared code cannot import main), so the floor is never
+   * above the base one.
+   */
+  editorImage: { width: 1440, height: 900, minWidth: 720, minHeight: 560 },
   /**
    * The first-run takeover does not reflow — a 96px mark, a headline, a two-line
    * subtitle and a 2x2 grid of permission cards.
@@ -69,7 +84,8 @@ export type WindowPresetName = keyof typeof WINDOW_PRESETS;
 /**
  * Which preset a path wants.
  *
- * Only the Editor workspace asks for something of its own; every other route is
+ * Only the Editor workspace asks for something of its own (an open image has its
+ * own preset, the rest of the workspace shares `editor`); every other route is
  * `main`, and main treats a repeat as a no-op, so navigating between sidebar
  * pages never touches the window. The legacy `/screenshot-editor` and
  * `/video-editor` paths stay on `main`: they redirect at once, and the path
@@ -84,12 +100,17 @@ export function presetForPath(pathname: string): WindowPresetName {
   // `/editor/image/:id`, `/editor/new`, `/editor/capture`. The slash is part of
   // the prefix so an unrelated `/editor-ish` route would not match.
   const isEditor = pathname === ROUTES.editor || pathname.startsWith(`${ROUTES.editor}/`);
-  return isEditor ? "editor" : "main";
+  if (!isEditor) return "main";
+  // `ROUTES.editorImage` is `/editor/image/:assetId`; match the part before the param.
+  // A fresh capture (`ROUTES.editorCapture`) renders the same page, so it shares the preset.
+  const imagePrefix = ROUTES.editorImage.slice(0, ROUTES.editorImage.indexOf(":"));
+  if (pathname === ROUTES.editorCapture || pathname.startsWith(imagePrefix)) return "editorImage";
+  return "editor";
 }
 
-/** True for the one workspace that takes the window over. */
+/** True for the presets of the one workspace that takes the window over. */
 export function isEditorPreset(name: WindowPresetName): boolean {
-  return name === "editor";
+  return name === "editor" || name === "editorImage";
 }
 
 /**

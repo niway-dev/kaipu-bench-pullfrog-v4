@@ -4,11 +4,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnnotationLayer } from "./annotation-layer";
 import { ANNOTATION_COLORS } from "./tools";
 import { handlesFor } from "./handles";
-import type { Annotation, BoxAnnotation } from "./scene";
+import { useRedactionTile } from "./redaction-preview";
+import type { Annotation, BlurAnnotation, BoxAnnotation, ImageAnnotation } from "./scene";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import type { RecognizedWord } from "@kaipu/domain/schemas";
 import type { TextLayerModel } from "../text-selection";
+
+// The tile decode needs fetch and a real canvas; the layer tests only care what it is asked
+// for and where the returned tile is drawn.
+vi.mock("./redaction-preview", () => ({ useRedactionTile: vi.fn(() => null) }));
 
 function makeTools(overrides: Partial<AnnotationToolsController> = {}): AnnotationToolsController {
   return {
@@ -28,9 +33,13 @@ function makeTools(overrides: Partial<AnnotationToolsController> = {}): Annotati
   };
 }
 
-function makeScene(annotations: Annotation[], selectedId: string | null): EditorScene {
+function makeScene(
+  annotations: Annotation[],
+  selectedId: string | null,
+  beautify: { radius?: number; shadow?: number } = {},
+): EditorScene {
   return {
-    beautify: {} as EditorScene["beautify"],
+    beautify: { state: beautify } as unknown as EditorScene["beautify"],
     annotations,
     selectedId,
     select: vi.fn(),
@@ -512,6 +521,296 @@ describe("AnnotationLayer — canvas mode (NIW2-698)", () => {
   });
 });
 
+describe("AnnotationLayer — added images (NIW2-703)", () => {
+  const image: ImageAnnotation = {
+    id: "i1",
+    kind: "image",
+    assetId: "img-aaaaaaaaaaaa",
+    x: 0.5,
+    y: 0.25,
+    w: 0.4,
+    h: 0.3,
+    pixelWidth: 40,
+    pixelHeight: 30,
+  };
+  const urls = { "img-aaaaaaaaaaaa": "blob:added" };
+
+  function renderImageLayer(
+    scene: EditorScene,
+    tools: AnnotationToolsController,
+    props: Partial<React.ComponentProps<typeof AnnotationLayer>> = {},
+  ) {
+    for (const prop of ["clientWidth", "clientHeight"]) {
+      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 100 });
+    }
+    const utils = render(
+      <AnnotationLayer scene={scene} tools={tools} src="" canvas imageUrls={urls} {...props} />,
+    );
+    const layer = utils.container.firstChild as HTMLElement;
+    layer.setPointerCapture = vi.fn();
+    layer.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: 100,
+        bottom: 100,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    return { ...utils, layer };
+  }
+
+  const imageEl = (c: HTMLElement): Element | null =>
+    c.querySelector('[data-testid="canvas-image"]');
+
+  it("draws the asset at its normalized rect, in display px", () => {
+    const { container } = renderImageLayer(makeScene([image], null), makeTools());
+    const el = imageEl(container)!;
+    expect(el.getAttribute("href")).toBe("blob:added");
+    expect(el.getAttribute("x")).toBe("50");
+    expect(el.getAttribute("y")).toBe("25");
+    expect(el.getAttribute("width")).toBe("40");
+    expect(el.getAttribute("height")).toBe("30");
+    expect(el.getAttribute("preserveAspectRatio")).toBe("none");
+    expect(container.querySelector('[data-annotation="i1"]')).not.toBeNull();
+  });
+
+  it("draws nothing when the editor has no URL for the asset", () => {
+    const { container } = renderImageLayer(makeScene([image], "i1"), makeTools(), {
+      imageUrls: {},
+    });
+    expect(imageEl(container)).toBeNull();
+    expect(container.querySelector('[data-annotation="i1"]')).toBeNull();
+  });
+
+  it("clips to the beautify radius and drops the beautify shadow behind it", () => {
+    const { container } = renderImageLayer(
+      makeScene([image], null, { radius: 12, shadow: 40 }),
+      makeTools(),
+    );
+    expect(container.querySelector("clipPath rect")?.getAttribute("rx")).toBe("12");
+    const drop = container.querySelector("feDropShadow")!;
+    expect(drop.getAttribute("dy")).toBe("18"); // round(40 * 0.45), as the base's box-shadow
+    expect(drop.getAttribute("stdDeviation")).toBe("22"); // round(40 * 0.9 + 8) / 2
+    expect(drop.getAttribute("flood-opacity")).toBe("0.32");
+  });
+
+  it("draws no shadow when the beautify shadow is 0", () => {
+    const { container } = renderImageLayer(makeScene([image], null), makeTools());
+    expect(container.querySelector("feDropShadow")).toBeNull();
+  });
+
+  it("outlines it when selected, without resize handles", () => {
+    const { container } = renderImageLayer(makeScene([image], "i1"), makeTools());
+    expect(container.querySelector("rect[class*='selOutline']")).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="resize-handle"]')).toHaveLength(0);
+  });
+
+  it("a click on it selects it, and a drag commits a moved x/y", () => {
+    const scene = makeScene([image], null);
+    const { layer } = renderImageLayer(scene, makeTools({ tool: "select" }));
+    fireEvent.pointerDown(layer, { clientX: 70, clientY: 40 });
+    expect(scene.select).toHaveBeenCalledWith("i1");
+    fireEvent.pointerMove(layer, { clientX: 80, clientY: 60 });
+    fireEvent.pointerUp(layer);
+    expect(scene.commitAnnotation).toHaveBeenCalledTimes(1);
+    const [id, patch] = (scene.commitAnnotation as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(id).toBe("i1");
+    expect(patch.x).toBeCloseTo(0.6);
+    expect(patch.y).toBeCloseTo(0.45);
+    expect(patch.w).toBeUndefined(); // it moves, it does not resize
+  });
+
+  it("dragging a corner resizes it with its ratio kept, in one commit", () => {
+    const scene = makeScene([image], "i1");
+    const { layer } = renderImageLayer(scene, makeTools({ tool: "select" }));
+    // The se corner is at (90, 55) of the 100 x 100 layer.
+    fireEvent.pointerDown(layer, { clientX: 90, clientY: 55 });
+    fireEvent.pointerMove(layer, { clientX: 100, clientY: 60 });
+    fireEvent.pointerUp(layer);
+    expect(scene.commitAnnotation).toHaveBeenCalledTimes(1);
+    const [id, patch] = (scene.commitAnnotation as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(id).toBe("i1");
+    expect(patch.x).toBeCloseTo(0.5); // the nw corner stayed
+    expect(patch.y).toBeCloseTo(0.25);
+    expect(patch.w).toBeCloseTo(0.5);
+    expect(patch.h).toBeCloseTo(0.375);
+    expect(patch.w / patch.h).toBeCloseTo(40 / 30);
+  });
+
+  it("an edge handle still drags the image instead of resizing it", () => {
+    const scene = makeScene([image], "i1");
+    const { layer } = renderImageLayer(scene, makeTools({ tool: "select" }));
+    fireEvent.pointerDown(layer, { clientX: 90, clientY: 40 }); // the e handle, inside the image
+    fireEvent.pointerMove(layer, { clientX: 95, clientY: 40 });
+    fireEvent.pointerUp(layer);
+    const [, patch] = (scene.commitAnnotation as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(patch.w).toBeUndefined();
+    expect(patch.x).toBeCloseTo(0.55);
+  });
+
+  it("moves in the DOM before the commit", () => {
+    const scene = makeScene([image], null);
+    const { layer, container } = renderImageLayer(scene, makeTools({ tool: "select" }));
+    fireEvent.pointerDown(layer, { clientX: 70, clientY: 40 });
+    fireEvent.pointerMove(layer, { clientX: 80, clientY: 40 });
+    expect(Number(imageEl(container)!.getAttribute("x"))).toBeCloseTo(60);
+    expect(scene.commitAnnotation).not.toHaveBeenCalled();
+  });
+
+  it("the whole rect is hittable, and the later item in z-order takes the click", () => {
+    const over: BoxAnnotation = { ...box, id: "b2", x: 0.55, y: 0.3, w: 0.2, h: 0.2 };
+    const scene = makeScene([image, over], null);
+    const { layer } = renderImageLayer(scene, makeTools({ tool: "select" }));
+    fireEvent.pointerDown(layer, { clientX: 89, clientY: 54 }); // far corner, image only
+    expect(scene.select).toHaveBeenLastCalledWith("i1");
+    fireEvent.pointerUp(layer);
+    fireEvent.pointerDown(layer, { clientX: 65, clientY: 40 }); // inside the box above it
+    expect(scene.select).toHaveBeenLastCalledWith("b2");
+  });
+
+  it("Delete removes the selected image", () => {
+    const scene = makeScene([image], "i1");
+    renderImageLayer(scene, makeTools());
+    fireEvent.keyDown(window, { key: "Delete" });
+    expect(scene.removeSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it("the box tool still draws over an image", () => {
+    const scene = makeScene([image], null);
+    const { layer } = renderImageLayer(scene, makeTools({ tool: "box" }));
+    fireEvent.pointerDown(layer, { clientX: 60, clientY: 30 });
+    fireEvent.pointerMove(layer, { clientX: 80, clientY: 50 });
+    fireEvent.pointerUp(layer);
+    expect(scene.addAnnotation).toHaveBeenCalledTimes(1);
+    expect(scene.select).not.toHaveBeenCalledWith("i1");
+  });
+
+  describe("redaction over an added image", () => {
+    const blur: BlurAnnotation = { id: "u1", kind: "blur", x: 0.6, y: 0.3, w: 0.2, h: 0.15 };
+    const tileMock = useRedactionTile as unknown as ReturnType<typeof vi.fn>;
+
+    afterEach(() => tileMock.mockReset().mockImplementation(() => null));
+
+    it("draws a tile computed from the image's URL in its local coordinates", () => {
+      tileMock.mockImplementation((url: string) =>
+        url === "blob:added"
+          ? { url: "data:tile", rect: { x: 5, y: 6, w: 20, h: 15 }, naturalW: 40, naturalH: 30 }
+          : null,
+      );
+      const { container } = renderImageLayer(makeScene([image, blur], null), makeTools(), {
+        canvasMode: true,
+      });
+      const call = tileMock.mock.calls.find((c) => c[0] === "blob:added")!;
+      expect(call[1].x).toBeCloseTo((0.6 - 0.5) / 0.4);
+      expect(call[1].y).toBeCloseTo((0.3 - 0.25) / 0.3);
+      expect(call[1].w).toBeCloseTo(0.2 / 0.4);
+      expect(call[1].h).toBeCloseTo(0.15 / 0.3);
+      expect(call[2]).toBe("blur");
+      expect(call[3]).toBe(true);
+      const tile = container.querySelector('[data-testid="image-redaction-tile"]')!;
+      expect(tile.getAttribute("href")).toBe("data:tile");
+      // The tile's px inside the image, scaled to the image's 40×30 display rect.
+      expect(tile.getAttribute("x")).toBe("55");
+      expect(tile.getAttribute("y")).toBe("31");
+      expect(tile.getAttribute("width")).toBe("20");
+      expect(tile.getAttribute("height")).toBe("15");
+      // Inside the image's clip, so it follows the rounded corners.
+      expect(tile.parentElement?.getAttribute("clip-path")).toMatch(/^url\(#iclip-i1\)$/);
+    });
+
+    const baseTileOnly = (url: string) =>
+      url === "blob:base"
+        ? {
+            url: "data:base-tile",
+            rect: { x: 0, y: 0, w: 10, h: 10 },
+            naturalW: 100,
+            naturalH: 100,
+          }
+        : null;
+    const follows = (a: Element, b: Element): boolean =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+    it("a blur below an image draws the base's tile under the image", () => {
+      tileMock.mockImplementation(baseTileOnly);
+      const { container } = renderImageLayer(makeScene([blur, image], null), makeTools(), {
+        canvasMode: true,
+        src: "blob:base",
+      });
+      const baseTile = container.querySelector('[data-testid="redaction-tile"]')!;
+      const added = container.querySelector('image[href="blob:added"]')!;
+      expect(follows(baseTile, added)).toBe(true);
+      // Nothing of the image is redrawn over it: the image is above the blur.
+      expect(container.querySelector('[data-testid="redaction-over-images"]')).toBeNull();
+    });
+
+    it("a blur above an image redraws that image's redacted pixels over the base's tile", () => {
+      tileMock.mockImplementation(
+        (url: string) =>
+          baseTileOnly(url) ??
+          (url === "blob:added"
+            ? {
+                url: "data:image-tile",
+                rect: { x: 0, y: 0, w: 4, h: 3 },
+                naturalW: 40,
+                naturalH: 30,
+              }
+            : null),
+      );
+      // As the export: at the blur's z-position the baked base, then the baked image below it.
+      const { container } = renderImageLayer(makeScene([image, blur], null), makeTools(), {
+        canvasMode: true,
+        src: "blob:base",
+      });
+      const added = container.querySelector('image[href="blob:added"]')!;
+      const baseTile = container.querySelector('[data-testid="redaction-tile"]')!;
+      const over = container.querySelector('[data-testid="redaction-over-images"]')!;
+      expect(follows(added, baseTile)).toBe(true);
+      expect(follows(baseTile, over)).toBe(true);
+      // The image's redaction is redrawn, inside the blur, through the image's own rounded clip.
+      const redrawn = over.querySelector('[data-testid="image-redaction-tile"]')!;
+      expect(redrawn.getAttribute("href")).toBe("data:image-tile");
+      expect(redrawn.closest(`[clip-path="url(#iclip-${image.id})"]`)).not.toBeNull();
+    });
+
+    it("a locked blur above an image redraws the image's own (already baked) pixels", () => {
+      const { container } = renderImageLayer(
+        makeScene([image, { ...blur, locked: true }], null),
+        makeTools(),
+        { canvasMode: true, src: "blob:base" },
+      );
+      const over = container.querySelector('[data-testid="redaction-over-images"]')!;
+      const redrawn = over.querySelector('image[href="blob:added"]')!;
+      expect(redrawn).not.toBeNull();
+      // Through the image's own rounded clip, so a corner the image cuts off stays cut off.
+      const clipped = redrawn.closest(`[clip-path="url(#iclip-${image.id})"]`);
+      expect(clipped).not.toBeNull();
+      expect(over.contains(clipped)).toBe(true);
+      expect(container.querySelector(`clipPath#iclip-${image.id}`)).not.toBeNull();
+    });
+
+    it("passes the solid style through", () => {
+      renderImageLayer(makeScene([image, { ...blur, style: "solid" }], null), makeTools(), {
+        canvasMode: true,
+      });
+      expect(tileMock.mock.calls.some((c) => c[0] === "blob:added" && c[2] === "solid")).toBe(true);
+    });
+
+    it("skips a locked blur, a blur that misses the image, and the flag-off layer", () => {
+      const miss: BlurAnnotation = { ...blur, id: "u2", x: 0, y: 0, w: 0.2, h: 0.2 };
+      renderImageLayer(makeScene([image, { ...blur, locked: true }, miss], null), makeTools(), {
+        canvasMode: true,
+      });
+      expect(tileMock.mock.calls.some((c) => c[0] === "blob:added")).toBe(false);
+      tileMock.mockClear();
+      renderImageLayer(makeScene([image, blur], null), makeTools());
+      expect(tileMock.mock.calls.some((c) => c[0] === "blob:added")).toBe(false);
+    });
+  });
+});
+
 describe("AnnotationLayer — step badges", () => {
   // A stateful scene and tool: the layer reads annotations back from it, so numbering is
   // exercised end to end (click -> addAnnotation -> stepNumbers -> rendered text).
@@ -783,5 +1082,41 @@ describe("AnnotationLayer — Select text tool", () => {
     fireEvent.pointerDown(layer, { clientX: 20, clientY: 12, pointerId: 1 });
     expect(select).not.toHaveBeenCalled();
     expect(clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("AnnotationLayer — step badge ring (NIW2-713)", () => {
+  const badge = (color: string): Annotation => ({
+    id: "s1",
+    kind: "step",
+    x: 0.5,
+    y: 0.5,
+    color,
+    size: 1,
+  });
+
+  it("rings a light fill in white and keeps the number dark", () => {
+    const { container } = render(
+      <AnnotationLayer scene={makeScene([badge("#f5f5f5")], null)} tools={makeTools()} src="" />,
+    );
+    const circle = container.querySelector("g[data-annotation] circle")!;
+    expect(circle.getAttribute("stroke")).toBe("#ffffff");
+    expect(container.querySelector("g[data-annotation] text")!.getAttribute("fill")).toBe(
+      "#1a1a1a",
+    );
+    expect(circle.getAttribute("filter")).toMatch(/^url\(#stepf/);
+  });
+
+  it("draws an accent ring only while the badge is selected", () => {
+    const rings = (selectedId: string | null): number =>
+      render(
+        <AnnotationLayer
+          scene={makeScene([badge("#f6055c")], selectedId)}
+          tools={makeTools()}
+          src=""
+        />,
+      ).container.querySelectorAll("g[data-annotation] circle[data-step-selected]").length;
+    expect(rings(null)).toBe(0);
+    expect(rings("s1")).toBe(1);
   });
 });

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   REDACTION_MIN_BLOCK_PX,
   REDACTION_SOLID_RGB,
+  bakeCanvasRedactions,
   bakeRedactions,
   redactRegion,
   redactionBlockSize,
@@ -110,5 +111,147 @@ describe("bakeRedactions", () => {
     const locked: Annotation = { id: "a2", kind: "blur", x: 0, y: 0, w: 1, h: 1, locked: true };
     expect(await bakeRedactions(bytes, [])).toBe(bytes);
     expect(await bakeRedactions(bytes, [other, locked])).toBe(bytes);
+  });
+});
+
+/**
+ * jsdom has no canvas, so the browser pieces `bakeRedactions` leans on are faked. A fake
+ * "PNG" is the JSON of its size; baking one re-encodes it with the pixel rects that were
+ * written back, which is what these tests read to see WHERE each image was redacted.
+ */
+const enc = (v: unknown): ArrayBuffer => new TextEncoder().encode(JSON.stringify(v)).buffer;
+const dec = (b: ArrayBuffer): { w: number; h: number; rects?: Rect[] } =>
+  JSON.parse(new TextDecoder().decode(b));
+type Rect = { x: number; y: number; w: number; h: number };
+
+function fakeBrowser(): void {
+  vi.stubGlobal("createImageBitmap", async (blob: Blob) => {
+    const text = await new Promise<string>((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.readAsText(blob);
+    });
+    const { w, h } = JSON.parse(text) as { w: number; h: number };
+    return { width: w, height: h, close: () => undefined };
+  });
+  const real = document.createElement.bind(document);
+  vi.spyOn(document, "createElement").mockImplementation(((tag: string) => {
+    if (tag !== "canvas") return real(tag);
+    const rects: Rect[] = [];
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        drawImage: () => undefined,
+        getImageData: (_x: number, _y: number, w: number, h: number) => ({
+          data: new Uint8ClampedArray(w * h * 4),
+          width: w,
+          height: h,
+        }),
+        putImageData: (img: { width: number; height: number }, x: number, y: number) =>
+          rects.push({ x, y, w: img.width, h: img.height }),
+      }),
+      toBlob: (cb: (b: unknown) => void) =>
+        cb({ arrayBuffer: async () => enc({ w: canvas.width, h: canvas.height, rects }) }),
+    };
+    return canvas;
+  }) as typeof document.createElement);
+}
+
+describe("bakeCanvasRedactions", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // Illustrative: a 1000x600 base and a 500x300 image to its right at x = 1.25 (world
+  // 1250..1750). Every fraction is a power-of-two multiple, so the pixel rects are exact.
+  const base = enc({ w: 1000, h: 600 });
+  const picture = enc({ w: 500, h: 300 });
+  const assets = { "img-aaaaaaaaaaaa": picture };
+  const image: Annotation = {
+    id: "i",
+    kind: "image",
+    assetId: "img-aaaaaaaaaaaa",
+    x: 1.25,
+    y: 0,
+    w: 0.5,
+    h: 0.5,
+    pixelWidth: 500,
+    pixelHeight: 300,
+  };
+  const blur = (over: Partial<Extract<Annotation, { kind: "blur" }>>): Annotation => ({
+    id: "b",
+    kind: "blur",
+    x: 0,
+    y: 0,
+    w: 0.125,
+    h: 0.125,
+    ...over,
+  });
+
+  it("changes the added image and not the base when the blur misses the base", async () => {
+    fakeBrowser();
+    // World x 1375..1500, y 75..225: entirely over the added image.
+    const out = await bakeCanvasRedactions(base, assets, [
+      image,
+      blur({ x: 1.375, y: 0.125, w: 0.125, h: 0.25 }),
+    ]);
+    expect(out.base).toBe(base);
+    expect(out.assets["img-aaaaaaaaaaaa"]).not.toBe(picture);
+    // Local to the image: x (1.375-1.25)/0.5 = .25 of 500 = 125, y .25 of 300 = 75.
+    expect(dec(out.assets["img-aaaaaaaaaaaa"]).rects).toEqual([{ x: 125, y: 75, w: 125, h: 150 }]);
+  });
+
+  it("bakes a blur that spans both into both, each in its own local coordinates", async () => {
+    fakeBrowser();
+    // World x 750..1375: the right quarter of the base and the left part of the image.
+    const out = await bakeCanvasRedactions(base, assets, [
+      image,
+      blur({ x: 0.75, y: 0.125, w: 0.625, h: 0.25 }),
+    ]);
+    expect(out.base).not.toBe(base);
+    expect(dec(out.base).rects).toEqual([{ x: 750, y: 75, w: 250, h: 150 }]);
+    expect(dec(out.assets["img-aaaaaaaaaaaa"]).rects).toEqual([{ x: 0, y: 75, w: 125, h: 150 }]);
+  });
+
+  it("changes the base and leaves the same asset objects when the blur misses the image", async () => {
+    fakeBrowser();
+    const out = await bakeCanvasRedactions(base, assets, [
+      image,
+      blur({ x: 0.125, y: 0.5, w: 0.125, h: 0.25 }),
+    ]);
+    expect(out.base).not.toBe(base);
+    expect(out.assets).toBe(assets);
+    expect(out.assets["img-aaaaaaaaaaaa"]).toBe(picture);
+  });
+
+  it("ignores locked blurs", async () => {
+    fakeBrowser();
+    const out = await bakeCanvasRedactions(base, assets, [
+      image,
+      blur({ x: 1.375, y: 0.125, locked: true }),
+      blur({ x: 0.125, y: 0.125, locked: true }),
+    ]);
+    expect(out.base).toBe(base);
+    expect(out.assets).toBe(assets);
+  });
+
+  it("returns the same objects when nothing needs redacting", async () => {
+    // No browser fake: reaching the decoder at all would fail the test.
+    const out = await bakeCanvasRedactions(base, assets, [image]);
+    expect(out.base).toBe(base);
+    expect(out.assets).toBe(assets);
+  });
+
+  it("does not take a touching edge for an overlap", async () => {
+    fakeBrowser();
+    // World x 1000..1250 is the gap between the base's right edge and the image's left edge.
+    const out = await bakeCanvasRedactions(base, assets, [
+      image,
+      blur({ x: 1, y: 0.125, w: 0.25, h: 0.25 }),
+    ]);
+    expect(out.base).toBe(base);
+    expect(out.assets).toBe(assets);
   });
 });

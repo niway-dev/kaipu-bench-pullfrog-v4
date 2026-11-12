@@ -23,15 +23,19 @@ vi.mock("@renderer/features/screenshots/export", () => ({
 }));
 
 // jsdom has no createImageBitmap or canvas: baking is the identity, and the test reads what
-// it was asked to bake.
-const bakeRedactions = vi.hoisted(() =>
-  vi.fn(async (bytes: ArrayBuffer, _annotations: readonly unknown[]) => bytes),
+// it was asked to bake. Canvas mode bakes through bakeCanvasRedactions, which calls
+// bakeRedactions inside its own module, so the mock replaces the canvas entry point.
+const bakeCanvasRedactions = vi.hoisted(() =>
+  vi.fn(async (base: ArrayBuffer, assets: Record<string, ArrayBuffer>, _annotations: unknown) => ({
+    base,
+    assets,
+  })),
 );
 vi.mock("@renderer/features/screenshots/annotations/redaction", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@renderer/features/screenshots/annotations/redaction")
   >()),
-  bakeRedactions,
+  bakeCanvasRedactions,
 }));
 
 const originalRect = Element.prototype.getBoundingClientRect;
@@ -74,7 +78,7 @@ beforeEach(async () => {
   URL.revokeObjectURL = vi.fn();
   exportScene.mockReset();
   exportScene.mockResolvedValue(new ArrayBuffer(1));
-  bakeRedactions.mockClear();
+  bakeCanvasRedactions.mockClear();
   recognize.mockReset();
   recognize.mockResolvedValue({ status: "ready", words: WORDS });
   saveScreenshot.mockReset();
@@ -117,7 +121,9 @@ function mountPaste() {
   return render(<RouterProvider router={router} />);
 }
 const loadImage = async () => fireEvent.load(await screen.findByRole("img"));
-const pickRedact = () => fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+// The tool is "Redact" in canvas mode and "Blur" before it.
+const pickRedact = () =>
+  fireEvent.click(screen.getByRole("button", { name: flags["image-canvas"] ? "Redact" : "Blur" }));
 const hideLayer = (): HTMLElement | null =>
   document.querySelector('[data-ui-area="editorImage.textHide"]');
 const READY_HINT = "Click a line of text to hide it, or drag over a region.";
@@ -143,7 +149,8 @@ const sentMeta = () =>
     text?: { assets: { assetId: string; words: RecognizedWord[] }[] };
   };
 /** The redactions the last save baked into the stored image. */
-const baked = (): Annotation[] => (bakeRedactions.mock.calls.at(-1)?.[1] ?? []) as Annotation[];
+const baked = (): Annotation[] =>
+  (bakeCanvasRedactions.mock.calls.at(-1)?.[2] ?? []) as Annotation[];
 const save = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(saveScreenshot).toHaveBeenCalled());

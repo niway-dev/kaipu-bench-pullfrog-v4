@@ -1,0 +1,91 @@
+/*
+ * The Library picker for "Add image" (NIW2-703). It fills the wide modal sheet, which is
+ * never taller than the window: only the grid scrolls.
+ */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.header {
+  padding: 22px 22px 0;
+}
+
+.body {
+  flex: 1;
+  min-height: 160px;
+  overflow-y: auto;
+  padding: 0 22px;
+}
+
+.note {
+  margin: 0;
+  padding: var(--space-xl) 0;
+  color: var(--ie-mut);
+  font-size: var(--font-size-base);
+  text-align: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--ie-strong);
+  border-radius: var(--radius-md);
+  background: var(--ie-card);
+  color: var(--ie-tx);
+  font-family: var(--font-family);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ie-accent) 55%, transparent);
+}
+
+.card:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.poster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--ie-hover);
+  color: var(--ie-mut);
+}
+
+.poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cardTitle {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footer {
+  padding: var(--space-lg) 22px 22px;
+}

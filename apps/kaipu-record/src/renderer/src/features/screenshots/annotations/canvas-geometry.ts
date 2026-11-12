@@ -115,6 +115,16 @@ export function annotationBounds(
     const y2 = Math.min(naturalH, (a.y + a.h) * naturalH);
     return x2 > x1 && y2 > y1 ? { x1, y1, x2, y2 } : null;
   }
+  if (a.kind === "image") {
+    // The picture itself, edge to edge: no stroke or jitter margin. Growing the content
+    // box to it is what makes the export frame include an image added past the base.
+    return {
+      x1: a.x * naturalW,
+      y1: a.y * naturalH,
+      x2: (a.x + a.w) * naturalW,
+      y2: (a.y + a.h) * naturalH,
+    };
+  }
   if (a.kind === "box") {
     const m = (STROKE_WIDTHS[a.stroke] ?? STROKE_WIDTHS[0]) * scale * 0.5 + ROUGH_JITTER;
     return grow(

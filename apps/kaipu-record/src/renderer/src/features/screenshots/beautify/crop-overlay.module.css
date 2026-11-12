@@ -18,13 +18,58 @@
 
 .rect {
   fill: none;
-  stroke: var(--accent-primary);
+  stroke: var(--ie-accent);
   stroke-width: 1.5;
 }
 
 .handle {
-  fill: var(--bg-card, #fff);
-  stroke: var(--accent-primary);
+  fill: var(--ie-card, #fff);
+  stroke: var(--ie-accent);
   stroke-width: 1.5;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+/* Canvas mode (mock A5): everything below is drawn at constant screen size by the component. */
+.canvasDim {
+  fill: var(--ie-dim);
+}
+
+.rule {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.canvasHandle {
+  fill: #fff;
+  stroke: var(--ie-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.canvasEdge {
+  fill: none;
+  stroke: var(--ie-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+/* A zero-size anchor at the frame's top-left corner; the text sits above it. */
+.frameLabel {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.frameLabelText {
+  position: absolute;
+  left: 0;
+  transform-origin: left bottom;
+  white-space: nowrap;
+  font-family: var(--ie-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ie-tx2);
 }

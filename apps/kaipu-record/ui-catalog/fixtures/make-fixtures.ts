@@ -19,7 +19,7 @@ import path from "node:path";
 export const FIXTURES_DIR = path.join(__dirname, "out");
 
 /** Bump when anything below changes the generated files. */
-const RECIPE_VERSION = "1";
+const RECIPE_VERSION = "2";
 
 /** Seconds of the countdown; every recording fixture is a cut of it. */
 export const COUNTDOWN_SECONDS = 12;
@@ -33,6 +33,10 @@ export const FIXTURE_FILES = {
   gif: "countdown.gif",
   thumbnail: "countdown-thumb.jpg",
   screens: ["screen-a.png", "screen-b.png", "screen-c.png", "screen-d.png"],
+  /** A small interface drawing with exact, known colors (the Colors panel states). */
+  colorsShot: "colors-shot.png",
+  /** Smooth gradients plus noise, thousands of exact colors: counts as a photograph. */
+  photoShot: "photo-shot.png",
   cut: (seconds: RecordingCut) => `countdown-${seconds}s.mp4`,
 } as const;
 
@@ -226,6 +230,50 @@ export function windowDrawingFilters(variant: number): string {
     .join(",");
 }
 
+/**
+ * `drawbox` filters for the Colors panel's interface drawing (640x400). Every color is exact
+ * on purpose: two near-identical pairs (#ffffff page and #fdfdfd card, #f6055c and #f4055a
+ * buttons) show the panel's group boxes, and a divider splits the card into two areas of the
+ * same color. Drawn in planar RGB (`gbrp`) so no yuv conversion moves a value by one.
+ */
+export function colorsShotFilters(): string {
+  const boxes: Array<[number, number, number, number, string]> = [
+    [0, 0, 140, 400, "0xf3f4f6"], // sidebar
+    ...[0, 1, 2, 3, 4].map((i): [number, number, number, number, string] => [
+      20,
+      40 + i * 36,
+      90,
+      8,
+      "0x9ca3af",
+    ]), // sidebar items
+    [168, 38, 434, 254, "0xe5e7eb"], // card border
+    [170, 40, 430, 250, "0xfdfdfd"], // card
+    [170, 210, 430, 2, "0xe5e7eb"], // divider: the card is two areas of one color
+    [194, 64, 180, 14, "0x111827"], // heading
+    [194, 92, 120, 10, "0x1f2937"], // subheading
+    [194, 124, 380, 6, "0x6b7280"], // paragraph
+    [194, 140, 340, 6, "0x6b7280"],
+    [194, 156, 360, 6, "0x6b7280"],
+    [194, 232, 110, 32, "0xf6055c"], // primary button
+    [320, 232, 110, 32, "0xf4055a"], // the same button, one step off
+    [170, 320, 200, 6, "0x6b7280"], // footer text on the page
+  ];
+  return [
+    "format=gbrp",
+    ...boxes.map(([x, y, w, h, c]) => `drawbox=x=${x}:y=${y}:w=${w}:h=${h}:color=${c}:t=fill`),
+  ].join(",");
+}
+
+/**
+ * The photograph stand-in: three smooth waves, one per channel, with seeded noise, so the
+ * file is the same on every machine and has far more than 1,000 exact colors. The waves
+ * stay inside 0-255 (a negative would wrap to a bright spot).
+ */
+export const PHOTO_SHOT_FILTERS =
+  "format=gbrp," +
+  "geq=r='128+100*sin(X/90)*cos(Y/70)':g='110+90*sin((X+Y)/110)':b='100+90*cos(X/120)*sin(Y/60)'," +
+  "noise=alls=14:allf=t+u:all_seed=7";
+
 /** True when every fixture exists and was made by this recipe. */
 export function fixturesReady(dir: string = FIXTURES_DIR): boolean {
   const stamp = path.join(dir, ".version");
@@ -236,6 +284,8 @@ export function fixturesReady(dir: string = FIXTURES_DIR): boolean {
     FIXTURE_FILES.gif,
     FIXTURE_FILES.thumbnail,
     ...FIXTURE_FILES.screens,
+    FIXTURE_FILES.colorsShot,
+    FIXTURE_FILES.photoShot,
     ...RECORDING_CUTS.map(FIXTURE_FILES.cut),
   ].every((name) => existsSync(path.join(dir, name)));
 }
@@ -303,6 +353,30 @@ export function makeFixtures(dir: string = FIXTURES_DIR): void {
       at(name),
     ]);
   });
+  ffmpeg([
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=0xffffff:s=640x400:d=1",
+    "-vf",
+    colorsShotFilters(),
+    "-frames:v",
+    "1",
+    ...BITEXACT,
+    at(FIXTURE_FILES.colorsShot),
+  ]);
+  ffmpeg([
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=black:s=640x400:d=1",
+    "-vf",
+    PHOTO_SHOT_FILTERS,
+    "-frames:v",
+    "1",
+    ...BITEXACT,
+    at(FIXTURE_FILES.photoShot),
+  ]);
   writeFileSync(path.join(work, ".version"), `${RECIPE_VERSION}\n`);
 
   rmSync(dir, { recursive: true, force: true });

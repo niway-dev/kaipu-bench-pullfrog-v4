@@ -12,6 +12,12 @@ import {
   resolveFontPx,
   stepFontPx,
   stepInk,
+  STEP_HAIRLINE_ALPHA,
+  STEP_HAIRLINE_PX,
+  STEP_RING_COLOR,
+  STEP_SHADOW_ALPHA,
+  STEP_SHADOW_DY,
+  STEP_SHADOW_STD,
   stepRingPx,
   textLines,
 } from "./tools";
@@ -23,8 +29,14 @@ import {
   worldToFrame,
   type Extents,
 } from "./canvas-geometry";
-import { bakeRedactions } from "./redaction";
-import { stepNumbers, type Annotation, type Scene } from "./scene";
+import { bakeCanvasRedactions, type CanvasAssets } from "./redaction";
+import {
+  stepNumbers,
+  type Annotation,
+  type BlurAnnotation,
+  type ImageAnnotation,
+  type Scene,
+} from "./scene";
 
 /**
  * Longest canvas side the compositor will rasterize to. Chromium caps a canvas
@@ -60,6 +72,12 @@ export interface CompositeOptions {
    * padding), and `scene.exportFrame` (not `scene.crop`) selects the output window.
    */
   canvas?: boolean;
+  /**
+   * Canvas mode (NIW2-703): the PNG bytes of every added image, by asset id. An image
+   * annotation whose asset is missing here makes the composite throw — the caller
+   * reports it instead of exporting a frame with a hole in it.
+   */
+  assets?: CanvasAssets;
 }
 
 export interface CompositeResult {
@@ -103,26 +121,114 @@ export async function compositeSceneAt(
   displayedW: number,
   options: CompositeOptions = {},
 ): Promise<CompositeResult> {
-  // Canvas mode: redactions are destructive, so their pixels go into the base image here
-  // (locked ones are already in it) and buildSvg draws no blur. Untouched = same bytes.
-  const base = options.canvas ? await bakeRedactions(bytes, scene.annotations) : bytes;
+  // Canvas mode: redactions are destructive, so their pixels go into the base image and
+  // into every added image they touch here (locked ones are already in them) and buildSvg
+  // draws no blur. Untouched = same bytes.
+  let base = bytes;
+  let assetHrefs: Record<string, string> | undefined;
+  if (options.canvas) {
+    const assets = options.assets ?? {};
+    for (const a of scene.annotations) {
+      if (a.kind === "image" && !assets[a.assetId]) {
+        throw new Error(`compositor: missing asset ${a.assetId}`);
+      }
+    }
+    const baked = await bakeCanvasRedactions(bytes, assets, scene.annotations);
+    base = baked.base;
+    assetHrefs = {};
+    for (const a of scene.annotations) {
+      if (a.kind === "image" && !(a.assetId in assetHrefs)) {
+        assetHrefs[a.assetId] = await bytesToDataUrl(baked.assets[a.assetId]);
+      }
+    }
+  }
   const href = await bytesToDataUrl(base);
   // Decode the PNG for its TRUE pixel size (Retina-safe — `getSize` can differ).
   const { width: naturalW, height: naturalH } = await imageSize(href);
-  const scale = displayedW > 0 ? naturalW / displayedW : 1;
-  const pad = Math.round(scene.beautify.padding * scale);
-  const radius = Math.round(scene.beautify.radius * scale);
+  const { scale, pad, radius, extents } = canvasExportGeometry(
+    scene,
+    naturalW,
+    naturalH,
+    displayedW,
+  );
   // The crop is a window of the fully-composed frame (bg + padding + shot), normalized
   // 0–1 of that frame. The raster size is that window in native px; no crop = the whole frame.
   const geom: Geom = { href, naturalW, naturalH, pad, radius, scale };
   if (options.canvas) {
-    geom.extents = contentExtents(scene.annotations, naturalW, naturalH, scale);
+    geom.extents = extents;
+    geom.assets = assetHrefs;
   }
   const { outW, outH } = frameWindow(scene, geom);
   const svg = buildSvg(scene, geom);
   const rasterScale = clampRasterScale(options.rasterScale ?? 1, outW, outH);
   const png = await rasterize(svg, outW, outH, rasterScale);
   return { png, width: outW, height: outH, scale: rasterScale };
+}
+
+/**
+ * The numbers an export derives from the decoded image and the shot's on-screen width: the
+ * display-to-source scale, the padding and corner radius in source px, and the content-box
+ * extents (canvas mode). The one place they are computed: the composite and the editor's
+ * export box both read it, so what the box says is what Copy and Save produce.
+ */
+export function canvasExportGeometry(
+  scene: Scene,
+  naturalW: number,
+  naturalH: number,
+  displayedW: number,
+): { scale: number; pad: number; radius: number; extents: Extents } {
+  const scale = displayedW > 0 ? naturalW / displayedW : 1;
+  return {
+    scale,
+    pad: Math.round(scene.beautify.padding * scale),
+    radius: Math.round(scene.beautify.radius * scale),
+    extents: contentExtents(scene.annotations, naturalW, naturalH, scale),
+  };
+}
+
+/**
+ * The pixel size a canvas-mode export has at raster scale 1 (what Copy and Save produce):
+ * the content box plus padding, or the export frame's window when one is set.
+ *
+ * `extents` replaces the ones measured from the scene's annotations: the editor passes the
+ * live ones while a shape is being drawn or moved, before the scene holds it.
+ */
+export function exportPixelSize(
+  scene: Scene,
+  naturalW: number,
+  naturalH: number,
+  displayedW: number,
+  extents?: Extents,
+): { w: number; h: number } {
+  const g = canvasExportGeometry(scene, naturalW, naturalH, displayedW);
+  const { outW, outH } = frameWindow(scene, {
+    href: "",
+    naturalW,
+    naturalH,
+    ...g,
+    ...(extents ? { extents } : {}),
+  });
+  return { w: outW, h: outH };
+}
+
+/**
+ * A window of the composed frame, frame-normalized 0–1 (`c`), in whole px of a frame
+ * `fullW` × `fullH`: origin and size rounded the way the export rounds them, so a size
+ * shown while dragging a frame is the size the export gets.
+ */
+export function cropWindow(
+  c: { x: number; y: number; w: number; h: number },
+  fullW: number,
+  fullH: number,
+): { vbX: number; vbY: number; outW: number; outH: number } {
+  const x1 = Math.round(c.x * fullW);
+  const y1 = Math.round(c.y * fullH);
+  return {
+    vbX: x1,
+    vbY: y1,
+    outW: Math.max(1, Math.round((c.x + c.w) * fullW) - x1),
+    outH: Math.max(1, Math.round((c.y + c.h) * fullH) - y1),
+  };
 }
 
 function imageSize(url: string): Promise<{ width: number; height: number }> {
@@ -146,6 +252,8 @@ export interface Geom {
    * image (natural px). All zero + no `exportFrame` yields the exact non-canvas SVG.
    */
   extents?: Extents;
+  /** Canvas mode: data URL of each added image's (already redacted) PNG, by asset id. */
+  assets?: Record<string, string>;
 }
 
 /**
@@ -178,16 +286,7 @@ export function frameWindow(
       }),
     );
     if (!c) return whole;
-    const x1 = Math.round(c.x * l.fullW);
-    const y1 = Math.round(c.y * l.fullH);
-    return {
-      vbX: x1,
-      vbY: y1,
-      outW: Math.max(1, Math.round((c.x + c.w) * l.fullW) - x1),
-      outH: Math.max(1, Math.round((c.y + c.h) * l.fullH) - y1),
-      fullW: l.fullW,
-      fullH: l.fullH,
-    };
+    return { ...cropWindow(c, l.fullW, l.fullH), fullW: l.fullW, fullH: l.fullH };
   }
   const fullW = g.naturalW + g.pad * 2;
   const fullH = g.naturalH + g.pad * 2;
@@ -246,6 +345,22 @@ export function buildSvg(scene: Scene, g: Geom): string {
     `<image id="shot" href="${g.href}" width="${g.naturalW}" height="${g.naturalH}" preserveAspectRatio="none"/>`,
   );
 
+  // Each added image (canvas mode), defined ONCE per asset and pixel size like #shot, however
+  // many annotations place it at that size. <use> cannot resize an <image>, so a placement
+  // resized apart from another one needs a def of its own size.
+  const assetDefs = new Set<string>();
+  for (const a of scene.annotations) {
+    if (!ext || a.kind !== "image") continue;
+    const id = assetDefId(a, g);
+    if (assetDefs.has(id)) continue;
+    const href = g.assets?.[a.assetId];
+    if (href === undefined) throw new Error(`compositor: missing asset ${a.assetId}`);
+    assetDefs.add(id);
+    defs.push(
+      `<image id="${id}" href="${href}" width="${a.w * g.naturalW}" height="${a.h * g.naturalH}" preserveAspectRatio="none"/>`,
+    );
+  }
+
   // Round the outer frame to match the live preview (BeautifiedFrame applies
   // frameRadius to the bg div) — a square rect here made exports differ.
   const outerR = Math.round(frameRadius(scene.beautify.bg, scene.beautify.radius) * g.scale);
@@ -273,11 +388,18 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // beautify padding is shown there — clipping to the shot truncated it in the
   // export only. The output viewBox (the crop window, or the whole frame) is the
   // natural bound, so they render exactly as previewed.
-  // Canvas mode (`ext` set): blurs were baked into the base bytes. Each one still redraws
-  // the (baked) base over its rect, in z-order, so it covers an annotation drawn before it.
+  // Canvas mode (`ext` set): every blur was baked into each image it covers, so it draws
+  // no filter. At its z-position it redraws the baked images BELOW it (the base, then the
+  // added images earlier in the array) over its rect, so it covers an annotation drawn
+  // before it and never paints over an image above it. Added images draw in z-order too.
   const steps = stepNumbers(scene.annotations);
+  if (scene.annotations.some((a) => a.kind === "step")) defs.push(stepFilterSvg(g.scale));
   const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
-    .map((a) => annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps, Boolean(ext)))
+    .map((a, i) => {
+      if (a.kind === "image") return imageSvg(a, g, sv > 0);
+      if (a.kind === "blur" && ext) return bakedBlurSvg(a, scene.annotations.slice(0, i), g);
+      return annotationSvg(a, g.naturalW, g.naturalH, g.scale, steps);
+    })
     .join("")}</g>`;
 
   // The output SVG selects the crop sub-rectangle via viewBox; width/height are the
@@ -285,21 +407,81 @@ export function buildSvg(scene: Scene, g: Geom): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${vbX} ${vbY} ${outW} ${outH}"><defs>${defs.join("")}</defs>${bg}${boxFill}${shadow}${image}${anno}</svg>`;
 }
 
+/** The def id of an added image at its own size, so each distinct size is embedded once. */
+function assetDefId(a: ImageAnnotation, g: Geom): string {
+  return `asset-${a.assetId}-${a.w * g.naturalW}x${a.h * g.naturalH}`;
+}
+
+/**
+ * One added image: its shadow (same filter as the base, when shadow > 0), then the shared
+ * asset clipped to a rect with the beautify radius. Authored in the annotation group's
+ * space (already translated to the base's corner). As with the base, the clip sits on a
+ * wrapping <g> that carries no transform of its own: a clip-path on the <use> that also
+ * carries the x/y translation would be resolved in the translated space and land twice.
+ * Outside canvas mode there are no image annotations; one is drawn as nothing.
+ */
+function imageSvg(a: ImageAnnotation, g: Geom, shadow: boolean, idSuffix = ""): string {
+  if (!g.extents) return "";
+  const x = a.x * g.naturalW;
+  const y = a.y * g.naturalH;
+  const w = a.w * g.naturalW;
+  const h = a.h * g.naturalH;
+  const clip = `ic-${a.id}${idSuffix}`;
+  return (
+    `<defs><clipPath id="${clip}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${g.radius}"/></clipPath></defs>` +
+    (shadow
+      ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${g.radius}" fill="#000" filter="url(#sh)"/>`
+      : "") +
+    `<g clip-path="url(#${clip})"><use href="#${assetDefId(a, g)}" x="${x}" y="${y}"/></g>`
+  );
+}
+
+/**
+ * A blur in canvas mode, at its z-position: the baked images below it, clipped to its rect.
+ * Their pixels already hold the redaction, so no filter is drawn; redrawing them covers
+ * any annotation stacked between those images and the blur.
+ */
+function bakedBlurSvg(a: BlurAnnotation, below: readonly Annotation[], g: Geom): string {
+  const clip = `bclip-${a.id}`;
+  const images = below
+    .filter((b): b is ImageAnnotation => b.kind === "image")
+    .map((b) => imageSvg(b, g, false, `-under-${a.id}`))
+    .join("");
+  return (
+    `<defs><clipPath id="${clip}"><rect x="${a.x * g.naturalW}" y="${a.y * g.naturalH}" width="${a.w * g.naturalW}" height="${a.h * g.naturalH}"/></clipPath></defs>` +
+    `<g clip-path="url(#${clip})"><use href="#shot"/>${images}</g>`
+  );
+}
+
+/**
+ * The badge hairline and drop shadow as ONE filter, referenced by every badge circle: a
+ * dark ring `STEP_HAIRLINE_PX` outside the circle's white stroke, then a soft shadow, then the
+ * badge itself. Region is relative to the badge box, wide enough for the shadow.
+ */
+function stepFilterSvg(scale: number): string {
+  return (
+    `<filter id="${STEP_FILTER_ID}" x="-100%" y="-100%" width="300%" height="300%">` +
+    `<feMorphology in="SourceAlpha" operator="dilate" radius="${STEP_HAIRLINE_PX * scale}" result="halo"/>` +
+    `<feFlood flood-color="#000" flood-opacity="${STEP_HAIRLINE_ALPHA}"/>` +
+    `<feComposite in2="halo" operator="in" result="hair"/>` +
+    `<feGaussianBlur in="halo" stdDeviation="${STEP_SHADOW_STD * scale}" result="blur"/>` +
+    `<feOffset in="blur" dx="0" dy="${STEP_SHADOW_DY * scale}" result="off"/>` +
+    `<feFlood flood-color="#000" flood-opacity="${STEP_SHADOW_ALPHA}"/>` +
+    `<feComposite in2="off" operator="in" result="shadow"/>` +
+    `<feMerge><feMergeNode in="shadow"/><feMergeNode in="hair"/><feMergeNode in="SourceGraphic"/></feMerge>` +
+    `</filter>`
+  );
+}
+
+const STEP_FILTER_ID = "stepf";
+
 function annotationSvg(
   a: Annotation,
   W: number,
   H: number,
   scale: number,
   steps: Map<string, number>,
-  baked = false,
 ): string {
-  if (a.kind === "blur" && baked) {
-    // The base already holds the redacted pixels: a clipped, unfiltered copy of them.
-    return (
-      `<defs><clipPath id="bclip-${a.id}"><rect x="${a.x * W}" y="${a.y * H}" width="${a.w * W}" height="${a.h * H}"/></clipPath></defs>` +
-      `<use href="#shot" clip-path="url(#bclip-${a.id})"/>`
-    );
-  }
   if (a.kind === "step") {
     const d = stepDiameterPx(a.size);
     const n = steps.get(a.id) ?? 1;
@@ -307,7 +489,7 @@ function annotationSvg(
     const cx = a.x * W;
     const cy = a.y * H;
     return (
-      `<circle cx="${cx}" cy="${cy}" r="${(d / 2) * scale}" fill="${a.color}" stroke="${ink}" stroke-width="${stepRingPx(d) * scale}"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="${(d / 2) * scale}" fill="${a.color}" stroke="${STEP_RING_COLOR}" stroke-width="${stepRingPx(d) * scale}" filter="url(#${STEP_FILTER_ID})"/>` +
       `<text x="${cx}" y="${cy}" fill="${ink}" font-family="${STEP_FONT}" font-size="${stepFontPx(d, n) * scale}" font-weight="700" text-anchor="middle" dominant-baseline="central">${n}</text>`
     );
   }
@@ -327,6 +509,7 @@ function annotationSvg(
       `<use href="#shot" clip-path="url(#bclip-${a.id})" filter="url(#bfilter-${a.id})"/>`
     );
   }
+  if (a.kind === "image") return ""; // drawn by imageSvg, which needs the geometry
   if (a.kind === "box") {
     const bw = a.w * W;
     const bh = a.h * H;

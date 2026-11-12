@@ -17,6 +17,8 @@ export interface ColorsController {
   setOpen(open: boolean): void;
   toggle(): void;
   status: ColorsStatus;
+  /** Counting progress, 0..1, while `status` is "counting"; null otherwise. */
+  progress: number | null;
   analysis: ColorAnalysis | null;
   /** The color the image is highlighting, or null. */
   located: LocateTarget | null;
@@ -53,6 +55,7 @@ export function useColors({ active, buffer }: Options): ColorsController {
   }, [t]);
   const [open, setOpenState] = useState(false);
   const [status, setStatus] = useState<ColorsStatus>("idle");
+  const [progress, setProgress] = useState<number | null>(null);
   const [analysis, setAnalysis] = useState<ColorAnalysis | null>(null);
   const [located, setLocated] = useState<LocateTarget | null>(null);
   const [overlay, setOverlayState] = useState<LocatedImage | null>(null);
@@ -81,6 +84,7 @@ export function useColors({ active, buffer }: Options): ColorsController {
     analyzer.current = null;
     clearLocate();
     setAnalysis(null);
+    setProgress(null);
     setStatus("idle");
   }, [clearLocate]);
 
@@ -107,13 +111,17 @@ export function useColors({ active, buffer }: Options): ColorsController {
   // Open on a decoded buffer: count it, once per buffer.
   useEffect(() => {
     if (!open || !active || !buffer || analyzer.current) return;
-    const current = createColorsAnalyzer(buffer);
+    const current = createColorsAnalyzer(buffer, (done) => {
+      if (analyzer.current === current) setProgress(done);
+    });
     analyzer.current = current;
+    setProgress(0);
     setStatus("counting");
     current.analysis.then(
       (result) => {
         if (analyzer.current !== current) return;
         setAnalysis(result);
+        setProgress(null);
         setStatus("ready");
       },
       (error: unknown) => {
@@ -121,6 +129,7 @@ export function useColors({ active, buffer }: Options): ColorsController {
         // Drop the failed analyzer so closing and reopening the panel tries again.
         current.dispose();
         analyzer.current = null;
+        setProgress(null);
         setStatus("error");
         reportError(tRef.current("inspectColorsUnavailable"), error, {
           context: { phase: "inspect-colors" },
@@ -174,7 +183,7 @@ export function useColors({ active, buffer }: Options): ColorsController {
   const toggle = useCallback(() => setOpen(!open), [open, setOpen]);
   // Stable while nothing changes, so the memoized panel skips the page's hover re-renders.
   return useMemo(
-    () => ({ open, setOpen, toggle, status, analysis, located, locate, overlay }),
-    [open, setOpen, toggle, status, analysis, located, locate, overlay],
+    () => ({ open, setOpen, toggle, status, progress, analysis, located, locate, overlay }),
+    [open, setOpen, toggle, status, progress, analysis, located, locate, overlay],
   );
 }

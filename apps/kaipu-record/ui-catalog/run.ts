@@ -48,7 +48,9 @@ import { renderReadme } from "./readme";
 import { RUN_ENV } from "./run-env";
 import {
   WINDOW_SIZES,
+  WINDOW_SIZE_OF_PRESET,
   describeStep,
+  wheelTurns,
   flattenCatalog,
   isKnownVariable,
   matchesOnly,
@@ -629,6 +631,11 @@ async function runAction(ctx: Ctx, name: string): Promise<void> {
       cpSync(ctx.vaultSnapshot, ctx.vaultDir, { recursive: true });
       return;
     }
+    case "forgetRedactionNotice":
+      // The key literal is the renderer's REDACTION_NOTICE_KEY
+      // (src/renderer/src/features/screenshots/canvas/redaction-notice-store.ts); a test pins it.
+      await page.evaluate(() => localStorage.removeItem("kaipu.imageEditor.redactionNoticeSeen"));
+      return;
     case "lockVault":
       chmodSync(ctx.vaultDir, 0o000);
       return;
@@ -728,6 +735,14 @@ async function runStep(ctx: Ctx, step: Step): Promise<void> {
       timeout: t,
       position: { x: box.width * step.at.x, y: box.height * step.at.y },
     });
+  }
+  if ("wheel" in step) {
+    const turns = wheelTurns(step);
+    await targetLocator(page, step.wheel).hover({ timeout: t });
+    for (const [dx, dy] of turns) await page.mouse.wheel(dx, dy);
+    // The viewport applies each turn on the next frame; let the last one land.
+    await page.waitForTimeout(300);
+    return;
   }
   if ("drag" in step) {
     const box = await targetLocator(page, step.drag).boundingBox({ timeout: t });
@@ -937,8 +952,7 @@ async function shoot(
       );
     } else {
       const path = await run.main.evaluate(() => location.hash.slice(1));
-      mainSize =
-        spec.window ?? (presetForPath(path.split("?")[0]) === "editor" ? "editor" : "main");
+      mainSize = spec.window ?? WINDOW_SIZE_OF_PRESET[presetForPath(path.split("?")[0])];
       await resizeMain(run.app, run.main, mainSize);
     }
 
@@ -964,7 +978,7 @@ async function shoot(
   try {
     // A toast a step caused ("Restored your previous edit") covers the corner of the window
     // for five seconds; it is not part of any state, so it is closed like a user would.
-    if (!target) {
+    if (!target && !spec.keepToasts) {
       await page.evaluate(() => {
         for (const close of document.querySelectorAll<HTMLButtonElement>(
           '[role="alert"] button[aria-label="Close"]',
@@ -1177,6 +1191,10 @@ async function runProfile(name: ProfileName, entries: CatalogEntry[]): Promise<v
           content: profile.seed,
           cursorRecording: profile.cursorRecording,
           textScreenshot: profile.textScreenshot,
+          colorsScreenshots: profile.colorsScreenshots,
+          lockedRedaction: profile.lockedRedaction,
+          mockShots: profile.mockShots,
+          corruptCanvas: profile.corruptCanvas,
           reconcile: profile.reconcile,
         }),
       env: {
@@ -1335,7 +1353,9 @@ function manifestScreens(): ManifestScreen[] {
         id,
         kind: s.kind,
         where,
-        windowSize: preset ? `${WINDOW_SIZES[preset].width}×${WINDOW_SIZES[preset].height}` : null,
+        windowSize: preset
+          ? `${WINDOW_SIZES[WINDOW_SIZE_OF_PRESET[preset]].width}×${WINDOW_SIZES[WINDOW_SIZE_OF_PRESET[preset]].height}`
+          : null,
         areas: screenAreas(id).map((area) => ({
           id: area,
           states: [...areaStates(area)],

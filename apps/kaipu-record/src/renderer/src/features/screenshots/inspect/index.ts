@@ -23,6 +23,8 @@ export {
 } from "./color";
 export { ColorsPanel } from "./colors/colors-panel";
 export { LocateOverlay } from "./colors/locate-overlay";
+export { locatedColor } from "./colors/locate-tag";
+export { formatShare, unpackRgb } from "./colors/histogram";
 export { useColors, type ColorsController } from "./colors/use-colors";
 export { inspectKeyAction, isEditingTarget, type InspectKeyAction } from "./inspect-keys";
 export {
