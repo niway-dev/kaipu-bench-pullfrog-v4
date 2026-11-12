@@ -631,6 +631,11 @@ async function runAction(ctx: Ctx, name: string): Promise<void> {
       cpSync(ctx.vaultSnapshot, ctx.vaultDir, { recursive: true });
       return;
     }
+    case "forgetRedactionNotice":
+      // The key literal is the renderer's REDACTION_NOTICE_KEY
+      // (src/renderer/src/features/screenshots/canvas/redaction-notice-store.ts); a test pins it.
+      await page.evaluate(() => localStorage.removeItem("kaipu.imageEditor.redactionNoticeSeen"));
+      return;
     case "lockVault":
       chmodSync(ctx.vaultDir, 0o000);
       return;

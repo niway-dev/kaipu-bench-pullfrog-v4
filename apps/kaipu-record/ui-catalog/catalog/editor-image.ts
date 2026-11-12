@@ -393,6 +393,9 @@ export const editorImage = catalog(
         ...placeFourBadges,
       ],
       demonstrates: ["editorImage.canvas:steps"],
+      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
+      // a second shot opens the item as seeded.
+      after: [{ navigate: "/library" }, { action: "restoreVault" }],
     },
     "step-badge-selected": {
       profile: "image-mocks",
@@ -406,6 +409,9 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.canvas:stepSelected"],
+      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
+      // a second shot opens the item as seeded.
+      after: [{ navigate: "/library" }, { action: "restoreVault" }],
     },
     "step-badge-sizes": {
       profile: "image-mocks",
@@ -428,6 +434,9 @@ export const editorImage = catalog(
         badgeDrawn,
       ],
       demonstrates: ["editorImage.canvas:stepSizes"],
+      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
+      // a second shot opens the item as seeded.
+      after: [{ navigate: "/library" }, { action: "restoreVault" }],
     },
     "redaction-card": {
       profile: "image-mocks",
@@ -458,6 +467,13 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.redactionNotice:shown"],
       gates: [{ flag: "image-canvas", side: "on" }],
+      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
+      // a second shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { action: "restoreVault" },
+        { action: "forgetRedactionNotice" },
+      ],
     },
     "redaction-styles": {
       profile: "image-mocks",
@@ -499,6 +515,13 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.canvas:redacted", "editorImage.redactionStyle:solid"],
       gates: [{ flag: "image-canvas", side: "on" }],
+      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
+      // a second shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { action: "restoreVault" },
+        { action: "forgetRedactionNotice" },
+      ],
     },
     "inspect-off": {
       profile: "image-inspect",
