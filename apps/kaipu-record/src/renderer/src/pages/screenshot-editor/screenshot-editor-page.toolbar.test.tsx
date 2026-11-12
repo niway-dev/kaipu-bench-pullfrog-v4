@@ -712,9 +712,10 @@ describe("tool panel: the Tool tab of the side panel", () => {
   ])("%s shows %s in the panel, not over the stage", async (tool, label) => {
     await mount(ALL);
     fireEvent.click(btn(tool));
-    const option = within(panel()).getByText(label);
-    expect(option).toBeInTheDocument();
-    expect(option.closest('[data-ui-area="editorImage.canvas"]')).toBeNull();
+    expect(within(panel()).getByText(label)).toBeInTheDocument();
+    const stage = document.querySelector('[data-ui-area="editorImage.canvas"]');
+    expect(stage).not.toBeNull();
+    expect(within(stage as HTMLElement).queryByText(label)).toBeNull();
   });
 
   it("Redact shows its Blur / Solid style in the panel", async () => {
