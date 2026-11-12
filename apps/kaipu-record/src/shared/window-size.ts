@@ -64,7 +64,7 @@ export const WINDOW_PRESETS = {
    */
   editor: { width: 1440, height: 900, minWidth: 1180, minHeight: 760 },
   /**
-   * An open image (`ROUTES.editorImage`). Same starting size as `editor`, so
+   * An open image (`ROUTES.editorImage`) or a fresh capture (`ROUTES.editorCapture`). Same starting size as `editor`, so
    * opening an item from the home never resizes the window, but it may be
    * dragged down to the app's base minimum: the toolbar has a compact state for
    * it. The minimum equals `BASE_MIN_WIDTH/HEIGHT` in `main/index.ts` (kept
@@ -102,8 +102,10 @@ export function presetForPath(pathname: string): WindowPresetName {
   const isEditor = pathname === ROUTES.editor || pathname.startsWith(`${ROUTES.editor}/`);
   if (!isEditor) return "main";
   // `ROUTES.editorImage` is `/editor/image/:assetId`; match the part before the param.
+  // A fresh capture (`ROUTES.editorCapture`) renders the same page, so it shares the preset.
   const imagePrefix = ROUTES.editorImage.slice(0, ROUTES.editorImage.indexOf(":"));
-  return pathname.startsWith(imagePrefix) ? "editorImage" : "editor";
+  if (pathname === ROUTES.editorCapture || pathname.startsWith(imagePrefix)) return "editorImage";
+  return "editor";
 }
 
 /** True for the presets of the one workspace that takes the window over. */
