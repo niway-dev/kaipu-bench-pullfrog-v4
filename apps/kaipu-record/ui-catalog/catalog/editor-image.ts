@@ -281,8 +281,12 @@ export const editorImage = catalog(
           },
         },
         { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
+        // The shot must show the tag (the view is still zooming to fit until it is up).
+        { waitFor: { area: "editorImage.canvas", part: { text: "Just added" } } },
       ],
       demonstrates: ["editorImage.canvasView:justAdded"],
+      // No tag, no state: fail instead of keeping a frame that does not show it.
+      stillOnScreen: { area: "editorImage.canvas", part: { text: "Just added" } },
       keepToasts: true,
       after: leaveAndRestore,
     },
