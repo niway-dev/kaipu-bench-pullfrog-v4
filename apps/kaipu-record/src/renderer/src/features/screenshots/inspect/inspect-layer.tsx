@@ -156,8 +156,9 @@ function Hud({
     ? t(hover.outOfGamut ? "inspectTagAsCapturedP3" : "inspectTagAsCaptured")
     : inspect.format.toUpperCase();
   // The tolerance card sits beside the pointer, on the side the HUD did not take (its measured
-  // flip). Where that side has no room it goes past the HUD's far edge instead, so it never
-  // covers the loupe. Vertically it follows the pointer, kept inside the layer, which clips.
+  // flip). Where that side has no room it goes past the HUD's far edge instead. A layer too
+  // narrow for both keeps the card visible inside it, even over the HUD. Vertically it follows
+  // the pointer, kept inside the layer, which clips.
   const besidePointer = flipX ? x + 12 : x - 12 - TOLERANCE_CARD_WIDTH;
   const pastHud = flipX ? left - 12 - TOLERANCE_CARD_WIDTH : left + hudWidth + 12;
   const toleranceLeft =
