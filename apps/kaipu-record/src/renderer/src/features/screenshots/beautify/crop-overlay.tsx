@@ -109,7 +109,13 @@ export function CropOverlay({
 
   const onPointerDown = (e: React.PointerEvent): void => {
     const p = toNorm(e);
-    const tol = { x: HANDLE_HIT_PX / (size.w || 1), y: HANDLE_HIT_PX / (size.h || 1) };
+    // `size` is the layout box, which ignores the view's zoom; the handles are drawn (and the
+    // tolerance meant) in screen px, so undo the zoom here.
+    const zoom = chrome?.zoom || 1;
+    const tol = {
+      x: HANDLE_HIT_PX / zoom / (size.w || 1),
+      y: HANDLE_HIT_PX / zoom / (size.h || 1),
+    };
     const handle = hitCropHandle(cropRect, p, tol, size);
     // Move only an EXISTING sub-crop; with no crop yet, `cropRect` is FULL_CROP (covers
     // everything), so an interior press must draw a fresh rect, not no-op move it.
