@@ -34,6 +34,16 @@ export const NOTABLE_MEMBER_SHARE = 0.01;
 /** Groups sent to the panel; the rest are only counted. */
 export const MAX_GROUPS = 200;
 
+/** Connected regions under this many pixels are not areas: it skips stray anti-aliasing
+ * pixels, while each glyph of text in that color still counts as an area. */
+export const MIN_AREA_PX = 16;
+/** From this many exact values an image is treated as a photograph. */
+export const PHOTO_MIN_DISTINCT = 1000;
+/** Share of the counted pixels the groups shown for a photograph must cover. */
+export const PHOTO_COVERAGE = 0.8;
+/** Rows between progress reports are chosen so there are about this many. */
+const PROGRESS_STEPS = 20;
+
 export interface ColorMember {
   /** 0xRRGGBB. */
   rgb: number;
@@ -89,14 +99,25 @@ const cellIndex = (v: number): number => Math.floor(v / GROUP_DISTANCE);
 const cellKey = (l: number, a: number, b: number): number =>
   ((l + 64) * 256 + (a + 128)) * 256 + (b + 128);
 
-export function analyzeColors(data: Uint8ClampedArray, width: number, height: number): ColorIndex {
-  // 1. Exact counts.
+export function analyzeColors(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  /** Called with 0..1 while the pixels are counted, about `PROGRESS_STEPS` times. */
+  onProgress?: (done: number) => void,
+): ColorIndex {
+  // 1. Exact counts, in chunks of rows so progress is reported per chunk, never per pixel.
   const exact = new Uint32Array(1 << 24);
   let counted = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] === 0) continue;
-    exact[(data[i] << 16) | (data[i + 1] << 8) | data[i + 2]]++;
-    counted++;
+  const chunk = Math.max(4, Math.ceil(data.length / PROGRESS_STEPS / 4) * 4);
+  for (let start = 0; start < data.length; start += chunk) {
+    const end = Math.min(data.length, start + chunk);
+    for (let i = start; i < end; i += 4) {
+      if (data[i + 3] === 0) continue;
+      exact[(data[i] << 16) | (data[i + 1] << 8) | data[i + 2]]++;
+      counted++;
+    }
+    onProgress?.(end / data.length);
   }
 
   // 2. Bins: count and the sum of each channel, for the bin's mean color.
@@ -227,6 +248,157 @@ export function analyzeColors(data: Uint8ClampedArray, width: number, height: nu
     analysis: { width, height, counted, distinct, totalGroups: order.length, groups },
     groupOfBin,
   };
+}
+
+/** Euclidean distance in OKLab times 100 (ΔE_OK): about 100 between white and black. */
+export function deltaE(a: number, b: number): number {
+  const x = srgbToOklab([(a >> 16) & 255, (a >> 8) & 255, a & 255]);
+  const y = srgbToOklab([(b >> 16) & 255, (b >> 8) & 255, b & 255]);
+  return Math.hypot(x.l - y.l, x.a - y.a, x.b - y.b) * 100;
+}
+
+/** Every group's members as one list, most frequent first (ties: lower color first). */
+export function flatColors(analysis: ColorAnalysis): ColorMember[] {
+  return analysis.groups
+    .flatMap((g) => g.members)
+    .sort((x, y) => y.count - x.count || x.rgb - y.rgb);
+}
+
+export const isPhoto = (analysis: ColorAnalysis): boolean =>
+  analysis.distinct >= PHOTO_MIN_DISTINCT;
+
+/**
+ * For a photograph: the largest groups that together cover `PHOTO_COVERAGE` of the counted
+ * pixels (at least one), and how many pixels are left outside them ("Other").
+ */
+export function coverageGroups(analysis: ColorAnalysis): { groups: ColorGroup[]; other: number } {
+  const goal = analysis.counted * PHOTO_COVERAGE;
+  const groups: ColorGroup[] = [];
+  let covered = 0;
+  for (const g of analysis.groups) {
+    if (groups.length > 0 && covered >= goal) break;
+    groups.push(g);
+    covered += g.count;
+  }
+  return { groups, other: Math.max(0, analysis.counted - covered) };
+}
+
+export interface AreaBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Connected regions (8-connectivity) of at least `MIN_AREA_PX` pixels among the pixels
+ * `hit(pixelIndex)` accepts, and the bounds of the largest. Labels horizontal runs with a
+ * union-find over runs, so memory follows the number of runs, not the 24 M pixels of a 6K image.
+ */
+export function regionsOf(
+  hit: (pixel: number) => boolean,
+  width: number,
+  height: number,
+): { areas: number; bounds: AreaBounds | null } {
+  let cap = 1024;
+  let parent = new Int32Array(cap);
+  let size = new Uint32Array(cap);
+  // A run's own span (never changed) apart from its region's bounds (kept on the root).
+  let runStart = new Int32Array(cap);
+  let runEnd = new Int32Array(cap);
+  let minX = new Int32Array(cap);
+  let maxX = new Int32Array(cap);
+  let minY = new Int32Array(cap);
+  let maxY = new Int32Array(cap);
+  let runs = 0;
+  const grow = (): void => {
+    cap *= 2;
+    const widen = <T extends Int32Array | Uint32Array>(a: T): T => {
+      const next = new (a.constructor as new (n: number) => T)(cap);
+      next.set(a);
+      return next;
+    };
+    parent = widen(parent);
+    size = widen(size);
+    runStart = widen(runStart);
+    runEnd = widen(runEnd);
+    minX = widen(minX);
+    maxX = widen(maxX);
+    minY = widen(minY);
+    maxY = widen(maxY);
+  };
+  const find = (r: number): number => {
+    while (parent[r] !== r) {
+      parent[r] = parent[parent[r]];
+      r = parent[r];
+    }
+    return r;
+  };
+  const union = (a: number, b: number): void => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra === rb) return;
+    // The smaller index stays the root so the order is deterministic.
+    const [keep, drop] = ra < rb ? [ra, rb] : [rb, ra];
+    parent[drop] = keep;
+    size[keep] += size[drop];
+    minX[keep] = Math.min(minX[keep], minX[drop]);
+    maxX[keep] = Math.max(maxX[keep], maxX[drop]);
+    minY[keep] = Math.min(minY[keep], minY[drop]);
+    maxY[keep] = Math.max(maxY[keep], maxY[drop]);
+  };
+
+  let prevFirst = 0;
+  let prevEnd = 0; // runs [prevFirst, prevEnd) belong to the previous row
+  for (let y = 0; y < height; y++) {
+    const rowFirst = runs;
+    const base = y * width;
+    let x = 0;
+    while (x < width) {
+      if (!hit(base + x)) {
+        x++;
+        continue;
+      }
+      const start = x;
+      while (x < width && hit(base + x)) x++;
+      if (runs === cap) grow();
+      const id = runs++;
+      parent[id] = id;
+      size[id] = x - start;
+      runStart[id] = start;
+      runEnd[id] = x - 1;
+      minX[id] = start;
+      maxX[id] = x - 1;
+      minY[id] = y;
+      maxY[id] = y;
+    }
+    // Join with the previous row's runs that touch this one, diagonals included.
+    let p = prevFirst;
+    for (let r = rowFirst; r < runs; r++) {
+      while (p < prevEnd && runEnd[p] < runStart[r] - 1) p++;
+      for (let q = p; q < prevEnd && runStart[q] <= runEnd[r] + 1; q++) union(r, q);
+    }
+    prevFirst = rowFirst;
+    prevEnd = runs;
+  }
+
+  let areas = 0;
+  let best = -1;
+  for (let r = 0; r < runs; r++) {
+    if (parent[r] !== r || size[r] < MIN_AREA_PX) continue;
+    areas++;
+    if (best === -1 || size[r] > size[best]) best = r;
+  }
+  const bounds =
+    best === -1
+      ? null
+      : {
+          x: minX[best],
+          y: minY[best],
+          w: maxX[best] - minX[best] + 1,
+          h: maxY[best] - minY[best] + 1,
+        };
+  return { areas, bounds };
 }
 
 /** Alpha of the dimmed (non-matching) pixels in the locate overlay: black at about 70%. */

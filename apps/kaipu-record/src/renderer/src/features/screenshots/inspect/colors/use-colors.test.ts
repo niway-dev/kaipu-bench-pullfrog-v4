@@ -137,3 +137,16 @@ describe("useColors", () => {
     expect(result.current).toBe(before);
   });
 });
+
+describe("useColors progress", () => {
+  it("reports progress while counting and null after", async () => {
+    const { result } = renderHook(() => useColors({ active: true, buffer: first }));
+    expect(result.current.progress).toBeNull();
+    act(() => result.current.setOpen(true));
+    expect(result.current.status).toBe("counting");
+    expect(result.current.progress).toBe(0);
+    await act(async () => created[created.length - 1].analysisCall.resolve(analysis));
+    expect(result.current.status).toBe("ready");
+    expect(result.current.progress).toBeNull();
+  });
+});
