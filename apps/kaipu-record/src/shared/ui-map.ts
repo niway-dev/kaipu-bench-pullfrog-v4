@@ -301,7 +301,11 @@ export const UI_MAP = {
       },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
-      inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
+      // "floating": the card over the canvas where the toolbar row has no room (NIW2-712).
+      inspectBar: {
+        states: ["hex", "asCaptured", "floating"],
+        gatedBy: [{ flag: "image-inspect" }],
+      },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
       // The readout while the pointer is off the image (NIW2-712).
       inspectEmpty: { states: ["shown"], gatedBy: [{ flag: "image-inspect" }] },

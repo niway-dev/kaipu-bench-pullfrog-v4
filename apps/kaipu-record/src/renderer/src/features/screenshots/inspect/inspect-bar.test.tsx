@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { InspectBar } from "./inspect-bar";
 import type { InspectController } from "./use-inspect";
+import type { ColorsController } from "./colors/use-colors";
 
 function fake(over: Partial<InspectController> = {}): InspectController {
   return {
@@ -64,5 +65,16 @@ describe("InspectBar", () => {
       "true",
     );
     expect(screen.getByText("Width")).toBeTruthy();
+  });
+
+  it("shows Copy color and Colors as icons in the toolbar row, keeping their names", () => {
+    const colors = { open: false, toggle: vi.fn() } as unknown as ColorsController;
+    const { rerender } = render(<InspectBar inspect={fake()} colors={colors} inline />);
+    expect(screen.getByRole("button", { name: "Copy color" }).textContent).toBe("");
+    expect(screen.getByRole("button", { name: "Colors" }).textContent).toBe("");
+    // The floating card keeps the words.
+    rerender(<InspectBar inspect={fake()} colors={colors} />);
+    expect(screen.getByRole("button", { name: "Copy color" }).textContent).toBe("Copy color");
+    expect(screen.getByRole("button", { name: "Colors" }).textContent).toBe("Colors");
   });
 });

@@ -162,7 +162,8 @@ export function InspectBar({
           onClick={() => void inspect.copy()}
         >
           {inspect.copied ? <Check size={14} /> : <Copy size={14} />}
-          {t("inspectCopy")}
+          {/* The toolbar row has no room for the words (the mock's row has no copy button). */}
+          {!inline && t("inspectCopy")}
         </button>
         {colors && (
           <button
@@ -170,10 +171,11 @@ export function InspectBar({
             className={`${styles.barBtn} ${colors.open ? styles.barBtnOn : ""}`}
             aria-pressed={colors.open}
             title={t("inspectColorsTitle")}
+            aria-label={t("inspectColors")}
             onClick={colors.toggle}
           >
             <Palette size={14} />
-            {t("inspectColors")}
+            {!inline && t("inspectColors")}
           </button>
         )}
       </div>

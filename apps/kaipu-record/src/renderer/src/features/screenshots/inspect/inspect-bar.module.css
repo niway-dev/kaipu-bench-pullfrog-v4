@@ -28,6 +28,11 @@
   white-space: nowrap;
 }
 
+/* The row must fit the default 1440 px window beside Copy, Save and PDF. */
+.barInline .barBtn {
+  padding: 0 7px;
+}
+
 .barRow {
   display: flex;
   align-items: center;

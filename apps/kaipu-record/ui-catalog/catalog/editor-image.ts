@@ -482,6 +482,19 @@ export const editorImage = catalog(
       keepPointer: true,
       demonstrates: ["editorImage.inspectHud:reading", "editorImage.inspectMode:collapsed"],
     },
+    "inspect-narrow-card": {
+      profile: "image-inspect",
+      // The editor's floor (1180 px): the Inspect row does not fit beside Copy, Save and PDF.
+      window: "editor-min",
+      how: "With the flag forced on, open “Settings page” in a 1180 px window and press Inspect: the toolbar keeps the annotation tools and the Inspect controls float as a card over the canvas, so Save and PDF stay in view.",
+      steps: [
+        { window: "editor-min" },
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        { waitFor: { area: "editorImage.inspectBar" } },
+      ],
+      demonstrates: ["editorImage.inspectBar:floating"],
+    },
     "inspect-c2-format": {
       profile: "image-inspect",
       how: "Mock C2: with the flag forced on, open “Settings page”, press Inspect, choose OKLCH and As captured in the bar, then rest the pointer on the image: the chip reads in OKLCH and its tag says it is as captured.",

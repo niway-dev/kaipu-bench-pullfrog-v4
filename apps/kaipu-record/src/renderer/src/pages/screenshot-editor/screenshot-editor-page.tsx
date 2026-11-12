@@ -123,7 +123,10 @@ import {
 import { useTransientValue } from "@renderer/ui/use-transient-value";
 import { PanelToggle } from "@renderer/features/screenshots/toolbar/panel-toggle";
 import { MoreMenu } from "@renderer/features/screenshots/toolbar/more-menu";
-import { useCompactEditor } from "@renderer/features/screenshots/toolbar/use-compact-editor";
+import {
+  INSPECT_INLINE_MIN_PX,
+  useCompactEditor,
+} from "@renderer/features/screenshots/toolbar/use-compact-editor";
 import { useToolShortcuts } from "@renderer/features/screenshots/toolbar/use-tool-shortcuts";
 import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
@@ -1228,6 +1231,9 @@ function ScreenshotEditorBody({
   // Compact layout (mock B3): below 1000 px the toolbar folds and the right panel becomes a
   // sheet. Measured on the page element; the revision re-measures once the image has mounted it.
   const compact = useCompactEditor(pageRef, image !== null);
+  // The Inspect controls sit in the toolbar row only where the row fits; otherwise they float.
+  const inspectCramped = useCompactEditor(pageRef, image !== null, INSPECT_INLINE_MIN_PX);
+  const inspectInline = inspect.active && !inspectCramped;
   const [panelOpen, setPanelOpen] = useState(false);
   const sheetOpen = compact && panelOpen;
   // The colors panel floats over the canvas, except in compact: there it lives in the sheet
@@ -1310,9 +1316,9 @@ function ScreenshotEditorBody({
             <span className={styles.divider} aria-hidden />
           </>
         )}
-        {inspect.active && !compact && <InspectBar inspect={inspect} colors={colors} inline />}
+        {inspectInline && <InspectBar inspect={inspect} colors={colors} inline />}
         {/* Stays mounted while the Inspect row stands in for it (hidden, not removed). */}
-        <div className={inspect.active && !compact ? styles.toolsHidden : styles.tools}>
+        <div className={inspectInline ? styles.toolsHidden : styles.tools}>
           <AnnotationToolbar
             tools={tools}
             onPick={() => {
@@ -1518,7 +1524,7 @@ function ScreenshotEditorBody({
           <div className={styles.optionsFloat}>
             {inspect.active ? (
               <>
-                {compact && <InspectBar inspect={inspect} colors={colors} />}
+                {!inspectInline && <InspectBar inspect={inspect} colors={colors} />}
                 {colors.open && !compact && colorsPanel}
               </>
             ) : (
