@@ -43,6 +43,10 @@ const TOKENS: Array<[string, string, string | null]> = [
   ["--ie-ov-bd", "rgba(255,255,255,.24)", null],
   ["--ie-ov-tx", "#e8e8ed", null],
   ["--ie-dim", "rgba(6,6,7,.68)", null],
+  ["--ie-ink-light", "#fff", null],
+  ["--ie-ink-dark", "#000", null],
+  ["--ie-ok", "#4ade80", null],
+  ["--ie-ok-chrome", "#22c55e", null],
 ];
 
 const squash = (v: string): string => v.replace(/\s+/g, "").replace(/(^|[^0-9])0\./g, "$1.");

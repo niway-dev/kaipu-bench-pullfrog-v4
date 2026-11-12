@@ -83,6 +83,9 @@ type Drag =
 /** How far from a word, in display px, a press still starts a selection on it. */
 const TEXT_HIT_PX = 6;
 
+/** Radius of a selected measure's end dot: 10 px across (mock C9). */
+const MEASURE_DOT_R = 5;
+
 /** Side of a resize handle in px, and the click tolerance around it. */
 const HANDLE_PX = 10;
 const HANDLE_HIT_PX = 12;
@@ -130,6 +133,8 @@ interface LayerProps {
    * shows the gap to its nearest neighbour in source px. Absent = no gap measure.
    */
   natural?: { w: number; h: number };
+  /** The image that was just added and has not been touched: its tag says so (NIW2-715). */
+  justAddedId?: string | null;
 }
 
 /**
@@ -148,6 +153,7 @@ function AnnotationLayerImpl({
   text,
   onLive,
   natural,
+  justAddedId = null,
 }: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
@@ -820,6 +826,7 @@ function AnnotationLayerImpl({
           }}
           pixelWidth={selectedImage.pixelWidth}
           pixelHeight={selectedImage.pixelHeight}
+          justAdded={justAddedId != null && justAddedId === selectedImage.id}
           gaps={gaps}
           unit={natural && natural.w > 0 ? size.w / natural.w : 1}
         />
@@ -950,6 +957,31 @@ function TextTarget({
  *  layer's onPointerDown), so these are purely visual + carry the resize cursor. */
 function Handles({ a, size }: { a: Annotation; size: Size }): React.JSX.Element {
   const { w: W, h: H } = size;
+  if (a.kind === "measure") {
+    // Mock C9: round end dots in the measure's own color (same grab targets, same hit-testing).
+    return (
+      <g>
+        {handlesFor(a, size).map((h) => (
+          <g key={h.id} style={{ cursor: handleCursor(h.id) }}>
+            <circle
+              className={styles.measureDotRing}
+              cx={h.x * W}
+              cy={h.y * H}
+              r={MEASURE_DOT_R + 1}
+            />
+            <circle
+              data-testid="resize-handle"
+              className={styles.measureDot}
+              cx={h.x * W}
+              cy={h.y * H}
+              r={MEASURE_DOT_R}
+              stroke={a.color}
+            />
+          </g>
+        ))}
+      </g>
+    );
+  }
   return (
     <g>
       {handlesFor(a, size).map((h) => (
@@ -1175,7 +1207,21 @@ const Shape = React.memo(function Shape({
         data-annotation={a.id}
         data-kind="measure"
         data-measure-length={a.to - a.from}
+        data-selected={selected ? "true" : undefined}
       >
+        {/* On-screen only: a white halo under the line keeps it readable on any image. The export
+            draws its own measures (compositor), so it never sees this. */}
+        <g
+          data-measure-halo=""
+          className={styles.measureHalo}
+          strokeWidth={sw + 2}
+          strokeLinecap="round"
+        >
+          <line x1={s.p1.x} y1={s.p1.y} x2={s.p2.x} y2={s.p2.y} />
+          {s.ticks.map((t, i) => (
+            <line key={i} x1={t[0]} y1={t[1]} x2={t[2]} y2={t[3]} />
+          ))}
+        </g>
         <g stroke={a.color} strokeWidth={sw} strokeLinecap="round">
           <line x1={s.p1.x} y1={s.p1.y} x2={s.p2.x} y2={s.p2.y} />
           {s.ticks.map((t, i) => (
@@ -1189,6 +1235,8 @@ const Shape = React.memo(function Shape({
           height={s.pill.h}
           rx={s.pill.rx}
           fill={a.color}
+          stroke={selected ? "var(--ie-ink-light)" : undefined}
+          strokeWidth={selected ? 1 : undefined}
         />
         <text
           x={s.text.x}
@@ -1203,9 +1251,6 @@ const Shape = React.memo(function Shape({
         >
           {measureLabel(a)}
         </text>
-        {selected && (
-          <line className={styles.selOutline} x1={s.p1.x} y1={s.p1.y} x2={s.p2.x} y2={s.p2.y} />
-        )}
       </g>
     );
   }

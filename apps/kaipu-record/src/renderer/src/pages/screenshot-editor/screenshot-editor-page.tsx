@@ -40,6 +40,7 @@ import {
   ColorsPanel,
   InspectBar,
   InspectLayer,
+  InspectModePill,
   InspectToggle,
   formatColor,
   formatShare,
@@ -134,7 +135,10 @@ import {
 import { useTransientValue } from "@renderer/ui/use-transient-value";
 import { PanelToggle } from "@renderer/features/screenshots/toolbar/panel-toggle";
 import { MoreMenu } from "@renderer/features/screenshots/toolbar/more-menu";
-import { useCompactEditor } from "@renderer/features/screenshots/toolbar/use-compact-editor";
+import {
+  INSPECT_INLINE_MIN_PX,
+  useCompactEditor,
+} from "@renderer/features/screenshots/toolbar/use-compact-editor";
 import { useToolShortcuts } from "@renderer/features/screenshots/toolbar/use-tool-shortcuts";
 import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
@@ -842,9 +846,47 @@ function ScreenshotEditorBody({
     height: imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0,
   });
 
+  // The image `addImage` just placed, where it placed it (mock E3).
+  const [justAdded, setJustAdded] = useState<{
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  // The memory ends the moment the selection moves to anything else or the image leaves its
+  // landing spot or size (a corner drag resizes it with x/y fixed), so the tag never comes back,
+  // even if the image is dragged back there.
+  // (An undone add leaves an id no annotation has: nothing shows.)
+  const justAddedAnnotation = justAdded
+    ? scene.annotations.find((a) => a.id === justAdded.id)
+    : undefined;
+  const justAddedMoved =
+    justAddedAnnotation?.kind === "image" &&
+    (justAddedAnnotation.x !== justAdded?.x ||
+      justAddedAnnotation.y !== justAdded?.y ||
+      justAddedAnnotation.w !== justAdded?.w ||
+      justAddedAnnotation.h !== justAdded?.h);
+  useEffect(() => {
+    if (justAdded && (scene.selectedId !== justAdded.id || justAddedMoved)) setJustAdded(null);
+  }, [justAdded, justAddedMoved, scene.selectedId]);
+  const justAddedId =
+    justAdded &&
+    scene.selectedId === justAdded.id &&
+    justAddedAnnotation &&
+    justAddedAnnotation.kind === "image" &&
+    justAddedAnnotation.x === justAdded.x &&
+    justAddedAnnotation.y === justAdded.y &&
+    justAddedAnnotation.w === justAdded.w &&
+    justAddedAnnotation.h === justAdded.h
+      ? justAdded.id
+      : null;
+
   /**
    * Put a PNG on the canvas as an image annotation (NIW2-703): to the right of the content
    * box, top-aligned with the base, selected, with the select tool active so it can be moved.
+   * Its tag says "just added" until it moves or the selection changes, and a toast says
+   * where it went (mock E3, NIW2-715).
    * It goes through `addAnnotation`, so it is an undoable edit that marks the scene dirty.
    */
   const addImage = (png: ArrayBuffer, pixelWidth: number, pixelHeight: number): void => {
@@ -880,6 +922,14 @@ function ScreenshotEditorBody({
     scene.addAnnotation(annotation);
     scene.select(annotation.id);
     tools.setTool("select");
+    setJustAdded({
+      id: annotation.id,
+      x: annotation.x,
+      y: annotation.y,
+      w: annotation.w,
+      h: annotation.h,
+    });
+    showToast({ message: t("imageAddedRight"), tone: "success" });
   };
   // The paste listener below outlives a render: it calls the latest closure.
   const addImageRef = useRef(addImage);
@@ -1301,6 +1351,9 @@ function ScreenshotEditorBody({
   // Compact layout (mock B3): below 1000 px the toolbar folds and the right panel becomes a
   // sheet. Measured on the page element; the revision re-measures once the image has mounted it.
   const compact = useCompactEditor(pageRef, image !== null);
+  // The Inspect controls sit in the toolbar row only where the row fits; otherwise they float.
+  const inspectCramped = useCompactEditor(pageRef, image !== null, INSPECT_INLINE_MIN_PX);
+  const inspectInline = inspect.active && !inspectCramped;
   const [panelOpen, setPanelOpen] = useState(false);
   const sheetOpen = compact && panelOpen;
   // The Colors panel is the side panel's second tab. In compact the panel is the sheet, and
@@ -1428,18 +1481,22 @@ function ScreenshotEditorBody({
             <span className={styles.divider} aria-hidden />
           </>
         )}
-        <AnnotationToolbar
-          tools={tools}
-          onPick={() => {
-            scene.select(null);
-            inspect.setActive(false);
-          }}
-          textTool={textEnabled}
-          canvasMode={canvasMode}
-          compact={compact}
-          idle={inspect.active}
-          addImage={canvasMode ? addImageControl(true) : undefined}
-        />
+        {inspectInline && <InspectBar inspect={inspect} colors={colors} inline />}
+        {/* Stays mounted while the Inspect row stands in for it (hidden, not removed). */}
+        <div className={inspectInline ? styles.toolsHidden : styles.tools}>
+          <AnnotationToolbar
+            tools={tools}
+            onPick={() => {
+              scene.select(null);
+              inspect.setActive(false);
+            }}
+            textTool={textEnabled}
+            canvasMode={canvasMode}
+            compact={compact}
+            idle={inspect.active}
+            addImage={canvasMode ? addImageControl(true) : undefined}
+          />
+        </div>
         {compact ? (
           <>
             <MoreMenu
@@ -1579,6 +1636,7 @@ function ScreenshotEditorBody({
                     src={image.displayUrl}
                     canvas={canvasMode}
                     canvasMode={canvasMode}
+                    justAddedId={justAddedId}
                     {...(canvasMode
                       ? {
                           imageUrls,
@@ -1636,7 +1694,7 @@ function ScreenshotEditorBody({
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
             {inspect.active ? (
-              <InspectBar inspect={inspect} colors={colors} />
+              !inspectInline && <InspectBar inspect={inspect} colors={colors} />
             ) : (
               <AnnotationOptions
                 tools={tools}
@@ -1646,6 +1704,10 @@ function ScreenshotEditorBody({
               />
             )}
           </div>
+
+          {inspectEnabled && inspect.active && (
+            <InspectModePill copied={inspect.copied} readout={inspect.copiedText} />
+          )}
 
           {/* Zoom pinned at the foot of the canvas — a familiar editor convention. */}
           <div className={styles.zoomFloat}>

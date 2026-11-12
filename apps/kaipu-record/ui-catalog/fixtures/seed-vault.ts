@@ -52,6 +52,10 @@ export const ASSETS = {
   colorsShot: "c0a1a10c-0000-4000-8000-00000000010b",
   /** Seeded with `colorsShot`: a photograph stand-in with thousands of exact colors. */
   photoShot: "c0a1a10c-0000-4000-8000-00000000010c",
+  /** Seeded only where `inspectShots` is on: a Display P3 swatch sheet (mock C3). */
+  p3Shot: "c0a1a10c-0000-4000-8000-00000000010d",
+  /** Seeded only where `inspectShots` is on: a copy of “Settings page” that mock C9 pins on. */
+  pinsShot: "c0a1a10c-0000-4000-8000-00000000010e",
   loopGif: "c0a1a10c-0000-4000-8000-000000000201",
 } as const;
 
@@ -84,6 +88,24 @@ export const MOCK_SHOTS = [
 ] as const;
 
 /**
+ * The Display P3 swatch sheet the Inspect verify scenarios also use (256 x 64, tagged Display
+ * P3; its `.json` says which swatches fall outside sRGB). Copied byte for byte so the colour
+ * profile stays in the file.
+ */
+export const P3_FIXTURE = path.join(
+  __dirname,
+  "..",
+  "..",
+  "verify",
+  "fixtures",
+  "inspect",
+  "p3-swatches.png",
+);
+// 5.5 h, not 5: the Colors panel's "Pricing page" (same profile) is 5 h and ties are unordered.
+const P3_SHOT = { stem: "P3 swatches", title: "P3 swatches", ago: 5.5 * HOUR } as const;
+const PINS_SHOT = { stem: "Measure page", title: "Measure page", ago: 6 * HOUR } as const;
+
+/**
  * The second workspace a state creates (`workspaces.create`). Main puts its folder next to the
  * default one, which is a throwaway folder in the system temp dir, so the new folder lands
  * in the temp dir itself and outlives the run: the runner removes it (`run.ts`).
@@ -103,6 +125,8 @@ export const ITEM_IDS = {
   textShot: TEXT_SHOT.stem,
   colorsShot: "Pricing page",
   photoShot: "Landscape photo",
+  p3Shot: P3_SHOT.stem,
+  pinsShot: PINS_SHOT.stem,
   walkthrough: "Walkthrough 1",
   teamNotes: "Team notes",
   bugReport: "Bug report",
@@ -244,6 +268,8 @@ export interface SeedOptions {
    * Only the profile that needs them turns it on, so no other state's vault changes.
    */
   mockShots?: boolean;
+  /** Add the P3 swatch sheet and a private copy of “Settings page” (Inspect states C3 and C9). */
+  inspectShots?: boolean;
   /**
    * Leave a canvas document that cannot be parsed beside "Settings page" (the image editor's
    * reopen then opens the flat image and says so).
@@ -590,6 +616,26 @@ export async function seedCatalogVault(vaultDir: string, options: SeedOptions): 
   }
 
   if (options.lockedRedaction) await seedLockedRedactionShot(vaultDir, meta, fixtures, now);
+
+  if (options.inspectShots) {
+    await copyFile(P3_FIXTURE, path.join(vaultDir, `${P3_SHOT.stem}.png`));
+    await writeJson(path.join(meta, `${P3_SHOT.stem}.json`), {
+      sidecarVersion: 2,
+      assetId: ASSETS.p3Shot,
+      title: P3_SHOT.title,
+      createdAt: now - P3_SHOT.ago,
+    });
+    await copyFile(
+      path.join(fixtures, FIXTURE_FILES.screens[0]),
+      path.join(vaultDir, `${PINS_SHOT.stem}.png`),
+    );
+    await writeJson(path.join(meta, `${PINS_SHOT.stem}.json`), {
+      sidecarVersion: 2,
+      assetId: ASSETS.pinsShot,
+      title: PINS_SHOT.title,
+      createdAt: now - PINS_SHOT.ago,
+    });
+  }
 
   if (options.reconcile === "fixable") {
     await copyFile(path.join(fixtures, FIXTURE_FILES.cut(4)), path.join(vaultDir, "clip-0001.mp4"));

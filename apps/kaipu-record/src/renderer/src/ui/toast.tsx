@@ -1,4 +1,5 @@
 import React, { useSyncExternalStore } from "react";
+import { Check } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { ToastList } from "@kaipu/ui";
 import { dismissToast, getToasts, subscribeToasts } from "./toast-store";
@@ -14,5 +15,25 @@ import { dismissToast, getToasts, subscribeToasts } from "./toast-store";
 export function ToastHost(): React.JSX.Element {
   const toasts = useSyncExternalStore(subscribeToasts, getToasts);
   const t = useTranslations("common");
-  return <ToastList toasts={toasts} onDismiss={dismissToast} closeLabel={t("close")} />;
+  const items = toasts.map((toast) => ({
+    id: toast.id,
+    action: toast.action,
+    detail: toast.detail,
+    message:
+      toast.tone === "success" ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Check
+            size={13}
+            strokeWidth={2.4}
+            aria-hidden
+            data-testid="toast-success-icon"
+            style={{ color: "var(--accent-green)", flexShrink: 0 }}
+          />
+          {toast.message}
+        </span>
+      ) : (
+        toast.message
+      ),
+  }));
+  return <ToastList toasts={items} onDismiss={dismissToast} closeLabel={t("close")} />;
 }
