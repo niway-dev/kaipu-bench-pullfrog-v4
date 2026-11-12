@@ -339,16 +339,19 @@ export function buildSvg(scene: Scene, g: Geom): string {
     `<image id="shot" href="${g.href}" width="${g.naturalW}" height="${g.naturalH}" preserveAspectRatio="none"/>`,
   );
 
-  // Each added image (canvas mode), defined ONCE per asset like #shot, however many
-  // annotations place it.
+  // Each added image (canvas mode), defined ONCE per asset and pixel size like #shot, however
+  // many annotations place it at that size. <use> cannot resize an <image>, so a placement
+  // resized apart from another one needs a def of its own size.
   const assetDefs = new Set<string>();
   for (const a of scene.annotations) {
-    if (!ext || a.kind !== "image" || assetDefs.has(a.assetId)) continue;
+    if (!ext || a.kind !== "image") continue;
+    const id = assetDefId(a, g);
+    if (assetDefs.has(id)) continue;
     const href = g.assets?.[a.assetId];
     if (href === undefined) throw new Error(`compositor: missing asset ${a.assetId}`);
-    assetDefs.add(a.assetId);
+    assetDefs.add(id);
     defs.push(
-      `<image id="asset-${a.assetId}" href="${href}" width="${a.w * g.naturalW}" height="${a.h * g.naturalH}" preserveAspectRatio="none"/>`,
+      `<image id="${id}" href="${href}" width="${a.w * g.naturalW}" height="${a.h * g.naturalH}" preserveAspectRatio="none"/>`,
     );
   }
 
@@ -397,6 +400,11 @@ export function buildSvg(scene: Scene, g: Geom): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${vbX} ${vbY} ${outW} ${outH}"><defs>${defs.join("")}</defs>${bg}${boxFill}${shadow}${image}${anno}</svg>`;
 }
 
+/** The def id of an added image at its own size, so each distinct size is embedded once. */
+function assetDefId(a: ImageAnnotation, g: Geom): string {
+  return `asset-${a.assetId}-${a.w * g.naturalW}x${a.h * g.naturalH}`;
+}
+
 /**
  * One added image: its shadow (same filter as the base, when shadow > 0), then the shared
  * asset clipped to a rect with the beautify radius. Authored in the annotation group's
@@ -417,7 +425,7 @@ function imageSvg(a: ImageAnnotation, g: Geom, shadow: boolean, idSuffix = ""): 
     (shadow
       ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${g.radius}" fill="#000" filter="url(#sh)"/>`
       : "") +
-    `<g clip-path="url(#${clip})"><use href="#asset-${a.assetId}" x="${x}" y="${y}"/></g>`
+    `<g clip-path="url(#${clip})"><use href="#${assetDefId(a, g)}" x="${x}" y="${y}"/></g>`
   );
 }
 
