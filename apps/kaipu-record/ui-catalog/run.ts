@@ -1070,6 +1070,11 @@ async function shoot(
       }
     }
 
+    // A kept toast still closes on its own timer: one gone by the end of the shot means the
+    // image may show the state without it, so the state fails instead of keeping that image.
+    if (spec.keepToasts && (await page.locator('[role="alert"]').count()) === 0)
+      problems.push("keepToasts: no toast was still open when the shot was taken");
+
     // The image must show what it claims, and nothing the state did not ask for.
     for (const claim of spec.demonstrates) {
       const area = claim.split(":")[0];
