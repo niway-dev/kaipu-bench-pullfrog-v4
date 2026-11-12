@@ -1123,6 +1123,40 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.textSelection:selected"],
     },
+    "text-hide-ready": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings” and pick the Redact tool: once recognition finishes, the options bar says a click on a line of text hides it.",
+      steps: openTextHide,
+      demonstrates: ["editorImage.textHideHint:ready"],
+      gates: [
+        { flag: "image-text", side: "on" },
+        { flag: "image-canvas", side: "on" },
+      ],
+    },
+    "text-hide-hover": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings”, pick the Redact tool and rest the pointer on its first row: the line a click would hide is outlined.",
+      steps: [
+        ...openTextHide,
+        { hover: { area: "editorImage.textHide" }, at: FIRST_ROW },
+        { waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=text-target]" } } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.textHide:hover"],
+    },
+    "text-hidden": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings”, pick the Redact tool and click its first row: that line is blurred, and the rows around it stay sharp.",
+      steps: [
+        ...openTextHide,
+        // A press and release on the same point is a click.
+        { drag: { area: "editorImage.textHide" }, from: FIRST_ROW, to: FIRST_ROW },
+        {
+          waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=redaction-tile]" } },
+        },
+      ],
+      demonstrates: ["editorImage.textHide:hidden"],
+    },
     "text-reading": {
       profile: "image-text-slow",
       how: "Mock G1 (recognizing text on open). With the flag forced on and text recognition held for a minute, open “Display settings”: a faint accent band sweeps the image and a quiet notice at the bottom-left, right of the zoom control, reads “Reading the text in this image…”.",
@@ -1262,40 +1296,6 @@ export const editorImage = catalog(
       demonstrates: ["editorImage.reopenNotice:flat"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
-    "text-hide-ready": {
-      profile: "image-text-canvas",
-      how: "With both flags forced on, open “Display settings” and pick the Redact tool: once recognition finishes, the options bar says a click on a line of text hides it.",
-      steps: openTextHide,
-      demonstrates: ["editorImage.textHideHint:ready"],
-      gates: [
-        { flag: "image-text", side: "on" },
-        { flag: "image-canvas", side: "on" },
-      ],
-    },
-    "text-hide-hover": {
-      profile: "image-text-canvas",
-      how: "With both flags forced on, open “Display settings”, pick the Redact tool and rest the pointer on its first row: the line a click would hide is outlined.",
-      steps: [
-        ...openTextHide,
-        { hover: { area: "editorImage.textHide" }, at: FIRST_ROW },
-        { waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=text-target]" } } },
-      ],
-      keepPointer: true,
-      demonstrates: ["editorImage.textHide:hover"],
-    },
-    "text-hidden": {
-      profile: "image-text-canvas",
-      how: "With both flags forced on, open “Display settings”, pick the Redact tool and click its first row: that line is redacted, and the rows around it stay sharp.",
-      steps: [
-        ...openTextHide,
-        // A press and release on the same point is a click.
-        { drag: { area: "editorImage.textHide" }, from: FIRST_ROW, to: FIRST_ROW },
-        {
-          waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=redaction-tile]" } },
-        },
-      ],
-      demonstrates: ["editorImage.textHide:hidden"],
-    },
     "canvas-light": {
       profile: "image-canvas",
       how: "With the flag forced on, switch to the light theme and open “Settings page”: the canvas's dot grid takes the light colours.",
@@ -1307,13 +1307,13 @@ export const editorImage = catalog(
   },
   {
     notCapturable: {
+      "editorImage.textHideHint:pending": nc(
+        "needsSetup",
+        "only the image-text-slow profile holds recognition, and it does not force image-canvas, which the hint needs; a canvas variant of that profile would show it (not built). The hint reads “Recognizing text…” until recognition settles",
+      ),
       "editorImage.libraryPicker:empty": nc(
         "needsSetup",
         "the picker leaves out the shot being edited, and the seeded vault holds three screenshots, so it always lists two; a vault with a single screenshot would show it (not built)",
-      ),
-      "editorImage.textHideHint:pending": nc(
-        "transient",
-        "recognition settles in well under a second on a drawing, and no profile holds recognition for the canvas flag together (image-text-slow has no image-canvas); the hint reads “Recognizing text…” until then",
       ),
       "editorImage.inspectColors:counting": nc(
         "transient",

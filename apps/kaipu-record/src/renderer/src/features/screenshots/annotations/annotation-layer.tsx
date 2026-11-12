@@ -167,28 +167,29 @@ function AnnotationLayerImpl({
   // redaction is not a hit target, so this is a separate, read-only hover: it selects nothing.
   const [hoverLockedId, setHoverLockedId] = useState<string | null>(null);
   const activeText = tools.tool === "selectText" ? text : undefined;
+  // The redact tool's text targets (NIW2-706): canvas mode only, where a redaction really
+  // replaces the pixels; the classic editor's gaussian is partly reversible, so it offers none.
+  const redactText = canvasMode && tools.tool === "blur" ? text : undefined;
+  const textWords = text?.words;
+  const blocks = useMemo(() => (textWords ? textBlocks(textWords) : []), [textWords]);
+  // The line the redact tool would hide, by line number (separate from the "Select text"
+  // hover above): a hide removes its block, and an index would
+  // then name the next one.
+  const [hoverHideLine, setHoverHideLine] = useState<number | null>(null);
+  // Leaving the tool forgets the hover, so coming back does not outline a stale line.
+  if (!redactText && hoverHideLine !== null) setHoverHideLine(null);
+  const hoverBlock = redactText ? (blocks.find((b) => b.line === hoverHideLine) ?? null) : null;
+  const blockAt = (p: Pt): TextBlock | null => {
+    if (!redactText) return null;
+    const hit = nearestBlock(blocks, p, redactText.natural, size);
+    return hit && hit.distPx <= TEXT_HIT_PX ? blocks[hit.index] : null;
+  };
   // One underline per line, under the words' union box. Cheap, and only for the active tool.
   const recognizedLines = useMemo(
     () => (activeText ? lineBoxesNorm(activeText.words, activeText.natural) : []),
     [activeText],
   );
   const hoverTag = recognizedLines.find((l) => l.line === hoverLine)?.box ?? null;
-  // The redact tool's text targets (NIW2-706): canvas mode only, where a redaction really
-  // replaces the pixels; the classic editor's gaussian is partly reversible, so it offers none.
-  const redactText = canvasMode && tools.tool === "blur" ? text : undefined;
-  const textWords = text?.words;
-  const blocks = useMemo(() => (textWords ? textBlocks(textWords) : []), [textWords]);
-  // The line under the pointer, by line number: a hide removes its block, and an index would
-  // then name the next one.
-  const [hoverBlockLine, setHoverBlockLine] = useState<number | null>(null);
-  // Leaving the tool forgets the hover, so coming back does not outline a stale line.
-  if (!redactText && hoverBlockLine !== null) setHoverBlockLine(null);
-  const hoverBlock = redactText ? (blocks.find((b) => b.line === hoverBlockLine) ?? null) : null;
-  const blockAt = (p: Pt): TextBlock | null => {
-    if (!redactText) return null;
-    const hit = nearestBlock(blocks, p, redactText.natural, size);
-    return hit && hit.distPx <= TEXT_HIT_PX ? blocks[hit.index] : null;
-  };
   // A move/resize in flight lives here, not in the scene: the dragged shape renders as
   // `{ ...a, ...patch }` and the scene is touched once, on release, so a drag re-renders
   // this layer only (not the whole editor page) and ends up as one undo entry. The ref
@@ -431,7 +432,7 @@ function AnnotationLayerImpl({
           hit !== null && hit.distPx <= TEXT_HIT_PX ? activeText.words[hit.index].line : null,
         );
       }
-      if (redactText) setHoverBlockLine(blockAt(toNorm(e))?.line ?? null);
+      if (redactText) setHoverHideLine(blockAt(toNorm(e))?.line ?? null);
       return;
     }
     const p = toNorm(e);
@@ -557,7 +558,7 @@ function AnnotationLayerImpl({
       ...(tools.redactionStyle === "solid" ? { style: "solid" as const } : {}),
     });
     scene.select(null);
-    setHoverBlockLine(null);
+    setHoverHideLine(null);
   };
 
   // A pointer gesture can end without a pointerup (system gesture, capture stolen).
@@ -703,7 +704,7 @@ function AnnotationLayerImpl({
       onPointerLeave={() => {
         setHoverLockedId(null);
         setHoverLine(null);
-        setHoverBlockLine(null);
+        setHoverHideLine(null);
       }}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerAbort}

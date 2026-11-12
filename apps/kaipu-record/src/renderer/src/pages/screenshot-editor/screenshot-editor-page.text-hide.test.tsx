@@ -23,17 +23,13 @@ vi.mock("@renderer/features/screenshots/export", () => ({
 }));
 
 // jsdom has no createImageBitmap or canvas: baking is the identity, and the test reads what
-// it was asked to bake. Canvas mode saves through `bakeCanvasRedactions`, which hands the base
-// image the blurs unchanged (the base is the unit rect), so the annotations it receives are the
-// stored redactions.
+// it was asked to bake. Canvas mode bakes through bakeCanvasRedactions, which calls
+// bakeRedactions inside its own module, so the mock replaces the canvas entry point.
 const bakeCanvasRedactions = vi.hoisted(() =>
-  vi.fn(
-    async (
-      base: ArrayBuffer,
-      assets: Record<string, ArrayBuffer>,
-      _annotations: readonly unknown[],
-    ) => ({ base, assets }),
-  ),
+  vi.fn(async (base: ArrayBuffer, assets: Record<string, ArrayBuffer>, _annotations: unknown) => ({
+    base,
+    assets,
+  })),
 );
 vi.mock("@renderer/features/screenshots/annotations/redaction", async (importOriginal) => ({
   ...(await importOriginal<
@@ -126,8 +122,8 @@ function mountPaste() {
 }
 const loadImage = async () => fireEvent.load(await screen.findByRole("img"));
 // The tool is "Redact" in canvas mode and "Blur" before it.
-const pickRedact = (label = "Redact") =>
-  fireEvent.click(screen.getByRole("button", { name: label }));
+const pickRedact = () =>
+  fireEvent.click(screen.getByRole("button", { name: flags["image-canvas"] ? "Redact" : "Blur" }));
 const hideLayer = (): HTMLElement | null =>
   document.querySelector('[data-ui-area="editorImage.textHide"]');
 const READY_HINT = "Click a line of text to hide it, or drag over a region.";
@@ -154,9 +150,7 @@ const sentMeta = () =>
   };
 /** The redactions the last save baked into the stored image. */
 const baked = (): Annotation[] =>
-  ((bakeCanvasRedactions.mock.calls.at(-1)?.[2] ?? []) as Annotation[]).filter(
-    (a) => a.kind === "blur",
-  );
+  (bakeCanvasRedactions.mock.calls.at(-1)?.[2] ?? []) as Annotation[];
 const save = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(saveScreenshot).toHaveBeenCalled());
@@ -309,7 +303,7 @@ describe("text hide — without text", () => {
     flags = { "image-text": true };
     mountPaste();
     await loadImage();
-    pickRedact("Blur");
+    pickRedact();
     await waitFor(() => expect(recognize).toHaveBeenCalled());
     expect(hideLayer()).toBeNull();
     expect(screen.queryByText(READY_HINT)).toBeNull();
