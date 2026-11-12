@@ -139,14 +139,17 @@ export async function compositeSceneAt(
   const href = await bytesToDataUrl(base);
   // Decode the PNG for its TRUE pixel size (Retina-safe — `getSize` can differ).
   const { width: naturalW, height: naturalH } = await imageSize(href);
-  const scale = displayedW > 0 ? naturalW / displayedW : 1;
-  const pad = Math.round(scene.beautify.padding * scale);
-  const radius = Math.round(scene.beautify.radius * scale);
+  const { scale, pad, radius, extents } = canvasExportGeometry(
+    scene,
+    naturalW,
+    naturalH,
+    displayedW,
+  );
   // The crop is a window of the fully-composed frame (bg + padding + shot), normalized
   // 0–1 of that frame. The raster size is that window in native px; no crop = the whole frame.
   const geom: Geom = { href, naturalW, naturalH, pad, radius, scale };
   if (options.canvas) {
-    geom.extents = contentExtents(scene.annotations, naturalW, naturalH, scale);
+    geom.extents = extents;
     geom.assets = assetHrefs;
   }
   const { outW, outH } = frameWindow(scene, geom);
@@ -154,6 +157,62 @@ export async function compositeSceneAt(
   const rasterScale = clampRasterScale(options.rasterScale ?? 1, outW, outH);
   const png = await rasterize(svg, outW, outH, rasterScale);
   return { png, width: outW, height: outH, scale: rasterScale };
+}
+
+/**
+ * The numbers an export derives from the decoded image and the shot's on-screen width: the
+ * display-to-source scale, the padding and corner radius in source px, and the content-box
+ * extents (canvas mode). The one place they are computed: the composite and the editor's
+ * export box both read it, so what the box says is what Copy and Save produce.
+ */
+export function canvasExportGeometry(
+  scene: Scene,
+  naturalW: number,
+  naturalH: number,
+  displayedW: number,
+): { scale: number; pad: number; radius: number; extents: Extents } {
+  const scale = displayedW > 0 ? naturalW / displayedW : 1;
+  return {
+    scale,
+    pad: Math.round(scene.beautify.padding * scale),
+    radius: Math.round(scene.beautify.radius * scale),
+    extents: contentExtents(scene.annotations, naturalW, naturalH, scale),
+  };
+}
+
+/**
+ * The pixel size a canvas-mode export has at raster scale 1 (what Copy and Save produce):
+ * the content box plus padding, or the export frame's window when one is set.
+ */
+export function exportPixelSize(
+  scene: Scene,
+  naturalW: number,
+  naturalH: number,
+  displayedW: number,
+): { w: number; h: number } {
+  const g = canvasExportGeometry(scene, naturalW, naturalH, displayedW);
+  const { outW, outH } = frameWindow(scene, { href: "", naturalW, naturalH, ...g });
+  return { w: outW, h: outH };
+}
+
+/**
+ * A window of the composed frame, frame-normalized 0–1 (`c`), in whole px of a frame
+ * `fullW` × `fullH`: origin and size rounded the way the export rounds them, so a size
+ * shown while dragging a frame is the size the export gets.
+ */
+export function cropWindow(
+  c: { x: number; y: number; w: number; h: number },
+  fullW: number,
+  fullH: number,
+): { vbX: number; vbY: number; outW: number; outH: number } {
+  const x1 = Math.round(c.x * fullW);
+  const y1 = Math.round(c.y * fullH);
+  return {
+    vbX: x1,
+    vbY: y1,
+    outW: Math.max(1, Math.round((c.x + c.w) * fullW) - x1),
+    outH: Math.max(1, Math.round((c.y + c.h) * fullH) - y1),
+  };
 }
 
 function imageSize(url: string): Promise<{ width: number; height: number }> {
@@ -211,16 +270,7 @@ export function frameWindow(
       }),
     );
     if (!c) return whole;
-    const x1 = Math.round(c.x * l.fullW);
-    const y1 = Math.round(c.y * l.fullH);
-    return {
-      vbX: x1,
-      vbY: y1,
-      outW: Math.max(1, Math.round((c.x + c.w) * l.fullW) - x1),
-      outH: Math.max(1, Math.round((c.y + c.h) * l.fullH) - y1),
-      fullW: l.fullW,
-      fullH: l.fullH,
-    };
+    return { ...cropWindow(c, l.fullW, l.fullH), fullW: l.fullW, fullH: l.fullH };
   }
   const fullW = g.naturalW + g.pad * 2;
   const fullH = g.naturalH + g.pad * 2;
