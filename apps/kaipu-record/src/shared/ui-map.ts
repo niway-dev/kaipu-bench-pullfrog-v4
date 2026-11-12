@@ -350,6 +350,16 @@ export const UI_MAP = {
       // The pill on the stage when a saved shot is reopened in canvas mode: `editable` says
       // the document loaded (fades), `flat` that it could not be read (stays until dismissed).
       reopenNotice: { states: ["editable", "flat"], gatedBy: [{ flag: "image-canvas" }] },
+      // The redact tool's text targets (NIW2-706, canvas mode): the image while its lines are
+      // click targets (a line outlined under the pointer, then hidden), and the options bar's hint.
+      textHide: {
+        states: ["hover", "hidden"],
+        gatedBy: [{ flag: "image-text" }, { flag: "image-canvas" }],
+      },
+      textHideHint: {
+        states: ["pending", "ready"],
+        gatedBy: [{ flag: "image-text" }, { flag: "image-canvas" }],
+      },
       beautify: { states: ["default"] },
     },
   },
