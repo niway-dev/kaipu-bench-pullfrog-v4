@@ -1273,7 +1273,7 @@
     "inspectTitle": "Inspect (I)",
     "toolRedact": "Redact",
     "toolRedactTip": "Redact — hide sensitive info",
-    "toolRedactHint": "Hides sensitive info in the image: blurred or covered, and permanent once saved",
+    "toolRedactHint": "Hides sensitive info in the image: covered (Solid) or blurred. Blur keeps a trace of the original colors. Permanent once saved",
     "toolExportFrame": "Export frame",
     "modeSwitchLabel": "Mode",
     "modeAnnotate": "Annotate",
