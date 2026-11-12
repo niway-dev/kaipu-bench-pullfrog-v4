@@ -27,6 +27,16 @@ describe("ToastHost", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("renders a toast's detail line under its message, with or without the success check", () => {
+    render(<ToastHost />);
+    act(() => {
+      showToast({ message: "Text copied", detail: "2 lines" });
+      showToast({ message: "Image added", detail: "from the library", tone: "success" });
+    });
+    expect(screen.getByText("2 lines")).toBeInTheDocument();
+    expect(screen.getByText("from the library")).toBeInTheDocument();
+  });
+
   it("draws a check before a success toast's message and none otherwise", () => {
     render(<ToastHost />);
     act(() => {
@@ -38,15 +48,5 @@ describe("ToastHost", () => {
       showToast({ message: "Plain" });
     });
     expect(screen.queryByTestId("toast-success-icon")).toBeNull();
-  });
-
-  it("keeps the detail line next to the tone", () => {
-    render(<ToastHost />);
-    act(() => {
-      showToast({ message: "Text copied", detail: "2 lines", tone: "success" });
-    });
-    expect(screen.getByText("Text copied")).toBeInTheDocument();
-    expect(screen.getByText("2 lines")).toBeInTheDocument();
-    expect(screen.getByTestId("toast-success-icon")).toBeInTheDocument();
   });
 });

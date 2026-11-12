@@ -101,7 +101,8 @@ export const P3_FIXTURE = path.join(
   "inspect",
   "p3-swatches.png",
 );
-const P3_SHOT = { stem: "P3 swatches", title: "P3 swatches", ago: 5 * HOUR } as const;
+// 5.5 h, not 5: the Colors panel's "Pricing page" (same profile) is 5 h and ties are unordered.
+const P3_SHOT = { stem: "P3 swatches", title: "P3 swatches", ago: 5.5 * HOUR } as const;
 const PINS_SHOT = { stem: "Measure page", title: "Measure page", ago: 6 * HOUR } as const;
 
 /**

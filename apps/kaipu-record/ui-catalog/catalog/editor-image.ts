@@ -83,12 +83,14 @@ const toolbarButton = (name: string): Step => ({
 });
 
 /**
- * A click at a point of the canvas box (fractions), as the Step tool drops a badge on press; the
- * Select tool selects what it presses on, and a press that never moves leaves the badge where it is.
+ * Drop a step badge: the Step tool places one on press, so a drag that never moves is a click at
+ * a chosen point (`click` only hits the centre). The Select tool selects what it presses on, and a
+ * press that never moves leaves the badge where it is.
  */
-const clickAt = (x: number, y: number): Step => ({
-  click: { area: "editorImage.canvas" },
-  at: { x, y },
+const pressAt = (x: number, y: number): Step => ({
+  drag: { area: "editorImage.canvas" },
+  from: { x, y },
+  to: { x, y },
 });
 /** A size button of the Step tool's card ("Size S", "Size M", "Size L"). */
 const stepSize = (label: "S" | "M" | "L"): Step => ({
@@ -108,7 +110,7 @@ const STEP_POINTS = [
 ] as const;
 const placeFourBadges: readonly Step[] = [
   tool("Step"),
-  ...STEP_POINTS.map((p) => clickAt(p.x, p.y)),
+  ...STEP_POINTS.map((p) => pressAt(p.x, p.y)),
   // The Step tool keeps its card open; Select with nothing selected shows none.
   tool("Select"),
   badgeDrawn,
@@ -124,6 +126,10 @@ const inspectButton = (name: string): Step => ({
 /** The HUD, aimed by a point of the canvas box (fractions), which the Inspect layer covers. */
 const hoverAt = (x: number, y: number, part?: { css: string }): Step => ({
   hover: { area: "editorImage.canvas", ...(part ? { part } : {}) },
+  at: { x, y },
+});
+const clickAt = (x: number, y: number): Step => ({
+  click: { area: "editorImage.canvas" },
   at: { x, y },
 });
 const inCanvas = (css: string) => ({
@@ -527,7 +533,7 @@ export const editorImage = catalog(
       steps: [
         open(ASSETS.stepSelectedShot),
         ...placeFourBadges,
-        clickAt(STEP_POINTS[2].x, STEP_POINTS[2].y),
+        pressAt(STEP_POINTS[2].x, STEP_POINTS[2].y),
         {
           waitFor: { area: "editorImage.canvas", part: { text: "Delete renumbers the rest" } },
         },
@@ -557,7 +563,7 @@ export const editorImage = catalog(
               ["M", 0.5],
               ["L", 0.65],
             ] as const
-          ).flatMap(([label, x]) => [stepSize(label), clickAt(x, y)]),
+          ).flatMap(([label, x]) => [stepSize(label), pressAt(x, y)]),
         ),
         tool("Select"),
         badgeDrawn,

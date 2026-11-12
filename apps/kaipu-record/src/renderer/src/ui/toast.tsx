@@ -17,8 +17,8 @@ export function ToastHost(): React.JSX.Element {
   const t = useTranslations("common");
   const items = toasts.map((toast) => ({
     id: toast.id,
-    detail: toast.detail,
     action: toast.action,
+    detail: toast.detail,
     message:
       toast.tone === "success" ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>

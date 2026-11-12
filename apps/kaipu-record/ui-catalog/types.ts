@@ -149,6 +149,7 @@ export type Step =
    * covers (the Inspect layer sits over the image).
    */
   | ({ readonly click: Target; readonly at?: DragPoint } & On)
+  /** Hover the target's centre, or `at` (fractions of its box, like a drag point). */
   | ({ readonly hover: Target; readonly at?: DragPoint } & On)
   /**
    * Move the pointer over the target, then turn the wheel by (`deltaX`, `deltaY`) px, `times`
@@ -244,15 +245,15 @@ export interface CatalogState<S extends ScreenId> {
    * and the run fails instead of keeping it.
    */
   readonly stillOnScreen?: Target;
-  /**
-   * The toast the steps raised is part of the state (mock E3's "Image added…", a copy
-   * confirmation): leave it open. Default: toasts are closed before the shot, like a user
-   * would, because a toast a step caused is not part of the state. The run fails when no toast
-   * is still open at the shot.
-   */
-  readonly keepToasts?: boolean;
   /** Keep the pointer where the steps left it (hover states). Default: parked in a corner. */
   readonly keepPointer?: boolean;
+  /**
+   * Leave toasts open for the shot. By default the runner closes them, because a toast a step
+   * caused is not part of the state; set this when the toast is the state (a copy confirmation,
+   * mock E3's "Image added…"). The state then fails if no toast is still open when the shot is
+   * taken, since an image without it would not show what the state claims.
+   */
+  readonly keepToasts?: boolean;
   /**
    * The image shows what was on the runner's screen (a source thumbnail, a capture's preview,
    * a take's first frame). It cannot be scanned as text, so `ui-catalog:lint` lists it for a
