@@ -96,15 +96,6 @@
   cursor: default;
 }
 
-/* The tool group's wrapper adds no box of its own; it only lets the Inspect row replace it. */
-.tools {
-  display: contents;
-}
-
-.toolsHidden {
-  display: none;
-}
-
 .divider {
   flex-shrink: 0;
   width: 1px;
@@ -393,14 +384,6 @@
 .canvas[data-pan="active"],
 .canvas[data-pan="active"] * {
   cursor: grabbing !important;
-}
-
-/* Floating per-tool options panel, pinned to the canvas (doesn't scroll away). */
-.optionsFloat {
-  position: absolute;
-  top: var(--space-md);
-  left: var(--space-md);
-  z-index: 2;
 }
 
 /* ── Right panel as a sheet (compact, mock B3) ───── */

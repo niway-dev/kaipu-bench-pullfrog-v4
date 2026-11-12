@@ -136,8 +136,74 @@ function resolveControls(
 }
 
 /**
- * Floating options panel over the canvas (Excalidraw-style). Renders `null` when
- * there's nothing to edit (select tool, no selection) so the canvas stays clean.
+ * What the options panel shows for the current tool and selection. One model feeds both the
+ * panel and `annotationOptionsState`, so "is there anything to show" has a single answer.
+ */
+function optionsModel(
+  tools: AnnotationToolsController,
+  scene: EditorScene,
+  canvasMode: boolean,
+  textTool: TextToolStatus | undefined,
+) {
+  const selected = scene.annotations.find((a) => a.id === scene.selectedId) ?? null;
+  const controls = resolveControls(tools, scene, selected);
+  // Canvas mode: the crop tool edits the export frame and has its own card (mock A5), so the
+  // classic "Crop / Reset" row is not shown there.
+  const isCrop = tools.tool === "crop" && !canvasMode;
+  // Canvas mode: the style control shows for the blur tool or a selected blur, and edits
+  // that blur (one undoable change) or the style the next redaction takes.
+  const styleTarget = selected?.kind === "blur" ? selected : null;
+  // A saved redaction's pixels are baked into the stored image: its style cannot change and it
+  // cannot be deleted, so its card says so instead (mock H4).
+  const lockedTarget = canvasMode && styleTarget?.locked === true;
+  const showRedactionStyle =
+    canvasMode && !lockedTarget && (styleTarget !== null || tools.tool === "blur");
+  const showText = textTool !== undefined && tools.tool === "selectText";
+  // A selected blur has no colour/stroke controls, but should still be deletable —
+  // so the panel shows whenever there are controls OR something is selected OR crop is active.
+  const shown = Boolean(controls || selected || isCrop || showRedactionStyle || showText);
+  return {
+    selected,
+    controls,
+    isCrop,
+    styleTarget,
+    lockedTarget,
+    showRedactionStyle,
+    showText,
+    shown,
+  };
+}
+
+/** What kind of options the panel shows, for the side panel's `data-state`; null when none. */
+export type AnnotationOptionsState =
+  | "stroke"
+  | "size"
+  | "stepSelected"
+  | "redact"
+  | "crop"
+  | "selectText"
+  | "selection";
+
+export function annotationOptionsState(
+  tools: AnnotationToolsController,
+  scene: EditorScene,
+  canvasMode: boolean,
+  textTool?: TextToolStatus,
+): AnnotationOptionsState | null {
+  const m = optionsModel(tools, scene, canvasMode, textTool);
+  if (!m.shown) return null;
+  if (m.showRedactionStyle || m.lockedTarget) return "redact";
+  if (m.selected?.kind === "step") return "stepSelected";
+  if (m.showText) return "selectText";
+  if (m.isCrop) return "crop";
+  if (m.controls) return m.controls.mode === "size" ? "size" : "stroke";
+  return "selection";
+}
+
+/**
+ * The active tool's options, or the selected annotation's, in the editor's side panel (Tool
+ * tab). Renders `null` when there's nothing to edit (select tool, no selection): the panel
+ * then shows its own empty state.
  */
 export function AnnotationOptions({
   tools,
@@ -153,33 +219,17 @@ export function AnnotationOptions({
   textTool?: TextToolStatus;
 }): React.JSX.Element | null {
   const t = useTranslations("screenshots");
-  const selected = scene.annotations.find((a) => a.id === scene.selectedId) ?? null;
-  const controls = resolveControls(tools, scene, selected);
-  // Canvas mode: the crop tool edits the export frame and has its own card (mock A5), so the
-  // classic "Crop / Reset" row is not shown there.
-  const isCrop = tools.tool === "crop" && !canvasMode;
-  // Canvas mode: the style control shows for the blur tool or a selected blur, and edits
-  // that blur (one undoable change) or the style the next redaction takes.
-  const styleTarget = selected?.kind === "blur" ? selected : null;
-  // A saved redaction's pixels are baked into the stored image: its style cannot change and it
-  // cannot be deleted, so its card says so instead (mock H4).
-  const lockedTarget = canvasMode && styleTarget?.locked === true;
-  const showRedactionStyle =
-    canvasMode && !lockedTarget && (styleTarget !== null || tools.tool === "blur");
+  const m = optionsModel(tools, scene, canvasMode, textTool);
+  const { selected, controls, isCrop, lockedTarget, showRedactionStyle, showText, styleTarget } = m;
+  if (!m.shown) return null;
   const redactionStyle = styleTarget ? (styleTarget.style ?? "blur") : tools.redactionStyle;
   const pickRedactionStyle = (style: RedactionStyle): void => {
     if (styleTarget) scene.commitAnnotation(styleTarget.id, { style });
     tools.setRedactionStyle(style);
   };
-  // A selected blur has no colour/stroke controls, but should still be deletable —
-  // so the panel shows whenever there are controls OR something is selected OR crop is active.
-  const showText = textTool !== undefined && tools.tool === "selectText";
-  if (!controls && !selected && !isCrop && !showRedactionStyle && !showText) return null;
 
   return (
-    <div
-      className={`${styles.panel} ${showRedactionStyle || lockedTarget ? styles.panelRedaction : ""}`}
-    >
+    <div className={styles.panel}>
       {isCrop && (
         <>
           <span className={styles.label}>{t("cropLabel")}</span>

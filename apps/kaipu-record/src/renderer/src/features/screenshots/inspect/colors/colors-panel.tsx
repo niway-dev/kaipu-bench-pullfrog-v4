@@ -294,6 +294,8 @@ function ColorsPanelView({
   format,
   reading,
   unreadable = false,
+  grouped,
+  onGroupedChange,
 }: {
   colors: ColorsController;
   format: ColorFormat;
@@ -301,10 +303,12 @@ function ColorsPanelView({
   reading: boolean;
   /** Inspect could not decode the pixels, so there is nothing to count. */
   unreadable?: boolean;
+  /** Group is on. Owned by the page, so it survives the panel unmounting on a tab switch. */
+  grouped: boolean;
+  onGroupedChange(grouped: boolean): void;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const { analysis, status, progress, located, overlay } = colors;
-  const [grouped, setGrouped] = useState(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
@@ -389,7 +393,7 @@ function ColorsPanelView({
                 onToggle={() => {
                   // A highlighted row may not exist in the other list.
                   if (located) colors.locate(null);
-                  setGrouped(!grouped);
+                  onGroupedChange(!grouped);
                 }}
               />
             )}

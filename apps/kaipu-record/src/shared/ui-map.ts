@@ -320,9 +320,10 @@ export const UI_MAP = {
       redactionNotice: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
-      // "floating": the card over the canvas where the toolbar row has no room (NIW2-712).
+      // In the side panel's Tool tab (NIW2-723): it was a toolbar row, or a floating card where
+      // the row had no room.
       inspectBar: {
-        states: ["hex", "asCaptured", "floating"],
+        states: ["hex", "asCaptured"],
         gatedBy: [{ flag: "image-inspect" }],
       },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
@@ -331,9 +332,30 @@ export const UI_MAP = {
       // The pill at the foot of the canvas (mock C11) and the one that replaces it after a copy (C4).
       inspectMode: { states: ["collapsed", "legend"], gatedBy: [{ flag: "image-inspect" }] },
       inspectCopied: { states: ["shown"], gatedBy: [{ flag: "image-inspect" }] },
-      // The side panel's tab strip (NIW2-714): only where Inspect exists, because the Colors
-      // tab is Inspect's. Beautify is selected unless the Colors panel is open.
-      panelTabs: { states: ["beautify", "colors"], gatedBy: [{ flag: "image-inspect" }] },
+      // The side panel's tab strip: Tool, Beautify and, where Inspect exists, Colors (NIW2-714,
+      // NIW2-723). Beautify is selected on open, Tool once a tool is picked or something is
+      // selected, Colors while its panel is open.
+      panelTabs: { states: ["tool", "beautify", "colors"] },
+      // The Tool tab's body (NIW2-723): the active tool's options, which used to float over
+      // the stage or sit in the toolbar. `empty` is "No tool selected"; `stroke` is Pen, Box
+      // and Arrow (colour, stroke); `size` is Text and Step (colour, size); `stepSelected` adds
+      // the renumbering delete line; `redact` is Blur / Solid (canvas mode); `crop` is the
+      // export frame card, or the classic Crop / Reset row; `selectText` is the recognition
+      // status and its actions (`image-text`); `selection` is a selected annotation with only
+      // Delete to offer (an added image); `inspect` is the Inspect controls (`image-inspect`).
+      toolPanel: {
+        states: [
+          "empty",
+          "stroke",
+          "size",
+          "stepSelected",
+          "redact",
+          "crop",
+          "selectText",
+          "selection",
+          "inspect",
+        ],
+      },
       // The colors panel (NIW2-704), the Colors tab of the side panel (NIW2-714): the list
       // (`list` is grouped, the default; `grouped` is the same list with a box of
       // near-identical values; `flat` has Group off), one color highlighted, after a copy,
@@ -350,7 +372,7 @@ export const UI_MAP = {
       },
       inspectRun: { states: ["horizontal", "vertical"], gatedBy: [{ flag: "image-inspect" }] },
       measure: { states: ["pinned", "selected"], gatedBy: [{ flag: "image-inspect" }] },
-      // The "Select text" tool (`image-text`, NIW2-705): the options bar's recognition
+      // The "Select text" tool (`image-text`, NIW2-705): the Tool tab's recognition
       // status, and the image with its recognized words while the tool is active.
       textStatus: {
         states: ["pending", "ready", "noText", "unavailable"],
@@ -366,7 +388,7 @@ export const UI_MAP = {
       // the document loaded (fades), `flat` that it could not be read (stays until dismissed).
       reopenNotice: { states: ["editable", "flat"], gatedBy: [{ flag: "image-canvas" }] },
       // The redact tool's text targets (NIW2-706, canvas mode): the image while its lines are
-      // click targets (a line outlined under the pointer, then hidden), and the options bar's hint.
+      // click targets (a line outlined under the pointer, then hidden), and the Tool tab's hint.
       textHide: {
         states: ["hover", "hidden"],
         gatedBy: [{ flag: "image-text" }, { flag: "image-canvas" }],

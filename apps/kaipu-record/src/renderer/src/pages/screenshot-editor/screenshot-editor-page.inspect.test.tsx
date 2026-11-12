@@ -520,6 +520,9 @@ describe.each([
     decodeSrgbBuffer.mockImplementation(async () => twoWhites());
   });
 
+  // The Inspect controls (format, Colors, ...) are the Tool tab's content, and Colors is a tab of
+  // its own, so a test that reaches for a control while the list is open goes through the Tool tab.
+  const showTool = () => fireEvent.click(screen.getByRole("tab", { name: "Tool" }));
   const colorsButton = () => screen.getByRole("button", { name: "Colors" });
   const panel = () => document.querySelector('[data-ui-area="editorImage.inspectColors"]');
   const overlay = () => screen.queryByTestId("inspect-locate");
@@ -589,7 +592,7 @@ describe.each([
 
   it("lists the colors with their share and the two whites side by side", async () => {
     await openPanel();
-    expect(colorsButton()).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("2 colors · 3 exact values")).toBeInTheDocument();
     const white = screen.getByTitle("Highlight #ffffff and the values grouped with it");
     expect(white).toHaveTextContent("#ffffff75.0%");
@@ -604,7 +607,9 @@ describe.each([
 
   it("shows the values in the Inspect bar's format", async () => {
     await openPanel();
+    showTool();
     fireEvent.click(screen.getByRole("button", { name: "RGB" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Colors" }));
     expect(screen.getByTitle("Highlight only rgb(250, 250, 250)")).toBeInTheDocument();
   });
 
@@ -636,6 +641,7 @@ describe.each([
 
     fireEvent.click(screen.getByTitle("Highlight only #fafafa"));
     await waitFor(() => expect(overlay()).not.toBeNull());
+    showTool();
     fireEvent.click(colorsButton());
     expect(panel()).toBeNull();
     expect(overlay()).toBeNull();
@@ -888,8 +894,11 @@ describe.each([
     flags["image-inspect"] = false;
     mount(PASTE);
     await loadImage();
-    expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    // Tool and Beautify stay (the tool options live in the panel); Colors needs Inspect.
+    expect(screen.getByRole("tablist", { name: "Side panel" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Colors" })).toBeNull();
+    expect(tab("Tool")).toBeInTheDocument();
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
   });
 
   it("the Colors tab in Annotate turns Inspect on and opens the panel", async () => {
@@ -902,21 +911,22 @@ describe.each([
     await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
     expect(screen.getByRole("tabpanel")).toContainElement(panel() as HTMLElement);
     // Nothing floats over the stage any more.
-    expect(panel()!.closest('[class*="optionsFloat"]')).toBeNull();
+    expect(panel()!.closest('[data-ui-area="editorImage.canvas"]')).toBeNull();
   });
 
-  it("entering Inspect keeps Beautify, the Inspect bar's Colors button selects the tab, and Beautify closes it", async () => {
+  it("entering Inspect shows the Tool tab, its Colors button selects the Colors tab, and Beautify closes it", async () => {
     mount(PASTE);
     await loadImage();
     press("i");
-    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+    expect(tab("Tool")).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("button", { name: "Colors" }));
     expect(tab("Colors")).toHaveAttribute("aria-selected", "true");
     fireEvent.click(tab("Beautify"));
     expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
     expect(panel()).toBeNull();
-    // Inspect stays on: only the panel closed.
+    // Inspect stays on: only the panel closed. Its controls wait in the Tool tab.
     expect(canvasEl()).toHaveAttribute("data-inspect", "true");
+    fireEvent.click(tab("Tool"));
     expect(screen.getByRole("button", { name: "Colors" })).toHaveAttribute("aria-pressed", "false");
   });
 
@@ -957,6 +967,16 @@ describe.each([
     expect(screen.getByText("Almost the same")).toBeInTheDocument();
   });
 
+  it("keeps Group off after a visit to the Tool tab", async () => {
+    await openColors();
+    fireEvent.click(screen.getByRole("switch", { name: "Group" }));
+    fireEvent.click(tab("Tool"));
+    fireEvent.click(tab("Colors"));
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+    expect(screen.getByRole("switch", { name: "Group" })).toHaveAttribute("aria-checked", "false");
+    expect(panel()).toHaveAttribute("data-grouped", "false");
+  });
+
   it("highlighting a color tags its largest area on the image and tells how to stop", async () => {
     await openColors();
     fireEvent.click(screen.getByTitle("Highlight only #fdfdfd"));
@@ -973,7 +993,9 @@ describe.each([
 
   it("copy puts the value in the Inspect format on the clipboard, shows Copied and a toast", async () => {
     await openColors();
+    fireEvent.click(tab("Tool"));
     fireEvent.click(screen.getByRole("button", { name: "RGB" }));
+    fireEvent.click(tab("Colors"));
     fireEvent.click(screen.getByRole("button", { name: "Copy rgb(253, 253, 253)" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("rgb(253, 253, 253)"));
     await waitFor(() =>

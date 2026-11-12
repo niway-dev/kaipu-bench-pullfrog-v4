@@ -4,8 +4,9 @@ import { uiArea } from "@renderer/lib/ui-area";
 import styles from "./export-frame-card.module.css";
 
 /**
- * The card the export frame tool opens at the stage's top-left (mock A5): what the frame is
- * for, and the two ways out of it. Both buttons are ordinary export frame edits, so each is
+ * The export frame tool's options (mock A5): what the frame is for, and the two ways out of
+ * it. They sit in the side panel's Tool tab (NIW2-723), where the card used to float over the
+ * stage. Both buttons are ordinary export frame edits, so each is
  * one undo step. It replaces the classic crop tool's "Crop / Reset" panel in canvas mode.
  */
 export function ExportFrameCard({

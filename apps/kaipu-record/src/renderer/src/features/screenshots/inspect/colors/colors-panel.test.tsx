@@ -22,7 +22,13 @@ function controller(patch: Partial<ColorsController>): ColorsController {
 describe("ColorsPanel while counting", () => {
   it("shows the percentage, a progress bar at that value and four placeholder rows", () => {
     const { container } = render(
-      <ColorsPanel colors={controller({ progress: 0.624 })} format="hex" reading={false} />,
+      <ColorsPanel
+        grouped
+        onGroupedChange={() => {}}
+        colors={controller({ progress: 0.624 })}
+        format="hex"
+        reading={false}
+      />,
     );
     expect(screen.getByText("Reading colors… 62%")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "62");
@@ -31,7 +37,13 @@ describe("ColorsPanel while counting", () => {
 
   it("shows no percentage while Inspect is still decoding", () => {
     render(
-      <ColorsPanel colors={controller({ status: "idle", progress: null })} format="hex" reading />,
+      <ColorsPanel
+        grouped
+        onGroupedChange={() => {}}
+        colors={controller({ status: "idle", progress: null })}
+        format="hex"
+        reading
+      />,
     );
     expect(screen.getByText("Reading colors…")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).not.toHaveAttribute("aria-valuenow");
@@ -51,6 +63,8 @@ describe("ColorsPanel photo card", () => {
   const ready = (analysis: ColorAnalysis) =>
     render(
       <ColorsPanel
+        grouped
+        onGroupedChange={() => {}}
         colors={controller({ status: "ready", progress: null, analysis })}
         format="hex"
         reading={false}

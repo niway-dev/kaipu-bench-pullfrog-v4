@@ -38,7 +38,6 @@ import {
 } from "@renderer/features/screenshots/beautify";
 import {
   ColorsPanel,
-  InspectBar,
   InspectLayer,
   InspectModePill,
   InspectToggle,
@@ -65,7 +64,6 @@ import {
 } from "@renderer/features/screenshots/use-capture-title";
 import {
   AnnotationLayer,
-  AnnotationOptions,
   AnnotationToolbar,
   BASE_ASSET_ID,
   ZERO_EXTENTS,
@@ -96,10 +94,10 @@ import {
   AddImageControl,
   CANVAS_ZOOM,
   ExportBox,
-  ExportFrameCard,
   OffContentNotice,
   RedactionNotice,
   SidePanel,
+  ALL_PANEL_TABS,
   contentBoxFrame,
   hasSeenRedactionNotice,
   markRedactionNoticeSeen,
@@ -135,10 +133,8 @@ import {
 import { useTransientValue } from "@renderer/ui/use-transient-value";
 import { PanelToggle } from "@renderer/features/screenshots/toolbar/panel-toggle";
 import { MoreMenu } from "@renderer/features/screenshots/toolbar/more-menu";
-import {
-  INSPECT_INLINE_MIN_PX,
-  useCompactEditor,
-} from "@renderer/features/screenshots/toolbar/use-compact-editor";
+import { useCompactEditor } from "@renderer/features/screenshots/toolbar/use-compact-editor";
+import { ToolPanel } from "@renderer/features/screenshots/tool-panel/tool-panel";
 import { useToolShortcuts } from "@renderer/features/screenshots/toolbar/use-tool-shortcuts";
 import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
@@ -1351,14 +1347,12 @@ function ScreenshotEditorBody({
   // Compact layout (mock B3): below 1000 px the toolbar folds and the right panel becomes a
   // sheet. Measured on the page element; the revision re-measures once the image has mounted it.
   const compact = useCompactEditor(pageRef, image !== null);
-  // The Inspect controls sit in the toolbar row only where the row fits; otherwise they float.
-  const inspectCramped = useCompactEditor(pageRef, image !== null, INSPECT_INLINE_MIN_PX);
-  const inspectInline = inspect.active && !inspectCramped;
   const [panelOpen, setPanelOpen] = useState(false);
   const sheetOpen = compact && panelOpen;
   // The Colors panel is the side panel's second tab. In compact the panel is the sheet, and
   // the sheet opens when Colors does, so pressing Colors shows something.
-  const colorsShown = inspectEnabled && inspect.active && colors.open;
+  const colorsOpen = colors.open;
+  const colorsShown = inspectEnabled && inspect.active && colorsOpen;
   const colorsInSheet = compact && colorsShown;
   useEffect(() => {
     if (colorsInSheet) setPanelOpen(true);
@@ -1392,33 +1386,93 @@ function ScreenshotEditorBody({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [sheetOpen]);
 
+  // Colors' Group switch lives here: the panel unmounts when another tab opens.
+  const [colorsGrouped, setColorsGrouped] = useState(true);
   const colorsPanel = (
     <ColorsPanel
       colors={colors}
+      grouped={colorsGrouped}
+      onGroupedChange={setColorsGrouped}
       format={inspect.format}
       reading={inspect.status === "decoding"}
       unreadable={inspect.status === "error"}
     />
   );
 
-  // The tab is derived, never stored: Colors while its panel is open, Beautify otherwise.
+  // The side panel's tab (NIW2-723). It is the user's pick, and the page moves it: to Tool when
+  // a tool is picked, something is selected or Inspect turns on, to Colors when its panel opens,
+  // as the video editor's inspector follows its selection. It starts on Beautify: with the
+  // Select tool and nothing selected the Tool tab has nothing to show yet.
+  const [tab, setTab] = useState<PanelTab>("beautify");
+  // Colors is only a tab while its panel is open (it reads Inspect's pixels).
+  const panelTab: PanelTab = tab === "colors" && !colorsShown ? "beautify" : tab;
   // Colors reads Inspect's decoded pixels, so choosing it from Annotate turns Inspect on.
-  const panelTab: PanelTab = colorsShown ? "colors" : "beautify";
+  // Tool leaves the Colors panel open behind it: its values follow the Inspect format, whose
+  // control is in the Tool tab, so the format can be changed with the list still in play.
+  // Beautify closes it.
   const selectPanelTab = (next: PanelTab): void => {
     if (next === "colors") {
       inspect.setActive(true);
       colors.setOpen(true);
-    } else colors.setOpen(false);
+    } else if (next === "beautify") colors.setOpen(false);
+    setTab(next);
   };
+  useEffect(() => {
+    if (colorsShown) setTab("colors");
+  }, [colorsShown]);
+  // Inspect's controls are the Tool tab's content while it is on, so entering it shows them.
+  // Leaving it to a tool with no options (Select) goes back to Beautify rather than to an empty
+  // Tool tab, and any other tool shows its options.
+  const wasInspecting = useRef(false);
+  const inspectActive = inspect.active;
+  const selectedId = scene.selectedId;
+  useEffect(() => {
+    if (inspectActive) {
+      if (!colorsOpen) setTab("tool");
+    } else if (wasInspecting.current) {
+      setTab(tools.tool === "select" && selectedId === null ? "beautify" : "tool");
+    }
+    wasInspecting.current = inspectActive;
+    // Only the Inspect on/off edge matters: the tool, selection and Colors are read as they stand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspectActive]);
+  // A selected annotation has options (colour, size, delete): show them where they live now.
+  const selectedToolId = inspectActive ? null : selectedId;
+  useEffect(() => {
+    if (selectedToolId !== null) setTab("tool");
+  }, [selectedToolId]);
   const beautifyPanel = (
-    <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} embedded={inspectEnabled} />
+    <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} embedded />
   );
-  const sidePanel = inspectEnabled ? (
-    <SidePanel tab={panelTab} onSelect={selectPanelTab}>
-      {colorsShown ? colorsPanel : beautifyPanel}
+  const toolPanel = (
+    <ToolPanel
+      tools={tools}
+      scene={cropScene}
+      canvasMode={canvasMode}
+      {...(textTool ? { textTool } : {})}
+      inspect={inspectEnabled && inspect.active ? inspect : null}
+      colors={colors}
+      {...(canvasMode
+        ? {
+            exportFrame: {
+              hasFrame: scene.exportFrame != null,
+              onFit: () => {
+                if (canvasGeom) scene.setExportFrame(contentBoxFrame(canvasGeom));
+              },
+              onRemove: () => scene.setExportFrame(undefined),
+            },
+          }
+        : {})}
+    />
+  );
+  const sidePanel = (
+    <SidePanel
+      tab={panelTab}
+      onSelect={selectPanelTab}
+      tabs={inspectEnabled ? ALL_PANEL_TABS : ALL_PANEL_TABS.filter((name) => name !== "colors")}
+    >
+      {panelTab === "colors" ? colorsPanel : panelTab === "tool" ? toolPanel : beautifyPanel}
     </SidePanel>
-  ) : (
-    beautifyPanel
   );
   // The tag under the largest area of the highlighted color (mock F3).
   const locatedRgb = locatedColor(colors.analysis, colors.located);
@@ -1431,18 +1485,22 @@ function ScreenshotEditorBody({
         })
       : null;
 
-  // Picking a tool, by click or by key, leaves Inspect and starts the tool clean.
-  const pickTool = (tool: AnnotationTool): void => {
-    tools.setTool(tool);
+  // Picking a tool, by click or by key, leaves Inspect, starts the tool clean and shows its
+  // options in the Tool tab. Select has none, so it leaves the tab as it was.
+  const afterPick = (tool: AnnotationTool): void => {
     scene.select(null);
     inspect.setActive(false);
+    if (tool !== "select") setTab("tool");
+  };
+  const pickTool = (tool: AnnotationTool): void => {
+    tools.setTool(tool);
+    afterPick(tool);
   };
   // The Add image menu is open: the page owns it so the `M` key and "•••" can open it too.
   const [addOpen, setAddOpen] = useState(false);
   useToolShortcuts({
     onTool: pickTool,
-    // Leave Inspect first, as picking a tool does: with the inline Inspect row the toolbar,
-    // and the menu rendered inside it, is hidden.
+    // Leave Inspect first, as picking a tool does, so the menu opens over the editing view.
     ...(canvasMode
       ? {
           onAddImage: () => {
@@ -1490,22 +1548,15 @@ function ScreenshotEditorBody({
             <span className={styles.divider} aria-hidden />
           </>
         )}
-        {inspectInline && <InspectBar inspect={inspect} colors={colors} inline />}
-        {/* Stays mounted while the Inspect row stands in for it (hidden, not removed). */}
-        <div className={inspectInline ? styles.toolsHidden : styles.tools}>
-          <AnnotationToolbar
-            tools={tools}
-            onPick={() => {
-              scene.select(null);
-              inspect.setActive(false);
-            }}
-            textTool={textEnabled}
-            canvasMode={canvasMode}
-            compact={compact}
-            idle={inspect.active}
-            addImage={canvasMode ? addImageControl(true) : undefined}
-          />
-        </div>
+        <AnnotationToolbar
+          tools={tools}
+          onPick={afterPick}
+          textTool={textEnabled}
+          canvasMode={canvasMode}
+          compact={compact}
+          idle={inspect.active}
+          addImage={canvasMode ? addImageControl(true) : undefined}
+        />
         {compact ? (
           <>
             <MoreMenu
@@ -1700,20 +1751,6 @@ function ScreenshotEditorBody({
             {inspectEnabled && inspect.active && <InspectLayer inspect={inspect} />}
           </div>
 
-          {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
-          <div className={styles.optionsFloat}>
-            {inspect.active ? (
-              !inspectInline && <InspectBar inspect={inspect} colors={colors} />
-            ) : (
-              <AnnotationOptions
-                tools={tools}
-                scene={cropScene}
-                canvasMode={canvasMode}
-                textTool={textTool}
-              />
-            )}
-          </div>
-
           {inspectEnabled && inspect.active && (
             <InspectModePill copied={inspect.copied} readout={inspect.copiedText} />
           )}
@@ -1775,15 +1812,6 @@ function ScreenshotEditorBody({
           )}
           {noticeOpen && (
             <RedactionNotice onUndo={undoLastRedaction} onAcknowledge={acknowledgeNotice} />
-          )}
-          {canvasMode && tools.tool === "crop" && (
-            <ExportFrameCard
-              hasFrame={scene.exportFrame != null}
-              onFit={() => {
-                if (canvasGeom) scene.setExportFrame(contentBoxFrame(canvasGeom));
-              }}
-              onRemove={() => scene.setExportFrame(undefined)}
-            />
           )}
         </div>
         {compact

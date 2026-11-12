@@ -3,39 +3,47 @@ import { useTranslations } from "@kaipu/i18n";
 import { uiArea } from "@renderer/lib/ui-area";
 import styles from "./panel-tabs.module.css";
 
-export type PanelTab = "beautify" | "colors";
-const TABS: readonly PanelTab[] = ["beautify", "colors"];
+export type PanelTab = "tool" | "beautify" | "colors";
+
+/** Every tab, in strip order: the active tool's options come first (NIW2-723). */
+export const ALL_PANEL_TABS: readonly PanelTab[] = ["tool", "beautify", "colors"];
 
 /**
- * The right side panel with its tab strip (mock A1), for an editor where Inspect exists: the
- * Colors tab holds what used to float over the stage. Which tab is selected is the page's to
- * say, because it follows the Inspect state rather than being kept here.
+ * The right side panel with its tab strip (mock A1): Tool, Beautify and, where Inspect exists,
+ * Colors. Which tab is selected is the page's to say, because it follows the active tool and the
+ * Inspect state rather than being kept here. `tabs` leaves Colors out when `image-inspect` is
+ * off, because that tab is Inspect's.
  */
 export function SidePanel({
   tab,
   onSelect,
+  tabs = ALL_PANEL_TABS,
   children,
 }: {
   tab: PanelTab;
   onSelect(tab: PanelTab): void;
+  tabs?: readonly PanelTab[];
   children: React.ReactNode;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const id = useId();
   const buttons = useRef<Record<PanelTab, HTMLButtonElement | null>>({
+    tool: null,
     beautify: null,
     colors: null,
   });
   const names: Record<PanelTab, string> = {
+    tool: t("toolPanelTab"),
     beautify: t("beautifyHeading"),
     colors: t("inspectColors"),
   };
 
-  // Two tabs: either arrow moves to the other one, and focus follows the selection.
+  // Arrows move along the strip, wrapping at the ends, and focus follows the selection.
   const onKeyDown = (event: React.KeyboardEvent): void => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    const next = TABS[(TABS.indexOf(tab) + 1) % TABS.length];
+    const step = event.key === "ArrowRight" ? 1 : -1;
+    const next = tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length];
     onSelect(next);
     buttons.current[next]?.focus();
   };
@@ -50,7 +58,7 @@ export function SidePanel({
         data-state={tab}
         onKeyDown={onKeyDown}
       >
-        {TABS.map((name) => (
+        {tabs.map((name) => (
           <button
             key={name}
             ref={(node) => {
