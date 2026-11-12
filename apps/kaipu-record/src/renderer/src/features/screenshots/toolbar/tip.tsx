@@ -53,6 +53,17 @@ export function useTip(
   };
 }
 
+/**
+ * Display labels whose `aria-keyshortcuts` name differs: ARIA wants UI Events `key` values
+ * ("Escape"), while the kbd chip shows the short label ("Esc"). Every other hint is already a key name.
+ */
+const ARIA_KEY_NAMES: Record<string, string> = { Esc: "Escape" };
+
+/** The `aria-keyshortcuts` value for a display key hint. */
+export function ariaKeyShortcut(keyHint: string): string {
+  return ARIA_KEY_NAMES[keyHint] ?? keyHint;
+}
+
 /** An icon button with a tooltip and `aria-keyshortcuts`; `aria-label` is the plain label. */
 export function ToolButton({
   label,
@@ -81,7 +92,7 @@ export function ToolButton({
       <button
         type="button"
         aria-label={ariaLabel ?? label}
-        {...(keyHint ? { "aria-keyshortcuts": keyHint } : {})}
+        {...(keyHint ? { "aria-keyshortcuts": ariaKeyShortcut(keyHint) } : {})}
         className={className}
         {...bind}
         {...rest}

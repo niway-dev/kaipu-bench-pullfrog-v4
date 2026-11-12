@@ -109,7 +109,13 @@ export function CropOverlay({
 
   const onPointerDown = (e: React.PointerEvent): void => {
     const p = toNorm(e);
-    const tol = { x: HANDLE_HIT_PX / (size.w || 1), y: HANDLE_HIT_PX / (size.h || 1) };
+    // `size` is the layout box, which ignores the view's zoom; the handles are drawn (and the
+    // tolerance meant) in screen px, so undo the zoom here.
+    const zoom = chrome?.zoom || 1;
+    const tol = {
+      x: HANDLE_HIT_PX / zoom / (size.w || 1),
+      y: HANDLE_HIT_PX / zoom / (size.h || 1),
+    };
     const handle = hitCropHandle(cropRect, p, tol, size);
     // Move only an EXISTING sub-crop; with no crop yet, `cropRect` is FULL_CROP (covers
     // everything), so an interior press must draw a fresh rect, not no-op move it.
@@ -274,10 +280,14 @@ function CanvasChrome({
   return (
     <>
       <svg className={styles.svg} width={1} height={1}>
-        <rect className={styles.canvasDim} x={-R} y={-R} width={2 * R} height={R + y} />
-        <rect className={styles.canvasDim} x={-R} y={y + h} width={2 * R} height={R} />
-        <rect className={styles.canvasDim} x={-R} y={y} width={R + x} height={h} />
-        <rect className={styles.canvasDim} x={x + w} y={y} width={R} height={h} />
+        {/* The dim reaches far past the overlay: a press out there belongs to the stage. On the
+            overlay, a drag outside the export rect still draws a new one, like the flat crop. */}
+        <g pointerEvents="none" data-testid="export-frame-dim">
+          <rect className={styles.canvasDim} x={-R} y={-R} width={2 * R} height={R + y} />
+          <rect className={styles.canvasDim} x={-R} y={y + h} width={2 * R} height={R} />
+          <rect className={styles.canvasDim} x={-R} y={y} width={R + x} height={h} />
+          <rect className={styles.canvasDim} x={x + w} y={y} width={R} height={h} />
+        </g>
         <rect
           className={styles.rule}
           x={x - px}

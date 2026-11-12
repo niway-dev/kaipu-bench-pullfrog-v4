@@ -50,10 +50,14 @@ export function AddImageControl({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") onOpenChange(false);
+      if (e.key !== "Escape") return;
+      // Capture phase + stop: this Esc closes the menu only. The crop overlay's own window
+      // listener would otherwise clear the export frame on the same press (as toolbar-menu does).
+      e.stopPropagation();
+      onOpenChange(false);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onOpenChange]);
 
   const newCapture = async (): Promise<void> => {
