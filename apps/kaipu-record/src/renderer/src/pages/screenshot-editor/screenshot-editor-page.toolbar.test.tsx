@@ -521,6 +521,17 @@ describe("toolbar B3: compact", () => {
     expect(colorsBtn()).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("closes the sheet with Esc while a Beautify range slider has focus", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Panel"));
+    const slider = document.querySelector<HTMLInputElement>('[class*="sheet"] input[type="range"]');
+    expect(slider).not.toBeNull();
+    slider!.focus();
+    fireEvent.keyDown(slider!, { key: "Escape" });
+    expect(screen.queryByText("Beautify")).toBeNull();
+  });
+
   it("hides the title, keeps Save's label and makes Copy an icon", async () => {
     await mount(ALL);
     setPageWidth(900);
