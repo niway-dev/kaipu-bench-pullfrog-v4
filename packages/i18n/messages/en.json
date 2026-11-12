@@ -1253,6 +1253,7 @@
     "strokeLabel": "Stroke",
     "strokeAria": "Stroke {n}",
     "deleteAria": "Delete",
+    "stepDeleteRenumbers": "Delete renumbers the rest",
     "deleteTitle": "Delete (⌫)",
     "deleteTitleWindows": "Delete (Del)",
     "toolSelect": "Select",

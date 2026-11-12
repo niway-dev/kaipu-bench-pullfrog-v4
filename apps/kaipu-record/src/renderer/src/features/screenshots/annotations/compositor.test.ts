@@ -471,6 +471,32 @@ describe("compositor step badges", () => {
   });
 });
 
+describe("compositor step badges - mock ring, hairline and shadow (NIW2-713)", () => {
+  it("rings a light fill in white and keeps the number dark", () => {
+    const svg = buildSvg(
+      scene([{ id: "a", kind: "step", x: 0.5, y: 0.5, color: "#f5f5f5", size: 1 }]),
+      geom,
+    );
+    expect(svg).toMatch(/<circle [^>]*fill="#f5f5f5"[^>]*stroke="#ffffff"/);
+    expect(svg).toContain('fill="#1a1a1a"');
+  });
+
+  it("draws the hairline and drop shadow with one filter, still one circle per badge", () => {
+    const svg = buildSvg(
+      scene([
+        { id: "a", kind: "step", x: 0.25, y: 0.5, color: "#f6055c", size: 1 },
+        { id: "b", kind: "step", x: 0.75, y: 0.5, color: "#f6055c", size: 1 },
+      ]),
+      geom,
+    );
+    expect(svg.match(/<circle /g)).toHaveLength(2);
+    const ref = svg.match(/<circle [^>]*filter="url\(#([^)]+)\)"/);
+    expect(ref).not.toBeNull();
+    expect(svg).toContain(`<filter id="${ref![1]}"`);
+    expect(svg.match(/<filter id="stepf/g)).toHaveLength(1);
+  });
+});
+
 describe("compositor buildSvg - measure (NIW2-702)", () => {
   it("draws the line, end ticks and the escaped length label, scaled", () => {
     const svg = buildSvg(

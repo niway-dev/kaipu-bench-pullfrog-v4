@@ -12,6 +12,12 @@ import {
   resolveFontPx,
   stepFontPx,
   stepInk,
+  STEP_HAIRLINE_ALPHA,
+  STEP_HAIRLINE_PX,
+  STEP_RING_COLOR,
+  STEP_SHADOW_ALPHA,
+  STEP_SHADOW_DY,
+  STEP_SHADOW_STD,
   stepRingPx,
   textLines,
 } from "./tools";
@@ -387,6 +393,7 @@ export function buildSvg(scene: Scene, g: Geom): string {
   // added images earlier in the array) over its rect, so it covers an annotation drawn
   // before it and never paints over an image above it. Added images draw in z-order too.
   const steps = stepNumbers(scene.annotations);
+  if (scene.annotations.some((a) => a.kind === "step")) defs.push(stepFilterSvg(g.scale));
   const anno = `<g transform="translate(${ox},${oy})">${scene.annotations
     .map((a, i) => {
       if (a.kind === "image") return imageSvg(a, g, sv > 0);
@@ -446,6 +453,28 @@ function bakedBlurSvg(a: BlurAnnotation, below: readonly Annotation[], g: Geom):
   );
 }
 
+/**
+ * The badge hairline and drop shadow as ONE filter, referenced by every badge circle: a
+ * dark ring `STEP_HAIRLINE_PX` outside the circle's white stroke, then a soft shadow, then the
+ * badge itself. Region is relative to the badge box, wide enough for the shadow.
+ */
+function stepFilterSvg(scale: number): string {
+  return (
+    `<filter id="${STEP_FILTER_ID}" x="-100%" y="-100%" width="300%" height="300%">` +
+    `<feMorphology in="SourceAlpha" operator="dilate" radius="${STEP_HAIRLINE_PX * scale}" result="halo"/>` +
+    `<feFlood flood-color="#000" flood-opacity="${STEP_HAIRLINE_ALPHA}"/>` +
+    `<feComposite in2="halo" operator="in" result="hair"/>` +
+    `<feGaussianBlur in="halo" stdDeviation="${STEP_SHADOW_STD * scale}" result="blur"/>` +
+    `<feOffset in="blur" dx="0" dy="${STEP_SHADOW_DY * scale}" result="off"/>` +
+    `<feFlood flood-color="#000" flood-opacity="${STEP_SHADOW_ALPHA}"/>` +
+    `<feComposite in2="off" operator="in" result="shadow"/>` +
+    `<feMerge><feMergeNode in="shadow"/><feMergeNode in="hair"/><feMergeNode in="SourceGraphic"/></feMerge>` +
+    `</filter>`
+  );
+}
+
+const STEP_FILTER_ID = "stepf";
+
 function annotationSvg(
   a: Annotation,
   W: number,
@@ -460,7 +489,7 @@ function annotationSvg(
     const cx = a.x * W;
     const cy = a.y * H;
     return (
-      `<circle cx="${cx}" cy="${cy}" r="${(d / 2) * scale}" fill="${a.color}" stroke="${ink}" stroke-width="${stepRingPx(d) * scale}"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="${(d / 2) * scale}" fill="${a.color}" stroke="${STEP_RING_COLOR}" stroke-width="${stepRingPx(d) * scale}" filter="url(#${STEP_FILTER_ID})"/>` +
       `<text x="${cx}" y="${cy}" fill="${ink}" font-family="${STEP_FONT}" font-size="${stepFontPx(d, n) * scale}" font-weight="700" text-anchor="middle" dominant-baseline="central">${n}</text>`
     );
   }

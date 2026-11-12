@@ -11,6 +11,13 @@ import {
   resolveFontPx,
   stepFontPx,
   stepInk,
+  STEP_HAIRLINE_ALPHA,
+  STEP_HAIRLINE_PX,
+  STEP_RING_COLOR,
+  STEP_SELECTED_RING_PX,
+  STEP_SHADOW_ALPHA,
+  STEP_SHADOW_DY,
+  STEP_SHADOW_STD,
   stepRingPx,
   textBoxPx,
   textLines,
@@ -803,9 +810,40 @@ const Shape = React.memo(function Shape({
     const ink = stepInk(a.color);
     const cx = a.x * W;
     const cy = a.y * H;
+    const ring = stepRingPx(d);
+    const filterId = `stepf-${a.id}`;
     return (
       <g data-annotation={a.id}>
-        <circle cx={cx} cy={cy} r={d / 2} fill={a.color} stroke={ink} strokeWidth={stepRingPx(d)} />
+        <defs>
+          <filter id={filterId} x="-100%" y="-100%" width="300%" height="300%">
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius={STEP_HAIRLINE_PX}
+              result="halo"
+            />
+            <feFlood floodColor="#000" floodOpacity={STEP_HAIRLINE_ALPHA} />
+            <feComposite in2="halo" operator="in" result="hair" />
+            <feGaussianBlur in="halo" stdDeviation={STEP_SHADOW_STD} result="blur" />
+            <feOffset in="blur" dx={0} dy={STEP_SHADOW_DY} result="off" />
+            <feFlood floodColor="#000" floodOpacity={STEP_SHADOW_ALPHA} />
+            <feComposite in2="off" operator="in" result="shadow" />
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="hair" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={d / 2}
+          fill={a.color}
+          stroke={STEP_RING_COLOR}
+          strokeWidth={ring}
+          filter={`url(#${filterId})`}
+        />
         <text
           x={cx}
           y={cy}
@@ -819,7 +857,16 @@ const Shape = React.memo(function Shape({
         >
           {num}
         </text>
-        {selected && <circle className={styles.selOutline} cx={cx} cy={cy} r={d / 2 + 4} />}
+        {selected && (
+          <circle
+            data-step-selected=""
+            className={styles.stepSelected}
+            cx={cx}
+            cy={cy}
+            r={d / 2 + ring / 2 + STEP_SELECTED_RING_PX / 2}
+            strokeWidth={STEP_SELECTED_RING_PX}
+          />
+        )}
       </g>
     );
   }

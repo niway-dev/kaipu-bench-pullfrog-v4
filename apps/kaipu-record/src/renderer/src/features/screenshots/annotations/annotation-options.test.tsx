@@ -317,3 +317,19 @@ describe("AnnotationOptions - measure (NIW2-702)", () => {
     });
   });
 });
+
+describe("AnnotationOptions — step delete line (NIW2-713)", () => {
+  it("shows the renumber line for a selected step and deletes on click", () => {
+    const step: Annotation = { id: "s1", kind: "step", x: 0.5, y: 0.5, color: "#f6055c", size: 1 };
+    const scene = makeScene([step], "s1");
+    render(<AnnotationOptions tools={makeTools()} scene={scene} />);
+    const line = screen.getByText("Delete renumbers the rest");
+    fireEvent.click(line);
+    expect(scene.removeSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the icon delete button for other kinds", () => {
+    render(<AnnotationOptions tools={makeTools()} scene={makeScene([box], "b1")} />);
+    expect(screen.queryByText("Delete renumbers the rest")).toBeNull();
+  });
+});

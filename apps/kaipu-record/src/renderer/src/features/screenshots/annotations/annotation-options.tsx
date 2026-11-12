@@ -281,7 +281,20 @@ export function AnnotationOptions({
         </div>
       )}
 
-      {selected && (
+      {selected?.kind === "step" && (
+        <button
+          type="button"
+          aria-label={t("deleteAria")}
+          title={t(isWindowsHost() ? "deleteTitleWindows" : "deleteTitle")}
+          className={styles.deleteLine}
+          onClick={() => scene.removeSelected()}
+        >
+          <Trash2 size={13} />
+          {t("stepDeleteRenumbers")}
+        </button>
+      )}
+
+      {selected && selected.kind !== "step" && (
         <button
           type="button"
           aria-label={t("deleteAria")}

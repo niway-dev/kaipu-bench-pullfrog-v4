@@ -1253,6 +1253,7 @@
     "strokeLabel": "Trazo",
     "strokeAria": "Trazo {n}",
     "deleteAria": "Eliminar",
+    "stepDeleteRenumbers": "Eliminar renumera los demás",
     "deleteTitle": "Eliminar (⌫)",
     "deleteTitleWindows": "Eliminar (Supr)",
     "toolSelect": "Seleccionar",

@@ -125,6 +125,27 @@
   border-color: var(--danger, #ef4444);
 }
 
+/* A selected step's delete is a full-width line saying what it does (mock D2). */
+.deleteLine {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ie-mut);
+  font-size: var(--font-size-xs);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+
+.deleteLine:hover {
+  color: var(--danger, #ef4444);
+}
+
 /* ── Reset (crop) ────────────────────────────── */
 
 .reset {
