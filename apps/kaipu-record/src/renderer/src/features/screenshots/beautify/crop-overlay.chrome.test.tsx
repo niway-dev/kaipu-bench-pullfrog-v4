@@ -101,13 +101,27 @@ describe("CropOverlay canvas chrome (mock A5)", () => {
     );
   });
 
+  it("grabs a handle from within 12 screen px when zoomed in", () => {
+    const scene = makeScene(FRAME);
+    const { overlay } = mountZoomed(scene, 3);
+    // Top-left handle centre is at screen (30, 30); press 10 px right is inside the 12 px hit.
+    fireEvent.pointerDown(overlay, { clientX: 40, clientY: 30 });
+    fireEvent.pointerMove(overlay, { clientX: 90, clientY: 30 });
+    fireEvent.pointerUp(overlay, { clientX: 90, clientY: 30 });
+    // Resized from the top-left corner: x follows the pointer, the bottom-right stays at 0.6.
+    expect(scene.setCrop).toHaveBeenCalledWith(
+      expect.objectContaining({ x: expect.closeTo(0.3), w: expect.closeTo(0.3) }),
+    );
+  });
+
   it("does not grab a handle from beyond 12 screen px when zoomed in", () => {
     const scene = makeScene(FRAME);
     const { overlay } = mountZoomed(scene, 3);
-    // Top-left handle centre is at screen (30, 30); press 30 px right is inside the frame.
-    fireEvent.pointerDown(overlay, { clientX: 60, clientY: 30 });
-    fireEvent.pointerMove(overlay, { clientX: 90, clientY: 30 });
-    fireEvent.pointerUp(overlay, { clientX: 90, clientY: 30 });
+    // Top-left handle centre is at screen (30, 30); press 14 px right is outside the 12 px hit
+    // but still inside the frame, so it moves the frame.
+    fireEvent.pointerDown(overlay, { clientX: 44, clientY: 30 });
+    fireEvent.pointerMove(overlay, { clientX: 74, clientY: 30 });
+    fireEvent.pointerUp(overlay, { clientX: 74, clientY: 30 });
     // Moved the frame (x shifts, size kept) instead of resizing it.
     expect(scene.setCrop).toHaveBeenCalledWith(
       expect.objectContaining({ w: expect.closeTo(0.5), x: expect.closeTo(0.1 + 0.1) }),

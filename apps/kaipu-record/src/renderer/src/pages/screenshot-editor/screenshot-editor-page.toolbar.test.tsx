@@ -473,6 +473,15 @@ describe("toolbar B3: compact", () => {
     expect(view.getAttribute("data-export-frame")).toBe("true");
   });
 
+  it("closes the Add image menu with Esc without clearing the export frame", async () => {
+    const view = await drawExportFrame();
+    press("m");
+    expect(screen.getByRole("menu", { name: "Add image options" })).toBeInTheDocument();
+    press("Escape");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(view.getAttribute("data-export-frame")).toBe("true");
+  });
+
   it("closes the sheet with Esc without clearing the export frame", async () => {
     const view = await drawExportFrame();
     setPageWidth(900);
