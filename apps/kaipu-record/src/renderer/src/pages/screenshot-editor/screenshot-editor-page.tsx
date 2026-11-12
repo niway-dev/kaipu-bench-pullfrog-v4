@@ -1236,6 +1236,14 @@ function ScreenshotEditorBody({
   useEffect(() => {
     if (colorsInSheet) setPanelOpen(true);
   }, [colorsInSheet]);
+  // Colors lives only in the sheet in compact, so closing the sheet turns it off: otherwise its
+  // button would read "on" with nothing visible, and the next press would only turn it off.
+  const colorsSetOpen = colors.setOpen;
+  const wasSheetOpen = useRef(false);
+  useEffect(() => {
+    if (wasSheetOpen.current && !sheetOpen && compact) colorsSetOpen(false);
+    wasSheetOpen.current = sheetOpen;
+  }, [sheetOpen, compact, colorsSetOpen]);
   useEffect(() => {
     if (!sheetOpen) return;
     const onKey = (e: KeyboardEvent): void => {

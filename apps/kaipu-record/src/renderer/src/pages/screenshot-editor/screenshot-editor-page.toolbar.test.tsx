@@ -506,6 +506,21 @@ describe("toolbar B3: compact", () => {
     expect(document.activeElement).toBe(btn("Draw"));
   });
 
+  it("turns Colors off when the sheet closes, so the next press opens it again", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Inspect (I)"));
+    const colorsBtn = () => screen.getByRole("button", { name: "Colors" });
+    fireEvent.click(colorsBtn());
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    press("Escape");
+    expect(screen.queryByText("Beautify")).toBeNull();
+    expect(colorsBtn()).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(colorsBtn());
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    expect(colorsBtn()).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("hides the title, keeps Save's label and makes Copy an icon", async () => {
     await mount(ALL);
     setPageWidth(900);
