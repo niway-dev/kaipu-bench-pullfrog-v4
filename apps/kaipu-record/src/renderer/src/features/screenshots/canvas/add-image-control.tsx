@@ -53,9 +53,14 @@ export function AddImageControl({
       menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
     ).filter((el) => !el.disabled);
 
-  // Opening puts focus on the first enabled item, so the arrows work at once.
+  // Opening puts focus on the first enabled item, so the arrows work at once. What had focus
+  // before is kept for Escape when there is no button to return to (the compact "•••" menu).
+  const focusBefore = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (open) enabledItems()[0]?.focus();
+    if (!open) return;
+    focusBefore.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    enabledItems()[0]?.focus();
   }, [open]);
 
   const onMenuKeyDown = (e: React.KeyboardEvent): void => {
@@ -78,8 +83,10 @@ export function AddImageControl({
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== "Escape") return;
       onOpenChange(false);
-      // Closing unmounts the focused item: hand focus back to the button, as ToolbarMenu does.
-      anchorRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
+      // Closing unmounts the focused item: hand focus back to the button, as ToolbarMenu does,
+      // or, in the compact toolbar (no button), to what had it before the menu opened.
+      const button = anchorRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]');
+      (button ?? focusBefore.current)?.focus();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

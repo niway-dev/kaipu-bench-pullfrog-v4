@@ -58,6 +58,29 @@ describe("AddImageControl menu", () => {
     expect(screen.getByRole("button", { name: "Add image" })).toHaveFocus();
   });
 
+  it("in the compact toolbar (no button), Escape puts focus back where it was", () => {
+    const More = ({ open }: { open: boolean }) => (
+      <>
+        <button type="button">More</button>
+        <AddImageControl
+          onAdd={vi.fn()}
+          excludeId={null}
+          excludeAssetId={null}
+          open={open}
+          onOpenChange={vi.fn()}
+          showButton={false}
+        />
+      </>
+    );
+    const { rerender } = render(<More open={false} />);
+    screen.getByRole("button", { name: "More" }).focus();
+    rerender(<More open />);
+    expect(screen.getAllByRole("menuitem")[0]).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Escape" });
+    rerender(<More open={false} />);
+    expect(screen.getByRole("button", { name: "More" })).toHaveFocus();
+  });
+
   it("renders the paste hint with a key chip", () => {
     const { container } = mount();
     expect(screen.getByRole("menu")).toHaveTextContent(/paste an image with/i);
