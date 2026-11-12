@@ -720,8 +720,20 @@ async function runStep(ctx: Ctx, step: Step): Promise<void> {
   if ("window" in step && typeof step.window === "string")
     return resizeMain(ctx.app, ctx.main, step.window);
   const page = await pageFor(ctx, "on" in step ? step.on : undefined);
-  if ("click" in step) return targetLocator(page, step.click).click({ timeout: t });
-  if ("hover" in step) return targetLocator(page, step.hover).hover({ timeout: t });
+  if ("click" in step || "hover" in step) {
+    const target = "click" in step ? step.click : step.hover;
+    const locator = targetLocator(page, target);
+    if (step.at) {
+      const box = await locator.boundingBox({ timeout: t });
+      if (!box) throw new Error("the target has no box to aim at");
+      const x = box.x + box.width * step.at.x;
+      const y = box.y + box.height * step.at.y;
+      await page.mouse.move(x, y);
+      if ("click" in step) await page.mouse.click(x, y);
+      return;
+    }
+    return "click" in step ? locator.click({ timeout: t }) : locator.hover({ timeout: t });
+  }
   if ("wheel" in step) {
     const turns = wheelTurns(step);
     await targetLocator(page, step.wheel).hover({ timeout: t });
@@ -1177,6 +1189,7 @@ async function runProfile(name: ProfileName, entries: CatalogEntry[]): Promise<v
           content: profile.seed,
           cursorRecording: profile.cursorRecording,
           textScreenshot: profile.textScreenshot,
+          inspectShots: profile.inspectShots,
           corruptCanvas: profile.corruptCanvas,
           reconcile: profile.reconcile,
         }),
