@@ -37,7 +37,12 @@ import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } 
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import type { RecognizedWord } from "@kaipu/domain/schemas";
-import { nearestWord, wordBoxNorm, type TextLayerModel } from "../text-selection";
+import {
+  lineBoxesNorm,
+  nearestWord,
+  wordBoxNorm,
+  type TextLayerModel,
+} from "../text-selection";
 import { gapMeasures, type WorldRect } from "../canvas/image-gap";
 import { ImageSelection } from "../canvas/image-selection";
 import styles from "./annotation-layer.module.css";
@@ -129,9 +134,17 @@ function AnnotationLayerImpl({
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Annotation | null>(null);
-  // The pointer is over a recognized word (the "Select text" tool): shows the text cursor.
-  const [overWord, setOverWord] = useState(false);
+  // The line of the recognized word under the pointer (the "Select text" tool): shows the text
+  // cursor, the line's soft fill and the "drag to select" tag. Null off the words.
+  const [hoverLine, setHoverLine] = useState<number | null>(null);
+  const overWord = hoverLine !== null;
   const activeText = tools.tool === "selectText" ? text : undefined;
+  // One underline per line, under the words' union box. Cheap, and only for the active tool.
+  const recognizedLines = useMemo(
+    () => (activeText ? lineBoxesNorm(activeText.words, activeText.natural) : []),
+    [activeText],
+  );
+  const hoverTag = recognizedLines.find((l) => l.line === hoverLine)?.box ?? null;
   // A move/resize in flight lives here, not in the scene: the dragged shape renders as
   // `{ ...a, ...patch }` and the scene is touched once, on release, so a drag re-renders
   // this layer only (not the whole editor page) and ends up as one undo entry. The ref
@@ -351,7 +364,9 @@ function AnnotationLayerImpl({
     if (!d) {
       if (activeText) {
         const hit = nearestWord(activeText.words, toNorm(e), activeText.natural, size);
-        setOverWord(hit !== null && hit.distPx <= TEXT_HIT_PX);
+        setHoverLine(
+          hit !== null && hit.distPx <= TEXT_HIT_PX ? activeText.words[hit.index].line : null,
+        );
       }
       return;
     }
@@ -575,6 +590,7 @@ function AnnotationLayerImpl({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerAbort}
+      onPointerLeave={() => setHoverLine(null)}
       onLostPointerCapture={onPointerAbort}
       onDoubleClick={onDoubleClick}
     >
@@ -626,6 +642,31 @@ function AnnotationLayerImpl({
         {selectedAnnotation && selectedAnnotation.kind !== "image" && (
           <Handles a={selectedAnnotation} size={size} />
         )}
+        {activeText && recognizedLines.length > 0 && (
+          <g data-testid="text-lines" className={styles.textLines}>
+            {recognizedLines.map(({ line, box }) => (
+              <React.Fragment key={line}>
+                {/* Transparent until hovered: it is also the line's box for the catalog's hover. */}
+                <rect
+                  data-testid="text-line-box"
+                  data-hover={line === hoverLine || undefined}
+                  className={styles.textLineBox}
+                  x={box.x * size.w}
+                  y={box.y * size.h}
+                  width={box.w * size.w}
+                  height={box.h * size.h}
+                />
+                <line
+                  data-testid="text-line-underline"
+                  x1={box.x * size.w}
+                  x2={(box.x + box.w) * size.w}
+                  y1={(box.y + box.h) * size.h}
+                  y2={(box.y + box.h) * size.h}
+                />
+              </React.Fragment>
+            ))}
+          </g>
+        )}
         {activeText && activeText.selected.size > 0 && (
           <g data-testid="text-highlights" className={styles.textHighlights}>
             {activeText.words
@@ -646,6 +687,15 @@ function AnnotationLayerImpl({
           </g>
         )}
       </svg>
+      {hoverTag && (
+        <span
+          data-testid="text-line-tag"
+          className={styles.textLineTag}
+          style={{ left: hoverTag.x * size.w, top: (hoverTag.y + hoverTag.h) * size.h + 4 }}
+        >
+          {t("textLineTag")}
+        </span>
+      )}
       {selectedImage && (
         <ImageSelection
           rect={{

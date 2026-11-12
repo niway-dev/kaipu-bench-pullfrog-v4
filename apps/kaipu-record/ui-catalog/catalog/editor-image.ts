@@ -500,6 +500,94 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.textSelection:selected"],
     },
+    "text-reading": {
+      profile: "image-text-slow",
+      how: "Mock G1 (recognizing text on open). With the flag forced on and text recognition held for a minute, open “Display settings”: a faint accent band sweeps the image and a quiet notice at the bottom-left, right of the zoom control, reads “Reading the text in this image…”.",
+      steps: [open(ASSETS.textShot), { waitFor: { area: "editorImage.textNotice" } }],
+      demonstrates: ["editorImage.textNotice:reading"],
+      gates: [{ flag: "image-text", side: "on" }],
+    },
+    "text-pending": {
+      profile: "image-text-slow",
+      how: "With the flag forced on and text recognition held for a minute, open “Display settings” and pick Select text: the panel reads “Recognizing text…”.",
+      steps: [
+        open(ASSETS.textShot),
+        tool("Select text"),
+        {
+          waitFor: {
+            area: "editorImage.textStatus",
+            part: { text: "Recognizing text", exact: false },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.textStatus:pending"],
+      gates: [{ flag: "image-text", side: "on" }],
+    },
+    "text-hover": {
+      profile: "image-text",
+      how: "Mock G2 (hover over recognized text). With the flag forced on, open “Display settings”, pick Select text and rest the pointer on its first row: every line has a dotted accent underline, the row under the pointer a soft accent fill and a small “Text · drag to select” tag, and the pointer is the text cursor.",
+      steps: [
+        ...openText,
+        {
+          // Line 0 is the title bar, so line 1 (nth 1) is the first row, "Language: English"
+          // (x 44-170 at y 92-108 of the 560x340 fixture).
+          hover: {
+            area: "editorImage.textSelection",
+            part: { css: "[data-testid=text-line-box]" },
+            nth: 1,
+          },
+        },
+        { waitFor: { area: "editorImage.textSelection", part: { css: "[data-testid=text-line-tag]" } } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.textSelection:hover"],
+    },
+    "text-copied": {
+      profile: "image-text",
+      how: "Mock G3 (two-line selection and copy confirmation). With the flag forced on, open “Display settings”, pick Select text, drag from its first row (“Language: English”) down to its second (“Theme: Dark mode”) and press Cmd+C: the toast says “Text copied” and “2 lines”.",
+      steps: [
+        ...openText,
+        {
+          drag: { area: "editorImage.textSelection" },
+          // Rows of the 560x340 fixture: first at y 92-108, second at y 148-164.
+          from: { x: 60 / 560, y: 100 / 340 },
+          to: { x: 190 / 560, y: 156 / 340 },
+        },
+        {
+          waitFor: {
+            area: "editorImage.textSelection",
+            part: { css: "[data-testid=text-highlights]" },
+          },
+        },
+        { press: "Meta+C" },
+        { waitFor: { area: "editorImage.textCopied" } },
+      ],
+      demonstrates: ["editorImage.textCopied:copied"],
+      gates: [{ flag: "image-text", side: "on" }],
+    },
+    "text-unavailable": {
+      profile: "image-text-unavailable",
+      how: "Mock G4 (recognition unavailable). With the flag forced on and text recognition answering unavailable, open “Display settings”: a quiet notice at the bottom-left reads “Text can't be selected on this computer. Everything else works.”, with no error dialog.",
+      steps: [open(ASSETS.textShot), { waitFor: { area: "editorImage.textNotice" } }],
+      demonstrates: ["editorImage.textNotice:unavailable"],
+      gates: [{ flag: "image-text", side: "on" }],
+    },
+    "text-unavailable-panel": {
+      profile: "image-text-unavailable",
+      how: "With the flag forced on and text recognition answering unavailable, open “Display settings” and pick Select text: the panel says text recognition is not available.",
+      steps: [
+        open(ASSETS.textShot),
+        tool("Select text"),
+        {
+          waitFor: {
+            area: "editorImage.textStatus",
+            part: { text: "not available", exact: false },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.textStatus:unavailable"],
+      gates: [{ flag: "image-text", side: "on" }],
+    },
     "reopen-editable": {
       profile: "image-canvas",
       how: "With the flag forced on, open “Settings page”, pick Step, click the canvas, press Save and answer Overwrite; leave the editor and open “Settings page” again: a pill at the top of the stage says it reopened with everything editable, with the time it was saved, and fades after about four seconds.",
@@ -548,14 +636,6 @@ export const editorImage = catalog(
       "editorImage.libraryPicker:empty": nc(
         "needsSetup",
         "the picker leaves out the shot being edited, and the seeded vault holds three screenshots, so it always lists two; a vault with a single screenshot would show it (not built)",
-      ),
-      "editorImage.textStatus:pending": nc(
-        "transient",
-        "recognition settles in well under a second on a drawing, and the catalog cannot slow the helper; the panel reads “Recognizing text…” until then",
-      ),
-      "editorImage.textStatus:unavailable": nc(
-        "inducedFailure",
-        "showing it needs a run without the recognition helper; the catalog could only get that with a test-only override of the helper path in production code (or by deleting the helper on the runner), and the real-app proof `verify/image-text.verify.ts` covers it by renaming the helper away",
       ),
       "editorImage.inspectColors:counting": nc(
         "transient",

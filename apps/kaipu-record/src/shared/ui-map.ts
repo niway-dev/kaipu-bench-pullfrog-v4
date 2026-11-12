@@ -323,7 +323,12 @@ export const UI_MAP = {
         states: ["pending", "ready", "noText", "unavailable"],
         gatedBy: [{ flag: "image-text" }],
       },
-      textSelection: { states: ["selected"], gatedBy: [{ flag: "image-text" }] },
+      textSelection: { states: ["hover", "selected"], gatedBy: [{ flag: "image-text" }] },
+      // The quiet notice at the stage's bottom-left: `reading` while recognition is pending,
+      // `unavailable` when it cannot run on this computer. Never an error dialog.
+      textNotice: { states: ["reading", "unavailable"], gatedBy: [{ flag: "image-text" }] },
+      // The toast after Copy text: "Text copied" and how many lines.
+      textCopied: { states: ["copied"], gatedBy: [{ flag: "image-text" }] },
       // The pill on the stage when a saved shot is reopened in canvas mode: `editable` says
       // the document loaded (fades), `flat` that it could not be read (stays until dismissed).
       reopenNotice: { states: ["editable", "flat"], gatedBy: [{ flag: "image-canvas" }] },

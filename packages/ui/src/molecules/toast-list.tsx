@@ -24,6 +24,10 @@ export interface ToastAction {
 export interface ToastItem {
   id: string;
   message: ReactNode;
+  /** A second, muted line under the message (e.g. "2 lines" under "Text copied"). */
+  detail?: string;
+  /** Attributes spread on the toast's root (a surface's own markers, e.g. `data-ui-area`). */
+  rootProps?: Readonly<Record<`data-${string}`, string>>;
   action?: ToastAction;
 }
 
@@ -65,6 +69,12 @@ const styles = stylex.create({
     fontSize: "13px",
     lineHeight: 1.4,
   },
+  detail: {
+    display: "block",
+    fontSize: "12px",
+    lineHeight: 1.4,
+    color: tokens.textMuted,
+  },
   action: {
     flexShrink: 0,
     borderStyle: "none",
@@ -99,8 +109,11 @@ export function ToastList({ toasts, onDismiss, closeLabel }: ToastListProps) {
   return (
     <div {...stylex.props(styles.host, toasts.length === 0 && styles.hidden)}>
       {toasts.map((toast) => (
-        <div key={toast.id} role="alert" {...stylex.props(styles.toast)}>
-          <span {...stylex.props(styles.message)}>{toast.message}</span>
+        <div key={toast.id} role="alert" {...toast.rootProps} {...stylex.props(styles.toast)}>
+          <span {...stylex.props(styles.message)}>
+            {toast.message}
+            {toast.detail ? <span {...stylex.props(styles.detail)}>{toast.detail}</span> : null}
+          </span>
           {toast.action ? (
             <button
               type="button"

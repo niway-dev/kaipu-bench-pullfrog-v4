@@ -329,6 +329,7 @@ export function registerScreenshotHandlers(
           recognizer ??= createTextRecognizer({
             resourcesPath: process.resourcesPath,
             appPath: app.isPackaged ? undefined : app.getAppPath(),
+            isPackaged: app.isPackaged,
           });
           return await recognizeScreenshotText({ vault: currentVault, recognizer }, request);
         } catch (error) {

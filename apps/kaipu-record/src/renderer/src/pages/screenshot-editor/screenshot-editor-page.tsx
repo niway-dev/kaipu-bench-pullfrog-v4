@@ -107,6 +107,9 @@ import { useFlag } from "@renderer/features/analytics/use-flag";
 import {
   redactionRectsInPixels,
   useRecognizedText,
+  distinctLineCount,
+  TextNotice,
+  TextShimmer,
   useTextSelection,
   useTextSelectionKeys,
   type PixelSize,
@@ -449,7 +452,11 @@ function ScreenshotEditorBody({
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      showToast({ message: t("textCopied") });
+      showToast({
+        message: t("textCopied"),
+        detail: t("textCopiedLines", { count: distinctLineCount(textSelection.selected) }),
+        rootProps: uiArea("editorImage.textCopied"),
+      });
     } catch (error) {
       reportError(t("textCopyError"), error, { context: { phase: "copy-text" } });
     }
@@ -1471,6 +1478,7 @@ function ScreenshotEditorBody({
                       : {})}
                     text={textLayer}
                   />
+                  <TextShimmer enabled={textEnabled} loaded={image != null} status={recognized.status} />
                   {inspectEnabled && <LocateOverlay image={colors.overlay} />}
                 </>
               }
@@ -1572,6 +1580,12 @@ function ScreenshotEditorBody({
             )}
           </div>
           <ReopenNoticeSlot reopen={reopen} edited={dirty} />
+          <TextNotice
+            enabled={textEnabled}
+            loaded={image != null}
+            status={recognized.status}
+            wide={canvasMode}
+          />
           {canvasMode && offContent && (
             <OffContentNotice direction={offContent} onFit={() => viewport.fit()} />
           )}

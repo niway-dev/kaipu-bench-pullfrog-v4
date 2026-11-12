@@ -7,6 +7,7 @@ export {
   type PixelRect,
   type PixelSize,
 } from "./geometry";
+export { distinctLineCount, lineBoxesNorm, type LineBox } from "./lines";
 export { useRecognizedText, type RecognizedText } from "./use-recognized-text";
 export {
   useTextSelection,
@@ -15,3 +16,4 @@ export {
   type TextToolStatus,
   type TextSelection,
 } from "./use-text-selection";
+export { TextNotice, TextShimmer, useTextNoticeState } from "./text-notice";

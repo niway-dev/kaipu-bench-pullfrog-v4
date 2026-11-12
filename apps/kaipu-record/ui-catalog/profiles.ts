@@ -107,6 +107,22 @@ export const PROFILES = {
     flags: { "image-text": true },
     textScreenshot: true,
   },
+  "image-text-slow": {
+    description:
+      "Like image-text, with text recognition held for 60 s (KAIPU_TEXT_RECOGNITION=delay:60000, unpackaged builds only): the pending states.",
+    seed: "demo",
+    flags: { "image-text": true },
+    textScreenshot: true,
+    env: { KAIPU_TEXT_RECOGNITION: "delay:60000" },
+  },
+  "image-text-unavailable": {
+    description:
+      "Like image-text, with text recognition answering unavailable (KAIPU_TEXT_RECOGNITION=unavailable, unpackaged builds only): a computer that cannot read text.",
+    seed: "demo",
+    flags: { "image-text": true },
+    textScreenshot: true,
+    env: { KAIPU_TEXT_RECOGNITION: "unavailable" },
+  },
   "image-toolbar": {
     description:
       "Flags image-canvas, image-inspect and image-text forced on together: the image editor's whole toolbar (mode switch, Export frame, Add image, Select text).",

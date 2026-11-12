@@ -11,6 +11,10 @@ export interface ToastAction {
 export interface ToastSpec {
   id: string;
   message: string;
+  /** A second, muted line under the message. */
+  detail?: string;
+  /** Attributes for the toast's root, e.g. `uiArea("…")` so the UI catalog can crop it. */
+  rootProps?: Readonly<Record<`data-${string}`, string>>;
   action?: ToastAction;
   durationMs: number;
 }
@@ -30,12 +34,14 @@ function emit(): void {
 /** Show a toast; returns its id. Auto-dismisses after `durationMs` (default 5s). */
 export function showToast(spec: {
   message: string;
+  detail?: string;
+  rootProps?: Readonly<Record<`data-${string}`, string>>;
   action?: ToastAction;
   durationMs?: number;
 }): string {
   const id = `toast-${++counter}`;
   const durationMs = spec.durationMs ?? DEFAULT_DURATION_MS;
-  toasts = [...toasts, { id, message: spec.message, action: spec.action, durationMs }];
+  toasts = [...toasts, { id, message: spec.message, detail: spec.detail, rootProps: spec.rootProps, action: spec.action, durationMs }];
   timers.set(
     id,
     setTimeout(() => dismissToast(id), durationMs),
