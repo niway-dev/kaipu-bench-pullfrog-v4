@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -256,5 +258,44 @@ describe("ScreenshotEditor — redaction notice (image-canvas)", () => {
     );
     // The notice is still there: only Got it or an explicit save acknowledges it.
     expect(notice()).not.toBeNull();
+  });
+
+  it("lockedAt is the time of the save that succeeded, not of a failed attempt", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const stamps = (call: number): number[] => {
+      const canvas = (saveScreenshot.mock.calls[call][1] as { canvas: { docJson: string } }).canvas;
+      return (JSON.parse(canvas.docJson).items as { kind: string; lockedAt?: number }[])
+        .filter((i) => i.kind === "blur")
+        .map((i) => i.lockedAt as number);
+    };
+    mountPaste();
+    await loadImage();
+    drawRedaction();
+    await screen.findByRole("dialog", { name: NOTICE });
+    const save = async () => fireEvent.click(await screen.findByRole("button", { name: "Save" }));
+
+    vi.setSystemTime(1_000);
+    saveScreenshot.mockRejectedValueOnce(new Error("disk full"));
+    await save();
+    await waitFor(() => expect(saveScreenshot).toHaveBeenCalledTimes(1));
+    expect(stamps(0)).toEqual([1_000]);
+
+    vi.setSystemTime(2_000);
+    await save();
+    await waitFor(() => expect(saveScreenshot).toHaveBeenCalledTimes(2));
+    expect(stamps(1)).toEqual([2_000]);
+
+    // A new edit makes the button Save again; the first redaction keeps its stamp.
+    vi.setSystemTime(3_000);
+    drawRedaction();
+    await waitFor(() => expect(blurIds()).toHaveLength(2));
+    await save();
+    await waitFor(() => expect(saveScreenshot).toHaveBeenCalledTimes(3));
+    expect(stamps(2)).toEqual([2_000, 3_000]);
+  });
+
+  it("the catalog's forgetRedactionNotice action removes the store's key", () => {
+    const run = readFileSync(path.join(process.cwd(), "ui-catalog/run.ts"), "utf8");
+    expect(run).toContain(`localStorage.removeItem("${REDACTION_NOTICE_KEY}")`);
   });
 });

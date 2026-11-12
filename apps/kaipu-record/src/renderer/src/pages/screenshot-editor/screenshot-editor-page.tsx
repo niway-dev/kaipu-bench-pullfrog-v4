@@ -968,12 +968,15 @@ function ScreenshotEditorBody({
   };
 
   const firstSave = useRef(new Map<string, number>());
-  /** The first save that baked this redaction: later autosaves of the session keep it. */
-  const firstSaveAt = (id: string): number => {
-    const known = firstSave.current.get(id);
+  /**
+   * The first save that baked this redaction: later autosaves of the session keep it.
+   * A new stamp goes into `staged`, not `firstSave`: it only counts once the save succeeded.
+   */
+  const firstSaveAt = (id: string, staged: Map<string, number>): number => {
+    const known = firstSave.current.get(id) ?? staged.get(id);
     if (known !== undefined) return known;
     const now = Date.now();
-    firstSave.current.set(id, now);
+    staged.set(id, now);
     return now;
   };
 
@@ -989,7 +992,10 @@ function ScreenshotEditorBody({
    * Null when the image's pixel size is unknown (the document would be invalid): the save
    * then stores the flat PNG alone, and main drops any stale document.
    */
-  const buildCanvasPayload = async (snap: Scene): Promise<CanvasSavePayload | null> => {
+  const buildCanvasPayload = async (
+    snap: Scene,
+    staged: Map<string, number>,
+  ): Promise<CanvasSavePayload | null> => {
     // The decoded image first; the known sizes cover an image that has not reported one.
     const { width: pixelWidth, height: pixelHeight } = basePixels();
     if (pixelWidth <= 0 || pixelHeight <= 0) return null;
@@ -999,7 +1005,11 @@ function ScreenshotEditorBody({
       snap.annotations,
     );
     const docJson = JSON.stringify(
-      buildCanvasDoc(snap, { pixelWidth, pixelHeight }, { lockedAt: (id) => firstSaveAt(id) }),
+      buildCanvasDoc(
+        snap,
+        { pixelWidth, pixelHeight },
+        { lockedAt: (id) => firstSaveAt(id, staged) },
+      ),
     );
     // The base, then each image asset the scene still references, once (one asset may sit on
     // the canvas twice). Main prunes whatever else the vault held for this shot.
@@ -1064,7 +1074,8 @@ function ScreenshotEditorBody({
             : undefined;
       try {
         const png = await exportAs("png", snap);
-        const canvas = canvasMode ? await buildCanvasPayload(snap) : null;
+        const stagedStamps = new Map<string, number>();
+        const canvas = canvasMode ? await buildCanvasPayload(snap, stagedStamps) : null;
         const text = canvas ? buildTextPayload(snap) : null;
         const saved = await window.electronAPI.saveScreenshot(png, {
           // The live field, not only its committed value: Save must write what the
@@ -1081,6 +1092,10 @@ function ScreenshotEditorBody({
           // words are not known (flag off, still pending, unavailable).
           ...(text ? { text } : {}),
         });
+        // The save landed: its redaction stamps are now the first-save times.
+        for (const [id, at] of stagedStamps) {
+          if (!firstSave.current.has(id)) firstSave.current.set(id, at);
+        }
         savedIdRef.current = saved.id;
         savedAssetIdRef.current = saved.assetId;
         setSavedId(saved.id);
