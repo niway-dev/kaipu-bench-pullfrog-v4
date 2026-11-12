@@ -93,7 +93,10 @@ import {
   ExportBox,
   ExportFrameCard,
   OffContentNotice,
+  RedactionNotice,
   contentBoxFrame,
+  hasSeenRedactionNotice,
+  markRedactionNoticeSeen,
   isIdentityView,
   useCanvasViewport,
   useOffContent,
@@ -936,6 +939,30 @@ function ScreenshotEditorBody({
     if (await copyToClipboard()) showFeedback({ kind: "copied" });
   };
 
+  // The one-time notice before redactions become permanent (mock H4b). This editor saves as you
+  // edit and every save bakes redactions into the stored asset, so the notice opens the first
+  // time an unsaved redaction exists on a machine that has not acknowledged it. It is derived,
+  // not scheduled: no unsaved redaction (none drawn, all undone, or all already locked in a
+  // reopened document) means no notice. While it is open the edit autosave waits.
+  const [noticeSeen, setNoticeSeen] = useState(hasSeenRedactionNotice);
+  const [noticeHidden, setNoticeHidden] = useState(false);
+  const hasUnsavedRedaction =
+    canvasMode && scene.annotations.some((a) => a.kind === "blur" && !a.locked);
+  useEffect(() => {
+    // "Undo redaction" closes it without acknowledging; the next first redaction opens it again.
+    if (!hasUnsavedRedaction) setNoticeHidden(false);
+  }, [hasUnsavedRedaction]);
+  const noticeOpen = hasUnsavedRedaction && !noticeSeen && !noticeHidden;
+  const acknowledgeNotice = (): void => {
+    markRedactionNoticeSeen();
+    setNoticeSeen(true);
+  };
+  const undoLastRedaction = (): void => {
+    const last = scene.annotations.findLast((a) => a.kind === "blur" && !a.locked);
+    if (last) scene.removeAnnotation(last.id);
+    setNoticeHidden(true);
+  };
+
   /**
    * The document and base asset a canvas-mode save stores beside the PNG (ADR 0053).
    *
@@ -1009,6 +1036,8 @@ function ScreenshotEditorBody({
   }): Promise<string | null> =>
     enqueue(async () => {
       if (!alive.current) return null;
+      // An explicit save bakes the redactions in: it counts as having read the notice.
+      if (!opts.silent && noticeOpen) acknowledgeNotice();
       const revision = sceneRevision.current;
       const snap = latest.current.scene;
       const draftAtStart = latest.current.draft;
@@ -1167,7 +1196,8 @@ function ScreenshotEditorBody({
 
   // Save the edits a moment after the last one, so closing the window loses at most that.
   useEffect(() => {
-    if (!dirty || !savedId || !imageReady || discarding) return;
+    // The redaction notice holds the debounced save: it is the last moment before the pixels go.
+    if (!dirty || !savedId || !imageReady || discarding || noticeOpen) return;
     const timer = setTimeout(() => void autosaveEdits(), AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the scene change re-arms it
@@ -1176,6 +1206,7 @@ function ScreenshotEditorBody({
     savedId,
     imageReady,
     discarding,
+    noticeOpen,
     scene.beautify.state,
     scene.annotations,
     scene.crop,
@@ -1576,6 +1607,9 @@ function ScreenshotEditorBody({
           <ReopenNoticeSlot reopen={reopen} edited={dirty} />
           {canvasMode && offContent && (
             <OffContentNotice direction={offContent} onFit={() => viewport.fit()} />
+          )}
+          {noticeOpen && (
+            <RedactionNotice onUndo={undoLastRedaction} onAcknowledge={acknowledgeNotice} />
           )}
           {canvasMode && tools.tool === "crop" && (
             <ExportFrameCard

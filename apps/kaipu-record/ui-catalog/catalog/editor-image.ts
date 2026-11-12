@@ -337,6 +337,22 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.redactionStyle:solid"],
     },
+    "redaction-notice": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page”, pick Redact and drag a box over the image: the “Saving makes redactions permanent” card opens over the canvas, with Undo redaction and Got it.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Redact"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.42, y: 0.35 },
+          to: { x: 0.62, y: 0.6 },
+        },
+        { waitFor: { area: "editorImage.redactionNotice" } },
+      ],
+      demonstrates: ["editorImage.redactionNotice:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
     "inspect-off": {
       profile: "image-inspect",
       how: "With the flag forced on, open “Settings page”: the Inspect button is in the toolbar, off.",
