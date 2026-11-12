@@ -34,6 +34,21 @@ const openText: readonly Step[] = [
   },
 ];
 
+/**
+ * Open the text screenshot with the canvas on and pick the redact tool, waiting until its
+ * lines are click targets (NIW2-706).
+ */
+const openTextHide: readonly Step[] = [
+  open(ASSETS.textShot),
+  tool("Blur"),
+  {
+    waitFor: { area: "editorImage.textHideHint", part: { text: "Click a line of text" } },
+    timeoutMs: 60_000,
+  },
+];
+// The fixture is 560x340 px; its first row ("Language: English") spans x 44-170 at y 92-108.
+const FIRST_ROW = { x: 100 / 560, y: 100 / 340 };
+
 /** The image editor on a saved screenshot (`#/editor/image/:assetId`). */
 export const editorImage = catalog(
   "editorImage",
@@ -292,6 +307,40 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.textSelection:selected"],
     },
+    "text-hide-ready": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings” and pick the Blur tool: once recognition finishes, the options bar says a click on a line of text hides it.",
+      steps: openTextHide,
+      demonstrates: ["editorImage.textHideHint:ready"],
+      gates: [
+        { flag: "image-text", side: "on" },
+        { flag: "image-canvas", side: "on" },
+      ],
+    },
+    "text-hide-hover": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings”, pick the Blur tool and rest the pointer on its first row: the line a click would hide is outlined.",
+      steps: [
+        ...openTextHide,
+        { hover: { area: "editorImage.textHide" }, at: FIRST_ROW },
+        { waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=text-target]" } } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.textHide:hover"],
+    },
+    "text-hidden": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings”, pick the Blur tool and click its first row: that line is blurred, and the rows around it stay sharp.",
+      steps: [
+        ...openTextHide,
+        // A press and release on the same point is a click.
+        { drag: { area: "editorImage.textHide" }, from: FIRST_ROW, to: FIRST_ROW },
+        {
+          waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=redaction-tile]" } },
+        },
+      ],
+      demonstrates: ["editorImage.textHide:hidden"],
+    },
     "canvas-light": {
       profile: "image-canvas",
       how: "With the flag forced on, switch to the light theme and open “Settings page”: the canvas's dot grid takes the light colours.",
@@ -306,6 +355,10 @@ export const editorImage = catalog(
       "editorImage.textStatus:pending": nc(
         "transient",
         "recognition settles in well under a second on a drawing, and the catalog cannot slow the helper; the panel reads “Recognizing text…” until then",
+      ),
+      "editorImage.textHideHint:pending": nc(
+        "transient",
+        "recognition settles in well under a second on a drawing, and the catalog cannot slow the helper; the hint reads “Recognizing text…” until then",
       ),
       "editorImage.textStatus:unavailable": nc(
         "inducedFailure",
