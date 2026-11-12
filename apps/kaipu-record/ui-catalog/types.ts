@@ -143,8 +143,12 @@ export interface DragPoint {
 export type Step =
   /** Hash navigation in the main window: `{ navigate: "/library" }`. */
   | ({ readonly navigate: string } & On)
-  | ({ readonly click: Target } & On)
-  /** Hover the target's centre, or `at` (fractions of its box, like a drag point). */
+  /**
+   * `at` aims at a point of the target's box instead of its centre (fractions 0-1, as `drag`
+   * does). The pointer is moved there directly, so it also works over a target another layer
+   * covers (the Inspect layer sits over the image).
+   */
+  | ({ readonly click: Target; readonly at?: DragPoint } & On)
   | ({ readonly hover: Target; readonly at?: DragPoint } & On)
   /**
    * Move the pointer over the target, then turn the wheel by (`deltaX`, `deltaY`) px, `times`
@@ -240,13 +244,15 @@ export interface CatalogState<S extends ScreenId> {
    * and the run fails instead of keeping it.
    */
   readonly stillOnScreen?: Target;
-  /** Keep the pointer where the steps left it (hover states). Default: parked in a corner. */
-  readonly keepPointer?: boolean;
   /**
-   * Leave toasts open for the shot. By default the runner closes them, because a toast a step
-   * caused is not part of the state; set this when the toast is the state (a copy confirmation).
+   * The toast the steps raised is part of the state (mock E3's "Image added…", a copy
+   * confirmation): leave it open. Default: toasts are closed before the shot, like a user
+   * would, because a toast a step caused is not part of the state. The run fails when no toast
+   * is still open at the shot.
    */
   readonly keepToasts?: boolean;
+  /** Keep the pointer where the steps left it (hover states). Default: parked in a corner. */
+  readonly keepPointer?: boolean;
   /**
    * The image shows what was on the runner's screen (a source thumbnail, a capture's preview,
    * a take's first frame). It cannot be scanned as text, so `ui-catalog:lint` lists it for a
@@ -378,12 +384,9 @@ export function describeStep(step: Step): string {
   };
   const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
   if ("navigate" in step) return `Go to \`#${step.navigate}\``;
-  if ("click" in step) return `Click ${target(step.click)}`;
-  if ("hover" in step) {
-    return step.at
-      ? `Hover ${target(step.hover)} at ${pt(step.at)}`
-      : `Hover ${target(step.hover)}`;
-  }
+  const at = (p?: DragPoint): string => (p ? ` at ${pt(p)}` : "");
+  if ("click" in step) return `Click ${target(step.click)}${at(step.at)}`;
+  if ("hover" in step) return `Hover ${target(step.hover)}${at(step.at)}`;
   if ("wheel" in step) {
     const [dx, dy] = [step.deltaX ?? 0, step.deltaY ?? 0];
     const times = step.times && step.times > 1 ? `, ${step.times} times` : "";

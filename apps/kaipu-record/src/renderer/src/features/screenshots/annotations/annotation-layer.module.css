@@ -38,6 +38,27 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
 
+/* Selected measure (mock C9): white round end dots with a 2 px border in the measure's color
+   (set inline) and a faint dark ring; the halo sits under every measure on screen. */
+.measureDot {
+  fill: var(--ie-ink-light);
+  stroke-width: 2;
+}
+
+.measureDotRing {
+  fill: none;
+  stroke: var(--ie-ink-dark);
+  stroke-opacity: 0.4;
+  stroke-width: 1;
+}
+
+.measureHalo {
+  stroke: var(--ie-ink-light);
+  stroke-opacity: 0.9;
+  fill: none;
+  pointer-events: none;
+}
+
 .textInput {
   position: absolute;
   min-width: 60px;

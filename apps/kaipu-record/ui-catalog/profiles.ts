@@ -26,6 +26,8 @@ export interface Profile {
   readonly lockedRedaction?: boolean;
   /** Add the screenshots of the step badge and Redact card states (`seed-vault.ts`). */
   readonly mockShots?: boolean;
+  /** Add the P3 swatch sheet and a private copy of “Settings page” (`seed-vault.ts`). */
+  readonly inspectShots?: boolean;
   /** Leave an unparseable canvas document beside "Settings page" (`seed-vault.ts`). */
   readonly corruptCanvas?: boolean;
   /** Seed something "Check and fix files" reports (`seed-vault.ts`). */
@@ -113,6 +115,7 @@ export const PROFILES = {
     seed: "demo",
     flags: { "image-inspect": true },
     colorsScreenshots: true,
+    inspectShots: true,
   },
   "image-text": {
     description:
