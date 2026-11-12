@@ -195,9 +195,11 @@ test("helper missing: the redact tool still draws a region by dragging", async (
       await pickRedact(s.page);
       const from = await screenPoint(s.page, { x: 40, y: 85 });
       const to = await screenPoint(s.page, { x: 200, y: 115 });
-      // Recognition gives up (no helper); the hint about lines never appears.
-      await s.page.waitForTimeout(3_000);
-      await expect(s.page.getByText("Click a line of text")).toHaveCount(0);
+      // Recognition gives up (no helper): the hint leaves, "Recognizing text…" included, so a
+      // run stuck pending fails here instead of passing for unavailable.
+      await expect(s.page.locator('[data-ui-area="editorImage.textHideHint"]')).toHaveCount(0, {
+        timeout: 10_000,
+      });
       await s.page.mouse.move(from.x, from.y);
       await s.page.mouse.down();
       await s.page.mouse.move(to.x, to.y, { steps: 12 });

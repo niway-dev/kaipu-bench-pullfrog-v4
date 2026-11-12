@@ -452,7 +452,9 @@ function AnnotationLayerImpl({
       commitLive();
       return;
     }
-    if (d.mode === "draw-blur" && d.block && !(draft && isBigEnough(draft)) && redactText) {
+    // Still a click (the block is dropped once the pointer leaves the tolerance): hide the
+    // line, whatever size the jitter drew; on a small layer 1% is less than the tolerance.
+    if (d.mode === "draw-blur" && d.block && redactText) {
       hideBlock(d.block, redactText);
       setDraft(null);
       return;

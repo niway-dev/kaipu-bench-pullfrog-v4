@@ -188,6 +188,17 @@ describe("text hide — one click", () => {
     expect(baked()[0]).not.toHaveProperty("style");
   });
 
+  it("a click that jitters a few pixels still hides the line, not a tiny region", async () => {
+    mountPaste();
+    await openRedact();
+    // 4 px each way: inside the 6 px click tolerance, yet more than 1% of this 200 px layer.
+    dragOn(hideLayer()!, [40, 25], [44, 29]);
+    expect(shapes()).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    await save();
+    expect(bakedPixels(baked()[0])).toEqual([FIRST_LINE_REDACTION]);
+  });
+
   it("after the save, the text cache has no word of the hidden line and every other word", async () => {
     mountPaste();
     await openRedact();
