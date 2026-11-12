@@ -7,6 +7,7 @@ import { ANNOTATION_COLORS, STROKE_WIDTHS, TEXT_SIZES } from "./tools";
 import type { Annotation, RedactionStyle } from "./scene";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
+import type { TextToolStatus } from "../text-selection";
 import styles from "./annotation-options.module.css";
 
 /**
@@ -99,7 +100,14 @@ function resolveControls(
         };
   }
   // Nothing selected + select/blur/crop tool → nothing to set for colour/stroke.
-  if (tools.tool === "select" || tools.tool === "blur" || tools.tool === "crop") return null;
+  if (
+    tools.tool === "select" ||
+    tools.tool === "blur" ||
+    tools.tool === "crop" ||
+    tools.tool === "selectText"
+  ) {
+    return null;
+  }
   // A drawing tool is active → set the defaults for the next shape.
   if (tools.tool === "step") {
     return {
@@ -135,11 +143,14 @@ export function AnnotationOptions({
   tools,
   scene,
   canvasMode = false,
+  textTool,
 }: {
   tools: AnnotationToolsController;
   scene: EditorScene;
   /** Redaction mode (`image-canvas`): shows the Blur / Solid style control. */
   canvasMode?: boolean;
+  /** The "Select text" tool's recognition status and actions (`image-text`); absent = flag off. */
+  textTool?: TextToolStatus;
 }): React.JSX.Element | null {
   const t = useTranslations("screenshots");
   const selected = scene.annotations.find((a) => a.id === scene.selectedId) ?? null;
@@ -156,7 +167,8 @@ export function AnnotationOptions({
   };
   // A selected blur has no colour/stroke controls, but should still be deletable —
   // so the panel shows whenever there are controls OR something is selected OR crop is active.
-  if (!controls && !selected && !isCrop && !showRedactionStyle) return null;
+  const showText = textTool !== undefined && tools.tool === "selectText";
+  if (!controls && !selected && !isCrop && !showRedactionStyle && !showText) return null;
 
   return (
     <div className={styles.panel}>
@@ -174,6 +186,8 @@ export function AnnotationOptions({
           </button>
         </>
       )}
+
+      {showText && textTool && <TextToolPanel text={textTool} />}
 
       {controls && (
         <>
@@ -275,6 +289,45 @@ export function AnnotationOptions({
         >
           <Trash2 size={16} />
         </button>
+      )}
+    </div>
+  );
+}
+
+/** Recognition status, and Select all / Copy text once there is text to act on. */
+function TextToolPanel({ text }: { text: TextToolStatus }): React.JSX.Element {
+  const t = useTranslations("screenshots");
+  const state = text.status === "ready" ? (text.wordCount > 0 ? "ready" : "noText") : text.status;
+  const message =
+    state === "pending"
+      ? t("textRecognizing")
+      : state === "unavailable"
+        ? t("textUnavailable")
+        : state === "noText"
+          ? t("textNone")
+          : t("textWordCount", { count: text.wordCount });
+  return (
+    <div
+      className={styles.textTool}
+      {...uiArea("editorImage.textStatus")}
+      data-state={state}
+      role="status"
+    >
+      <span className={styles.label}>{message}</span>
+      {state === "ready" && (
+        <div className={styles.textActions}>
+          <button type="button" className={styles.reset} onClick={text.onSelectAll}>
+            {t("textSelectAll")}
+          </button>
+          <button
+            type="button"
+            className={styles.reset}
+            disabled={text.selectedCount === 0}
+            onClick={text.onCopy}
+          >
+            {t("textCopy")}
+          </button>
+        </div>
       )}
     </div>
   );

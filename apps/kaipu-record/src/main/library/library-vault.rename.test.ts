@@ -159,6 +159,7 @@ describe("LibraryVault.renameItem", () => {
     await writeFile(join(meta, `${id}.edit.json`), '{"scene":1}');
     await writeFile(join(meta, `${id}.edit.meta.json`), '{"savedAt":1}');
     await writeFile(join(meta, `${id}.canvas.json`), '{"items":[]}');
+    await writeFile(join(meta, `${id}.text.json`), '{"schemaVersion":1,"assets":{}}');
     await writeFile(join(meta, `${id}.assets`, "slide-1.png"), "slide");
   }
 
@@ -189,6 +190,7 @@ describe("LibraryVault.renameItem", () => {
         `${newId}.edit.meta.json`,
         `${newId}.jpg`,
         `${newId}.json`,
+        `${newId}.text.json`,
         `${newId}.webcam.mp4`,
       ].sort(),
     );
@@ -196,6 +198,9 @@ describe("LibraryVault.renameItem", () => {
     expect(await readFile(join(meta, `${newId}.jpg`), "utf-8")).toBe("poster");
     expect(await readFile(join(meta, `${newId}.edit.json`), "utf-8")).toBe('{"scene":1}');
     expect(await readFile(join(meta, `${newId}.canvas.json`), "utf-8")).toBe('{"items":[]}');
+    expect(await readFile(join(meta, `${newId}.text.json`), "utf-8")).toBe(
+      '{"schemaVersion":1,"assets":{}}',
+    );
     expect(await readFile(join(meta, `${newId}.assets`, "slide-1.png"), "utf-8")).toBe("slide");
     const sidecar = await readJson(join(meta, `${newId}.json`));
     expect(sidecar).toMatchObject({
@@ -336,7 +341,7 @@ describe("LibraryVault.renameItem", () => {
     expect(await readdir(meta)).toEqual(["Named.json"]);
   });
 
-  it.each(["Demo.edit", "Demo.cursor", "Demo.edit.meta", "Demo.EDIT", "Demo.canvas"])(
+  it.each(["Demo.edit", "Demo.cursor", "Demo.edit.meta", "Demo.EDIT", "Demo.canvas", "Demo.text"])(
     "renaming Demo to %j never lands on Demo's own companion paths",
     async (title) => {
       // No edit project, no cursor track: the overlapping paths are free on disk.
@@ -743,6 +748,7 @@ describe("LibraryVault — writeMeta guard and companions", () => {
       ".edit.json",
       ".edit.meta.json",
       ".canvas.json",
+      ".text.json",
     ]) {
       await writeFile(join(meta, `clip${suffix}`), "{}");
     }
@@ -763,6 +769,7 @@ describe("LibraryVault — writeMeta guard and companions", () => {
       join(".kaipu", "x.edit.meta.json"),
       join(".kaipu", "x.canvas.json"),
       join(".kaipu", "x.assets"),
+      join(".kaipu", "x.text.json"),
       join(".kaipu", "x.webcam.mp4"),
     ]);
   });

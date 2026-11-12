@@ -86,6 +86,7 @@ async function seedItem(dir: string, id = "Demo", options: { tags?: string[] } =
     }),
   );
   await writeFile(join(meta, `${id}.canvas.json`), '{"items":[]}');
+  await writeFile(join(meta, `${id}.text.json`), '{"schemaVersion":1,"assets":{}}');
   await writeFile(join(meta, `${id}.assets`, "slide.png"), "png");
   await writeFile(join(meta, `${id}.webcam.mp4`), webcam);
   return { id, assetId, media, webcam } satisfies Seeded;
@@ -139,6 +140,7 @@ describe("moveItem — same volume", () => {
       "Demo.jpg",
       "Demo.json",
       "Demo.mp4",
+      "Demo.text.json",
       "Demo.webcam.mp4",
     ]);
     const moved = await new LibraryVault(dst.directory).describe("Demo");
@@ -172,7 +174,7 @@ describe("moveItem — same volume", () => {
     );
     const outcome = await moveItem({ source: src, target: dst, id: item.id }, deps());
     expect(outcome).toEqual({ ok: false, id: "Demo", reason: "already-there" });
-    expect(await filesOf(src.directory, "Demo")).toHaveLength(9);
+    expect(await filesOf(src.directory, "Demo")).toHaveLength(10);
   });
 
   it("refuses an id that holds another item now", async () => {
@@ -198,6 +200,9 @@ describe("moveItem — across volumes (EXDEV)", () => {
     expect(await readFile(join(dst.directory, ".kaipu", "Demo.webcam.mp4"))).toEqual(item.webcam);
     expect(await readFile(join(dst.directory, ".kaipu", "Demo.canvas.json"), "utf-8")).toBe(
       '{"items":[]}',
+    );
+    expect(await readFile(join(dst.directory, ".kaipu", "Demo.text.json"), "utf-8")).toBe(
+      '{"schemaVersion":1,"assets":{}}',
     );
 
     // The hash cache matches the new file, and the edit project is still fresh (decision 8).

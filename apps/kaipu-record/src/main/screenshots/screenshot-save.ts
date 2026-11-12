@@ -1,9 +1,11 @@
 import type { LocalRecording } from "@shared/types/library-storage";
 import { broadcastLibraryChanged, currentVault } from "../library";
 import type { CanvasSavePayload } from "@shared/types/screenshot-canvas";
+import type { TextCacheSavePayload } from "@shared/types/text-recognition";
 import { withItemLock } from "../library/item-lock";
 import type { NewMedia } from "../library/library-vault";
 import { clearCanvas, writeCanvas } from "./screenshot-canvas";
+import { saveTextCache } from "./screenshot-text";
 import { activeWorkspace, requireCaptureWorkspace, workspaceGate } from "../workspaces";
 
 export interface SaveScreenshotMeta {
@@ -23,6 +25,12 @@ export interface SaveScreenshotMeta {
    * stored document, so a stale one never overrides newer flat pixels.
    */
   canvas?: CanvasSavePayload;
+  /**
+   * The recognized words for the canvas assets (ADR 0055), already stripped of every word a
+   * baked redaction touches. Every save rewrites `<id>.text.json` from it; a save without it
+   * (or without a stored canvas) deletes the file, so a hidden word never survives.
+   */
+  text?: TextCacheSavePayload;
 }
 
 /**
@@ -66,6 +74,7 @@ export async function saveScreenshotToVault(
       throw error;
     }
     if (meta.canvas) await writeCanvas(vault, id, meta.canvas);
+    await saveTextCache(vault, id, meta.text, meta.canvas);
   } else {
     // Checked and written under the vault's names lock, so a rename cannot slip in
     // between and leave the PNG resurrected under the old name. The original createdAt
@@ -84,9 +93,13 @@ export async function saveScreenshotToVault(
       );
       // After the PNG, with the id it ended up under (a rename may have moved it). A
       // followed rename means another id: lock that one too, or a rename of it could land
-      // between the PNG and the document. Every caller locks one id, so no cycle.
-      const canvasStep = (): Promise<void> =>
-        meta.canvas ? writeCanvas(vault, written, meta.canvas) : clearCanvas(vault, written);
+      // between the PNG and the document. Every caller locks one id, so no cycle. The text
+      // cache is written after the canvas, under the same lock.
+      const canvasStep = async (): Promise<void> => {
+        if (meta.canvas) await writeCanvas(vault, written, meta.canvas);
+        else await clearCanvas(vault, written);
+        await saveTextCache(vault, written, meta.text, meta.canvas);
+      };
       if (written === overwriteId) await canvasStep();
       else await withItemLock(vault.workspaceId ?? vault.directory, written, canvasStep);
       return written;

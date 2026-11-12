@@ -20,6 +20,7 @@ import {
 } from "@renderer/features/screenshots/auto-capture-policy";
 import { DiscardChangesDialog } from "@renderer/features/screenshots/discard-changes-dialog";
 import type { CanvasSavePayload } from "@shared/types/screenshot-canvas";
+import type { TextCacheSavePayload } from "@shared/types/text-recognition";
 import { captureException, reportError } from "@renderer/features/analytics";
 import { screenshotTitle } from "@shared/screenshot-title";
 import {
@@ -86,6 +87,16 @@ import {
 import { decodeToPng, imageFileFromPaste } from "@renderer/features/editor/paste-image";
 import { isTextField, readFromMain } from "@renderer/features/editor/use-paste-to-editor";
 import { useFlag } from "@renderer/features/analytics/use-flag";
+import {
+  redactionRectsInPixels,
+  useRecognizedText,
+  useTextSelection,
+  useTextSelectionKeys,
+  type PixelSize,
+  type TextLayerModel,
+  type TextToolStatus,
+} from "@renderer/features/screenshots/text-selection";
+import { wordsOutsideRects } from "@kaipu/domain/schemas";
 import {
   clearExportCache,
   exportScene,
@@ -319,6 +330,9 @@ function ScreenshotEditorBody({
   // The colors panel (NIW2-704) counts Inspect's decoded pixels in a worker.
   const colors = useColors({ active: inspect.active, buffer: inspect.buffer });
   const [zoom, setZoom] = useState(1);
+  // Text recognition (NIW2-705, behind `image-text`). Latched at mount like `canvasMode`:
+  // a shot never gains or loses the tool halfway through an edit.
+  const [textEnabled] = useState(useFlag("image-text"));
   // One transient "last action" indicator — copied or saved-with-name — that
   // auto-clears; avoids the illegal "both shown" state two flags allowed.
   const [feedback, showFeedback] = useTransientValue<Feedback>(FEEDBACK_MS);
@@ -358,6 +372,86 @@ function ScreenshotEditorBody({
   const autoSavedId = useRef<string | null>(null);
   /** The latest save main refused during maintenance mode, retried when it ends. */
   const refusedDuringMaintenance = useRef<Parameters<typeof persist>[0] | null>(null);
+  // Recognition runs once per image on open, never blocks the canvas, and reads the saved id
+  // when its call goes out (the id a first save creates does not re-run it).
+  // Picking Select text bumps this: an `unavailable` result is then requested once more.
+  const [textPicks, setTextPicks] = useState(0);
+  const recognized = useRecognizedText({
+    enabled: textEnabled,
+    retryKey: textPicks,
+    getBytes: image?.getBytes ?? null,
+    assetId: BASE_ASSET_ID,
+    getId: () => savedIdRef.current,
+  });
+  const recognizedRef = useRef(recognized);
+  recognizedRef.current = recognized;
+  // The base image's pixel size: the space the recognized words are in. The decoded image
+  // first; the known sizes cover an image that has not reported one (see buildCanvasPayload).
+  const naturalNow = (): PixelSize => ({
+    w: imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0,
+    h: imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0,
+  });
+  const [natural, setNatural] = useState<PixelSize | null>(null);
+  // The words a person can select: those no redaction of this session (saved or not) covers.
+  const visibleWords = useMemo(() => {
+    if (recognized.status !== "ready" || !natural || natural.w <= 0 || natural.h <= 0) return [];
+    return wordsOutsideRects(recognized.words, redactionRectsInPixels(scene.annotations, natural));
+  }, [recognized, natural, scene.annotations]);
+  const textSelection = useTextSelection(visibleWords);
+  const textActive = textEnabled && tools.tool === "selectText";
+  useEffect(() => {
+    if (textActive) setTextPicks((n) => n + 1);
+  }, [textActive]);
+  // Leaving the tool drops the selection: a highlight nobody can see must not be copied.
+  const { clear: clearTextSelection } = textSelection;
+  useEffect(() => {
+    if (!textActive) clearTextSelection();
+  }, [textActive, clearTextSelection]);
+  const copyText = async (): Promise<void> => {
+    const value = textSelection.text;
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      showToast({ message: t("textCopied") });
+    } catch (error) {
+      reportError(t("textCopyError"), error, { context: { phase: "copy-text" } });
+    }
+  };
+  useTextSelectionKeys({
+    active: textActive,
+    hasSelection: textSelection.selected.length > 0,
+    onCopy: () => void copyText(),
+    onSelectAll: textSelection.selectAll,
+  });
+  const textLayer = useMemo<TextLayerModel | undefined>(
+    () =>
+      textEnabled && natural && natural.w > 0 && natural.h > 0
+        ? {
+            words: textSelection.ordered,
+            natural,
+            selected: textSelection.selectedSet,
+            select: textSelection.select,
+            clear: textSelection.clear,
+          }
+        : undefined,
+    [
+      textEnabled,
+      natural,
+      textSelection.ordered,
+      textSelection.selectedSet,
+      textSelection.select,
+      textSelection.clear,
+    ],
+  );
+  const textTool: TextToolStatus | undefined = textEnabled
+    ? {
+        status: recognized.status,
+        wordCount: visibleWords.length,
+        selectedCount: textSelection.selected.length,
+        onCopy: () => void copyText(),
+        onSelectAll: textSelection.selectAll,
+      }
+    : undefined;
   // The auto actions come from the capture's own policy (the copy mode of the workspace it
   // started in, bound when it started, ADR 0034). The editor never reads the setting for a
   // capture, so a switch or a Settings edit between the shot and the editor neither copies
@@ -756,6 +850,21 @@ function ScreenshotEditorBody({
     return { docJson, assets };
   };
 
+  /**
+   * The recognized words a canvas save writes to the text cache: every word the redactions
+   * of this save do not cover, in base-image pixels. Null when recognition has not finished
+   * with words (or the flag is off), so the save sends no `text` at all.
+   */
+  const buildTextPayload = (snap: Scene): TextCacheSavePayload | null => {
+    const result = recognizedRef.current;
+    if (!textEnabled || result.status !== "ready") return null;
+    const words = wordsOutsideRects(
+      result.words,
+      redactionRectsInPixels(snap.annotations, naturalNow()),
+    );
+    return { assets: [{ assetId: BASE_ASSET_ID, words }] };
+  };
+
   /** Returns the saved title, or null when the save failed (already reported). */
   const persist = (opts: {
     overwriteId?: string;
@@ -787,6 +896,7 @@ function ScreenshotEditorBody({
       try {
         const png = await exportAs("png", snap);
         const canvas = canvasMode ? await buildCanvasPayload(snap) : null;
+        const text = canvas ? buildTextPayload(snap) : null;
         const saved = await window.electronAPI.saveScreenshot(png, {
           // The live field, not only its committed value: Save must write what the
           // user sees even if the field has not blurred yet (e.g. a shortcut).
@@ -797,6 +907,10 @@ function ScreenshotEditorBody({
           manual: opts.manual ?? !opts.silent,
           // Flag off sends no `canvas` at all: the flat PNG stays the truth.
           ...(canvas ? { canvas } : {}),
+          // Only a canvas save with finished recognition: main then rewrites the text cache
+          // with these words. Without it main deletes the cache, which is right whenever the
+          // words are not known (flag off, still pending, unavailable).
+          ...(text ? { text } : {}),
         });
         savedIdRef.current = saved.id;
         savedAssetIdRef.current = saved.assetId;
@@ -1019,6 +1133,7 @@ function ScreenshotEditorBody({
             scene.select(null);
             inspect.setActive(false);
           }}
+          textTool={textEnabled}
         />
         {inspectEnabled && <InspectToggle active={inspect.active} onToggle={inspect.toggle} />}
         <CaptureTitleInput title={captureTitle} />
@@ -1141,6 +1256,7 @@ function ScreenshotEditorBody({
                     canvas={canvasMode}
                     canvasMode={canvasMode}
                     {...(canvasMode ? { imageUrls } : {})}
+                    text={textLayer}
                   />
                   {inspectEnabled && <LocateOverlay image={colors.overlay} />}
                 </>
@@ -1150,7 +1266,10 @@ function ScreenshotEditorBody({
               zoom={shownZoom}
               pan={canvasMode ? { x: viewport.view.panX, y: viewport.view.panY } : undefined}
               extents={canvasMode ? extents : undefined}
-              onImageLoad={() => setImageReady(true)}
+              onImageLoad={() => {
+                setNatural(naturalNow());
+                setImageReady(true);
+              }}
             />
             {inspectEnabled && inspect.active && <InspectLayer inspect={inspect} />}
           </div>
@@ -1170,7 +1289,12 @@ function ScreenshotEditorBody({
                 )}
               </>
             ) : (
-              <AnnotationOptions tools={tools} scene={cropScene} canvasMode={canvasMode} />
+              <AnnotationOptions
+                tools={tools}
+                scene={cropScene}
+                canvasMode={canvasMode}
+                textTool={textTool}
+              />
             )}
           </div>
 

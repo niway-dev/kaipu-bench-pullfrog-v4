@@ -270,6 +270,8 @@ export interface CompanionPaths {
   /** A screenshot's editable canvas document (ADR 0053); its images live in `assetsDir`. */
   canvasDoc: string;
   assetsDir: string;
+  /** A screenshot's recognized-text cache (ADR 0055): moved and removed with the item. */
+  textCache: string;
   /** The take's webcam file (ADR 0037): moved and removed with the item like the others. */
   webcam: string;
 }
@@ -450,6 +452,7 @@ export class LibraryVault {
       editMeta: join(meta, `${id}.edit.meta.json`),
       canvasDoc: join(meta, `${id}.canvas.json`),
       assetsDir: join(meta, `${id}.assets`),
+      textCache: join(meta, `${id}.text.json`),
       webcam: this.webcamFilePath(id),
     };
   }
@@ -773,6 +776,7 @@ export class LibraryVault {
               "editSession",
               "editMeta",
               "canvasDoc",
+              "textCache",
               "webcam",
             ] as const;
             for (const key of copied) {
@@ -932,6 +936,7 @@ export class LibraryVault {
       "editSession",
       "editMeta",
       "canvasDoc",
+      "textCache",
       "assetsDir",
       "webcam",
     ];

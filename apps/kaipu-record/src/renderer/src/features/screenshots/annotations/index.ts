@@ -44,6 +44,7 @@ export {
   textBoxPx,
   resolveFontPx,
   clampFontPx,
+  TEXT_SELECT_TOOL,
   type AnnotationTool,
   type AnnotationColor,
 } from "./tools";

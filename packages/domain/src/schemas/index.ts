@@ -74,3 +74,14 @@ export {
   type StorageUsage,
   type UploadVerificationReason,
 } from "./cloud-asset";
+// Text recognition port (ADR 0055)
+export {
+  recognizedWordSchema,
+  recognizedWordsSchema,
+  MAX_RECOGNIZED_WORDS,
+  wordsOutsideRects,
+  wordsInReadingOrder,
+  textOfWords,
+  type RecognizedWord,
+  type TextRecognizer,
+} from "./text-recognition";

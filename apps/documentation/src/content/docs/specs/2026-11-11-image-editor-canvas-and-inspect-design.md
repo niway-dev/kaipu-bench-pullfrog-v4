@@ -53,9 +53,11 @@ each text block as a target to hide.
 
 ## Open questions
 
-1. **Windows text recognition.** Whether `Windows.Media.Ocr` can be driven from a PowerShell
-   script fast enough (target: under 1.5 s for a 1920×1080 image, cold) is not measured. M0
-   measures it. ADR 0055 stays Proposed until then. If the spike fails, its Status line records it as rejected and a new ADR decides the backend before M8 starts.
+1. **Windows text recognition latency.** M10 showed `Windows.Media.Ocr` can be driven from a
+   PowerShell script with no compiled module. On a CI VM the first call took 3.4 s on a
+   1920×1080 image, over the 1.5 s target; later calls took 0.5–0.8 s. The owner decides
+   between keeping it, a compiled helper and the WASM fallback (ADR 0055, What would reopen
+   this).
 2. **Mock.** The Inspect HUD and the canvas chrome need an approved picture before code. It
    is the first step of M1 and of M2, not part of this document.
 
@@ -142,7 +144,7 @@ merged. Every UI milestone adds its areas and states to `ui-map.ts` (ADR 0046).
 | M5  | Step counter         | `step` annotation, auto-numbering, renumber on delete.                                                                                                                               | M2         | —               |
 | M6  | More images          | **Add image** button (new capture or an item from the Library), paste from the clipboard, move the image on the canvas.                                                              | M3         | `image-canvas`  |
 | M7  | Colors panel         | Quantized histogram in a worker, grouping of near-identical colors, click to locate.                                                                                                 | M1         | `image-inspect` |
-| M8  | Text recognition     | Port, macOS helper, Windows backend, cache, select and copy text.                                                                                                                    | M0, M3     | `image-text`    |
+| M8  | Text recognition     | Port, macOS helper, cache, select and copy text (Windows backend: M10).                                                                                                              | M0, M3     | `image-text`    |
 | M9  | Hide recognized text | Recognized blocks as one-click redaction targets.                                                                                                                                    | M8, M3     | `image-text`    |
 
 M1 and M2 do not depend on each other and can run in parallel.
@@ -291,6 +293,17 @@ selects a range in reading order, shown as highlights; copy puts the text on the
 **Hiding text (M9).** In the redact tool, hovering a recognized line outlines it; a click
 creates a redaction over its box grown by a small margin, in the strong blur or `solid` style.
 
+**As built in M8 (NIW2-705).** macOS only, behind `image-text`; it also works in the classic editor, whose saves delete the cache. The helper
+reads the PNG on stdin instead of a path; the timeout is 45 s; the cache keys each asset by the
+sha256 of the bytes recognized; selection is a **Select text** tool, so dragging elsewhere keeps
+moving annotations. Details in ADR 0055's Implementation status.
+
+**As built in M10 (NIW2-707).** Windows, behind the same flag. A PowerShell 5.1 script passed
+with `-EncodedCommand` reads the PNG base64 on stdin and prints the helper's JSON; boxes are
+rotated back by the text angle; every word reports confidence 1, which Windows OCR does not
+give. Timeout 30 s. Checked on a GitHub Windows runner, not on a real install. Details and
+the measurement in ADR 0055's Implementation status.
+
 ### 6. Flags
 
 `image-inspect`, `image-canvas`, `image-text`, added to `FLAG_NAMES` in `shared/analytics.ts`
@@ -306,4 +319,5 @@ pass owner QA; the canvas is then the only editor.
 - Canvas color spaces: [WebKit](https://webkit.org/blog/12058/wide-gamut-2d-graphics-using-html-canvas/),
   [MDN `ImageData.colorSpace`](https://developer.mozilla.org/docs/Web/API/ImageData/colorSpace).
 - Not verified: that `screencapture` PNGs carry a Display P3 profile; Vision latency on a
-  Retina screenshot; `Windows.Media.Ocr` from PowerShell. M0 measures all three.
+  Retina screenshot. `Windows.Media.Ocr` from PowerShell was measured in M10 on a CI runner
+  only (ADR 0055).

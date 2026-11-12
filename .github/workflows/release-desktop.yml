@@ -185,11 +185,12 @@ jobs:
       - name: Check the native capture helper was built
         working-directory: apps/kaipu-record
         run: |
-          HELPER=resources/native/kaipu-encoded-capture
-          test -x "$HELPER" || { echo "::error::$HELPER was not built"; exit 1; }
-          ARCHS="$(lipo -archs "$HELPER")"
-          for ARCH in arm64 x86_64; do
-            [[ " $ARCHS " == *" $ARCH "* ]] || { echo "::error::$HELPER lacks $ARCH (has: $ARCHS)"; exit 1; }
+          for HELPER in resources/native/kaipu-encoded-capture resources/native/kaipu-text-recognition; do
+            test -x "$HELPER" || { echo "::error::$HELPER was not built"; exit 1; }
+            ARCHS="$(lipo -archs "$HELPER")"
+            for ARCH in arm64 x86_64; do
+              [[ " $ARCHS " == *" $ARCH "* ]] || { echo "::error::$HELPER lacks $ARCH (has: $ARCHS)"; exit 1; }
+            done
           done
 
       # Release gate, second half (ADR 0004): Playwright drives the build above — the very
@@ -240,11 +241,13 @@ jobs:
           APPS=(dist/mac*/*.app)
           [[ ${#APPS[@]} -gt 0 ]] || { echo "::error::no packaged .app under dist/"; exit 1; }
           for APP in "${APPS[@]}"; do
-            HELPER="$APP/Contents/Resources/app.asar.unpacked/resources/native/kaipu-encoded-capture"
-            test -x "$HELPER" || { echo "::error::$HELPER missing"; exit 1; }
-            codesign --verify --strict --verbose=2 "$HELPER"
-            codesign -dv "$HELPER" 2>&1 | grep -q 'flags=.*runtime' ||
-              { echo "::error::$HELPER is not signed with the hardened runtime"; exit 1; }
+            for NAME in kaipu-encoded-capture kaipu-text-recognition; do
+              HELPER="$APP/Contents/Resources/app.asar.unpacked/resources/native/$NAME"
+              test -x "$HELPER" || { echo "::error::$HELPER missing"; exit 1; }
+              codesign --verify --strict --verbose=2 "$HELPER"
+              codesign -dv "$HELPER" 2>&1 | grep -q 'flags=.*runtime' ||
+                { echo "::error::$HELPER is not signed with the hardened runtime"; exit 1; }
+            done
           done
 
       # Always uploaded, tag or not: `publish` downloads it. Short retention because the

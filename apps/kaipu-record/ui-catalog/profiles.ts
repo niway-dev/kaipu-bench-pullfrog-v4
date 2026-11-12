@@ -18,6 +18,8 @@ export interface Profile {
   readonly seed: "demo" | "empty" | "missing";
   /** Add the recording that carries a native cursor track (a take made with the flag on). */
   readonly cursorRecording?: boolean;
+  /** Add the screenshot that draws real text (`fixtures/text/`), for the Select text states. */
+  readonly textScreenshot?: boolean;
   /** Seed something "Check and fix files" reports (`seed-vault.ts`). */
   readonly reconcile?: "fixable" | "attention";
   /** Forced feature flags, passed as `KAIPU_FLAG_OVERRIDES` (ignored by packaged builds). */
@@ -88,6 +90,13 @@ export const PROFILES = {
       "Flag image-inspect forced on: the image editor's Inspect mode (loupe, live colour, format bar).",
     seed: "demo",
     flags: { "image-inspect": true },
+  },
+  "image-text": {
+    description:
+      "Flag image-text forced on: the image editor's Select text tool and text recognition.",
+    seed: "demo",
+    flags: { "image-text": true },
+    textScreenshot: true,
   },
   exporting: {
     description:

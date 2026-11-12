@@ -16,6 +16,7 @@ export const FLAG_NAMES = [
   "capture-while-recording",
   "image-canvas",
   "image-inspect",
+  "image-text",
 ] as const;
 export type FlagName = (typeof FLAG_NAMES)[number];
 
@@ -36,6 +37,8 @@ export const FLAG_DEFAULTS: Record<FlagName, boolean> = {
   "image-canvas": false,
   // Image editor Inspect mode (NIW2-699): off until owner QA.
   "image-inspect": false,
+  // Text recognition in the image editor, macOS only for now (NIW2-705): off until owner QA.
+  "image-text": false,
 };
 
 /** Identity super-properties attached to every event/error for multi-surface filtering. */

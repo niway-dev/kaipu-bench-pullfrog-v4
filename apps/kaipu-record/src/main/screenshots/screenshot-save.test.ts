@@ -212,3 +212,58 @@ describe("saveEditedScreenshot (the editor's Save)", () => {
     expect(await pngs()).toEqual([]);
   });
 });
+
+describe("saveScreenshotToVault — recognized-text cache", () => {
+  let directory: string;
+  const word = {
+    text: "hi",
+    rect: { x: 0, y: 0, w: 5, h: 5 },
+    line: 0,
+    confidence: 1,
+  };
+  const canvas = {
+    docJson: '{"items":[]}',
+    assets: [{ assetId: "base", png: new Uint8Array([1, 2, 3]).buffer as ArrayBuffer }],
+  };
+
+  beforeEach(async () => {
+    directory = await mkdtemp(join(tmpdir(), "kaipu-shot-text-"));
+    vault = new LibraryVault(directory);
+  });
+  afterEach(async () => {
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  const cacheOf = async (id: string) =>
+    JSON.parse(await readFile(join(directory, ".kaipu", `${id}.text.json`), "utf-8"));
+
+  it("writes the cache on a new item and rewrites or deletes it on overwrite", async () => {
+    const first = await saveScreenshotToVault(Buffer.from("png"), {
+      title: "Shot",
+      canvas,
+      text: { assets: [{ assetId: "base", words: [word] }] },
+    });
+    const cache = await cacheOf(first.id);
+    expect(cache.assets.base.words).toEqual([word]);
+    expect(cache.assets.base.sha256).toHaveLength(64);
+
+    // The next save sends fewer words: the old file does not survive.
+    await saveScreenshotToVault(Buffer.from("png2"), {
+      title: "Shot",
+      overwriteId: first.id,
+      overwriteAssetId: first.assetId,
+      canvas,
+      text: { assets: [{ assetId: "base", words: [] }] },
+    });
+    expect((await cacheOf(first.id)).assets.base.words).toEqual([]);
+
+    // A save without the payload deletes it.
+    await saveScreenshotToVault(Buffer.from("png3"), {
+      title: "Shot",
+      overwriteId: first.id,
+      overwriteAssetId: first.assetId,
+      canvas,
+    });
+    await expect(cacheOf(first.id)).rejects.toThrow();
+  });
+});

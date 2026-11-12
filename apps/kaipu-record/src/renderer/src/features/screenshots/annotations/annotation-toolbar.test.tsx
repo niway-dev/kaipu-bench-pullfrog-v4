@@ -43,4 +43,13 @@ describe("AnnotationToolbar", () => {
     expect(screen.queryByText("Color")).toBeNull();
     expect(screen.queryByText("Stroke")).toBeNull();
   });
+
+  it("shows the Select text tool only when asked, after the others", () => {
+    const { rerender } = render(<AnnotationToolbar tools={makeTools()} />);
+    expect(screen.queryByRole("button", { name: "Select text" })).toBeNull();
+    const tools = makeTools();
+    rerender(<AnnotationToolbar tools={tools} textTool />);
+    fireEvent.click(screen.getByRole("button", { name: "Select text" }));
+    expect(tools.setTool).toHaveBeenCalledWith("selectText");
+  });
 });

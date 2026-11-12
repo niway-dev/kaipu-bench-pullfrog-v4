@@ -45,3 +45,9 @@
   position: absolute;
   inset: -20000px;
 }
+
+/* Selected words of the "Select text" tool: a translucent fill over each word's box. */
+.textHighlights rect {
+  fill: var(--accent-primary);
+  fill-opacity: 0.3;
+}
