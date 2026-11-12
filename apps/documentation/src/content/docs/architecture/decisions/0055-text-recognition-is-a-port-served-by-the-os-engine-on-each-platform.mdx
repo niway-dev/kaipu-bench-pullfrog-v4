@@ -7,12 +7,12 @@ description: Recognizing the text inside a screenshot goes through one interface
 
 ## Status
 
-| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status        | Proposed, 2026-11-11. Not built. The macOS backend was measured by the M0 spike ([NIW2-697](https://linear.app/niway/issue/NIW2-697/image-editor-m0-spikes-for-color-memory-and-text-recognition-on-macos), results below). **The Windows backend is not measured yet**: its spike moved to [NIW2-707](https://linear.app/niway/issue/NIW2-707), and this ADR stays Proposed until it reports. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
-| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (same shape: one request, a backend per platform), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (the cache sits beside the document; redaction removes words)                                                                                                                                                                                                                                                                                                             |
-| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | Proposed, 2026-11-11. Built on macOS behind the `image-text` flag in M8 ([NIW2-705](https://linear.app/niway/issue/NIW2-705)). The macOS backend was measured by the M0 spike ([NIW2-697](https://linear.app/niway/issue/NIW2-697/image-editor-m0-spikes-for-color-memory-and-text-recognition-on-macos), results below). Built on Windows in M10 ([NIW2-707](https://linear.app/niway/issue/NIW2-707)) and measured on a CI runner only (results in Implementation status): its first call, 3.4 s, **meets the Windows reopen condition below**, which the owner decides; the ADR stays Proposed until then. Spec: [image editor canvas and Inspect mode](/specs/2026-11-11-image-editor-canvas-and-inspect-design/). Linear: [NIW2-696](https://linear.app/niway/issue/NIW2-696/image-editor-infinite-canvas-and-inspect-mode-ruler-loupe-color) |
+| Date          | 2026-11-11                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Relates to    | [0022](/architecture/decisions/0022-screenshot-capture-native-where-the-os-has-it/) (same shape: one request, a backend per platform), [0053](/architecture/decisions/0053-the-image-editor-is-a-canvas-saved-as-a-document-beside-its-flattened-export/) (the cache sits beside the document; redaction removes words)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Superseded by | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## Context
 
@@ -90,7 +90,7 @@ maximum of five more processes; recall is ground-truth words recognized exactly:
   reopen this": that condition is about the per-image latency, which passed on both machines.
   The oldest supported Mac is not measured.
 
-**Not measured:** the Windows backend (NIW2-707), recognition spawned from Electron's main
+**Not measured:** the Windows backend (measured later in M10, below), recognition spawned from Electron's main
 process, real screenshots instead of drawn fixtures, an Intel Mac, a recognition after reboot
 or OS update.
 
@@ -111,6 +111,57 @@ or OS update.
 - Two engines give different words and boxes for the same image; tests assert on fixtures
   per platform, not on equal output.
 - The text cache is one more file that must follow the item when it is moved or deleted.
+
+## Implementation status
+
+M8 ([NIW2-705](https://linear.app/niway/issue/NIW2-705)) builds points 1, 2, 4 and 5 for macOS,
+behind the `image-text` flag, in the canvas editor and in the classic one. M10
+([NIW2-707](https://linear.app/niway/issue/NIW2-707)) builds point 3. Usage and file layout:
+[image editor text recognition](/backlog/image-editor-text-recognition/).
+
+- **Port.** `TextRecognizer` and the `RecognizedWord` schema live in `@kaipu/domain/schemas`,
+  not in main as point 1 says, so the renderer and main validate the same shape.
+- **Helper.** `native/text-recognition/main.swift`, `accurate` level with language correction,
+  macOS 13 or later, universal. The PNG arrives on stdin, so no copy of the screenshot is
+  written to a temporary file. Main allows 45 s per call, for the first-run model compilation.
+- **Cache key.** Each asset's entry carries the sha256 of the PNG bytes it was recognized from;
+  a different image is recognized again instead of trusting a stale entry.
+- **Redactions.** The renderer sends the words outside every baked redaction with each save, and
+  main rewrites the file from them; a save without them deletes it. A recognition that finishes
+  after a save, rename or delete of its item is discarded.
+- **Windows backend.** `windows-ocr.ts` runs a PowerShell 5.1 script (absolute path under
+  `%SystemRoot%`, never `pwsh`, which cannot load WinRT types) passed with `-EncodedCommand`. The
+  PNG arrives base64 on stdin. The script uses the user profile's OCR languages, scales images
+  above `OcrEngine.MaxImageDimension`, rotates boxes back by `TextAngle`, and prints the same
+  versioned JSON as the Swift helper. Windows OCR has no per-word confidence, so every word
+  reports 1. Main allows 30 s per call. Only a missing PowerShell is remembered for the session;
+  any other failure, such as no OCR language pack, is retried on the next request. No compiled
+  module, no npm dependency, nothing to sign: the same pattern as the Windows window lister.
+- **Windows measurement.** Workflow `Text recognition (Windows)`, job `Recognize and measure
+(Windows)`, running `bun apps/kaipu-record/scripts/measure-windows-ocr.ts` on a GitHub
+  `windows-latest` VM (Windows Server 2025, 10.0.26100, AMD EPYC 9V74, 4 cores, 16 GiB,
+  PowerShell 5.1.26100, OCR language en-US), 2026-11-11, run 43122488358. End to end per call,
+  each a new PowerShell process:
+
+  | Fixture (1920×1080)     | First call of the fixture                      | Next 4 calls |
+  | ----------------------- | ---------------------------------------------- | ------------ |
+  | sparse settings card    | 3353 ms (cold: first OCR call on the VM)       | 506–516 ms   |
+  | dense, 3×3 copies of it | 753 ms (not cold: runs after the sparse calls) | 754–764 ms   |
+
+  PowerShell start alone takes about 200 ms. All six lines were recognized exactly, boxes landed
+  within a few pixels of the drawn text, and a 10° tilted copy put its boxes back on the text.
+  This is a VM, not a consumer machine; nothing was measured on a real Windows 10 or 11 install.
+
+The cold call is over the 1.5 s reopen condition below. For comparison, Vision's first run
+on the mini took 13.5 s, and M0 decided that did not reopen the macOS backend because
+recognition runs off the editing path; the Windows condition, unlike the macOS one, names the
+cold case explicitly. Whether the Windows first-call cost recurs after every boot or only once
+per machine, like Vision's model compilation, is not measured: the VM was new. What costs the extra 2.8 s is not
+measured. The likely cause is the first load of the OCR engine and its language data on a fresh
+machine, which a compiled helper would also pay; that is a hypothesis, not a result. The
+backend ships as is, behind the flag, until the owner decides between keeping it, a compiled
+helper and the WASM fallback. A cold call still fits the 30 s timeout, so the first recognition
+is slow, not lost.
 
 ## Non-goals
 

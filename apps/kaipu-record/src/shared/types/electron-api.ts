@@ -30,6 +30,11 @@ import type { TagColor } from "@kaipu/domain/constants";
 import type { LocalRecording, RenameResult } from "./library-storage";
 import type { CanvasReadResult, CanvasSavePayload } from "./screenshot-canvas";
 import type {
+  TextCacheSavePayload,
+  TextRecognitionRequest,
+  TextRecognitionResult,
+} from "./text-recognition";
+import type {
   ReconcileFixResult,
   ReconcileProgress,
   ReconcileScanResult,
@@ -695,6 +700,15 @@ export interface KaipuElectronAPI {
    * Any other read error rejects. Either way the editor opens the flattened PNG.
    */
   readScreenshotCanvas(id: string): Promise<CanvasReadResult | null>;
+  /**
+   * The words recognized in one image of the editor (ADR 0055). Served from
+   * `.kaipu/<id>.text.json` when the cached hash matches the bytes; otherwise the platform
+   * backend runs (up to 30 s or more the first time on a Mac, while Vision compiles its
+   * model). A recognition failure is `{ status: "unavailable" }`, never a rejection; the call
+   * still rejects while the library is busy (maintenance, a workspace switch), like every
+   * library call.
+   */
+  recognizeScreenshotText(request: TextRecognitionRequest): Promise<TextRecognitionResult>;
   /** The image on the system clipboard as PNG, or null when it holds no image. */
   readClipboardImage(): Promise<{ png: ArrayBuffer; width: number; height: number } | null>;
   /** The clipboard image's size, or null when it holds no image. No bytes cross IPC. */
@@ -715,6 +729,8 @@ export interface KaipuElectronAPI {
       manual?: boolean;
       /** The editable document and assets stored beside the PNG (ADR 0053). */
       canvas?: CanvasSavePayload;
+      /** Recognized words for the assets in `canvas`, minus words under baked redactions. */
+      text?: TextCacheSavePayload;
     },
   ): Promise<LocalRecording>;
   /**

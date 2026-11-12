@@ -30,6 +30,8 @@ import { useRedactionTile } from "./redaction-preview";
 import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } from "./handles";
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
+import type { RecognizedWord } from "@kaipu/domain/schemas";
+import { nearestWord, wordBoxNorm, type TextLayerModel } from "../text-selection";
 import styles from "./annotation-layer.module.css";
 
 interface Size {
@@ -43,7 +45,12 @@ interface Pt {
 type Drag =
   | { mode: "draw-box" | "draw-arrow" | "draw-pen" | "draw-blur"; start: Pt }
   | { mode: "move"; id: string; start: Pt; orig: Annotation }
-  | { mode: "resize"; id: string; handle: HandleId; orig: Annotation };
+  | { mode: "resize"; id: string; handle: HandleId; orig: Annotation }
+  /** A text selection drag (the "Select text" tool); the range runs from `anchor`. */
+  | { mode: "select-text"; anchor: RecognizedWord };
+
+/** How far from a word, in display px, a press still starts a selection on it. */
+const TEXT_HIT_PX = 6;
 
 /** Side of a resize handle in px, and the click tolerance around it. */
 const HANDLE_PX = 10;
@@ -66,6 +73,13 @@ interface LayerProps {
    * stored image) draws nothing and cannot be hit. false (default) = today's gaussian.
    */
   canvasMode?: boolean;
+  /**
+   * The recognized words and the selection over them (`image-text`). Present while the flag
+   * is on; the words take pointer input only with the "Select text" tool active. The words
+   * live in the base image's pixels and are normalized like annotations, so they follow the
+   * same pan and zoom.
+   */
+  text?: TextLayerModel;
 }
 
 /**
@@ -80,11 +94,15 @@ function AnnotationLayerImpl({
   src,
   canvas = false,
   canvasMode = false,
+  text,
 }: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Annotation | null>(null);
+  // The pointer is over a recognized word (the "Select text" tool): shows the text cursor.
+  const [overWord, setOverWord] = useState(false);
+  const activeText = tools.tool === "selectText" ? text : undefined;
   // A move/resize in flight lives here, not in the scene: the dragged shape renders as
   // `{ ...a, ...patch }` and the scene is touched once, on release, so a drag re-renders
   // this layer only (not the whole editor page) and ends up as one undo entry. The ref
@@ -207,6 +225,21 @@ function AnnotationLayerImpl({
     // outside it must not start a drawing.
     if (canvas && tools.tool === "crop") return;
     const p = toNorm(e);
+    if (tools.tool === "selectText") {
+      // A press on or near a word starts a selection there; one on empty space clears it.
+      if (!activeText) return;
+      const hit = nearestWord(activeText.words, p, activeText.natural, size);
+      if (hit && hit.distPx <= TEXT_HIT_PX) {
+        const anchor = activeText.words[hit.index];
+        drag.current = { mode: "select-text", anchor };
+        activeText.select(anchor, anchor);
+        // The layer, not the target: a highlight under the pointer unmounts as the range changes.
+        ref.current?.setPointerCapture(e.pointerId);
+      } else {
+        activeText.clear();
+      }
+      return;
+    }
     if (tools.tool === "select") {
       // A selected shape's resize handles take priority over the shape hit-test, so
       // grabbing a corner resizes instead of moving. Skipped while the inline text
@@ -286,8 +319,20 @@ function AnnotationLayerImpl({
 
   const onPointerMove = (e: React.PointerEvent): void => {
     const d = drag.current;
-    if (!d) return;
+    if (!d) {
+      if (activeText) {
+        const hit = nearestWord(activeText.words, toNorm(e), activeText.natural, size);
+        setOverWord(hit !== null && hit.distPx <= TEXT_HIT_PX);
+      }
+      return;
+    }
     const p = toNorm(e);
+    if (d.mode === "select-text") {
+      // The word under the pointer, or the nearest one when it is between words.
+      const hit = activeText ? nearestWord(activeText.words, p, activeText.natural, size) : null;
+      if (activeText && hit) activeText.select(d.anchor, activeText.words[hit.index]);
+      return;
+    }
     if (d.mode === "move") {
       setLiveBoth({ id: d.id, patch: moveBy(d.orig, p.x - d.start.x, p.y - d.start.y) });
       return;
@@ -358,7 +403,7 @@ function AnnotationLayerImpl({
   const onPointerUp = (): void => {
     const d = drag.current;
     drag.current = null;
-    if (!d) return;
+    if (!d || d.mode === "select-text") return;
     if (d.mode === "move" || d.mode === "resize") {
       commitLive();
       return;
@@ -444,7 +489,17 @@ function AnnotationLayerImpl({
     <div
       ref={ref}
       className={styles.layer}
-      style={{ cursor: tools.tool === "select" ? "default" : "crosshair" }}
+      {...(activeText ? uiArea("editorImage.textSelection") : {})}
+      style={{
+        cursor:
+          tools.tool === "select"
+            ? "default"
+            : tools.tool === "selectText"
+              ? overWord
+                ? "text"
+                : "default"
+              : "crosshair",
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -472,6 +527,25 @@ function AnnotationLayerImpl({
           <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
         )}
         {selectedAnnotation && <Handles a={selectedAnnotation} size={size} />}
+        {activeText && activeText.selected.size > 0 && (
+          <g data-testid="text-highlights" className={styles.textHighlights}>
+            {activeText.words
+              .filter((w) => activeText.selected.has(w))
+              .map((w, i) => {
+                const b = wordBoxNorm(w, activeText.natural);
+                return (
+                  <rect
+                    key={i}
+                    data-testid="text-highlight"
+                    x={b.x * size.w}
+                    y={b.y * size.h}
+                    width={b.w * size.w}
+                    height={b.h * size.h}
+                  />
+                );
+              })}
+          </g>
+        )}
       </svg>
       {editing && (
         <textarea
@@ -551,7 +625,8 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.textSize === n.tools.textSize &&
     p.tools.redactionStyle === n.tools.redactionStyle &&
     p.tools.stepSize === n.tools.stepSize &&
-    p.canvasMode === n.canvasMode
+    p.canvasMode === n.canvasMode &&
+    p.text === n.text
   );
 }
 

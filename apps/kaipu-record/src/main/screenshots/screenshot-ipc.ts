@@ -28,6 +28,14 @@ import {
 } from "../infrastructure/settings-store";
 import { currentVault, scopedAdmitted, screenshotFilePath } from "../library";
 import { readCanvas } from "./screenshot-canvas";
+import { recognizeScreenshotText } from "./screenshot-text";
+import { createTextRecognizer } from "./text-recognition";
+import type {
+  TextCacheSavePayload,
+  TextRecognitionRequest,
+  TextRecognitionResult,
+} from "@shared/types/text-recognition";
+import type { TextRecognizer } from "@kaipu/domain/schemas";
 import type { CanvasReadResult, CanvasSavePayload } from "@shared/types/screenshot-canvas";
 import { activeWorkspace, refreshActiveWorkspaceSettings } from "../workspaces";
 import {
@@ -302,6 +310,27 @@ export function registerScreenshotHandlers(
     }),
   );
 
+  // Text recognition (ADR 0055): cached beside the item, never rejects to the renderer.
+  let recognizer: TextRecognizer | null = null;
+  ipcMain.handle(
+    IPC_CHANNELS.screenshotRecognizeText,
+    scopedAdmitted(
+      "library",
+      async (request: TextRecognitionRequest): Promise<TextRecognitionResult> => {
+        try {
+          recognizer ??= createTextRecognizer({
+            resourcesPath: process.resourcesPath,
+            appPath: app.isPackaged ? undefined : app.getAppPath(),
+          });
+          return await recognizeScreenshotText({ vault: currentVault, recognizer }, request);
+        } catch (error) {
+          console.warn("[screenshot-ipc] text recognition failed:", error);
+          return { status: "unavailable" };
+        }
+      },
+    ),
+  );
+
   // The editor's Save (see `saveEditedScreenshot`: probed before the gate).
   ipcMain.handle(
     IPC_CHANNELS.screenshotSave,
@@ -315,6 +344,7 @@ export function registerScreenshotHandlers(
         overwriteAssetId?: string;
         manual?: boolean;
         canvas?: CanvasSavePayload;
+        text?: TextCacheSavePayload;
       },
     ): Promise<LocalRecording> =>
       vaultActivity.run("screenshot", () =>

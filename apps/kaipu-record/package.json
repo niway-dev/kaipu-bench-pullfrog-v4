@@ -36,7 +36,8 @@
     "build:win": "bash ../../scripts/rebuild-native.sh && bun run build && electron-builder --win",
     "build:mac": "bash scripts/build-mac-local.sh",
     "build:linux": "bash ../../scripts/rebuild-native.sh && electron-vite build && electron-builder --linux",
-    "build:native-capture": "bash scripts/build-encoded-capture.sh"
+    "build:native-capture": "bash scripts/build-encoded-capture.sh && bun run build:text-recognition",
+    "build:text-recognition": "bash scripts/build-text-recognition.sh"
   },
   "dependencies": {
     "@better-auth/electron": "catalog:",

@@ -23,6 +23,17 @@ const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
 
+/** Open the screenshot that draws real text and pick Select text, as `ready` and `selected` start. */
+const openText: readonly Step[] = [
+  open(ASSETS.textShot),
+  tool("Select text"),
+  {
+    waitFor: { area: "editorImage.textStatus", part: { text: "words found" } },
+    // The first recognition on a Mac compiles Vision's model: 13.5 s measured, so allow more.
+    timeoutMs: 60_000,
+  },
+];
+
 /** The image editor on a saved screenshot (`#/editor/image/:assetId`). */
 export const editorImage = catalog(
   "editorImage",
@@ -38,10 +49,12 @@ export const editorImage = catalog(
         "editorImage.canvas:default",
         "editorImage.beautify:default",
       ],
-      // The flag is off in this profile: the `canvasView` area is not drawn, this is the other side.
+      // The flags are off in this profile: the `canvasView`, Inspect and Select text areas are
+      // not drawn, this is the other side.
       gates: [
         { flag: "image-canvas", side: "off" },
         { flag: "image-inspect", side: "off" },
+        { flag: "image-text", side: "off" },
       ],
     },
     "tool-box": {
@@ -234,6 +247,51 @@ export const editorImage = catalog(
       keepPointer: true,
       demonstrates: ["editorImage.measure:pinned"],
     },
+    "text-none": {
+      profile: "image-text",
+      how: "With the flag forced on, open “Settings page” (a drawing with no text) and pick the Select text tool: once recognition finishes, the panel says no text was found.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Select text"),
+        {
+          waitFor: {
+            area: "editorImage.textStatus",
+            part: { text: "No text found", exact: true },
+          },
+          // The first recognition on a Mac compiles Vision's model, which can take a while.
+          timeoutMs: 45_000,
+        },
+      ],
+      demonstrates: ["editorImage.textStatus:noText"],
+      gates: [{ flag: "image-text", side: "on" }],
+    },
+    "text-ready": {
+      profile: "image-text",
+      how: "With the flag forced on, open “Display settings” (a screenshot of a settings panel with real text) and pick the Select text tool: once recognition finishes, the panel counts the words found and offers Select all and Copy text.",
+      steps: openText,
+      demonstrates: ["editorImage.textStatus:ready"],
+      gates: [{ flag: "image-text", side: "on" }],
+    },
+    "text-selected": {
+      profile: "image-text",
+      how: "With the flag forced on, open “Display settings”, pick Select text and drag across its first row (“Language: English”): the words under the drag are highlighted on the image.",
+      steps: [
+        ...openText,
+        {
+          drag: { area: "editorImage.textSelection" },
+          // The fixture is 560x340 px; the first row's text spans x 44-170 at y 92-108.
+          from: { x: 60 / 560, y: 100 / 340 },
+          to: { x: 190 / 560, y: 100 / 340 },
+        },
+        {
+          waitFor: {
+            area: "editorImage.textSelection",
+            part: { css: "[data-testid=text-highlights]" },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.textSelection:selected"],
+    },
     "canvas-light": {
       profile: "image-canvas",
       how: "With the flag forced on, switch to the light theme and open “Settings page”: the canvas's dot grid takes the light colours.",
@@ -245,6 +303,14 @@ export const editorImage = catalog(
   },
   {
     notCapturable: {
+      "editorImage.textStatus:pending": nc(
+        "transient",
+        "recognition settles in well under a second on a drawing, and the catalog cannot slow the helper; the panel reads “Recognizing text…” until then",
+      ),
+      "editorImage.textStatus:unavailable": nc(
+        "inducedFailure",
+        "showing it needs a run without the recognition helper; the catalog could only get that with a test-only override of the helper path in production code (or by deleting the helper on the runner), and the real-app proof `verify/image-text.verify.ts` covers it by renaming the helper away",
+      ),
       "editorImage.inspectColors:counting": nc(
         "transient",
         "the count of a catalog-sized image ends in well under a second, before a screenshot can be taken",
