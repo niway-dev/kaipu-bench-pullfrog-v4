@@ -56,7 +56,7 @@ export const WINDOW_PRESETS = {
   main: { width: 1040, height: 760, minWidth: 900, minHeight: 670 },
   /**
    * The Editor workspace (`/editor` and everything under it) except an open
-   * image. The video editor sets the size — a preview, an inspector and five
+   * image or a fresh capture. The video editor sets the size — a preview, an inspector and five
    * timeline lanes do not fit the shared window, and below this the lanes stop
    * being readable rather than merely narrow — and the Editor home and New
    * image share it, so moving between them never resizes the window

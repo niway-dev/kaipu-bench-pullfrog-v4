@@ -15,7 +15,10 @@ describe("ExportBox — accessibility", () => {
   it("labeled: the decorative frame and fill are hidden from screen readers", () => {
     render(<ExportBox size={{ w: 400, h: 300 }} labeled filled />);
     expect(screen.getByTestId("export-box-fill")).toHaveAttribute("aria-hidden", "true");
-    expect(screen.getByTestId("export-box").querySelector(`[aria-hidden="true"]`)).not.toBeNull();
+    // The fill and the dash: two hidden decorations, so losing the dash's aria-hidden fails here.
+    expect(screen.getByTestId("export-box").querySelectorAll(`[aria-hidden="true"]`)).toHaveLength(
+      2,
+    );
   });
 
   it("not labeled: there is no size text for screen readers to read", () => {
