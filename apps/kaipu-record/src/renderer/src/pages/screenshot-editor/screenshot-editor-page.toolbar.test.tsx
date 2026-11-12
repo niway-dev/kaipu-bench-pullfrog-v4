@@ -495,6 +495,17 @@ describe("toolbar B3: compact", () => {
     expect(screen.queryByText("Beautify")).toBeNull();
   });
 
+  it("returns focus to the menu button when the menu closes by Esc or by picking an item", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Draw"));
+    press("Escape");
+    expect(document.activeElement).toBe(btn("Draw"));
+    fireEvent.click(btn("Draw"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Arrow/ }));
+    expect(document.activeElement).toBe(btn("Draw"));
+  });
+
   it("hides the title, keeps Save's label and makes Copy an icon", async () => {
     await mount(ALL);
     setPageWidth(900);
