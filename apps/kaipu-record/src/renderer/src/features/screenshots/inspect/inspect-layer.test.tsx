@@ -61,6 +61,7 @@ function controller(over: Partial<InspectController> = {}): InspectController {
     onPointerLeave: vi.fn(),
     copy: vi.fn(),
     copied: false,
+    copiedText: null,
     status: "ready",
     capturedUnavailable: false,
     buffer: null,
@@ -153,6 +154,22 @@ describe("InspectLayer HUD", () => {
     const label = screen.getByTestId("inspect-ruler-length");
     expect(label).toHaveTextContent(/^916 px$/);
     expect(label).toHaveAttribute("data-sub", "OUTER · ⇧");
+  });
+
+  it("puts the tolerance card on the side the HUD did not take, inside the layer", () => {
+    const { rerender } = render(
+      <InspectLayer inspect={controller({ hover: hoverAt(300, 100), toleranceShown: true })} />,
+    );
+    const card = (): HTMLElement => screen.getByTestId("inspect-tolerance-card");
+    // HUD right and below: the card goes left of the pointer, below it.
+    expect(card().style.left).toBe(`${300 - 12 - 150}px`);
+    expect(card().style.top).toBe(`${100 + 12}px`);
+    // At the bottom-right corner the HUD flips both ways; the card stays inside the layer.
+    rerender(
+      <InspectLayer inspect={controller({ hover: hoverAt(780, 580), toleranceShown: true })} />,
+    );
+    expect(card().style.left).toBe(`${800 - 150}px`);
+    expect(card().style.top).toBe(`${580 - 12 - 44}px`);
   });
 
   it("shows the tolerance card only while toleranceShown", () => {

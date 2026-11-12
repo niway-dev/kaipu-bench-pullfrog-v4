@@ -570,14 +570,16 @@ export const editorImage = catalog(
     },
     "inspect-c8-outer": {
       profile: "image-inspect",
-      how: "Mock C8: with the flag forced on, open “Settings page”, press Inspect, turn Outer on in the bar, rest the pointer on the image and press 1: the length pill adds the “Outer” sub-label.",
+      how: "Mock C8: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image, press 1, turn Outer on in the bar (it needs a ruler) and rest the pointer on the image again: the length pill adds the “Outer” sub-label.",
       steps: [
         open(ASSETS.settingsShot),
         inspectToggle,
-        inspectButton("Outer"),
         hoverCanvas,
         hudShown,
         { press: "1" },
+        inspectButton("Outer"),
+        hoverCanvas,
+        hudShown,
         runShown,
         inCanvas("[data-testid='inspect-ruler-length'][data-outer='true']"),
       ],

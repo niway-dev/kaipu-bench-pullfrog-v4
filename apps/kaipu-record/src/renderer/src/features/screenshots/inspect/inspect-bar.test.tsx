@@ -15,6 +15,7 @@ function fake(over: Partial<InspectController> = {}): InspectController {
     outerLocked: false,
     tolerance: 12,
     copied: false,
+    copiedText: null,
     status: "ready",
     capturedUnavailable: false,
     setActive: vi.fn(),

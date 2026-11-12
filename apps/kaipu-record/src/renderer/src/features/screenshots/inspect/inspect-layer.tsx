@@ -17,6 +17,8 @@ const TICK = 5;
 /** A press that moves less than this, in CSS px, is a click (pins the run), not a drag. */
 const CLICK_SLOP = 4;
 const TOLERANCE_CARD_WIDTH = 150;
+/** The card's height (label row + bar + padding), for keeping it inside the layer. */
+const TOLERANCE_CARD_HEIGHT = 44;
 
 /** The ruler under the cursor: a line between the run's outer edges, end ticks, the length. */
 function Ruler({
@@ -101,7 +103,7 @@ type Point = { clientX: number; clientY: number };
 
 /**
  * Where the HUD goes: right of and below the pointer, flipped per axis when its measured size
- * would leave the layer. The size is measured after each render; the constants are the first guess.
+ * would leave the layer. The size is measured on mount and on every resize; the constants are the first guess.
  */
 function useHudPlacement(layer: React.RefObject<HTMLDivElement | null>, at: Point) {
   const ref = useRef<HTMLDivElement>(null);
@@ -133,7 +135,7 @@ function useHudPlacement(layer: React.RefObject<HTMLDivElement | null>, at: Poin
   const flipY = y + HUD_OFFSET + size.height > height;
   const left = Math.max(0, flipX ? x - HUD_OFFSET - size.width : x + HUD_OFFSET);
   const top = Math.max(0, flipY ? y - HUD_OFFSET - size.height : y + HUD_OFFSET);
-  return { ref, left, top, flipX, flipY, x, y };
+  return { ref, left, top, flipX, flipY, x, y, width, height };
 }
 
 function Hud({
@@ -145,7 +147,7 @@ function Hud({
 }): React.JSX.Element | null {
   const t = useTranslations("screenshots");
   const { hover, readout, run } = inspect;
-  const { ref, left, top, flipX, flipY, x, y } = useHudPlacement(
+  const { ref, left, top, flipX, flipY, x, y, width, height } = useHudPlacement(
     layer,
     hover ?? { clientX: 0, clientY: 0 },
   );
@@ -154,7 +156,12 @@ function Hud({
     ? t(hover.outOfGamut ? "inspectTagAsCapturedP3" : "inspectTagAsCaptured")
     : inspect.format.toUpperCase();
   // The tolerance card goes on the side the HUD did not take (its measured flip).
-  const toleranceLeft = flipX ? x + 12 : x - 12 - TOLERANCE_CARD_WIDTH;
+  // Kept inside the layer, which clips: above the pointer when the HUD went up.
+  const toleranceLeft = Math.min(
+    Math.max(0, flipX ? x + 12 : x - 12 - TOLERANCE_CARD_WIDTH),
+    width - TOLERANCE_CARD_WIDTH,
+  );
+  const toleranceTop = Math.max(0, flipY ? y - 12 - TOLERANCE_CARD_HEIGHT : y + 12);
   const toleranceFill =
     ((inspect.tolerance - MIN_TOLERANCE) / (MAX_TOLERANCE - MIN_TOLERANCE)) * 100;
   return (
@@ -214,7 +221,10 @@ function Hud({
         <div
           className={styles.toleranceCard}
           data-testid="inspect-tolerance-card"
-          style={{ left: Math.max(0, toleranceLeft), top: y + 12 }}
+          style={{
+            left: Math.max(0, toleranceLeft),
+            top: Math.min(toleranceTop, height - TOLERANCE_CARD_HEIGHT),
+          }}
         >
           <div className={styles.toleranceCardRow}>
             <span className={styles.toleranceCardLabel}>{t("inspectToleranceCard")}</span>

@@ -1532,7 +1532,7 @@ function ScreenshotEditorBody({
           </div>
 
           {inspectEnabled && inspect.active && (
-            <InspectModePill copied={inspect.copied} readout={inspect.readout} />
+            <InspectModePill copied={inspect.copied} readout={inspect.copiedText} />
           )}
 
           {/* Zoom pinned at the foot of the canvas — a familiar editor convention. */}

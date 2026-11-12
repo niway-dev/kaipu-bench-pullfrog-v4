@@ -85,6 +85,8 @@ export interface InspectController {
   copy(): Promise<boolean>;
   /** True for a moment after a successful copy. */
   copied: boolean;
+  /** The text that copy wrote, while `copied` is true: the pointer may be on another pixel by then. */
+  copiedText: string | null;
   status: InspectStatus;
   /** The second decode behind "as captured" and the out-of-sRGB mark failed for this image. */
   capturedUnavailable: boolean;
@@ -176,6 +178,7 @@ export function useInspect({
   const [hover, setHover] = useState<InspectHover | null>(null);
   const [loupe, setLoupe] = useState<Uint8ClampedArray | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
   const [capturedUnavailable, setCapturedUnavailable] = useState(false);
   const [buffer, setBuffer] = useState<PixelBuffer | null>(null);
   const [ruler, setRulerState] = useState<RulerAxis | null>(null);
@@ -519,8 +522,12 @@ export function useInspect({
       }
       if (!alive.current) return true;
       setCopied(true);
+      setCopiedText(text);
       if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
-      copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
+      copiedTimer.current = setTimeout(() => {
+        setCopied(false);
+        setCopiedText(null);
+      }, COPIED_MS);
       return true;
     },
     [t],
@@ -644,6 +651,7 @@ export function useInspect({
     onPointerLeave,
     copy,
     copied,
+    copiedText,
     status,
     capturedUnavailable,
     buffer,
