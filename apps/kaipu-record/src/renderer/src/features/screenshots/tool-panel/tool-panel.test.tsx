@@ -86,9 +86,11 @@ describe("ToolPanel", () => {
       ).toBeInTheDocument();
     });
 
-    it("also covers the classic Blur tool, which has no options without the canvas", () => {
+    it("says the tool has no options for the classic Blur tool, which has none without the canvas", () => {
       render(<ToolPanel tools={makeTools({ tool: "blur" })} scene={makeScene()} />);
       expect(state()).toHaveAttribute("data-state", "empty");
+      expect(screen.getByText("This tool has no options")).toBeInTheDocument();
+      expect(screen.queryByText("No tool selected")).toBeNull();
     });
 
     it("goes away as soon as a tool with options is active", () => {

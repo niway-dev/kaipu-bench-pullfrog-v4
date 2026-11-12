@@ -78,8 +78,12 @@ export function ToolPanel({
           />
           {state === "empty" && (
             <div className={styles.empty} data-testid="tool-panel-empty">
-              <p className={styles.emptyTitle}>{t("toolPanelEmptyTitle")}</p>
-              <p className={styles.emptyBody}>{t("toolPanelEmptyBody")}</p>
+              <p className={styles.emptyTitle}>
+                {t(tools.tool === "select" ? "toolPanelEmptyTitle" : "toolPanelNoOptionsTitle")}
+              </p>
+              <p className={styles.emptyBody}>
+                {t(tools.tool === "select" ? "toolPanelEmptyBody" : "toolPanelNoOptionsBody")}
+              </p>
             </div>
           )}
         </>

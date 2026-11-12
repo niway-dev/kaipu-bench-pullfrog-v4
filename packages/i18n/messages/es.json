@@ -1377,6 +1377,8 @@
     "toolPanelTab": "Herramienta",
     "toolPanelEmptyTitle": "Ninguna herramienta seleccionada",
     "toolPanelEmptyBody": "Elige una herramienta en la barra para ver sus opciones aquí.",
+    "toolPanelNoOptionsTitle": "Esta herramienta no tiene opciones",
+    "toolPanelNoOptionsBody": "Dibuja sobre la imagen para usarla.",
     "beautifyHeading": "Embellecer",
     "background": "Fondo",
     "padding": "Relleno",
