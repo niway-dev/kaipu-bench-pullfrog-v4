@@ -66,7 +66,7 @@ async function screenPoint(page: Page, px: { x: number; y: number }) {
 }
 
 const pickRedact = (page: Page) =>
-  page.getByRole("button", { name: "Blur", exact: true }).first().click();
+  page.getByRole("button", { name: "Redact", exact: true }).first().click();
 const shotPath = (s: Scenario, name: string): string => path.join(s.outDir, name);
 
 async function saveOverwrite(page: Page): Promise<void> {

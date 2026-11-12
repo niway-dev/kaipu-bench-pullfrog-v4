@@ -29,7 +29,7 @@ editor (`image-canvas`) and in the classic one:
   language pack, a timeout), the options bar says so and the rest of the editor is unchanged.
 
 **Hiding a line (NIW2-706).** In the canvas editor (`image-canvas` too), the redact tool
-(**Blur**) also uses the recognized text:
+(**Redact**) also uses the recognized text:
 
 - Its options bar adds "Click a line of text to hide it, or drag over a region." once there are
   words ("Recognizing text…" before that; nothing when there is no text).
