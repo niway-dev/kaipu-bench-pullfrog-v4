@@ -199,7 +199,7 @@ export const editorImage = catalog(
     },
     "two-images": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page”, press Add image, choose From Library and click “Dashboard draft”: it lands to the right of the screenshot, selected.",
+      how: "Mock A4: with the flag forced on, open “Settings page”, press Add image, choose From Library and click “Dashboard draft”: it lands to the right of the screenshot, selected, with the accent frame, handles, the “Drag to move” tag and the gap to the screenshot.",
       steps: [
         open(ASSETS.settingsShot),
         addImageButton,
@@ -213,6 +213,79 @@ export const editorImage = catalog(
         { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
       ],
       demonstrates: ["editorImage.canvasView:twoImages"],
+    },
+    "canvas-export-box": {
+      profile: "image-canvas",
+      how: "Mock A1: with the flag forced on, open “Settings page”: a dashed box surrounds the image, labelled EXPORT and the exact pixel size Copy and Save produce.",
+      steps: [open(ASSETS.settingsShot), { waitFor: { area: "editorImage.exportBox" } }],
+      demonstrates: ["editorImage.exportBox:labeled"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "canvas-export-box-quiet": {
+      profile: "image-canvas",
+      how: "Mock A1: with the flag forced on, open “Settings page” and pick the Blur tool: the dashed export box stays, its label is hidden.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Blur"),
+        { waitFor: { area: "editorImage.exportBox" } },
+      ],
+      demonstrates: ["editorImage.exportBox:quiet"],
+    },
+    "canvas-beautified": {
+      profile: "image-canvas",
+      how: "Mock A2: with the flag forced on, open “Settings page”, pick the Sunset background and raise Padding to its maximum: the export box wraps the background and the padding, and the Beautify tip says the dotted canvas around them is not exported.",
+      steps: [
+        open(ASSETS.settingsShot),
+        {
+          click: {
+            area: "editorImage.beautify",
+            part: { role: "button", name: "Sunset", exact: true },
+          },
+        },
+        // The first slider is Padding; End takes a range input to its maximum.
+        {
+          press: "End",
+          target: { area: "editorImage.beautify", part: { role: "slider" }, nth: 0 },
+        },
+        { waitFor: { area: "editorImage.exportBox" } },
+      ],
+      demonstrates: ["editorImage.canvasView:beautified"],
+    },
+    "canvas-content-outside": {
+      profile: "image-canvas",
+      how: "Mock A3: with the flag forced on, open “Settings page”, pick the Box tool and drag from inside the image to the empty canvas on its right: the export box and its label grow to include the box.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Box"),
+        {
+          drag: { area: "editorImage.canvas" },
+          // The shot is centred at 100%; its right edge is well short of 97% of the stage.
+          from: { x: 0.55, y: 0.4 },
+          to: { x: 0.97, y: 0.6 },
+        },
+        {
+          waitFor: {
+            area: "editorImage.canvasView",
+            part: { css: "[data-has-content-outside=true]" },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.canvasView:contentOutside"],
+    },
+    "canvas-export-frame": {
+      profile: "image-canvas",
+      how: "Mock A5: with the flag forced on, open “Settings page”, pick the Crop tool and drag a rectangle inside the image: the outside is dimmed, the frame shows its handles and “W × H px · EXPORT FRAME”, and the card at the top left offers Fit to content and Remove.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Crop"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.42, y: 0.35 },
+          to: { x: 0.62, y: 0.6 },
+        },
+        { waitFor: { area: "editorImage.exportFrameCard" } },
+      ],
+      demonstrates: ["editorImage.canvasView:exportFrame", "editorImage.exportFrameCard:open"],
     },
     "canvas-zoomed-out": {
       profile: "image-canvas",
@@ -470,13 +543,13 @@ export const editorImage = catalog(
         "inducedFailure",
         "shown only when the image cannot be decoded or the colors worker fails; the page tests pin it",
       ),
-      "editorImage.canvasView:exportFrame": nc(
+      "editorImage.canvasView:offContent": nc(
         "needsSetup",
-        "the export frame is set by dragging the crop rectangle, and the catalog steps cannot drag; a fixture that starts from a saved frame would show it (not built)",
+        "mock A6 needs the view panned until most of the content is off the stage, and panning is a wheel scroll or a Space or middle-button drag; the catalog has no wheel step and no held key, and zooming in keeps the stage centre on the content, which shows no notice (not built)",
       ),
-      "editorImage.canvasView:contentOutside": nc(
+      "editorImage.offContentNotice:shown": nc(
         "needsSetup",
-        "content past the image edge needs a click outside the image, and the catalog clicks only the centre of an area; a fixture with an annotation past the edge would show it (not built)",
+        "the notice appears only once the view is panned off the content (see canvasView:offContent); the page tests pin it with measured rectangles",
       ),
     },
   },

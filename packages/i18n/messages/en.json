@@ -1195,7 +1195,7 @@
     "exportFrameBody": "Copy and Save export exactly this box.",
     "exportFrameFit": "Fit to content",
     "exportFrameRemove": "Remove",
-    "exportFrameLabel": "{w} × {h} px · Export frame",
+    "exportFrameLabel": "{w} × {h} px · EXPORT FRAME",
     "dragToMove": "Drag to move",
     "offContentUp": "Most of the content is above",
     "offContentDown": "Most of the content is below",

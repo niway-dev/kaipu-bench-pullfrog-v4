@@ -745,6 +745,23 @@ function ScreenshotEditorBody({
         },
       }
     : scene;
+  // Mock A5: the exact size an export of a window of the frame has (0–1 of the composed
+  // frame), from the export's own computation, for the frame's label while it is dragged.
+  const framePixelSize = (c: CropRect): { w: number; h: number } | null =>
+    canvasGeom && metrics && metrics.naturalW > 0
+      ? exportPixelSize(
+          {
+            beautify: scene.beautify.state,
+            annotations: scene.annotations,
+            crop: scene.crop,
+            exportFrame: frameToWorld(c, canvasGeom),
+          },
+          metrics.naturalW,
+          metrics.naturalH,
+          metrics.w,
+          extentsNatural,
+        )
+      : null;
   const shownZoom = canvasMode ? viewport.view.zoom : zoom;
   const zoomMin = canvasMode ? CANVAS_ZOOM.min : ZOOM_MIN;
   const zoomMax = canvasMode ? CANVAS_ZOOM.max : ZOOM_MAX;
@@ -1433,7 +1450,18 @@ function ScreenshotEditorBody({
                   {inspectEnabled && <LocateOverlay image={colors.overlay} />}
                 </>
               }
-              frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}
+              frameOverlay={
+                tools.tool === "crop" ? (
+                  <CropOverlay
+                    scene={cropScene}
+                    chrome={
+                      canvasMode
+                        ? { zoom: viewport.view.zoom, pixelSize: framePixelSize }
+                        : undefined
+                    }
+                  />
+                ) : undefined
+              }
               boxLayer={
                 canvasMode && scene.exportFrame == null ? (
                   <ExportBox
@@ -1543,12 +1571,12 @@ function ScreenshotEditorBody({
             <>
               <div className={styles.sheetScrim} onClick={() => setPanelOpen(false)} aria-hidden />
               <div className={styles.sheet}>
-                <BeautifyPanel beautify={scene.beautify} />
+                <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} />
               </div>
             </>
           )
         ) : (
-          <BeautifyPanel beautify={scene.beautify} />
+          <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} />
         )}
       </div>
 

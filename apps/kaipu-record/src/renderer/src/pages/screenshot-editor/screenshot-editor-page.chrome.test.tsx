@@ -420,3 +420,53 @@ describe("ScreenshotEditorPage — off-content notice (mock A6)", () => {
     });
   });
 });
+
+describe("ScreenshotEditorPage — export frame look and Beautify tip (mock A5, A2)", () => {
+  it("the Crop tool labels the frame with the size an export of it has", async () => {
+    mount();
+    await loadImage();
+    await waitFor(() => expect(box()).not.toBeNull());
+    tool("Crop");
+    const overlay = await waitFor(() => {
+      const el = document.querySelector('[class*="overlay"]');
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+    // Nothing set yet: the label is the whole export (400 × 400 px, as the box says).
+    expect(screen.getByTestId("export-frame-label")).toHaveTextContent(
+      "400 × 400 px · EXPORT FRAME",
+    );
+    expect(screen.getAllByTestId("export-frame-handle")).toHaveLength(8);
+    // A drag over a quarter of each side, while it is still in flight.
+    fireEvent.pointerDown(overlay, { clientX: 0, clientY: 0, pointerId: 3 });
+    fireEvent.pointerMove(overlay, { clientX: 100, clientY: 100, pointerId: 3 });
+    expect(screen.getByTestId("export-frame-label")).toHaveTextContent("200 × 200 px");
+    fireEvent.pointerUp(overlay, { pointerId: 3 });
+  });
+
+  it("flag off: the Crop tool has none of the canvas chrome", async () => {
+    flags = {};
+    mount();
+    await loadImage();
+    tool("Crop");
+    await waitFor(() => expect(document.querySelector('[class*="overlay"]')).not.toBeNull());
+    expect(screen.queryByTestId("export-frame-label")).toBeNull();
+  });
+
+  it("the Beautify tip says what the export covers, in canvas mode only", async () => {
+    mount();
+    await loadImage();
+    expect(
+      screen.getByText(
+        "Background and padding are part of what you export. The dotted canvas around them is not.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("flag off: the Beautify tip is the classic one", async () => {
+    flags = {};
+    mount();
+    await loadImage();
+    expect(screen.getByText(/annotations are drawn by hand/)).toBeInTheDocument();
+  });
+});

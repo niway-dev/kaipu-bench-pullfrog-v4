@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "@kaipu/i18n";
 import {
   clampCrop,
   cropHandles,
@@ -39,7 +40,19 @@ const CROP_DRAW_MIN = 0.01;
  * Rendered by the editor only while the crop tool is active, and only when the frame
  * is shown un-windowed (the applied crop is not previewed while editing it).
  */
-export function CropOverlay({ scene }: { scene: EditorScene }): React.JSX.Element {
+export function CropOverlay({
+  scene,
+  chrome,
+}: {
+  scene: EditorScene;
+  /**
+   * Canvas mode (mock A5): draws the export frame's chrome, undoing the view's zoom so rules,
+   * handles and the label keep their screen size. `pixelSize` is the exact size an export of
+   * a window (0–1 of the frame) has, so the label never says a size the export lacks.
+   */
+  chrome?: { zoom: number; pixelSize: (c: CropRect) => { w: number; h: number } | null };
+}): React.JSX.Element {
+  const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
   const drag = useRef<Drag | null>(null);
@@ -181,27 +194,130 @@ export function CropOverlay({ scene }: { scene: EditorScene }): React.JSX.Elemen
       onPointerCancel={onPointerAbort}
       onLostPointerCapture={onPointerAbort}
     >
-      <svg className={styles.svg} width={W} height={H}>
-        {/* Dim the four strips outside the crop rect. */}
-        <rect className={styles.dim} x={0} y={0} width={W} height={y} />
-        <rect className={styles.dim} x={0} y={y + h} width={W} height={Math.max(0, H - (y + h))} />
-        <rect className={styles.dim} x={0} y={y} width={x} height={h} />
-        <rect className={styles.dim} x={x + w} y={y} width={Math.max(0, W - (x + w))} height={h} />
-        <rect className={styles.rect} x={x} y={y} width={w} height={h} />
-        {cropHandles(cropRect, size).map((hd) => (
+      {chrome ? (
+        <CanvasChrome
+          rect={{ x, y, w, h }}
+          zoom={chrome.zoom}
+          handles={cropHandles(cropRect, size).map((hd) => ({
+            id: hd.id,
+            x: hd.x * W,
+            y: hd.y * H,
+          }))}
+          label={(() => {
+            const px = chrome.pixelSize(cropRect);
+            return px ? t("exportFrameLabel", { w: px.w, h: px.h }) : null;
+          })()}
+        />
+      ) : (
+        <svg className={styles.svg} width={W} height={H}>
+          {/* Dim the four strips outside the crop rect. */}
+          <rect className={styles.dim} x={0} y={0} width={W} height={y} />
+          <rect
+            className={styles.dim}
+            x={0}
+            y={y + h}
+            width={W}
+            height={Math.max(0, H - (y + h))}
+          />
+          <rect className={styles.dim} x={0} y={y} width={x} height={h} />
+          <rect
+            className={styles.dim}
+            x={x + w}
+            y={y}
+            width={Math.max(0, W - (x + w))}
+            height={h}
+          />
+          <rect className={styles.rect} x={x} y={y} width={w} height={h} />
+          {cropHandles(cropRect, size).map((hd) => (
+            <rect
+              key={hd.id}
+              className={styles.handle}
+              x={hd.x * W - HANDLE_PX / 2}
+              y={hd.y * H - HANDLE_PX / 2}
+              width={HANDLE_PX}
+              height={HANDLE_PX}
+              rx={2}
+              style={{ cursor: handleCursor(hd.id) }}
+            />
+          ))}
+        </svg>
+      )}
+    </div>
+  );
+}
+
+/** Far enough to dim the whole stage around the frame at any zoom the viewport allows. */
+const DIM_REACH = 20000;
+/** Canvas-mode handle side, in screen px (A4's 9 px square). */
+const CANVAS_HANDLE_PX = 9;
+
+/**
+ * The export frame's look in canvas mode (mock A5): the outside dimmed, a 1 px white rule
+ * either side of the edge, 8 square handles and the "W × H px · EXPORT FRAME" label above the
+ * top-left corner. Everything is drawn in the frame's own px and divided by the zoom, so it
+ * stays the same size on screen.
+ */
+function CanvasChrome({
+  rect,
+  zoom,
+  handles,
+  label,
+}: {
+  rect: { x: number; y: number; w: number; h: number };
+  zoom: number;
+  handles: { id: HandleId; x: number; y: number }[];
+  label: string | null;
+}): React.JSX.Element {
+  const px = 1 / (zoom || 1);
+  const { x, y, w, h } = rect;
+  const R = DIM_REACH;
+  return (
+    <>
+      <svg className={styles.svg} width={1} height={1}>
+        <rect className={styles.canvasDim} x={-R} y={-R} width={2 * R} height={R + y} />
+        <rect className={styles.canvasDim} x={-R} y={y + h} width={2 * R} height={R} />
+        <rect className={styles.canvasDim} x={-R} y={y} width={R + x} height={h} />
+        <rect className={styles.canvasDim} x={x + w} y={y} width={R} height={h} />
+        <rect
+          className={styles.rule}
+          x={x - px}
+          y={y - px}
+          width={w + 2 * px}
+          height={h + 2 * px}
+        />
+        <rect
+          className={styles.rule}
+          x={x + px}
+          y={y + px}
+          width={Math.max(0, w - 2 * px)}
+          height={Math.max(0, h - 2 * px)}
+        />
+        <rect className={styles.canvasEdge} x={x} y={y} width={w} height={h} />
+        {handles.map((hd) => (
           <rect
             key={hd.id}
-            className={styles.handle}
-            x={hd.x * W - HANDLE_PX / 2}
-            y={hd.y * H - HANDLE_PX / 2}
-            width={HANDLE_PX}
-            height={HANDLE_PX}
-            rx={2}
+            className={styles.canvasHandle}
+            data-testid="export-frame-handle"
+            x={hd.x - (CANVAS_HANDLE_PX * px) / 2}
+            y={hd.y - (CANVAS_HANDLE_PX * px) / 2}
+            width={CANVAS_HANDLE_PX * px}
+            height={CANVAS_HANDLE_PX * px}
             style={{ cursor: handleCursor(hd.id) }}
           />
         ))}
       </svg>
-    </div>
+      {label && (
+        <div className={styles.frameLabel} style={{ left: x, top: y }}>
+          <span
+            className={styles.frameLabelText}
+            data-testid="export-frame-label"
+            style={{ bottom: 7 * px, transform: `scale(${px})` }}
+          >
+            {label}
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -7,7 +7,14 @@ import styles from "./beautify-panel.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
 /** The right-side "Beautify" panel: background swatches + the three sliders. */
-export function BeautifyPanel({ beautify }: { beautify: BeautifyController }): React.JSX.Element {
+export function BeautifyPanel({
+  beautify,
+  canvasMode = false,
+}: {
+  beautify: BeautifyController;
+  /** Canvas mode (`image-canvas`): the tip explains what the export box covers (mock A2). */
+  canvasMode?: boolean;
+}): React.JSX.Element {
   const t = useTranslations("screenshots");
   const { state, commit, beginEdit, setLive, endEdit } = beautify;
 
@@ -50,7 +57,7 @@ export function BeautifyPanel({ beautify }: { beautify: BeautifyController }): R
         onEnd={endEdit}
       />
 
-      <p className={styles.tip}>{t("beautifyTip")}</p>
+      <p className={styles.tip}>{t(canvasMode ? "beautifyTipCanvas" : "beautifyTip")}</p>
     </aside>
   );
 }
