@@ -52,4 +52,26 @@ describe("AnnotationToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Select text" }));
     expect(tools.setTool).toHaveBeenCalledWith("selectText");
   });
+
+  it("explains the canvas-mode Redact tool in its tooltip and description, keeping the plain name", () => {
+    const tools = makeTools();
+    render(<AnnotationToolbar tools={tools} canvasMode />);
+    const redact = screen.getByRole("button", { name: "Redact" });
+    expect(redact).toHaveAttribute("aria-keyshortcuts", "B");
+    expect(redact).toHaveAttribute("aria-description", expect.stringMatching(/sensitive info/));
+    fireEvent.mouseEnter(redact);
+    const tip = screen.getByRole("tooltip");
+    expect(tip).toHaveTextContent("Redact — hide sensitive info");
+    expect(tip).toHaveTextContent("B");
+    fireEvent.click(redact);
+    expect(tools.setTool).toHaveBeenCalledWith("blur");
+  });
+
+  it("leaves the plain Blur tool's tooltip alone without canvas mode", () => {
+    render(<AnnotationToolbar tools={makeTools()} />);
+    const blur = screen.getByRole("button", { name: "Blur" });
+    expect(blur).not.toHaveAttribute("aria-description");
+    fireEvent.mouseEnter(blur);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/^Blur/);
+  });
 });

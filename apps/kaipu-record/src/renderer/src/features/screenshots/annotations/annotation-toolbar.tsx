@@ -53,10 +53,15 @@ export function AnnotationToolbar({
   };
   const button = (tool: AnnotationTool, size: number): React.JSX.Element => {
     const { labelKey, Icon } = toolMeta(tool, canvasMode);
+    // Redact's name alone does not say what it does: the tooltip spells it out, the accessible
+    // name stays the plain "Redact" (every tool's aria-label is its plain label) and the
+    // description carries the rest.
+    const redact = tool === "blur" && canvasMode;
     return (
       <ToolButton
         key={tool}
-        label={t(labelKey)}
+        label={t(redact ? "toolRedactTip" : labelKey)}
+        {...(redact ? { ariaLabel: t(labelKey), "aria-description": t("toolRedactHint") } : {})}
         {...(TOOL_KEYS[tool] ? { keyHint: TOOL_KEYS[tool] } : {})}
         className={`${styles.tool} ${tools.tool === tool && !idle ? styles.toolActive : ""}`}
         onClick={() => pick(tool)}

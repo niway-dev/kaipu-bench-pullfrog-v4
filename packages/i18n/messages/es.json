@@ -1272,6 +1272,8 @@
     "toolCrop": "Recortar",
     "inspectTitle": "Inspeccionar (I)",
     "toolRedact": "Censurar",
+    "toolRedactTip": "Censurar — oculta información sensible",
+    "toolRedactHint": "Oculta información sensible de la imagen: tapada (Sólido) o desenfocada. Desenfocar conserva un rastro de los colores originales. Permanente al guardar",
     "toolExportFrame": "Marco de exportación",
     "modeSwitchLabel": "Modo",
     "modeAnnotate": "Anotar",
