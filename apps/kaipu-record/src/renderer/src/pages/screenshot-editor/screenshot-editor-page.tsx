@@ -826,16 +826,26 @@ function ScreenshotEditorBody({
   });
 
   // The image `addImage` just placed, where it placed it (mock E3).
-  const [justAdded, setJustAdded] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [justAdded, setJustAdded] = useState<{
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   // The memory ends the moment the selection moves to anything else or the image leaves its
-  // landing spot, so the tag never comes back, even if the image is dragged back there.
+  // landing spot or size (a corner drag resizes it with x/y fixed), so the tag never comes back,
+  // even if the image is dragged back there.
   // (An undone add leaves an id no annotation has: nothing shows.)
   const justAddedAnnotation = justAdded
     ? scene.annotations.find((a) => a.id === justAdded.id)
     : undefined;
   const justAddedMoved =
     justAddedAnnotation?.kind === "image" &&
-    (justAddedAnnotation.x !== justAdded?.x || justAddedAnnotation.y !== justAdded?.y);
+    (justAddedAnnotation.x !== justAdded?.x ||
+      justAddedAnnotation.y !== justAdded?.y ||
+      justAddedAnnotation.w !== justAdded?.w ||
+      justAddedAnnotation.h !== justAdded?.h);
   useEffect(() => {
     if (justAdded && (scene.selectedId !== justAdded.id || justAddedMoved)) setJustAdded(null);
   }, [justAdded, justAddedMoved, scene.selectedId]);
@@ -845,7 +855,9 @@ function ScreenshotEditorBody({
     justAddedAnnotation &&
     justAddedAnnotation.kind === "image" &&
     justAddedAnnotation.x === justAdded.x &&
-    justAddedAnnotation.y === justAdded.y
+    justAddedAnnotation.y === justAdded.y &&
+    justAddedAnnotation.w === justAdded.w &&
+    justAddedAnnotation.h === justAdded.h
       ? justAdded.id
       : null;
 
@@ -889,7 +901,13 @@ function ScreenshotEditorBody({
     scene.addAnnotation(annotation);
     scene.select(annotation.id);
     tools.setTool("select");
-    setJustAdded({ id: annotation.id, x: annotation.x, y: annotation.y });
+    setJustAdded({
+      id: annotation.id,
+      x: annotation.x,
+      y: annotation.y,
+      w: annotation.w,
+      h: annotation.h,
+    });
     showToast({ message: t("imageAddedRight"), tone: "success" });
   };
   // The paste listener below outlives a render: it calls the latest closure.

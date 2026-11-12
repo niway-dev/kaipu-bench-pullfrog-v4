@@ -26,7 +26,7 @@ vi.mock("@renderer/features/screenshots/annotations/annotation-layer", () => ({
       annotations: { id: string; kind: string }[];
       selectedId: string | null;
       select(id: string | null): void;
-      commitAnnotation(id: string, patch: { x: number }): void;
+      commitAnnotation(id: string, patch: { x?: number; w?: number }): void;
       undo(): void;
     };
     justAddedId?: string | null;
@@ -42,6 +42,9 @@ vi.mock("@renderer/features/screenshots/annotations/annotation-layer", () => ({
         <button onClick={() => props.scene.select(added?.id ?? null)}>probe-select</button>
         <button onClick={() => added && props.scene.commitAnnotation(added.id, { x: 9 })}>
           probe-move
+        </button>
+        <button onClick={() => added && props.scene.commitAnnotation(added.id, { w: 0.9 })}>
+          probe-resize
         </button>
         <button
           onClick={() => added && props.scene.commitAnnotation(added.id, { x: landing.x ?? 0 })}
@@ -196,6 +199,12 @@ describe("an image just added (NIW2-715)", () => {
   it("goes back to the normal tag once the image has moved", async () => {
     await pasted();
     probe("move");
+    await waitFor(() => expect(justAddedId()).toBe(""));
+  });
+
+  it("goes back to the normal tag once the image has been resized with x and y fixed", async () => {
+    await pasted();
+    probe("resize");
     await waitFor(() => expect(justAddedId()).toBe(""));
   });
 
