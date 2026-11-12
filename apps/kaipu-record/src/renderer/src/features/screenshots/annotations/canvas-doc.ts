@@ -148,14 +148,15 @@ const toNormMaps = (b: WorldBase) =>
  * `crop` is not stored (canvas mode exports by `exportFrame`). An image annotation is
  * written as an image item at its z-position, after the base.
  *
- * `now` (epoch ms) is the save time: a redaction this save locks gets it as `lockedAt`. One
- * that is already locked keeps what it has, even nothing: this save does not lock it. Without
- * `now` no `lockedAt` is written.
+ * `lockedAt(id)` (epoch ms) is asked for each redaction that is not yet locked in memory:
+ * the caller decides the time (the page returns the first save that wrote it, so a later
+ * autosave of the same session does not move it). One that is already locked keeps what it
+ * has, even nothing: this save does not lock it. Without `lockedAt` no time is written.
  */
 export function buildCanvasDoc(
   scene: Scene,
   base: { pixelWidth: number; pixelHeight: number; assetId?: string },
-  opts: { now?: number } = {},
+  opts: { lockedAt?: (annotationId: string) => number } = {},
 ): CanvasDocV2 {
   const image: CanvasImageItem = {
     id: "image-base",
@@ -172,7 +173,8 @@ export function buildCanvasDoc(
   const annotations = scene.annotations.map((a): Annotation => {
     const world = mapGeometry(a, ...maps, true);
     if (world.kind !== "blur") return world;
-    const stamp = opts.now !== undefined && !world.locked ? { lockedAt: opts.now } : {};
+    const stamp =
+      opts.lockedAt !== undefined && !world.locked ? { lockedAt: opts.lockedAt(world.id) } : {};
     return { ...world, ...stamp, locked: true };
   });
   const doc: CanvasDocV2 = {

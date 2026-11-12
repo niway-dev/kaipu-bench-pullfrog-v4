@@ -967,6 +967,16 @@ function ScreenshotEditorBody({
     setNoticeHidden(true);
   };
 
+  const firstSave = useRef(new Map<string, number>());
+  /** The first save that baked this redaction: later autosaves of the session keep it. */
+  const firstSaveAt = (id: string): number => {
+    const known = firstSave.current.get(id);
+    if (known !== undefined) return known;
+    const now = Date.now();
+    firstSave.current.set(id, now);
+    return now;
+  };
+
   /**
    * The document and base asset a canvas-mode save stores beside the PNG (ADR 0053).
    *
@@ -989,7 +999,7 @@ function ScreenshotEditorBody({
       snap.annotations,
     );
     const docJson = JSON.stringify(
-      buildCanvasDoc(snap, { pixelWidth, pixelHeight }, { now: Date.now() }),
+      buildCanvasDoc(snap, { pixelWidth, pixelHeight }, { lockedAt: (id) => firstSaveAt(id) }),
     );
     // The base, then each image asset the scene still references, once (one asset may sit on
     // the canvas twice). Main prunes whatever else the vault held for this shot.
