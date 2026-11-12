@@ -1,7 +1,8 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FIXTURE_FILES, FIXTURES_DIR, type RecordingCut } from "./make-fixtures";
-import { redactionPng, stepSizesPng } from "./mock-shots";
+import { REDACTION_SOLID_RGB } from "../../src/renderer/src/features/screenshots/annotations/redaction";
+import { paintPng, redactionPng, stepSizesPng } from "./mock-shots";
 
 /**
  * The neutral workspace every catalog profile opens (spec "Fixtures"): six recordings cut
@@ -46,6 +47,7 @@ export const ASSETS = {
   stepSelectedShot: "c0a1a10c-0000-4000-8000-000000000107",
   stepSizesShot: "c0a1a10c-0000-4000-8000-000000000108",
   redactionShot: "c0a1a10c-0000-4000-8000-000000000109",
+  noticeShot: "c0a1a10c-0000-4000-8000-00000000010a",
   loopGif: "c0a1a10c-0000-4000-8000-000000000201",
 } as const;
 
@@ -66,7 +68,7 @@ export const LOCKED_SHOT = {
 } as const;
 
 /**
- * The screenshots `mockShots` adds. The first two copy the settings fixture; the other two are
+ * The screenshots `mockShots` adds. The settings ones copy the settings fixture; the other two are
  * drawn by `mock-shots.ts` (dark over light for the badge sizes, text-like rows to redact).
  */
 export const MOCK_SHOTS = [
@@ -74,6 +76,7 @@ export const MOCK_SHOTS = [
   { stem: "Step selected", assetId: ASSETS.stepSelectedShot, source: "settings", ago: 8 * HOUR },
   { stem: "Step sizes", assetId: ASSETS.stepSizesShot, source: "sizes", ago: 9 * HOUR },
   { stem: "Redaction demo", assetId: ASSETS.redactionShot, source: "redaction", ago: 10 * HOUR },
+  { stem: "Notice demo", assetId: ASSETS.noticeShot, source: "settings", ago: 11 * HOUR },
 ] as const;
 
 /**
@@ -289,9 +292,11 @@ function pngSize(file: Buffer): { width: number; height: number } {
 
 /**
  * Writes `LOCKED_SHOT`: the flat PNG, its sidecar, and a version 2 canvas document (ADR 0053)
- * with the base asset and one locked redaction over the middle half of the image. The document
- * is written by hand, in world px, and pinned by `seed-locked-redaction.test.ts`, which parses it
- * with the editor's own reader.
+ * with the base asset and one locked SOLID redaction over the middle half of the image. The
+ * PNG is the baked result a real save leaves: a grey window-like image whose redacted region
+ * is the solid fill, so the "Permanent" tag sits beside an area that really is gone. The
+ * document is written by hand, in world px, and pinned by `seed-locked-redaction.test.ts`,
+ * which parses it with the editor's own reader.
  */
 export async function seedLockedRedactionShot(
   vaultDir: string,
@@ -299,10 +304,24 @@ export async function seedLockedRedactionShot(
   fixtures: string,
   now: number,
 ): Promise<void> {
-  const source = path.join(fixtures, FIXTURE_FILES.screens[3]);
-  const png = await readFile(source);
-  const { width, height } = pngSize(png);
-  await copyFile(source, path.join(vaultDir, `${LOCKED_SHOT.stem}.png`));
+  // The window fixture gives the size; the pixels are drawn here, with the redaction baked in.
+  const { width, height } = pngSize(await readFile(path.join(fixtures, FIXTURE_FILES.screens[3])));
+  const region = {
+    x: Math.round(width / 4),
+    y: Math.round(height / 4),
+    w: Math.round(width / 2),
+    h: Math.round(height / 2),
+  };
+  const png = paintPng(
+    width,
+    height,
+    [70, 72, 80],
+    [
+      [0, 0, width, Math.round(height / 12), [52, 54, 60]],
+      [region.x, region.y, region.w, region.h, REDACTION_SOLID_RGB],
+    ],
+  );
+  await writeFile(path.join(vaultDir, `${LOCKED_SHOT.stem}.png`), png);
   await writeJson(path.join(meta, `${LOCKED_SHOT.stem}.json`), {
     sidecarVersion: 2,
     assetId: ASSETS.lockedShot,
@@ -311,7 +330,7 @@ export async function seedLockedRedactionShot(
   });
   const assets = path.join(meta, `${LOCKED_SHOT.stem}.assets`);
   await mkdir(assets, { recursive: true });
-  await copyFile(source, path.join(assets, "base.png"));
+  await writeFile(path.join(assets, "base.png"), png);
   await writeJson(path.join(meta, `${LOCKED_SHOT.stem}.canvas.json`), {
     schemaVersion: 2,
     items: [
@@ -329,10 +348,8 @@ export async function seedLockedRedactionShot(
       {
         id: "a1",
         kind: "blur",
-        x: width / 4,
-        y: height / 4,
-        w: width / 2,
-        h: height / 2,
+        ...region,
+        style: "solid",
         locked: true,
         lockedAt: now - LOCKED_SHOT.savedAgo,
       },

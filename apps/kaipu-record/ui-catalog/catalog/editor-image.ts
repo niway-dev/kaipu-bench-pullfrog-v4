@@ -371,22 +371,6 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.redactionStyle:solid"],
     },
-    "redaction-notice": {
-      profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page”, pick Redact and drag a box over the image: the “Saving makes redactions permanent” card opens over the canvas, with Undo redaction and Got it.",
-      steps: [
-        open(ASSETS.settingsShot),
-        tool("Redact"),
-        {
-          drag: { area: "editorImage.canvas" },
-          from: { x: 0.42, y: 0.35 },
-          to: { x: 0.62, y: 0.6 },
-        },
-        { waitFor: { area: "editorImage.redactionNotice" } },
-      ],
-      demonstrates: ["editorImage.redactionNotice:shown"],
-      gates: [{ flag: "image-canvas", side: "on" }],
-    },
     "redaction-locked": {
       profile: "image-canvas-saved",
       how: "Mock H4: with the flag forced on, open “Saved redaction” (a screenshot saved with one redaction over its middle) and rest the pointer on the redaction: a tag beside it says it is permanent and when it was saved. Clicking it selects nothing.",
@@ -456,12 +440,32 @@ export const editorImage = catalog(
       demonstrates: ["editorImage.redactionStyle:blur"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
+    "redaction-notice": {
+      profile: "image-mocks",
+      how: "With the flag forced on, open “Notice demo”, pick Redact and drag a box over the image: the “Saving makes redactions permanent” card opens over the canvas, with Undo redaction and Got it.",
+      steps: [
+        // Its own item: the drawn region is autosaved to the document, and a later state that
+        // opens the same item would show it. It never presses Got it, so the notice stays
+        // unacknowledged for "redaction-styles" below, which does.
+        open(ASSETS.noticeShot),
+        tool("Redact"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.42, y: 0.35 },
+          to: { x: 0.62, y: 0.6 },
+        },
+        { waitFor: { area: "editorImage.redactionNotice" } },
+      ],
+      demonstrates: ["editorImage.redactionNotice:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
     "redaction-styles": {
       profile: "image-mocks",
       how: "Mock H2: with the three image-editor flags forced on, open “Redaction demo” (text-like rows), pick Redact and draw a blur over the left column, press Got it on the permanence notice, pick Redact again, press Solid and draw a second region over the right column: one blurred and one solid region side by side.",
       steps: [
-        // Its own item and the only state of the profile that draws a redaction, so the one-time
-        // notice is always still unacknowledged when region 1 is drawn.
+        // Its own item. The one-time notice is acknowledged here and nowhere else (the earlier
+        // "redaction-notice" leaves it open on purpose), so it is still unacknowledged when
+        // region 1 is drawn, whether this state runs alone or after that one.
         open(ASSETS.redactionShot),
         tool("Redact"),
         {
