@@ -159,12 +159,11 @@ function Hud({
   // flip). Where that side has no room it goes past the HUD's far edge instead, so it never
   // covers the loupe. Vertically it follows the pointer, kept inside the layer, which clips.
   const besidePointer = flipX ? x + 12 : x - 12 - TOLERANCE_CARD_WIDTH;
+  const pastHud = flipX ? left - 12 - TOLERANCE_CARD_WIDTH : left + hudWidth + 12;
   const toleranceLeft =
     besidePointer >= 0 && besidePointer + TOLERANCE_CARD_WIDTH <= width
       ? besidePointer
-      : flipX
-        ? left - 12 - TOLERANCE_CARD_WIDTH
-        : left + hudWidth + 12;
+      : Math.min(Math.max(0, pastHud), Math.max(0, width - TOLERANCE_CARD_WIDTH));
   const toleranceTop = Math.min(
     Math.max(0, flipY ? y - 12 - TOLERANCE_CARD_HEIGHT : y + 12),
     height - TOLERANCE_CARD_HEIGHT,
