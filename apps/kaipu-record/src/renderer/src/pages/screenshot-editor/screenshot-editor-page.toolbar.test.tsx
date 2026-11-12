@@ -464,7 +464,7 @@ describe("toolbar B3: compact", () => {
     fireEvent.click(btn("More"));
     fireEvent.click(screen.getByRole("menuitem", { name: /^Export frame/ }));
     // The card is the Tool tab's content, so it waits in the sheet (which stays closed until asked).
-    expect(maybeBtn("Fit to content")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Fit to content" })).toBeNull();
     fireEvent.click(btn("Panel"));
     expect(screen.getByRole("tab", { name: "Tool" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Fit to content" })).toBeInTheDocument();
