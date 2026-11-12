@@ -36,6 +36,11 @@ export function AppRoot(): React.JSX.Element {
   useEffect(() => {
     window.electronAPI.reportCaptureWhileRecording(captureWhileRecording);
   }, [captureWhileRecording]);
+  // Same for `image-text`: main warms up text recognition in the background when it is on.
+  const imageText = useFlag("image-text");
+  useEffect(() => {
+    window.electronAPI.reportImageText(imageText);
+  }, [imageText]);
   // Every switch remounts the pages (ADR 0032): no editor, list or filter of the old
   // workspace survives it. AppRoot itself stays, so the listeners below keep working.
   const epoch = useOptionalWorkspaces()?.epoch ?? 0;

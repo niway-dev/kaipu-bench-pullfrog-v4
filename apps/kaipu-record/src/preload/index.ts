@@ -361,6 +361,8 @@ const kaipuApi: KaipuElectronAPI = {
   revealAfterCapture: () => ipcRenderer.send(IPC_CHANNELS.screenshotReveal),
   reportCaptureWhileRecording: (enabled) =>
     ipcRenderer.send(IPC_CHANNELS.screenshotCaptureWhileRecordingFlag, enabled === true),
+  reportImageText: (enabled) =>
+    ipcRenderer.send(IPC_CHANNELS.screenshotImageTextFlag, enabled === true),
   captureOverlay: {
     answer: (answer) => ipcRenderer.send(IPC_CHANNELS.screenshotOverlayAnswer, answer),
     hover: (displayId) => ipcRenderer.send(IPC_CHANNELS.screenshotOverlayHover, { displayId }),
