@@ -25,7 +25,8 @@ export type ToolPanelState = AnnotationOptionsState | "empty" | "inspect";
  *   Inspect on          the Inspect controls (rulers, format, tolerance, copy, Colors)
  *   Export frame        what the frame is for, Fit to content, Remove
  *   any other tool or a selected annotation      colour, stroke or size, Redact style, delete, ...
- *   nothing             "No tool selected"
+ *   Select, nothing selected    "No tool selected"
+ *   a tool without options      "This tool has no options"
  *
  * It only places the controls: every one is the same component, with the same state, it was
  * when it floated over the stage or sat in the toolbar.
