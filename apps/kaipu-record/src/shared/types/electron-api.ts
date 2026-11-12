@@ -713,7 +713,7 @@ export interface KaipuElectronAPI {
    * When the canvas document beside a screenshot was last written, or null when no document
    * file exists. `readScreenshotCanvas` answers null for a missing and an unusable document
    * alike; this tells them apart (a null read with a document present is "unreadable"), and
-   * gives the saved time. Never rejects.
+   * gives the saved time. Any other stat error (permissions, I/O) rejects with its code.
    */
   statScreenshotCanvas(id: string): Promise<{ savedAt: number } | null>;
   /**

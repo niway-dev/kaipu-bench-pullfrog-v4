@@ -32,12 +32,14 @@ describe("presetForPath", () => {
   });
 
   it("gives the Editor workspace the editor preset, except an open image", () => {
-    const editor = [ROUTES.editor, ROUTES.editorNew, ROUTES.editorCapture, "/editor/video/asset-1"];
+    const editor = [ROUTES.editor, ROUTES.editorNew, "/editor/video/asset-1"];
     for (const path of editor) expect(presetForPath(path), path).toBe("editor");
   });
 
-  it("gives an open image its own preset, so its floor can be lower", () => {
+  it("gives an open image and a fresh capture the image preset, so their floor can be lower", () => {
+    // `/editor/capture` renders the same page (and compact toolbar) as an open image.
     expect(presetForPath("/editor/image/asset-1")).toBe("editorImage");
+    expect(presetForPath(ROUTES.editorCapture)).toBe("editorImage");
   });
 
   it("matches /editor as a path segment, not as a string prefix", () => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { UiAreaProps } from "@renderer/lib/ui-area";
 import { Kbd, useTip } from "./tip";
 import styles from "./toolbar-parts.module.css";
@@ -45,6 +45,12 @@ export function ToolbarMenu({
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const { bind, node } = useTip(label);
+  const button = useRef<HTMLButtonElement>(null);
+  // Closing from the keyboard unmounts the focused item (or leaves focus on <body>): hand it back.
+  const closeToButton = (): void => {
+    setOpen(false);
+    button.current?.focus();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +58,7 @@ export function ToolbarMenu({
       if (e.key !== "Escape") return;
       e.stopPropagation();
       setOpen(false);
+      button.current?.focus();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -60,6 +67,7 @@ export function ToolbarMenu({
   return (
     <span {...area} className={styles.menuAnchor} data-open={open}>
       <button
+        ref={button}
         type="button"
         aria-label={label}
         aria-haspopup="menu"
@@ -86,7 +94,7 @@ export function ToolbarMenu({
                   disabled={item.disabled}
                   className={`${styles.menuItem} ${item.active ? styles.menuItemActive : ""}`}
                   onClick={() => {
-                    setOpen(false);
+                    closeToButton();
                     item.onSelect();
                   }}
                 >

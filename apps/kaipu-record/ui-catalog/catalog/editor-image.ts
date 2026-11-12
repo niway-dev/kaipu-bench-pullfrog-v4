@@ -685,6 +685,9 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.reopenNotice:editable"],
       gates: [{ flag: "image-canvas", side: "on" }],
+      // Save wrote the step annotation into the profile's vault: restore it so “Settings page”
+      // opens unmodified in canvas-light and in a second shot of this state.
+      after: [{ action: "restoreVault" }],
     },
     "reopen-flat": {
       profile: "image-canvas-unreadable",

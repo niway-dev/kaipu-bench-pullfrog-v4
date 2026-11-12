@@ -37,10 +37,9 @@ export function ExportBox({
       className={styles.box}
       data-testid="export-box"
       data-label={showLabel ? "labeled" : "quiet"}
-      aria-hidden
     >
-      {filled && <div className={styles.fill} data-testid="export-box-fill" />}
-      <div className={styles.dash} />
+      {filled && <div className={styles.fill} data-testid="export-box-fill" aria-hidden />}
+      <div className={styles.dash} aria-hidden />
       {showLabel && (
         <div className={styles.label} data-testid="export-box-label">
           <span className={styles.tag}>{t("exportBoxLabel")}</span>
