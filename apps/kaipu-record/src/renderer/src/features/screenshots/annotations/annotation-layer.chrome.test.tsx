@@ -108,7 +108,7 @@ describe("AnnotationLayer — selected added image (mock A4)", () => {
     const frame = document.querySelector("rect[class*='selOutline']")!;
     expect(frame.getAttribute("x")).toBe("50");
     expect(frame.getAttribute("width")).toBe("40");
-    // The handles are drawn, not wired: an added image still does not resize.
+    // The layer's own SVG handles are not drawn for an image: these are the chrome's.
     expect(screen.queryAllByTestId("resize-handle")).toHaveLength(0);
   });
 
@@ -161,8 +161,8 @@ describe("AnnotationLayer — reports what is on screen while a drag is in fligh
     const { layer } = renderLayer(makeScene([image("i1", "a", 0.5)], "i1"), makeTools(), {
       onLive,
     });
-    fireEvent.pointerDown(layer, { button: 0, clientX: 60, clientY: 35, pointerId: 1 });
-    fireEvent.pointerMove(layer, { clientX: 160, clientY: 35, pointerId: 1 });
+    fireEvent.pointerDown(layer, { button: 0, clientX: 70, clientY: 40, pointerId: 1 });
+    fireEvent.pointerMove(layer, { clientX: 170, clientY: 40, pointerId: 1 });
     const moving = onLive.mock.calls.at(-1)![0] as ImageAnnotation[];
     expect(moving[0].x).toBeCloseTo(1.5);
     fireEvent.pointerUp(layer, { pointerId: 1 });

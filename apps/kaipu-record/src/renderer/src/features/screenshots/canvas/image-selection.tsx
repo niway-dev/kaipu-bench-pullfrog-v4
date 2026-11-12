@@ -32,8 +32,9 @@ const HANDLE_AT: readonly (readonly [number, number])[] = [
  * The layer is scaled by the canvas zoom; every line, handle and label reads `--canvas-zoom`
  * (written on the canvas element) to stay one screen size at any zoom.
  *
- * The handles are the mock's, and they are drawn, not wired: an added image moves but does not
- * resize (NIW2-703), so they take no pointer input and a press on one drags the image.
+ * The handles are the mock's. The four corners resize the image with its aspect ratio locked
+ * (hit-tested by the annotation layer, not here); the four edge handles are drawn only, so a
+ * press on one drags the image.
  *
  * `gaps` are in world units (1 = one source px); `unit` is layer px per world unit.
  */

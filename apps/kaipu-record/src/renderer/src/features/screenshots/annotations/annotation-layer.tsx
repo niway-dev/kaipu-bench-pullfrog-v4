@@ -622,7 +622,10 @@ function AnnotationLayerImpl({
             )}
           </>
         )}
-        {selectedAnnotation && <Handles a={selectedAnnotation} size={size} />}
+        {/* An added image's handles are drawn by `ImageSelection` (mock A4), not here. */}
+        {selectedAnnotation && selectedAnnotation.kind !== "image" && (
+          <Handles a={selectedAnnotation} size={size} />
+        )}
         {activeText && activeText.selected.size > 0 && (
           <g data-testid="text-highlights" className={styles.textHighlights}>
             {activeText.words

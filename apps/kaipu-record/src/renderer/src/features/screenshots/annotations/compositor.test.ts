@@ -357,6 +357,15 @@ describe("compositor image annotations (canvas mode)", () => {
     expect(svg).toContain(`width="${fullW}" height="680" viewBox="0 0 ${fullW} 680"`);
   });
 
+  it("draws a resized image at its new size, scaling the asset (illustrative: 500x300 -> 750x450)", () => {
+    const resized: Annotation = { ...second, w: 0.75, h: 0.75 };
+    const svg = buildSvg(scene([resized]), g);
+    expect(svg).toContain(`href="data:image/png;base64,BBBB" width="750" height="450"`);
+    expect(svg).toContain(
+      `<clipPath id="ic-a9"><rect x="1100" y="0" width="750" height="450" rx="12"/></clipPath>`,
+    );
+  });
+
   it("clips each image to its own rounded rect in a non-transformed group", () => {
     const svg = buildSvg(scene([second]), g);
     expect(svg).toContain(

@@ -350,6 +350,68 @@ describe("resizeAnnotation — canvas mode (NIW2-698)", () => {
   });
 });
 
+describe("an added image resizes from its corners, ratio locked", () => {
+  // 200 x 100 source px shown at 0.4 x 0.2 of a 1000 x 1000 layer: 400 x 200 layer px.
+  const image: Annotation = {
+    id: "i",
+    kind: "image",
+    assetId: "img-aaaaaaaaaaaa",
+    x: 0.2,
+    y: 0.3,
+    w: 0.4,
+    h: 0.2,
+    pixelWidth: 200,
+    pixelHeight: 100,
+  };
+  type Patch = { x: number; y: number; w: number; h: number };
+  const resize = (handle: "nw" | "ne" | "se" | "sw" | "n" | "e", p: { x: number; y: number }) =>
+    resizeAnnotation(image, handle, p, size, true) as Patch;
+
+  it("has four corner handles and no edge handles", () => {
+    expect(handlesFor(image, size).map((h) => h.id)).toEqual(["nw", "ne", "se", "sw"]);
+  });
+
+  it("grows from the se corner with the nw corner fixed and the pixel ratio kept", () => {
+    const patch = resize("se", { x: 0.8, y: 0.4 }); // wider than tall: width leads
+    expect(patch.x).toBeCloseTo(0.2);
+    expect(patch.y).toBeCloseTo(0.3);
+    expect(patch.w).toBeCloseTo(0.6);
+    expect(patch.h).toBeCloseTo(0.3);
+    expect((patch.w * 1000) / (patch.h * 1000)).toBeCloseTo(200 / 100);
+  });
+
+  it("lets the height lead when the pointer is further along vertically", () => {
+    const patch = resize("se", { x: 0.3, y: 0.7 }); // dy 400 px -> width 800 px
+    expect(patch.w).toBeCloseTo(0.8);
+    expect(patch.h).toBeCloseTo(0.4);
+  });
+
+  it("keeps the opposite corner fixed from each corner", () => {
+    const nw = resize("nw", { x: 0.4, y: 0.4 });
+    expect(nw.x + nw.w).toBeCloseTo(0.6);
+    expect(nw.y + nw.h).toBeCloseTo(0.5);
+    const ne = resize("ne", { x: 0.9, y: 0.1 });
+    expect(ne.x).toBeCloseTo(0.2);
+    expect(ne.y + ne.h).toBeCloseTo(0.5);
+    const sw = resize("sw", { x: 0.1, y: 0.8 });
+    expect(sw.x + sw.w).toBeCloseTo(0.6);
+    expect(sw.y).toBeCloseTo(0.3);
+  });
+
+  it("does not flip past the anchor and keeps a minimum size", () => {
+    const patch = resize("se", { x: 0.0, y: 0.0 });
+    expect(patch.x).toBeCloseTo(0.2);
+    expect(patch.w * 1000).toBeGreaterThanOrEqual(24);
+    expect(patch.h * 1000).toBeGreaterThanOrEqual(12);
+    expect((patch.w * 1000) / (patch.h * 1000)).toBeCloseTo(2);
+  });
+
+  it("ignores an edge handle", () => {
+    expect(resize("e", { x: 0.9, y: 0.4 })).toEqual({});
+    expect(resize("n", { x: 0.4, y: 0.0 })).toEqual({});
+  });
+});
+
 describe("step badge", () => {
   const step: Annotation = { id: "s", kind: "step", x: 0.5, y: 0.5, color: "#fff", size: 1 };
   it("has no resize handles", () => {

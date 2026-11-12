@@ -114,8 +114,17 @@ export function annotationBox(a: Annotation, size: Size): Box | null {
 
 /** The drag handles for a selected annotation, in normalized coords. */
 export function handlesFor(a: Annotation, size: Size): Handle[] {
-  // An added image moves but does not resize (NIW2-703), so it has no handles.
-  if (a.kind === "image") return [];
+  // An added image resizes from its four corners only, with its aspect ratio locked; the
+  // edge handles the canvas draws (mock A4) stay decorative. The corners are hit-tested
+  // here but drawn by `ImageSelection`, not by the layer's own `Handles`.
+  if (a.kind === "image") {
+    return [
+      { id: "nw", x: a.x, y: a.y },
+      { id: "ne", x: a.x + a.w, y: a.y },
+      { id: "se", x: a.x + a.w, y: a.y + a.h },
+      { id: "sw", x: a.x, y: a.y + a.h },
+    ];
+  }
   // A badge is not resizable: its size comes from the options panel.
   if (a.kind === "step") return [];
   if (a.kind === "arrow") {
@@ -182,6 +191,39 @@ function resizeBox(orig: Box, handle: HandleId, p: Pt, clamp: Clamp): Box {
   };
 }
 
+/** The smallest an added image may be resized to, on its shorter side, in layer px. */
+const MIN_IMAGE_PX = 24;
+
+/**
+ * An added image dragged by a corner: the opposite corner stays put and the aspect ratio
+ * (the source pixels' `pixelWidth : pixelHeight`) is locked. The pointer sets whichever of
+ * width or height is further along, so the corner follows it on both axes; it never flips
+ * past the anchor. Edge handles do nothing.
+ */
+function resizeImage(
+  a: Extract<Annotation, { kind: "image" }>,
+  handle: HandleId,
+  p: Pt,
+  size: Size,
+): Partial<Annotation> {
+  const west = WEST.has(handle);
+  const east = EAST.has(handle);
+  const north = NORTH.has(handle);
+  const south = SOUTH.has(handle);
+  if (!((west || east) && (north || south))) return {}; // an edge or an endpoint: inactive
+  const W = size.w || 1;
+  const H = size.h || 1;
+  const ratio = a.pixelWidth / a.pixelHeight;
+  const anchor = { x: east ? a.x : a.x + a.w, y: south ? a.y : a.y + a.h };
+  const dx = Math.max(0, east ? p.x - anchor.x : anchor.x - p.x) * W;
+  const dy = Math.max(0, south ? p.y - anchor.y : anchor.y - p.y) * H;
+  const minW = Math.max(MIN_IMAGE_PX, MIN_IMAGE_PX * ratio);
+  const wPx = Math.max(minW, dx, dy * ratio);
+  const w = wPx / W;
+  const h = wPx / ratio / H;
+  return { x: east ? anchor.x : anchor.x - w, y: south ? anchor.y : anchor.y - h, w, h };
+}
+
 /**
  * The geometry patch for dragging `handle` of annotation `a` to point `p`.
  * Returns a `Partial<Annotation>` to feed straight into `commitAnnotation`.
@@ -198,7 +240,7 @@ export function resizeAnnotation(
   canvas = false,
 ): Partial<Annotation> {
   const clamp: Clamp = canvas ? unbounded : clamp01;
-  if (a.kind === "image") return {}; // no resize handles, so no resize patch
+  if (a.kind === "image") return resizeImage(a, handle, p, size);
   if (a.kind === "arrow") {
     return handle === "p1"
       ? { x1: clamp(p.x), y1: clamp(p.y) }
