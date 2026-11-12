@@ -55,7 +55,9 @@ workspace the saved capture belongs to.
 
 **Top toolbar, left to right.**
 
-- Tools, icon only: Select, Pen, Box, Arrow, Text, Blur, Crop.
+- Tools, icon only: Select, Pen, Box, Arrow, Text, Step, Blur, Crop. Behind flags, the
+  toolbar also shows a **Select text** tool (`image-text`) and an **Inspect** toggle
+  (`image-inspect`).
 - The editable title of the capture.
 - On the right, one group: Undo, Redo, a divider, then Copy, Save (the only filled accent
   button), PDF, and Discard when a saved version exists.
@@ -133,14 +135,15 @@ export. Propose one; show it in A1 to A4.
 
 ### B. Toolbar
 
-| ID  | State                                                                                                                                                                                    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | The toolbar with the new tools in place: **Inspect**, **Step**, **Add image**. Crop is renamed Export frame; Blur is renamed Redact. Show where each lives and how the group is divided. |
-| B2  | Tooltips with the shortcut key for each tool.                                                                                                                                            |
-| B3  | The toolbar at the minimum window width (720 px): what collapses, and into what.                                                                                                         |
+| ID  | State                                                                                                                                                                                                     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | The toolbar with every tool in place, including **Inspect**, **Select text** and **Add image**. Crop is renamed Export frame; Blur is renamed Redact. Show where each lives and how the group is divided. |
+| B2  | Tooltips with the shortcut key for each tool.                                                                                                                                                             |
+| B3  | The toolbar at the minimum window width (720 px): what collapses, and into what.                                                                                                                          |
 
-Today there are seven tools plus undo and redo; with the new ones there are ten. Propose the
-grouping. Inspect is a mode, not a drawing tool, and may deserve a different treatment.
+Without flags there are eight tools plus undo and redo; with Select text, Inspect and Add
+image there are eleven. Propose the grouping. Inspect is a mode, not a drawing tool, and
+may deserve a different treatment.
 
 ### C. Inspect mode
 
@@ -205,12 +208,12 @@ works at the minimum window size.
 
 The app recognizes the text inside the image so it can be selected like text on a web page.
 
-| ID  | State                                                                                       |
-| --- | ------------------------------------------------------------------------------------------- |
-| G1  | Text being recognized, right after opening (it takes about a second).                       |
-| G2  | Hovering recognized text: the cursor and the cue that this text can be selected.            |
-| G3  | A selection across two lines, and the copy confirmation.                                    |
-| G4  | Text recognition unavailable on this machine: how the tool says so without an error dialog. |
+| ID  | State                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------ |
+| G1  | Text being recognized, right after opening (it takes about a second).                                  |
+| G2  | The Select text tool active, hovering recognized text: the cursor and the cue that it can be selected. |
+| G3  | A selection across two lines, and the copy confirmation.                                               |
+| G4  | Text recognition unavailable on this machine: how the tool says so without an error dialog.            |
 
 ### H. Redact
 
