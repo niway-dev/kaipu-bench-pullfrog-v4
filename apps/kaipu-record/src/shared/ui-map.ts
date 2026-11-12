@@ -283,6 +283,7 @@ export const UI_MAP = {
           "exportFrame",
           "light",
           "twoImages",
+          "justAdded",
           "beautified",
           "offContent",
         ],
@@ -294,7 +295,12 @@ export const UI_MAP = {
       exportFrameCard: { states: ["open"], gatedBy: [{ flag: "image-canvas" }] },
       offContentNotice: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
       addImage: { states: ["closed", "open"], gatedBy: [{ flag: "image-canvas" }] },
-      libraryPicker: { states: ["open", "empty"], gatedBy: [{ flag: "image-canvas" }] },
+      // The Library picker (mock E2): the list with the newest selected, the list narrowed by
+      // the search field, a search that matches nothing, and a Library with nothing to add.
+      libraryPicker: {
+        states: ["open", "filtered", "noMatch", "empty"],
+        gatedBy: [{ flag: "image-canvas" }],
+      },
       redactionStyle: {
         states: ["blur", "solid"],
         gatedBy: [{ flag: "image-canvas" }],
