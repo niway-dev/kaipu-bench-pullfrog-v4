@@ -27,7 +27,7 @@
   gap: var(--space-md);
   padding: 0 0 var(--space-sm);
   flex-shrink: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ie-sep);
 }
 
 .actions {
@@ -59,9 +59,9 @@
   width: 34px;
   height: 34px;
   background: transparent;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ie-sep);
   border-radius: 6px;
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
   cursor: pointer;
   transition:
     background var(--transition),
@@ -69,8 +69,8 @@
 }
 
 .iconBtn:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .iconBtn:disabled {
@@ -81,7 +81,7 @@
 .divider {
   width: 1px;
   height: 24px;
-  background: var(--line);
+  background: var(--ie-sep);
   margin: 0 var(--space-xs);
 }
 
@@ -96,10 +96,10 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--ie-card);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--ie-shadow);
 }
 
 .zoomBtn {
@@ -111,7 +111,7 @@
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
   cursor: pointer;
   transition:
     background var(--transition),
@@ -119,8 +119,8 @@
 }
 
 .zoomBtn:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .zoomBtn:disabled {
@@ -135,8 +135,8 @@
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
+  color: var(--ie-tx2);
+  font-family: var(--ie-font-mono);
   font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -146,8 +146,8 @@
 }
 
 .zoomLabel:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .zoomLabel:disabled {
@@ -170,20 +170,20 @@
 
 .secondary {
   background: transparent;
-  border: 1px solid var(--border-light);
-  color: var(--text-primary);
+  border: 1px solid var(--ie-strong);
+  color: var(--ie-tx);
   transition:
     background var(--transition),
     border-color var(--transition);
 }
 
 .secondary:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--text-muted);
+  background: var(--ie-hover);
+  border-color: var(--ie-mut);
 }
 
 .save {
-  background: var(--accent-primary);
+  background: var(--ie-accent);
   border: none;
   color: #fff;
   font-weight: var(--font-weight-semibold);
@@ -220,10 +220,10 @@
   align-items: center;
   gap: 11px;
   padding: 10px 16px 10px 11px;
-  background: var(--bg-modal);
-  border: 1px solid var(--border-light);
+  background: var(--ie-panel);
+  border: 1px solid var(--ie-strong);
   border-radius: 12px;
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--ie-shadow);
   animation: toastIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -248,12 +248,12 @@
 .savedToastTitle {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 .savedToastName {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--ie-mut);
 }
 
 @keyframes toastIn {
@@ -273,7 +273,7 @@
   flex: 1;
   display: flex;
   min-height: 0;
-  background: var(--bg-canvas);
+  background: var(--ie-stage);
   overflow: hidden;
 }
 
@@ -298,7 +298,7 @@
   overflow: auto;
   min-width: 0;
   min-height: 0;
-  background: var(--bg-canvas);
+  background: var(--ie-stage);
 }
 
 /* Once zoomed in, anchor the shot to the top-left so it lines up with the frame's
@@ -316,7 +316,7 @@
   justify-content: center;
   /* The dot grid: one dot per tile, centred. useDotGrid pins the tiles to the shot so the
      dots pan and zoom with it; the defaults are its rest values before the first measure. */
-  background-image: radial-gradient(circle, var(--canvas-dot) 1.2px, transparent 1.6px);
+  background-image: radial-gradient(circle, var(--ie-dot) 1.2px, transparent 1.6px);
   background-size: var(--dot-size, 24px) var(--dot-size, 24px);
   background-position: var(--dot-x, 0) var(--dot-y, 0);
 }

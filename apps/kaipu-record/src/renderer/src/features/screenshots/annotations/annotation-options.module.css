@@ -8,10 +8,10 @@
   flex-direction: column;
   gap: var(--space-sm);
   padding: var(--space-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--ie-card);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--ie-shadow);
 }
 
 .label {
@@ -20,7 +20,7 @@
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-label);
   letter-spacing: 0;
-  color: var(--text-4);
+  color: var(--ie-faint);
 }
 
 /* ── Colour ─────────────────────────────────── */
@@ -47,8 +47,8 @@
 
 .swatchOn {
   box-shadow:
-    0 0 0 2px var(--bg-card),
-    0 0 0 3.5px var(--accent-primary);
+    0 0 0 2px var(--ie-card),
+    0 0 0 3.5px var(--ie-accent);
 }
 
 /* ── Stroke / size picker ───────────────────── */
@@ -58,8 +58,8 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs);
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
+  background: var(--ie-panel);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-md);
 }
 
@@ -76,28 +76,28 @@
 }
 
 .pickerOn {
-  background: var(--border);
+  background: var(--ie-sep);
 }
 
 .strokeBar {
   width: 16px;
   border-radius: var(--radius-sm);
-  background: var(--text-muted);
+  background: var(--ie-mut);
 }
 
 .pickerOn .strokeBar {
-  background: var(--text-primary);
+  background: var(--ie-tx);
 }
 
 .sizeItem {
-  font-family: var(--font-mono);
+  font-family: var(--ie-font-mono);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-muted);
+  color: var(--ie-mut);
 }
 
 .pickerOn.sizeItem {
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 /* ── Delete ─────────────────────────────────── */
@@ -108,10 +108,10 @@
   justify-content: center;
   gap: var(--space-xs);
   height: 30px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-md);
-  background: var(--bg-modal);
-  color: var(--text-muted);
+  background: var(--ie-panel);
+  color: var(--ie-mut);
   cursor: pointer;
   transition:
     color 0.1s ease,
@@ -130,16 +130,16 @@
 .reset {
   height: 30px;
   padding: 0 var(--space-sm);
-  border: 1px solid var(--border);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-md);
-  background: var(--bg-modal);
-  color: var(--text-primary);
+  background: var(--ie-panel);
+  color: var(--ie-tx);
   cursor: pointer;
   font-size: var(--font-size-xs);
 }
 
 .reset:hover:not(:disabled) {
-  border-color: var(--accent-primary);
+  border-color: var(--ie-accent);
 }
 
 .reset:disabled {
@@ -160,11 +160,11 @@
   padding: 0 var(--space-md);
   font-family: var(--font-family);
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
+  color: var(--ie-mut);
 }
 
 .pickerOn.styleItem {
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 .note {
@@ -173,7 +173,7 @@
   font-family: var(--font-family);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-label);
-  color: var(--text-4);
+  color: var(--ie-faint);
 }
 
 /* ── Text recognition status ("Select text" tool) ─ */

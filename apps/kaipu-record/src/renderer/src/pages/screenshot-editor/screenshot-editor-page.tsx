@@ -108,6 +108,7 @@ import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
 import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
 import styles from "./screenshot-editor-page.module.css";
+import "../../features/screenshots/theme/image-editor-theme.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
 /** The gap, in source px, between the content box and an image added to its right. */

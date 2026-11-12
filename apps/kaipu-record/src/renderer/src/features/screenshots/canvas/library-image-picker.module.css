@@ -23,7 +23,7 @@
 .note {
   margin: 0;
   padding: var(--space-xl) 0;
-  color: var(--text-muted);
+  color: var(--ie-mut);
   font-size: var(--font-size-base);
   text-align: center;
 }
@@ -43,10 +43,10 @@
   gap: var(--space-xs);
   width: 100%;
   padding: 6px;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--ie-strong);
   border-radius: var(--radius-md);
-  background: var(--bg-card);
-  color: var(--text-primary);
+  background: var(--ie-card);
+  color: var(--ie-tx);
   font-family: var(--font-family);
   text-align: left;
   cursor: pointer;
@@ -54,7 +54,7 @@
 }
 
 .card:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent-primary) 55%, transparent);
+  border-color: color-mix(in srgb, var(--ie-accent) 55%, transparent);
 }
 
 .card:disabled {
@@ -69,8 +69,8 @@
   aspect-ratio: 16 / 10;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  background: var(--bg-card-hover);
-  color: var(--text-muted);
+  background: var(--ie-hover);
+  color: var(--ie-mut);
 }
 
 .poster img {

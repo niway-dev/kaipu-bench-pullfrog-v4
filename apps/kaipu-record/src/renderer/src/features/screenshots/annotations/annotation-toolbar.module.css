@@ -8,8 +8,8 @@
   flex-shrink: 0;
   gap: 3px;
   padding: 3px;
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
+  background: var(--ie-panel);
+  border: 1px solid var(--ie-sep);
   border-radius: 7px;
 }
 
@@ -22,7 +22,7 @@
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
   cursor: pointer;
   transition:
     background var(--transition),
@@ -30,11 +30,11 @@
 }
 
 .tool:hover {
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 .toolActive,
 .toolActive:hover {
-  background: var(--accent-primary);
+  background: var(--ie-accent);
   color: #fff;
 }
