@@ -11,6 +11,11 @@ export interface WarmUpDeps {
   platform: NodeJS.Platform;
   /** Whether the helper binary is there. */
   helperPresent: () => Promise<boolean>;
+  /**
+   * True when the `KAIPU_TEXT_RECOGNITION` dev override is active. The warm-up stays off:
+   * a `delay:<ms>` override would make it sleep, and every editor request would queue behind.
+   */
+  devOverrideActive: boolean;
   /** Runs `run` once the app has been idle for a few seconds. */
   scheduleIdle: (run: () => void) => void;
 }
@@ -32,7 +37,7 @@ export class TextRecognitionWarmUp {
   constructor(private readonly deps: WarmUpDeps) {}
 
   start(): void {
-    if (this.deps.platform !== "darwin") return;
+    if (this.deps.platform !== "darwin" || this.deps.devOverrideActive) return;
     this.deps.scheduleIdle(() => {
       this.idle = true;
       this.maybeRun();

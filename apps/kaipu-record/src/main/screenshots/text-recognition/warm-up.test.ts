@@ -14,6 +14,7 @@ function setup(overrides: Partial<WarmUpDeps> = {}) {
     recognizer,
     platform: "darwin",
     helperPresent: async () => present,
+    devOverrideActive: false,
     scheduleIdle: (run) => void idle.push(run),
     ...overrides,
   };
@@ -79,6 +80,15 @@ describe("TextRecognitionWarmUp", () => {
       expect(recognize).toHaveBeenCalledTimes(1);
       warn.mockRestore();
     }
+  });
+
+  it("stays off when the KAIPU_TEXT_RECOGNITION dev override is active", async () => {
+    const t = setup({ devOverrideActive: true });
+    t.warmUp.start();
+    t.warmUp.setEnabled(true);
+    t.fireIdle();
+    await t.warmUp.whenSettled();
+    expect(t.recognize).not.toHaveBeenCalled();
   });
 
   it("does nothing off macOS, with the flag off, or when the helper is missing", async () => {

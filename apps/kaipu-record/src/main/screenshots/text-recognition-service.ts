@@ -2,6 +2,7 @@ import { app } from "electron";
 import type { TextRecognizer } from "@kaipu/domain/schemas";
 import { activeFlagOverrides } from "../flag-overrides";
 import { createTextRecognizer, textRecognitionHelperPath } from "./text-recognition";
+import { parseTextRecognitionOverride } from "./text-recognition/dev-override";
 import {
   fileHelperPresent,
   TextRecognitionWarmUp,
@@ -31,6 +32,10 @@ export function getTextRecognitionService(): TextRecognitionService {
     recognizer: raw,
     platform: process.platform,
     helperPresent: fileHelperPresent(helperPath),
+    devOverrideActive:
+      parseTextRecognitionOverride(process.env.KAIPU_TEXT_RECOGNITION, {
+        isPackaged: app.isPackaged,
+      }).override !== null,
     scheduleIdle: (run) => void setTimeout(run, WARM_UP_IDLE_DELAY_MS).unref(),
   });
   service = { recognizer: withWarmUpGate(raw, warmUp), warmUp };
