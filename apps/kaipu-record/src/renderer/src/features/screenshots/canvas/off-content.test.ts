@@ -41,7 +41,7 @@ describe("contentDirection", () => {
   });
 
   it("calls a mostly-vertical offset up or down, not diagonal", () => {
-    // The centre is 1000 above and 100 to the right of the stage centre: 5.7 degrees off vertical.
+    // The centre is 1400 above and 100 to the right of the stage centre: about 4.1 degrees off vertical.
     expect(contentDirection(stage, rect(400, -1200, 400, 200))).toBe("up");
   });
 

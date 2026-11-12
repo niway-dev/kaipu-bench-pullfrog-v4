@@ -16,24 +16,26 @@ export type CanvasLoad<Doc> =
  * When the document beside a shot was last written, or null when no document file exists
  * (or the answer could not be had). Never rejects.
  */
-async function statDocument(id: string): Promise<{ savedAt: number } | null> {
+async function statDocument(id: string): Promise<{ savedAt: number } | null | "failed"> {
   try {
     return (await window.electronAPI.statScreenshotCanvas(id)) ?? null;
   } catch {
-    return null;
+    return "failed";
   }
 }
 
 /** The saved time of a document that loaded: null when it cannot be told. */
 export async function savedAtOf(id: string): Promise<number | null> {
-  return (await statDocument(id))?.savedAt ?? null;
+  const stat = await statDocument(id);
+  return stat === "failed" ? null : (stat?.savedAt ?? null);
 }
 
 /**
  * The reader gave up on a shot (null, or a document it could not use): `unreadable` when a
  * document file is there, `absent` when it is not. The reader answers null for both, so this
- * is the one place the two are told apart.
+ * is the one place the two are told apart. When the stat itself fails the answer is unknown, so
+ * it is `unreadable`: the user is warned rather than left to overwrite layers unaware.
  */
 export async function whyNoDocument(id: string): Promise<"absent" | "unreadable"> {
-  return (await statDocument(id)) ? "unreadable" : "absent";
+  return (await statDocument(id)) === null ? "absent" : "unreadable";
 }

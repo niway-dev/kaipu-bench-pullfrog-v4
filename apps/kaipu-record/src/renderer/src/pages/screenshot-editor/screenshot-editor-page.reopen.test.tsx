@@ -103,7 +103,10 @@ describe("ScreenshotEditor — reopen notices (image-canvas)", () => {
     mountLocal();
     await loadImage();
     expect(await screen.findByText("Reopened with everything editable")).toBeInTheDocument();
-    expect(screen.getByText(/^SAVED NOV 11 · \d\d:\d\d$/)).toBeInTheDocument();
+    const day = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" })
+      .format(new Date(SAVED_AT))
+      .toUpperCase();
+    expect(screen.getByText(new RegExp(`^SAVED ${day} · \\d\\d:\\d\\d$`))).toBeInTheDocument();
   });
 
   it("I1 goes away on the first edit", async () => {

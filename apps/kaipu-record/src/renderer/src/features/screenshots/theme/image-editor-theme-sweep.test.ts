@@ -13,9 +13,12 @@ const ROOTS = [
   "features/screenshots/reopen",
   "features/screenshots/text-selection",
   "features/screenshots/export",
+  "features/screenshots/toolbar",
+  "features/screenshots/capture-title-input.module.css",
 ];
 
 function modules(dir: string): string[] {
+  if (dir.endsWith(".module.css")) return [dir];
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) return modules(full);

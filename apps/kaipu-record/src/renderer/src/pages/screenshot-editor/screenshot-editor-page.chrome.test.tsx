@@ -288,7 +288,7 @@ describe("ScreenshotEditorPage — export frame card (mock A5)", () => {
     await loadImage();
     tool("Box");
     const surface = screen.getByTestId("canvas-hit-surface");
-    // A box from (200, 50) to (300, 150) display px: it ends 100 px (200 file px) past the
+    // A box from (150, 50) to (300, 150) display px: it ends 100 px (200 file px) past the
     // shot's right edge, which is at 200 display px.
     fireEvent.pointerDown(surface, { button: 0, clientX: 150, clientY: 50, pointerId: 6 });
     fireEvent.pointerMove(surface, { clientX: 300, clientY: 150, pointerId: 6 });

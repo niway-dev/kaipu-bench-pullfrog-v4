@@ -38,7 +38,6 @@ describe("presetForPath", () => {
 
   it("gives an open image its own preset, so its floor can be lower", () => {
     expect(presetForPath("/editor/image/asset-1")).toBe("editorImage");
-    expect(presetForPath("/editor/image/asset-1?x=1".split("?")[0])).toBe("editorImage");
   });
 
   it("matches /editor as a path segment, not as a string prefix", () => {

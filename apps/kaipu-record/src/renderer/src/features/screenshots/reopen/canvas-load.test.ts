@@ -17,11 +17,11 @@ describe("whyNoDocument", () => {
     expect(await whyNoDocument("shot-1")).toBe("unreadable");
   });
 
-  it("is absent when the question itself fails: no notice for a plain screenshot", async () => {
+  it("is unreadable when the question itself fails: the safe side warns the user", async () => {
     window.electronAPI.statScreenshotCanvas = vi.fn(async () => {
       throw new Error("ipc");
     });
-    expect(await whyNoDocument("shot-1")).toBe("absent");
+    expect(await whyNoDocument("shot-1")).toBe("unreadable");
   });
 });
 

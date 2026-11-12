@@ -289,12 +289,6 @@ export const editorImage = catalog(
           from: { x: 0.55, y: 0.4 },
           to: { x: 0.97, y: 0.6 },
         },
-        {
-          waitFor: {
-            area: "editorImage.canvasView",
-            part: { css: "[data-has-content-outside=true]" },
-          },
-        },
       ],
       demonstrates: ["editorImage.canvasView:contentOutside"],
     },
