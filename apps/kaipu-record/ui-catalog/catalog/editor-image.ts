@@ -488,8 +488,9 @@ export const editorImage = catalog(
       window: "editor-min",
       how: "With the flag forced on, open “Settings page” in a 1180 px window and press Inspect: the toolbar keeps the annotation tools and the Inspect controls float as a card over the canvas, so Save and PDF stay in view.",
       steps: [
-        { window: "editor-min" },
+        // After open: opening the image sizes the window back to the editor's default.
         open(ASSETS.settingsShot),
+        { window: "editor-min" },
         inspectToggle,
         // The floating card, not the toolbar row (which carries data-inline="true").
         {
