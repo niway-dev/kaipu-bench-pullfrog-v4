@@ -37,12 +37,7 @@ import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } 
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import type { RecognizedWord } from "@kaipu/domain/schemas";
-import {
-  lineBoxesNorm,
-  nearestWord,
-  wordBoxNorm,
-  type TextLayerModel,
-} from "../text-selection";
+import { lineBoxesNorm, nearestWord, wordBoxNorm, type TextLayerModel } from "../text-selection";
 import { gapMeasures, type WorldRect } from "../canvas/image-gap";
 import { ImageSelection } from "../canvas/image-selection";
 import styles from "./annotation-layer.module.css";

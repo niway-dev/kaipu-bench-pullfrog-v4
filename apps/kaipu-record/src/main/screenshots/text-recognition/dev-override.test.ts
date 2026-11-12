@@ -6,7 +6,10 @@ const dev = { isPackaged: false };
 
 describe("parseTextRecognitionOverride", () => {
   it("is no override when unset or empty", () => {
-    expect(parseTextRecognitionOverride(undefined, dev)).toEqual({ override: null, rejected: null });
+    expect(parseTextRecognitionOverride(undefined, dev)).toEqual({
+      override: null,
+      rejected: null,
+    });
     expect(parseTextRecognitionOverride("", dev)).toEqual({ override: null, rejected: null });
   });
   it("reads unavailable and delay:<ms>", () => {

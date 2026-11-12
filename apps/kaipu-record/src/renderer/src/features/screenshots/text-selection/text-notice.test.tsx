@@ -1,6 +1,11 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TextNotice, TextShimmer, READING_NOTICE_DELAY_MS, UNAVAILABLE_NOTICE_MS } from "./text-notice";
+import {
+  TextNotice,
+  TextShimmer,
+  READING_NOTICE_DELAY_MS,
+  UNAVAILABLE_NOTICE_MS,
+} from "./text-notice";
 
 describe("TextNotice", () => {
   beforeEach(() => vi.useFakeTimers());

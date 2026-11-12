@@ -52,9 +52,7 @@ function mount(tool: AnnotationToolsController["tool"] = "selectText") {
     select: vi.fn(),
     clear: vi.fn(),
   };
-  const utils = render(
-    <AnnotationLayer scene={scene} tools={tools(tool)} src="" text={model} />,
-  );
+  const utils = render(<AnnotationLayer scene={scene} tools={tools(tool)} src="" text={model} />);
   const layer = utils.container.firstChild as HTMLElement;
   layer.getBoundingClientRect = () =>
     ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0 }) as DOMRect;
@@ -74,7 +72,7 @@ describe("AnnotationLayer — recognized text hover (mock G2)", () => {
 
   it("fills the line under the pointer and tags it; leaving clears both", () => {
     const { container, layer } = mount();
-    expect(container.querySelector('[data-hover]')).toBeNull();
+    expect(container.querySelector("[data-hover]")).toBeNull();
     expect(container.querySelector('[data-testid="text-line-tag"]')).toBeNull();
     // Line 0 spans display x 10-70, y 10-15; the pointer is on its word "a".
     fireEvent.pointerMove(layer, { clientX: 15, clientY: 12, pointerId: 1 });
@@ -83,7 +81,7 @@ describe("AnnotationLayer — recognized text hover (mock G2)", () => {
     expect(boxes[1].hasAttribute("data-hover")).toBe(false);
     expect(container.querySelector('[data-testid="text-line-tag"]')).not.toBeNull();
     fireEvent.pointerLeave(layer);
-    expect(container.querySelector('[data-hover]')).toBeNull();
+    expect(container.querySelector("[data-hover]")).toBeNull();
     expect(container.querySelector('[data-testid="text-line-tag"]')).toBeNull();
   });
 });

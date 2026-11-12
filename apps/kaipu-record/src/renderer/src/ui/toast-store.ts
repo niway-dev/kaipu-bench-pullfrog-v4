@@ -41,7 +41,17 @@ export function showToast(spec: {
 }): string {
   const id = `toast-${++counter}`;
   const durationMs = spec.durationMs ?? DEFAULT_DURATION_MS;
-  toasts = [...toasts, { id, message: spec.message, detail: spec.detail, rootProps: spec.rootProps, action: spec.action, durationMs }];
+  toasts = [
+    ...toasts,
+    {
+      id,
+      message: spec.message,
+      detail: spec.detail,
+      rootProps: spec.rootProps,
+      action: spec.action,
+      durationMs,
+    },
+  ];
   timers.set(
     id,
     setTimeout(() => dismissToast(id), durationMs),
