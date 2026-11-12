@@ -210,3 +210,85 @@ describe("AnnotationLayer — selected saved redaction (mock H4a)", () => {
     expect(screen.queryByTestId("redaction-lock-tag")).toBeNull();
   });
 });
+
+describe("AnnotationLayer — hovering a saved redaction (mock H4a)", () => {
+  const SAVED = new Date(2026, 10, 11, 12, 0, 0).getTime();
+  // Layer px: x 25..75, y 50..75 on the 100 px layer.
+  const redaction = (over: Partial<Annotation> = {}): Annotation =>
+    ({
+      id: "r1",
+      kind: "blur",
+      x: 0.25,
+      y: 0.5,
+      w: 0.5,
+      h: 0.25,
+      locked: true,
+      lockedAt: SAVED,
+      ...over,
+    }) as Annotation;
+  const tag = () => screen.queryByTestId("redaction-lock-tag");
+
+  it("shows the tag while the pointer is over it, in any tool, and not after it leaves", () => {
+    const { layer } = renderLayer(makeScene([redaction()], null), makeTools({ tool: "box" }));
+    expect(tag()).toBeNull();
+    fireEvent.pointerMove(layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    expect(tag()).toHaveTextContent("Permanent · saved Nov 11");
+    expect(tag()).toHaveStyle({ left: "75px", top: "50px" });
+    fireEvent.pointerMove(layer, { clientX: 10, clientY: 10, pointerId: 1 });
+    expect(tag()).toBeNull();
+    fireEvent.pointerMove(layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    expect(tag()).not.toBeNull();
+    fireEvent.pointerLeave(layer, { pointerId: 1 });
+    expect(tag()).toBeNull();
+  });
+
+  it("does not select the redaction, and a click does what it did before", () => {
+    const scene = makeScene([redaction()], null);
+    const { layer } = renderLayer(scene, makeTools());
+    fireEvent.pointerMove(layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    fireEvent.pointerDown(layer, { button: 0, clientX: 50, clientY: 60, pointerId: 1 });
+    fireEvent.pointerUp(layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    expect(scene.select).not.toHaveBeenCalledWith("r1");
+  });
+
+  it("tags the topmost of two saved redactions under the pointer", () => {
+    const under = redaction({ id: "r1", lockedAt: SAVED - 86_400_000 });
+    const over = redaction({ id: "r2", x: 0.375, w: 0.25, lockedAt: SAVED });
+    const { layer } = renderLayer(makeScene([under, over], null), makeTools());
+    fireEvent.pointerMove(layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    expect(tag()).toHaveTextContent("saved Nov 11");
+    // Anchored at the top one's right edge (x 62.5), not the lower one's (75).
+    expect(tag()).toHaveStyle({ left: "62.5px" });
+  });
+
+  it("never shows for an unlocked redaction or with the flag off", () => {
+    const { layer, unmount } = renderLayer(
+      makeScene([redaction({ locked: false })], null),
+      makeTools(),
+    );
+    fireEvent.pointerMove(layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    expect(tag()).toBeNull();
+    unmount();
+    const off = renderLayer(makeScene([redaction()], null), makeTools(), { canvasMode: false });
+    fireEvent.pointerMove(off.layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    expect(tag()).toBeNull();
+  });
+
+  it("clears when the tool changes", () => {
+    const scene = makeScene([redaction()], null);
+    const { layer, rerender } = renderLayer(scene, makeTools());
+    fireEvent.pointerMove(layer, { clientX: 50, clientY: 60, pointerId: 1 });
+    expect(tag()).not.toBeNull();
+    rerender(
+      <AnnotationLayer
+        scene={scene}
+        tools={makeTools({ tool: "box" })}
+        src=""
+        canvas
+        canvasMode
+        natural={{ w: 100, h: 100 }}
+      />,
+    );
+    expect(tag()).toBeNull();
+  });
+});

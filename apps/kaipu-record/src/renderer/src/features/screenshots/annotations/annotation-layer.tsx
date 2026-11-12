@@ -139,6 +139,9 @@ function AnnotationLayerImpl({
   const [draft, setDraft] = useState<Annotation | null>(null);
   // The pointer is over a recognized word (the "Select text" tool): shows the text cursor.
   const [overWord, setOverWord] = useState(false);
+  // The saved (locked) redaction under the pointer, for its "Permanent" tag (mock H4a). A locked
+  // redaction is not a hit target, so this is a separate, read-only hover: it selects nothing.
+  const [hoverLockedId, setHoverLockedId] = useState<string | null>(null);
   const activeText = tools.tool === "selectText" ? text : undefined;
   // A move/resize in flight lives here, not in the scene: the dragged shape renders as
   // `{ ...a, ...patch }` and the scene is touched once, on release, so a drag re-renders
@@ -232,6 +235,12 @@ function AnnotationLayerImpl({
     return () => cancelAnimationFrame(raf);
   }, [editing]);
 
+  // The hover is stale once the tool changes or the layer is resized (a zoom moves the content
+  // under a still pointer); the next pointer move sets it again.
+  useEffect(() => {
+    setHoverLockedId(null);
+  }, [tools.tool, size.w, size.h]);
+
   const toNorm = (e: { clientX: number; clientY: number }): Pt => {
     const r = ref.current!.getBoundingClientRect();
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
@@ -258,6 +267,7 @@ function AnnotationLayerImpl({
   };
 
   const onPointerDown = (e: React.PointerEvent): void => {
+    setHoverLockedId(null);
     // The crop tool's overlay owns presses on the frame; one that reaches the hit surface
     // outside it must not start a drawing.
     if (canvas && tools.tool === "crop") return;
@@ -357,6 +367,10 @@ function AnnotationLayerImpl({
   const onPointerMove = (e: React.PointerEvent): void => {
     const d = drag.current;
     if (!d) {
+      if (canvasMode) {
+        const locked = hitLockedBlur(scene.annotations, toNorm(e));
+        setHoverLockedId(locked?.id ?? null);
+      }
       if (activeText) {
         const hit = nearestWord(activeText.words, toNorm(e), activeText.natural, size);
         setOverWord(hit !== null && hit.distPx <= TEXT_HIT_PX);
@@ -552,10 +566,16 @@ function AnnotationLayerImpl({
     canvasMode && selectedAnnotation?.kind === "image" ? selectedAnnotation : null;
   // A selected saved redaction says it is permanent (mock H4a). It is part of the stored image:
   // the card offers no style or delete for it either.
+  const hoveredLocked = canvasMode
+    ? ((shown.find((a) => a.id === hoverLockedId && a.kind === "blur" && a.locked) as
+        | BlurAnnotation
+        | undefined) ?? null)
+    : null;
   const selectedLocked =
-    canvasMode && selectedAnnotation?.kind === "blur" && selectedAnnotation.locked
+    hoveredLocked ??
+    (canvasMode && selectedAnnotation?.kind === "blur" && selectedAnnotation.locked
       ? selectedAnnotation
-      : null;
+      : null);
   const gaps = useMemo(() => {
     if (!selectedImage || !natural || natural.w <= 0 || natural.h <= 0) return [];
     const world = (a: { x: number; y: number; w: number; h: number }): WorldRect => ({
@@ -587,6 +607,7 @@ function AnnotationLayerImpl({
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
+      onPointerLeave={() => setHoverLockedId(null)}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerAbort}
       onLostPointerCapture={onPointerAbort}
@@ -1455,6 +1476,16 @@ function hitTest(
     } else if (distToSegment(p, { x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }) < 0.02) {
       return a;
     }
+  }
+  return null;
+}
+
+/** The topmost saved redaction under `p`, for the hover tag: no margin, and never a selection. */
+function hitLockedBlur(annotations: Annotation[], p: Pt): BlurAnnotation | null {
+  for (let i = annotations.length - 1; i >= 0; i -= 1) {
+    const a = annotations[i];
+    if (a.kind !== "blur" || !a.locked) continue;
+    if (p.x >= a.x && p.x <= a.x + a.w && p.y >= a.y && p.y <= a.y + a.h) return a;
   }
   return null;
 }
