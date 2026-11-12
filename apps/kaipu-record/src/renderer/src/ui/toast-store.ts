@@ -13,6 +13,8 @@ export interface ToastSpec {
   message: string;
   action?: ToastAction;
   durationMs: number;
+  /** Optional tone; "success" puts a green check before the message. */
+  tone?: "success";
 }
 
 const DEFAULT_DURATION_MS = 5000;
@@ -32,10 +34,14 @@ export function showToast(spec: {
   message: string;
   action?: ToastAction;
   durationMs?: number;
+  tone?: "success";
 }): string {
   const id = `toast-${++counter}`;
   const durationMs = spec.durationMs ?? DEFAULT_DURATION_MS;
-  toasts = [...toasts, { id, message: spec.message, action: spec.action, durationMs }];
+  toasts = [
+    ...toasts,
+    { id, message: spec.message, action: spec.action, durationMs, tone: spec.tone },
+  ];
   timers.set(
     id,
     setTimeout(() => dismissToast(id), durationMs),

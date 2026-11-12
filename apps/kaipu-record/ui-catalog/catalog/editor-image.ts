@@ -25,6 +25,30 @@ const fromLibrary: Step = {
     part: { role: "menuitem", name: "From Library", exact: true },
   },
 };
+const searchLibrary = (value: string): Step => ({
+  fill: {
+    area: "editorImage.libraryPicker",
+    part: { role: "textbox", name: "Search captures", exact: true },
+  },
+  value,
+});
+// The list loads after the picker opens: wait for an item, not just the dialog.
+const libraryListed: Step = {
+  waitFor: {
+    area: "editorImage.libraryPicker",
+    part: { role: "button", name: "Dashboard draft", exact: true },
+  },
+};
+/**
+ * After a state that added an image: leave the editor first (leaving autosaves the image into
+ * “Settings page”, and the Library shows only once that save is done), then put the vault
+ * back. Restoring while the editor is still open would let the save land afterwards.
+ */
+const leaveAndRestore: readonly Step[] = [
+  { navigate: "/library" },
+  { waitFor: { area: "library.page" } },
+  { action: "restoreVault" },
+];
 const inspectToggle: Step = {
   click: { area: "editorImage.inspectToggle" },
 };
@@ -220,31 +244,75 @@ export const editorImage = catalog(
     },
     "add-image-menu": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page” and press Add image: the menu offers New capture and From Library, and says pasting works too.",
+      how: "Mock E1: with the flag forced on, open “Settings page” and press Add image: the menu offers New capture (focused) and From Library, and says pasting works too, with the paste key in a chip.",
       steps: [open(ASSETS.settingsShot), addImageButton],
       demonstrates: ["editorImage.addImage:open"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
     "library-picker": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page”, press Add image and choose From Library: the picker lists the other screenshots in the Library.",
+      how: "Mock E2: with the flag forced on, open “Settings page”, press Add image and choose From Library: the picker lists the other screenshots, newest first and selected with the accent ring, with a search field, and says where the image lands.",
+      steps: [open(ASSETS.settingsShot), addImageButton, fromLibrary, libraryListed],
+      demonstrates: ["editorImage.libraryPicker:open"],
+    },
+    "library-picker-search": {
+      profile: "image-canvas",
+      how: "Mock E2: with the flag forced on, open the Library picker from “Settings page” and type “dash” in Search captures: only “Dashboard draft” is left, selected.",
       steps: [
         open(ASSETS.settingsShot),
         addImageButton,
         fromLibrary,
-        // The list loads after the picker opens: wait for an item, not just the dialog.
+        libraryListed,
+        searchLibrary("dash"),
+      ],
+      demonstrates: ["editorImage.libraryPicker:filtered"],
+    },
+    "library-picker-no-match": {
+      profile: "image-canvas",
+      how: "Mock E2: with the flag forced on, open the Library picker from “Settings page” and type “invoice” in Search captures: no capture matches, and the picker says so.",
+      steps: [
+        open(ASSETS.settingsShot),
+        addImageButton,
+        fromLibrary,
+        libraryListed,
+        searchLibrary("invoice"),
+        { waitFor: { area: "editorImage.libraryPicker", part: { text: "No captures match" } } },
+      ],
+      demonstrates: ["editorImage.libraryPicker:noMatch"],
+    },
+    "image-just-added": {
+      profile: "image-canvas",
+      how: "Mock E3: with the flag forced on, open the Library picker from “Settings page”, select “Dashboard draft” and press Place on canvas: it lands to the right of the screenshot, selected, tagged “Just added · drag to place”, and a toast says where it went.",
+      steps: [
+        open(ASSETS.settingsShot),
+        addImageButton,
+        fromLibrary,
+        libraryListed,
         {
-          waitFor: {
+          hover: {
             area: "editorImage.libraryPicker",
             part: { role: "button", name: "Dashboard draft", exact: true },
           },
         },
+        {
+          click: {
+            area: "editorImage.libraryPicker",
+            part: { role: "button", name: "Place on canvas", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
+        // The shot must show the tag (the view is still zooming to fit until it is up).
+        { waitFor: { area: "editorImage.canvas", part: { text: "Just added" } } },
       ],
-      demonstrates: ["editorImage.libraryPicker:open"],
+      demonstrates: ["editorImage.canvasView:justAdded"],
+      // No tag, no state: fail instead of keeping a frame that does not show it.
+      stillOnScreen: { area: "editorImage.canvas", part: { text: "Just added" } },
+      keepToasts: true,
+      after: leaveAndRestore,
     },
     "two-images": {
       profile: "image-canvas",
-      how: "Mock A4: with the flag forced on, open “Settings page”, press Add image, choose From Library and click “Dashboard draft”: it lands to the right of the screenshot, selected, with the accent frame, handles, the “Drag to move” tag and the gap to the screenshot.",
+      how: "Mock A4: with the flag forced on, open “Settings page”, press Add image, choose From Library, click “Dashboard draft” and nudge it right: it sits to the right of the screenshot, selected, with the accent frame, handles, the “Drag to move” tag and the gap to the screenshot.",
       steps: [
         open(ASSETS.settingsShot),
         addImageButton,
@@ -256,8 +324,19 @@ export const editorImage = catalog(
           },
         },
         { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
+        // A just-added image is tagged “Just added” (mock E3) until it moves: nudge it, once the
+        // tag is up (the view is still zooming to fit before that, and a drag lands nowhere).
+        { waitFor: { area: "editorImage.canvas", part: { text: "Just added" } } },
+        {
+          drag: { area: "editorImage.canvas", part: { css: '[data-testid="image-selection"]' } },
+          from: { x: 0.5, y: 0.5 },
+          to: { x: 0.56, y: 0.5 },
+        },
       ],
       demonstrates: ["editorImage.canvasView:twoImages"],
+      // A drag that missed leaves the E3 frame: fail instead of keeping it.
+      stillOnScreen: { area: "editorImage.canvas", part: { text: "Drag to move" } },
+      after: leaveAndRestore,
     },
     "canvas-export-box": {
       profile: "image-canvas",

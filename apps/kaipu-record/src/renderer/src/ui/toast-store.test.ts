@@ -47,3 +47,14 @@ describe("toast store", () => {
     expect(visible.some((t) => t.id === ids[0])).toBe(false);
   });
 });
+
+describe("toast tone", () => {
+  it("stores the tone, and none by default", () => {
+    const a = showToast({ message: "ok", tone: "success" });
+    const b = showToast({ message: "plain" });
+    expect(getToasts().find((x) => x.id === a)?.tone).toBe("success");
+    expect(getToasts().find((x) => x.id === b)?.tone).toBeUndefined();
+    dismissToast(a);
+    dismissToast(b);
+  });
+});

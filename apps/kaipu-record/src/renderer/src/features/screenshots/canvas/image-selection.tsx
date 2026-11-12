@@ -44,12 +44,15 @@ export function ImageSelection({
   pixelHeight,
   gaps,
   unit,
+  justAdded = false,
 }: {
   rect: LayerRect;
   pixelWidth: number;
   pixelHeight: number;
   gaps: readonly GapMeasure[];
   unit: number;
+  /** Just added and not yet moved: the tag reads "just added" and drops the pixel size. */
+  justAdded?: boolean;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   return (
@@ -70,11 +73,21 @@ export function ImageSelection({
             style={{ left: `${fx * 100}%`, top: `${fy * 100}%` }}
           />
         ))}
-        <div className={styles.tag} data-testid="image-tag">
-          <span className={styles.tagLabel}>{t("dragToMove")}</span>
-          <span>
-            {pixelWidth} × {pixelHeight} px
-          </span>
+        <div
+          className={styles.tag}
+          data-testid="image-tag"
+          {...(justAdded ? { "data-just-added": "" } : {})}
+        >
+          {justAdded ? (
+            <span className={styles.tagLabel}>{t("justAddedDragToPlace")}</span>
+          ) : (
+            <>
+              <span className={styles.tagLabel}>{t("dragToMove")}</span>
+              <span>
+                {pixelWidth} × {pixelHeight} px
+              </span>
+            </>
+          )}
         </div>
       </div>
       {gaps.map((g) => (

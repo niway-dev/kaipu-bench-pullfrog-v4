@@ -238,6 +238,11 @@ export interface CatalogState<S extends ScreenId> {
    * and the run fails instead of keeping it.
    */
   readonly stillOnScreen?: Target;
+  /**
+   * The toast the steps raised is part of the state (mock E3's "Image added…"): leave it open.
+   * Default: toasts are closed before the shot, like a user would.
+   */
+  readonly keepToasts?: boolean;
   /** Keep the pointer where the steps left it (hover states). Default: parked in a corner. */
   readonly keepPointer?: boolean;
   /**
