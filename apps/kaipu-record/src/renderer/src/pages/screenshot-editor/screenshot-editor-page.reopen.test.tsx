@@ -165,6 +165,7 @@ describe("ScreenshotEditor — reopen notices (image-canvas)", () => {
     statCanvas.mockResolvedValue({ savedAt: SAVED_AT });
     mountLocal();
     await loadImage();
+    expect(readCanvas).not.toHaveBeenCalled();
     expect(statCanvas).not.toHaveBeenCalled();
     expect(screen.queryByText(/^Opened as a flat image\./)).toBeNull();
   });
