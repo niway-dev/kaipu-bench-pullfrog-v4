@@ -6,7 +6,7 @@ description: "Why the first text recognition on macOS can take 13-20 seconds, ho
 # Image text recognition warm-up
 
 How the image editor's text recognition stays fast on macOS. The port and its backends are
-decided in [ADR 0055](../architecture/decisions/0055-text-recognition-is-a-port-served-by-the-os-engine-on-each-platform).
+decided in [ADR 0055](/architecture/decisions/0055-text-recognition-is-a-port-served-by-the-os-engine-on-each-platform/).
 
 ## The cold first run
 
