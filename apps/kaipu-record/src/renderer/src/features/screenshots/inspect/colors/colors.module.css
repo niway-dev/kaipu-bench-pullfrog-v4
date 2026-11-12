@@ -245,7 +245,9 @@
   opacity: 1;
 }
 
-.row:hover .bar {
+/* Also on keyboard focus, which shows the copy button too; never on "Other", which has none. */
+.row:not(.rowStatic):hover .bar,
+.row:has(.copy:focus-visible) .bar {
   visibility: hidden;
 }
 
