@@ -309,13 +309,14 @@ function ColorsPanelView({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Set on mount too: StrictMode's dev replay runs the cleanup once, then mounts again.
+    alive.current = true;
+    return () => {
       alive.current = false;
       if (timer.current !== null) clearTimeout(timer.current);
-    },
-    [],
-  );
+    };
+  }, []);
 
   const copy = useCallback(
     async (key: string, value: string): Promise<void> => {
@@ -394,6 +395,20 @@ function ColorsPanelView({
               />
             )}
           </div>
+          {/* Above the list, not under it as in the mock: a photo lists a couple of hundred
+              groups, so a card at the end would never be seen. */}
+          {shown && (
+            <div className={styles.photo}>
+              <p className={styles.photoTitle}>{t("inspectColorsPhotoTitle")}</p>
+              <p className={styles.photoBody}>
+                {t("inspectColorsPhotoBody", {
+                  distinct: analysis.distinct,
+                  shown: shown.groups.length,
+                  percent: Math.round(PHOTO_COVERAGE * 100),
+                })}
+              </p>
+            </div>
+          )}
           {analysis.groups.length === 0 && (
             <span className={styles.status}>{t("inspectColorsEmpty")}</span>
           )}
@@ -428,18 +443,6 @@ function ColorsPanelView({
             </ul>
           )}
           {boxes > 0 && <p className={styles.note}>{t("inspectColorsPairs", { boxes })}</p>}
-          {shown && (
-            <div className={styles.photo}>
-              <p className={styles.photoTitle}>{t("inspectColorsPhotoTitle")}</p>
-              <p className={styles.photoBody}>
-                {t("inspectColorsPhotoBody", {
-                  distinct: analysis.distinct,
-                  shown: shown.groups.length,
-                  percent: Math.round(PHOTO_COVERAGE * 100),
-                })}
-              </p>
-            </div>
-          )}
           {!photo && analysis.totalGroups > analysis.groups.length && (
             <span className={styles.status}>
               {t("inspectColorsMore", {
