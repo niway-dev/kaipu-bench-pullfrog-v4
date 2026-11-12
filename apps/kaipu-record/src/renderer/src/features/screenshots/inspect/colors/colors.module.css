@@ -1,62 +1,144 @@
-/* Colors panel (NIW2-704). Built on the current editor chrome; restyled in NIW2-708. */
+/*
+ * The Colors tab of the side panel (NIW2-714, mocks F1-F5). It sits in the panel's body, which
+ * brings the padding and the scrolling, so the panel itself has no card chrome.
+ */
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  width: 260px;
-  max-height: min(420px, calc(100vh - 260px));
-  margin-top: var(--space-sm);
-  padding: var(--space-md);
-  background: var(--ie-card);
-  border: 1px solid var(--ie-sep);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--ie-shadow);
+  min-width: 0;
 }
+
+/* ── Header: the count, the sort note and the Group switch ───── */
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 8px;
 }
 
-.title {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--ie-tx);
+/* Its own line: next to "Largest first" and the switch, "8 colors · 10 exact values"
+   wrapped inside the 280 px panel. */
+.summary {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--ie-tx2);
 }
 
-.summary,
+.order {
+  font-family: var(--ie-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ie-mut);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ie-mut);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.switchOn {
+  color: var(--ie-accent);
+}
+
+.track {
+  position: relative;
+  box-sizing: border-box;
+  width: 22px;
+  height: 13px;
+  border: 1px solid var(--ie-strong);
+  border-radius: 7px;
+  background: var(--ie-hover);
+}
+
+.switchOn .track {
+  border-color: var(--ie-accent);
+  background: var(--ie-accent);
+}
+
+.knob {
+  position: absolute;
+  top: 1.5px;
+  left: 1.5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ie-mut);
+}
+
+.switchOn .knob {
+  left: 10.5px;
+  background: var(--ie-ov-tx);
+}
+
 .status {
   font-size: var(--font-size-xs);
   color: var(--ie-tx2);
 }
 
+/* ── Rows ───── */
+
 .list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-height: 0;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
   list-style: none;
 }
 
-.row {
+.item {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
-.group,
-.member {
+.row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  padding: var(--space-xs);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  height: 30px;
+  border-radius: 6px;
+}
+
+.row:hover {
+  background: var(--ie-hover);
+}
+
+.rowOn,
+.rowOn:hover {
+  background: var(--ie-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ie-accent);
+}
+
+.nested {
+  margin-left: 20px;
+}
+
+.rowMain {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
   color: var(--ie-tx);
   font-size: var(--font-size-xs);
@@ -64,45 +146,25 @@
   cursor: pointer;
 }
 
-.group:hover,
-.member:hover {
-  background: var(--ie-hover);
+/* A row that cannot be highlighted or copied ("Other"). */
+.rowStatic {
+  cursor: default;
 }
 
-.on,
-.on:hover {
-  border-color: var(--ie-accent);
-  background: var(--ie-accent-soft);
-}
-
-.members {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-left: 22px;
-  padding-left: var(--space-xs);
-  border-left: 1px solid var(--ie-sep);
-}
-
-.member {
-  color: var(--ie-tx2);
-}
-
-.swatch,
-.memberSwatch {
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.5);
+.rowStatic:hover {
+  background: transparent;
 }
 
 .swatch {
+  flex-shrink: 0;
   width: 18px;
   height: 18px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--ie-strong);
 }
 
-.memberSwatch {
-  width: 12px;
-  height: 12px;
+.swatchOther {
+  background: var(--ie-strong);
 }
 
 .value {
@@ -110,21 +172,175 @@
   min-width: 0;
   overflow: hidden;
   font-family: var(--ie-font-mono);
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.share {
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
+.label {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
   color: var(--ie-tx2);
 }
+
+.bar {
+  flex-shrink: 0;
+  width: 46px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--ie-hover);
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ie-mut);
+}
+
+.share {
+  flex-shrink: 0;
+  width: 40px;
+  font-family: var(--ie-font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ie-mut);
+}
+
+/* The bar and the share, replaced for a moment after a copy (mock F5). */
+.copiedMark {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--accent-green);
+}
+
+/* Over the bar: the bar fades out while the pointer is on the row so the two never overlap. */
+.copy {
+  position: absolute;
+  top: 50%;
+  right: 69px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ie-mut);
+  opacity: 0;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.row:hover .copy,
+.copy:focus-visible {
+  opacity: 1;
+}
+
+/* Also on keyboard focus, which shows the copy button too; never on "Other", which has none. */
+.row:not(.rowStatic):hover .bar,
+.row:has(.copy:focus-visible) .bar {
+  visibility: hidden;
+}
+
+.copy:hover {
+  background: var(--ie-strong);
+  color: var(--ie-tx);
+}
+
+.copyHidden {
+  visibility: hidden;
+}
+
+/* ── Group box: values the panel thinks are meant to be one color (mock F2) ───── */
+
+.box {
+  box-sizing: border-box;
+  margin: 4px 0;
+  padding: 6px 2px 2px;
+  border: 1px solid var(--ie-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ie-accent) 7%, transparent);
+}
+
+.boxHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 4px;
+}
+
+.boxTitle {
+  font-family: var(--ie-font-mono);
+  font-size: 8.5px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ie-accent);
+}
+
+.boxDelta {
+  font-family: var(--ie-font-mono);
+  font-size: 8.5px;
+  color: var(--ie-mut);
+}
+
+.showBoth {
+  padding: 1px 6px;
+  border: 1px solid var(--ie-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ie-tx2);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.showBoth:hover {
+  background: var(--ie-hover);
+}
+
+.showBothOn,
+.showBothOn:hover {
+  border-color: var(--ie-accent);
+  background: var(--ie-accent-soft);
+  color: var(--ie-accent);
+}
+
+/* The group's value and share, kept for screen readers behind the button's visible label. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ie-mut);
+}
+
+/* ── Highlight footer ───── */
 
 .footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
+  margin-top: 10px;
 }
 
 .clear {
@@ -145,6 +361,77 @@
   color: var(--ie-tx);
 }
 
+/* ── Counting (mock F4) ───── */
+
+.counting {
+  display: flex;
+  flex-direction: column;
+}
+
+.countingText {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ie-tx2);
+}
+
+.progress {
+  height: 3px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--ie-hover);
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--ie-accent);
+}
+
+.skeleton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 8px;
+}
+
+.skeletonSwatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--ie-hover);
+}
+
+.skeletonBar {
+  height: 9px;
+  border-radius: 2px;
+  background: var(--ie-hover);
+}
+
+/* ── Photo card (mock F4) ───── */
+
+.photo {
+  margin-bottom: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--ie-sep);
+  border-radius: 8px;
+  background: var(--ie-card);
+}
+
+.photoTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ie-tx);
+}
+
+.photoBody {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ie-mut);
+}
+
 /*
  * Image-sized canvas scaled to the shot. Smooth scaling on purpose: a 5K shot is shown
  * smaller than its size, and nearest-neighbour would drop 1 px strokes from the highlight.
@@ -155,4 +442,29 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+/* The tag under the largest area of the located color (mock F3): chrome over the image. */
+.locateTag {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--ie-ov-bd);
+  border-radius: 4px;
+  background: var(--ie-ov-bg);
+  color: var(--ie-ov-tx);
+  font-family: var(--ie-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, 6px);
+  pointer-events: none;
+}
+
+.locateTagAbove {
+  transform: translate(-50%, calc(-100% - 6px));
 }

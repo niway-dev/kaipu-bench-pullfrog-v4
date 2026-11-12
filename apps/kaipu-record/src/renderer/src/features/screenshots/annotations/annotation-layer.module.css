@@ -63,3 +63,38 @@
   fill: var(--ie-accent);
   fill-opacity: 0.3;
 }
+
+/* "Select text" (mock G2): every recognized line gets a 1 px dotted underline; the line under
+   the pointer gets a soft fill and a small tag below it. */
+.textLines line {
+  stroke: var(--ie-accent);
+  stroke-opacity: 0.75;
+  stroke-width: 1;
+  stroke-dasharray: 1 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.textLineBox {
+  fill: transparent;
+}
+
+.textLineBox[data-hover] {
+  fill: var(--ie-accent-soft);
+}
+
+.textLineTag {
+  position: absolute;
+  z-index: 3;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ie-card);
+  border: 1px solid var(--ie-sep);
+  color: var(--ie-mut);
+  font-family: var(--ie-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}

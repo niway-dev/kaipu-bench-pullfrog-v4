@@ -1,9 +1,24 @@
 import type { PixelBuffer } from "../pixel-buffer";
 import type { ColorsRequest, ColorsResponse } from "./colors-messages";
-import { analyzeColors, locateMask, type ColorAnalysis, type LocateTarget } from "./histogram";
+import {
+  analyzeColors,
+  locateMask,
+  regionsOf,
+  type AreaBounds,
+  type ColorAnalysis,
+  type LocateTarget,
+} from "./histogram";
 
 /** The overlay for one located color, at the image's own size. */
-export type LocatedImage = { matched: number; width: number; height: number } & (
+export type LocatedImage = {
+  matched: number;
+  /** Connected regions of the match with at least `MIN_AREA_PX` pixels. */
+  areas: number;
+  /** Bounds, in image pixels, of the largest of those regions; null when there is none. */
+  bounds: AreaBounds | null;
+  width: number;
+  height: number;
+} & (
   | { bitmap: ImageBitmap; pixels?: undefined }
   | { pixels: Uint8ClampedArray; bitmap?: undefined }
 );
@@ -35,8 +50,12 @@ function newColorsWorker(): Worker {
  * milliseconds on the main thread, and the copy is transferred, not cloned. Without `Worker`
  * (jsdom) it runs inline with the same result.
  */
-export function createColorsAnalyzer(buffer: PixelBuffer): ColorsAnalyzer {
-  if (typeof Worker === "undefined") return inlineAnalyzer(buffer);
+export function createColorsAnalyzer(
+  buffer: PixelBuffer,
+  /** Counting progress, 0..1, about 20 calls. */
+  onProgress?: (done: number) => void,
+): ColorsAnalyzer {
+  if (typeof Worker === "undefined") return inlineAnalyzer(buffer, onProgress);
 
   const worker = newColorsWorker();
   const pending = new Map<
@@ -53,6 +72,11 @@ export function createColorsAnalyzer(buffer: PixelBuffer): ColorsAnalyzer {
 
   worker.onmessage = (event: MessageEvent<ColorsResponse>) => {
     const reply = event.data;
+    if (reply.type === "progress") {
+      // Not a settlement: the analyze call stays pending.
+      if (!disposed) onProgress?.(reply.done);
+      return;
+    }
     const p = pending.get(reply.id);
     if (!p) {
       if (reply.type === "located") reply.bitmap?.close();
@@ -98,14 +122,21 @@ export function createColorsAnalyzer(buffer: PixelBuffer): ColorsAnalyzer {
     async locate(target) {
       const reply = await send({ type: "locate", id: nextId++, target });
       if (reply.type !== "located") throw new Error(`unexpected reply ${reply.type}`);
-      const { matched, width, height } = reply;
+      const { matched, areas, bounds, width, height } = reply;
       if (disposed) {
         reply.bitmap?.close();
         throw new AnalyzerDisposed();
       }
-      if (reply.bitmap) return { matched, width, height, bitmap: reply.bitmap };
+      if (reply.bitmap) return { matched, areas, bounds, width, height, bitmap: reply.bitmap };
       if (reply.pixels) {
-        return { matched, width, height, pixels: new Uint8ClampedArray(reply.pixels) };
+        return {
+          matched,
+          areas,
+          bounds,
+          width,
+          height,
+          pixels: new Uint8ClampedArray(reply.pixels),
+        };
       }
       throw new Error("located reply without an image");
     },
@@ -118,10 +149,10 @@ export function createColorsAnalyzer(buffer: PixelBuffer): ColorsAnalyzer {
   };
 }
 
-function inlineAnalyzer(buffer: PixelBuffer): ColorsAnalyzer {
+function inlineAnalyzer(buffer: PixelBuffer, onProgress?: (done: number) => void): ColorsAnalyzer {
   let disposed = false;
   const index = Promise.resolve().then(() =>
-    analyzeColors(buffer.data, buffer.width, buffer.height),
+    analyzeColors(buffer.data, buffer.width, buffer.height, onProgress),
   );
   const analysis = index.then((i) => {
     if (disposed) throw new AnalyzerDisposed();
@@ -135,7 +166,9 @@ function inlineAnalyzer(buffer: PixelBuffer): ColorsAnalyzer {
       const { groupOfBin } = await index;
       if (disposed) throw new AnalyzerDisposed();
       const { mask, matched } = locateMask(buffer.data, groupOfBin, target);
-      return { matched, width: buffer.width, height: buffer.height, pixels: mask };
+      const { width, height } = buffer;
+      const { areas, bounds } = regionsOf((i) => mask[i * 4 + 3] === 0, width, height);
+      return { matched, areas, bounds, width, height, pixels: mask };
     },
     dispose() {
       disposed = true;

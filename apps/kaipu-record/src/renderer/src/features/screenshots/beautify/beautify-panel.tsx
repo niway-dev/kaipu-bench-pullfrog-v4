@@ -10,17 +10,26 @@ import { uiArea } from "@renderer/lib/ui-area";
 export function BeautifyPanel({
   beautify,
   canvasMode = false,
+  embedded = false,
 }: {
   beautify: BeautifyController;
   /** Canvas mode (`image-canvas`): the tip explains what the export box covers (mock A2). */
   canvasMode?: boolean;
+  /**
+   * Inside the tabbed side panel (NIW2-714): the panel brings the width, border and padding,
+   * and the "Beautify" tab names this one, so the heading is dropped.
+   */
+  embedded?: boolean;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const { state, commit, beginEdit, setLive, endEdit } = beautify;
 
   return (
-    <aside {...uiArea("editorImage.beautify")} className={styles.panel}>
-      <p className={styles.heading}>{t("beautifyHeading")}</p>
+    <aside
+      {...uiArea("editorImage.beautify")}
+      className={`${styles.panel} ${embedded ? styles.embedded : ""}`}
+    >
+      {!embedded && <p className={styles.heading}>{t("beautifyHeading")}</p>}
 
       <p className={styles.label}>{t("background")}</p>
       <BackgroundSwatches

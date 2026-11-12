@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { RecognizedWord, TextRecognizer } from "@kaipu/domain/schemas";
 import { MacVisionTextRecognizer } from "./macos-vision";
 import { WindowsOcrTextRecognizer } from "./windows-ocr";
+import { parseTextRecognitionOverride, withTextRecognitionOverride } from "./dev-override";
 
 const HELPER_NAME = "kaipu-text-recognition";
 
@@ -24,6 +25,26 @@ const unavailableRecognizer: TextRecognizer = {
 };
 
 export function createTextRecognizer(opts: {
+  resourcesPath: string;
+  appPath?: string;
+  platform?: NodeJS.Platform;
+  /**
+   * `KAIPU_TEXT_RECOGNITION` is honored only when this is explicitly `false` (an unpackaged
+   * build), like `KAIPU_FLAG_OVERRIDES`; left out, it is treated as packaged and ignored.
+   */
+  isPackaged?: boolean;
+  env?: NodeJS.ProcessEnv;
+}): TextRecognizer {
+  const { override, rejected } = parseTextRecognitionOverride(
+    (opts.env ?? process.env).KAIPU_TEXT_RECOGNITION,
+    { isPackaged: opts.isPackaged !== false },
+  );
+  if (rejected !== null) console.warn(`[text-recognition] override rejected: ${rejected}`);
+  if (override) console.log(`[text-recognition] override active: ${JSON.stringify(override)}`);
+  return withTextRecognitionOverride(createPlatformRecognizer(opts), override);
+}
+
+function createPlatformRecognizer(opts: {
   resourcesPath: string;
   appPath?: string;
   platform?: NodeJS.Platform;

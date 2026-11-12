@@ -15,6 +15,18 @@ describe("ToastList", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Saved");
   });
 
+  it("shows the detail as a second line under the message", () => {
+    render(
+      <ToastList
+        toasts={[toast({ message: "Text copied", detail: "2 lines" })]}
+        onDismiss={() => {}}
+        closeLabel="Close"
+      />,
+    );
+    expect(screen.getByText("2 lines")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Text copied");
+  });
+
   it("dismisses by id from the close button", async () => {
     const user = userEvent.setup();
     const onDismiss = vi.fn();

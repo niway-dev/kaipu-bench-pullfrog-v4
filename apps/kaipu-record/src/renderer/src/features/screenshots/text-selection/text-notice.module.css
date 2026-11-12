@@ -1,0 +1,76 @@
+/* Bottom-left of the stage, right of the zoom control (mock G1/G4). The zoom pill's width is
+   fixed by its buttons, so an offset is enough; canvas mode adds a divider and the Fit button. */
+.notice {
+  position: absolute;
+  bottom: var(--space-md);
+  left: calc(var(--space-md) + 124px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 8px;
+  background: var(--ie-card);
+  border: 1px solid var(--ie-sep);
+  color: var(--ie-mut);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+.notice[data-wide] {
+  left: calc(var(--space-md) + 170px);
+}
+
+.notice[data-leaving] {
+  opacity: 0;
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ie-accent);
+}
+
+.info {
+  flex: none;
+  color: var(--ie-mut);
+}
+
+/* One accent band across the whole image: the lines are not known yet. */
+.shimmer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--ie-accent-soft), transparent);
+  animation: sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    display: none;
+  }
+}

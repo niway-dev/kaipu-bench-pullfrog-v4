@@ -41,8 +41,12 @@ import {
   InspectBar,
   InspectLayer,
   InspectToggle,
+  formatColor,
+  formatShare,
   isEditingTarget,
   LocateOverlay,
+  locatedColor,
+  unpackRgb,
   useColors,
   useInspect,
 } from "@renderer/features/screenshots/inspect";
@@ -94,6 +98,7 @@ import {
   ExportFrameCard,
   OffContentNotice,
   RedactionNotice,
+  SidePanel,
   contentBoxFrame,
   hasSeenRedactionNotice,
   markRedactionNoticeSeen,
@@ -103,6 +108,7 @@ import {
   useDotGrid,
   useExtentsCompensation,
   useShotMetrics,
+  type PanelTab,
 } from "@renderer/features/screenshots/canvas";
 import { decodeToPng, imageFileFromPaste } from "@renderer/features/editor/paste-image";
 import { isTextField, readFromMain } from "@renderer/features/editor/use-paste-to-editor";
@@ -110,6 +116,9 @@ import { useFlag } from "@renderer/features/analytics/use-flag";
 import {
   redactionRectsInPixels,
   useRecognizedText,
+  distinctLineCount,
+  TextNotice,
+  TextShimmer,
   useTextSelection,
   useTextSelectionKeys,
   type PixelSize,
@@ -452,7 +461,10 @@ function ScreenshotEditorBody({
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      showToast({ message: t("textCopied") });
+      showToast({
+        message: t("textCopied"),
+        detail: t("textCopiedLines", { count: distinctLineCount(textSelection.selected) }),
+      });
     } catch (error) {
       reportError(t("textCopyError"), error, { context: { phase: "copy-text" } });
     }
@@ -1289,8 +1301,8 @@ function ScreenshotEditorBody({
   const compact = useCompactEditor(pageRef, image !== null);
   const [panelOpen, setPanelOpen] = useState(false);
   const sheetOpen = compact && panelOpen;
-  // The colors panel floats over the canvas, except in compact: there it lives in the sheet
-  // with Beautify, and the sheet opens when the panel does, so pressing Colors shows something.
+  // The Colors panel is the side panel's second tab. In compact the panel is the sheet, and
+  // the sheet opens when Colors does, so pressing Colors shows something.
   const colorsShown = inspectEnabled && inspect.active && colors.open;
   const colorsInSheet = compact && colorsShown;
   useEffect(() => {
@@ -1333,6 +1345,36 @@ function ScreenshotEditorBody({
       unreadable={inspect.status === "error"}
     />
   );
+
+  // The tab is derived, never stored: Colors while its panel is open, Beautify otherwise.
+  // Colors reads Inspect's decoded pixels, so choosing it from Annotate turns Inspect on.
+  const panelTab: PanelTab = colorsShown ? "colors" : "beautify";
+  const selectPanelTab = (next: PanelTab): void => {
+    if (next === "colors") {
+      inspect.setActive(true);
+      colors.setOpen(true);
+    } else colors.setOpen(false);
+  };
+  const beautifyPanel = (
+    <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} embedded={inspectEnabled} />
+  );
+  const sidePanel = inspectEnabled ? (
+    <SidePanel tab={panelTab} onSelect={selectPanelTab}>
+      {colorsShown ? colorsPanel : beautifyPanel}
+    </SidePanel>
+  ) : (
+    beautifyPanel
+  );
+  // The tag under the largest area of the highlighted color (mock F3).
+  const locatedRgb = locatedColor(colors.analysis, colors.located);
+  const locateLabel =
+    colors.analysis && colors.overlay?.bounds && locatedRgb !== null
+      ? t("inspectColorsTag", {
+          color: formatColor(unpackRgb(locatedRgb), inspect.format),
+          areas: colors.overlay.areas,
+          share: formatShare(colors.overlay.matched, colors.analysis.counted),
+        })
+      : null;
 
   // Picking a tool, by click or by key, leaves Inspect and starts the tool clean.
   const pickTool = (tool: AnnotationTool): void => {
@@ -1546,7 +1588,12 @@ function ScreenshotEditorBody({
                       : {})}
                     text={textLayer}
                   />
-                  {inspectEnabled && <LocateOverlay image={colors.overlay} />}
+                  <TextShimmer
+                    enabled={textEnabled}
+                    loaded={image != null}
+                    status={recognized.status}
+                  />
+                  {inspectEnabled && <LocateOverlay image={colors.overlay} label={locateLabel} />}
                 </>
               }
               frameOverlay={
@@ -1587,10 +1634,7 @@ function ScreenshotEditorBody({
           {/* Floating per-tool options (Excalidraw-style), only when there's something to edit. */}
           <div className={styles.optionsFloat}>
             {inspect.active ? (
-              <>
-                <InspectBar inspect={inspect} colors={colors} />
-                {colors.open && !compact && colorsPanel}
-              </>
+              <InspectBar inspect={inspect} colors={colors} />
             ) : (
               <AnnotationOptions
                 tools={tools}
@@ -1647,6 +1691,12 @@ function ScreenshotEditorBody({
             )}
           </div>
           <ReopenNoticeSlot reopen={reopen} edited={dirty} />
+          <TextNotice
+            enabled={textEnabled}
+            loaded={image != null}
+            status={recognized.status}
+            wide={canvasMode}
+          />
           {canvasMode && offContent && (
             <OffContentNotice direction={offContent} onFit={() => viewport.fit()} />
           )}
@@ -1663,19 +1713,18 @@ function ScreenshotEditorBody({
             />
           )}
         </div>
-        {compact ? (
-          sheetOpen && (
-            <>
-              <div className={styles.sheetScrim} onClick={() => setPanelOpen(false)} aria-hidden />
-              <div className={styles.sheet}>
-                {colorsShown && <div className={styles.sheetColors}>{colorsPanel}</div>}
-                <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} />
-              </div>
-            </>
-          )
-        ) : (
-          <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} />
-        )}
+        {compact
+          ? sheetOpen && (
+              <>
+                <div
+                  className={styles.sheetScrim}
+                  onClick={() => setPanelOpen(false)}
+                  aria-hidden
+                />
+                <div className={styles.sheet}>{sidePanel}</div>
+              </>
+            )
+          : sidePanel}
       </div>
 
       {savedName && (

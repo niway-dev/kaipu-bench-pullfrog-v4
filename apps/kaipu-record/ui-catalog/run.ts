@@ -969,7 +969,7 @@ async function shoot(
   try {
     // A toast a step caused ("Restored your previous edit") covers the corner of the window
     // for five seconds; it is not part of any state, so it is closed like a user would.
-    if (!target) {
+    if (!target && !spec.keepToasts) {
       await page.evaluate(() => {
         for (const close of document.querySelectorAll<HTMLButtonElement>(
           '[role="alert"] button[aria-label="Close"]',
@@ -1182,6 +1182,7 @@ async function runProfile(name: ProfileName, entries: CatalogEntry[]): Promise<v
           content: profile.seed,
           cursorRecording: profile.cursorRecording,
           textScreenshot: profile.textScreenshot,
+          colorsScreenshots: profile.colorsScreenshots,
           lockedRedaction: profile.lockedRedaction,
           mockShots: profile.mockShots,
           corruptCanvas: profile.corruptCanvas,

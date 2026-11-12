@@ -316,10 +316,15 @@ export const UI_MAP = {
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
-      // The colors panel (NIW2-704): the list, the list with one color highlighted, while it
-      // counts, and when the image could not be read.
+      // The side panel's tab strip (NIW2-714): only where Inspect exists, because the Colors
+      // tab is Inspect's. Beautify is selected unless the Colors panel is open.
+      panelTabs: { states: ["beautify", "colors"], gatedBy: [{ flag: "image-inspect" }] },
+      // The colors panel (NIW2-704), the Colors tab of the side panel (NIW2-714): the list
+      // (`list` is grouped, the default; `grouped` is the same list with a box of
+      // near-identical values; `flat` has Group off), one color highlighted, after a copy,
+      // a photograph, while it counts, and when the image could not be read.
       inspectColors: {
-        states: ["list", "located", "counting", "error"],
+        states: ["list", "flat", "grouped", "located", "copied", "photo", "counting", "error"],
         gatedBy: [{ flag: "image-inspect" }],
       },
       // The ruler (NIW2-702): its row in the Inspect bar, the run drawn under the cursor, and
@@ -336,7 +341,12 @@ export const UI_MAP = {
         states: ["pending", "ready", "noText", "unavailable"],
         gatedBy: [{ flag: "image-text" }],
       },
-      textSelection: { states: ["selected"], gatedBy: [{ flag: "image-text" }] },
+      // `copied`: the selection stays after Copy text, with the toast "Text copied" and how many
+      // lines (the toast lives in the app shell, so the shot shows it, not this area).
+      textSelection: { states: ["hover", "selected", "copied"], gatedBy: [{ flag: "image-text" }] },
+      // The quiet notice at the stage's bottom-left: `reading` while recognition is pending,
+      // `unavailable` when it cannot run on this computer. Never an error dialog.
+      textNotice: { states: ["reading", "unavailable"], gatedBy: [{ flag: "image-text" }] },
       // The pill on the stage when a saved shot is reopened in canvas mode: `editable` says
       // the document loaded (fades), `flat` that it could not be read (stays until dismissed).
       reopenNotice: { states: ["editable", "flat"], gatedBy: [{ flag: "image-canvas" }] },

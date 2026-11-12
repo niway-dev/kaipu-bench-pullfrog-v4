@@ -20,6 +20,8 @@ export interface Profile {
   readonly cursorRecording?: boolean;
   /** Add the screenshot that draws real text (`fixtures/text/`), for the Select text states. */
   readonly textScreenshot?: boolean;
+  /** Add the screenshots the Colors panel states open (`fixtures/make-fixtures.ts`). */
+  readonly colorsScreenshots?: boolean;
   /** Add the screenshot saved with one locked redaction (`seed-vault.ts`), for the Permanent tag. */
   readonly lockedRedaction?: boolean;
   /** Add the screenshots of the step badge and Redact card states (`seed-vault.ts`). */
@@ -110,6 +112,7 @@ export const PROFILES = {
       "Flag image-inspect forced on: the image editor's Inspect mode (loupe, live colour, format bar).",
     seed: "demo",
     flags: { "image-inspect": true },
+    colorsScreenshots: true,
   },
   "image-text": {
     description:
@@ -117,6 +120,22 @@ export const PROFILES = {
     seed: "demo",
     flags: { "image-text": true },
     textScreenshot: true,
+  },
+  "image-text-slow": {
+    description:
+      "Like image-text, with text recognition held for 60 s (KAIPU_TEXT_RECOGNITION=delay:60000, unpackaged builds only): the pending states.",
+    seed: "demo",
+    flags: { "image-text": true },
+    textScreenshot: true,
+    env: { KAIPU_TEXT_RECOGNITION: "delay:60000" },
+  },
+  "image-text-unavailable": {
+    description:
+      "Like image-text, with text recognition answering unavailable (KAIPU_TEXT_RECOGNITION=unavailable, unpackaged builds only): a computer that cannot read text.",
+    seed: "demo",
+    flags: { "image-text": true },
+    textScreenshot: true,
+    env: { KAIPU_TEXT_RECOGNITION: "unavailable" },
   },
   "image-toolbar": {
     description:

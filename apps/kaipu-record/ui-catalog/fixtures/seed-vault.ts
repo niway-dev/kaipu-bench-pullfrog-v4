@@ -48,6 +48,10 @@ export const ASSETS = {
   stepSizesShot: "c0a1a10c-0000-4000-8000-000000000108",
   redactionShot: "c0a1a10c-0000-4000-8000-000000000109",
   noticeShot: "c0a1a10c-0000-4000-8000-00000000010a",
+  /** Seeded only where `colorsScreenshots` is on: an interface drawing with exact colors. */
+  colorsShot: "c0a1a10c-0000-4000-8000-00000000010b",
+  /** Seeded with `colorsShot`: a photograph stand-in with thousands of exact colors. */
+  photoShot: "c0a1a10c-0000-4000-8000-00000000010c",
   loopGif: "c0a1a10c-0000-4000-8000-000000000201",
 } as const;
 
@@ -97,6 +101,8 @@ export const ITEM_IDS = {
   settingsShot: "Settings page",
   dialogShot: "Error dialog",
   textShot: TEXT_SHOT.stem,
+  colorsShot: "Pricing page",
+  photoShot: "Landscape photo",
   walkthrough: "Walkthrough 1",
   teamNotes: "Team notes",
   bugReport: "Bug report",
@@ -226,6 +232,8 @@ export interface SeedOptions {
   cursorRecording?: boolean;
   /** Add the screenshot that draws real text (profiles that exercise text recognition). */
   textScreenshot?: boolean;
+  /** Add the two screenshots the Colors panel states open (profiles that exercise it). */
+  colorsScreenshots?: boolean;
   /**
    * Add the screenshot saved with one locked redaction (`LOCKED_SHOT`), for the image editor's
    * "Permanent" tag. Only the profile that needs it turns it on, so no other state's vault changes.
@@ -536,6 +544,32 @@ export async function seedCatalogVault(vaultDir: string, options: SeedOptions): 
       title: TEXT_SHOT.title,
       createdAt: now - TEXT_SHOT.ago,
     });
+  }
+
+  if (options.colorsScreenshots) {
+    const extras = [
+      {
+        file: FIXTURE_FILES.colorsShot,
+        assetId: ASSETS.colorsShot,
+        stem: ITEM_IDS.colorsShot,
+        ago: 5 * HOUR,
+      },
+      {
+        file: FIXTURE_FILES.photoShot,
+        assetId: ASSETS.photoShot,
+        stem: ITEM_IDS.photoShot,
+        ago: 7 * HOUR,
+      },
+    ];
+    for (const shot of extras) {
+      await copyFile(path.join(fixtures, shot.file), path.join(vaultDir, `${shot.stem}.png`));
+      await writeJson(path.join(meta, `${shot.stem}.json`), {
+        sidecarVersion: 2,
+        assetId: shot.assetId,
+        title: shot.stem,
+        createdAt: now - shot.ago,
+      });
+    }
   }
 
   if (options.mockShots) {

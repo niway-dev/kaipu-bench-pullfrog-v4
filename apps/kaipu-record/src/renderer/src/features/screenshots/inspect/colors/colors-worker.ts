@@ -3,7 +3,7 @@
  * photograph never blocks the editor. It keeps its own copy of the pixels for as long as the
  * panel's analyzer lives; the main thread terminates it to release them. No DOM here.
  */
-import { analyzeColors, locateMask, type ColorIndex } from "./histogram";
+import { analyzeColors, locateMask, regionsOf, type ColorIndex } from "./histogram";
 import type { ColorsRequest, ColorsResponse } from "./colors-messages";
 
 type WorkerSelf = typeof self & {
@@ -28,14 +28,19 @@ async function locate(id: number, request: Extract<ColorsRequest, { type: "locat
   if (!pixels || !index) throw new Error("locate before analyze");
   const { mask, matched } = locateMask(pixels, index.groupOfBin, request.target);
   const { width, height } = size;
+  // Matched pixels are the transparent ones in the mask.
+  const { areas, bounds } = regionsOf((i) => mask[i * 4 + 3] === 0, width, height);
   try {
     const bitmap = await createImageBitmap(new ImageData(mask, width, height));
-    workerSelf.postMessage({ type: "located", id, matched, width, height, bitmap }, [bitmap]);
+    workerSelf.postMessage({ type: "located", id, matched, areas, bounds, width, height, bitmap }, [
+      bitmap,
+    ]);
   } catch {
     const buffer = mask.buffer;
-    workerSelf.postMessage({ type: "located", id, matched, width, height, pixels: buffer }, [
-      buffer,
-    ]);
+    workerSelf.postMessage(
+      { type: "located", id, matched, areas, bounds, width, height, pixels: buffer },
+      [buffer],
+    );
   }
 }
 
@@ -45,7 +50,9 @@ workerSelf.onmessage = (event) => {
     if (request.type === "analyze") {
       pixels = new Uint8ClampedArray(request.pixels);
       size = { width: request.width, height: request.height };
-      index = analyzeColors(pixels, request.width, request.height);
+      index = analyzeColors(pixels, request.width, request.height, (done) =>
+        workerSelf.postMessage({ type: "progress", id: request.id, done }),
+      );
       workerSelf.postMessage({ type: "analysis", id: request.id, analysis: index.analysis });
     } else {
       locate(request.id, request).catch((error: unknown) => fail(request.id, error));
