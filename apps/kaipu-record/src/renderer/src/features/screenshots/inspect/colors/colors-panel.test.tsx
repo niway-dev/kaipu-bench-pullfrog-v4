@@ -77,4 +77,15 @@ describe("ColorsPanel photo card", () => {
     expect(body).toHaveTextContent("cover 40% of the image");
     expect(body).not.toHaveTextContent("80%");
   });
+
+  it("does not round an exact share down: 57 of 100 reads 57%, not 56%", () => {
+    // 57 / 100 * 100 is 56.99999999999999 in floating point, so the product must come first.
+    ready(
+      photoAnalysis(
+        100,
+        Array.from({ length: 57 }, () => 1),
+      ),
+    );
+    expect(screen.getByText(/Showing the 57 groups/)).toHaveTextContent("cover 57% of the image");
+  });
 });

@@ -407,7 +407,7 @@ function ColorsPanelView({
                   // sent run out before reaching it.
                   percent:
                     analysis.counted > 0
-                      ? Math.floor(((analysis.counted - shown.other) / analysis.counted) * 100)
+                      ? Math.floor(((analysis.counted - shown.other) * 100) / analysis.counted)
                       : 0,
                 })}
               </p>
