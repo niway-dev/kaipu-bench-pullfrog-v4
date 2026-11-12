@@ -16,13 +16,15 @@ export interface WarmUpDeps {
    * a `delay:<ms>` override would make it sleep, and every editor request would queue behind.
    */
   devOverrideActive: boolean;
-  /** Runs `run` once the app has been idle for a few seconds. */
+  /** Runs `run` after a fixed delay. It does not check whether the app is actually idle. */
   scheduleIdle: (run: () => void) => void;
 }
 
 /**
- * Pays Vision's first-use model compile (13-20 s) in the background, so the editor's first
- * recognition takes the warm 0.5-0.9 s. It runs once per launch, when both the idle delay
+ * Pays Vision's first-use model compile in the background, so the editor's first
+ * recognition takes the warm 0.5-0.9 s. The 13-20 s compile is the working assumption behind
+ * this class, not a confirmed cause: it did not reproduce on a Mac mini (NIW2-722).
+ * It runs once per launch, when both the idle delay
  * has passed and the `image-text` flag is on (main learns the flag from the renderer, which
  * can resolve it after the delay). There is no stamp that skips it: macOS can drop Vision's
  * compiled model (OS update, maybe a reboot) while the helper binary is unchanged, and a warm
