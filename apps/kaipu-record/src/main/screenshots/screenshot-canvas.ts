@@ -134,3 +134,22 @@ export async function readCanvas(
     throw Object.assign(new Error(`canvas document read failed: ${code ?? "unknown"}`), { code });
   }
 }
+
+/**
+ * Whether a document is stored beside the shot, and when it was last written. `readCanvas`
+ * answers null for a missing document and for an unusable one alike; the editor asks this
+ * after a null to tell "a plain screenshot" from "a document that could not be read", and
+ * after a load for the saved time. It never rejects: no answer reads as no document.
+ */
+export async function statCanvas(
+  vault: LibraryVault,
+  id: string,
+): Promise<{ savedAt: number } | null> {
+  if (typeof id !== "string" || !isPlainItemId(id)) return null;
+  try {
+    const info = await stat(vault.companionPaths(id).canvasDoc);
+    return info.isFile() ? { savedAt: Math.round(info.mtimeMs) } : null;
+  } catch {
+    return null;
+  }
+}
