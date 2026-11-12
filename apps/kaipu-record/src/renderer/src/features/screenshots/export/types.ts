@@ -1,3 +1,4 @@
+import type { CanvasAssets } from "../annotations/redaction";
 import type { Scene } from "../annotations/scene";
 
 /**
@@ -20,6 +21,11 @@ export interface ExportInput {
    * `scene.exportFrame`. Absent = today's export. Part of the memo key.
    */
   canvas?: boolean;
+  /**
+   * Canvas mode (NIW2-703): the PNG bytes of every added image, by asset id. Part of the
+   * memo key (by identity, like `bytes`).
+   */
+  assets?: CanvasAssets;
 }
 
 export interface Exporter {

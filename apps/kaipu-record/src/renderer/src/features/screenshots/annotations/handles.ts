@@ -60,7 +60,9 @@ type Clamp = (v: number) => number;
  *  (e.g. an empty path). `size` is the layer's pixel size — only text needs it, since
  *  its box is derived from the rendered font size. */
 export function annotationBox(a: Annotation, size: Size): Box | null {
-  if (a.kind === "box" || a.kind === "blur") return { x: a.x, y: a.y, w: a.w, h: a.h };
+  if (a.kind === "box" || a.kind === "blur" || a.kind === "image") {
+    return { x: a.x, y: a.y, w: a.w, h: a.h };
+  }
   if (a.kind === "arrow") {
     return {
       x: Math.min(a.x1, a.x2),
@@ -112,6 +114,8 @@ export function annotationBox(a: Annotation, size: Size): Box | null {
 
 /** The drag handles for a selected annotation, in normalized coords. */
 export function handlesFor(a: Annotation, size: Size): Handle[] {
+  // An added image moves but does not resize (NIW2-703), so it has no handles.
+  if (a.kind === "image") return [];
   // A badge is not resizable: its size comes from the options panel.
   if (a.kind === "step") return [];
   if (a.kind === "arrow") {
@@ -194,6 +198,7 @@ export function resizeAnnotation(
   canvas = false,
 ): Partial<Annotation> {
   const clamp: Clamp = canvas ? unbounded : clamp01;
+  if (a.kind === "image") return {}; // no resize handles, so no resize patch
   if (a.kind === "arrow") {
     return handle === "p1"
       ? { x1: clamp(p.x), y1: clamp(p.y) }

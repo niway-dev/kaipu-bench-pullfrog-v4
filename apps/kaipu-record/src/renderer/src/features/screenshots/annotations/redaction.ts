@@ -1,4 +1,4 @@
-import type { Annotation, RedactionStyle } from "./scene";
+import type { Annotation, BlurAnnotation, RedactionStyle } from "./scene";
 
 /** A redaction block is at least this many image pixels on a side. */
 export const REDACTION_MIN_BLOCK_PX = 24;
@@ -153,4 +153,61 @@ export async function bakeRedactions(
   } finally {
     bitmap.close();
   }
+}
+
+/** Image bytes by asset id (PNG), as the editor holds them. */
+export type CanvasAssets = Record<string, ArrayBuffer>;
+
+/**
+ * Canvas-mode redaction (NIW2-703): bakes every unlocked blur into EVERY image it
+ * intersects, the base and each added image. A secret is hidden wherever it may sit on
+ * disk, so z-order cannot protect it: a blur drawn under an image still destroys that
+ * image's pixels. The blur rect is converted to each image's local normalized coordinates
+ * (the image's own rect is the unit) and handed to `bakeRedactions`.
+ *
+ * An image no blur touches keeps its bytes object, and when nothing changed the same
+ * `assets` object is returned too, so callers can tell "nothing to save" by identity.
+ * Annotation images without bytes in `assets` are skipped: the caller reports them.
+ */
+export async function bakeCanvasRedactions(
+  baseBytes: ArrayBuffer,
+  assets: CanvasAssets,
+  annotations: readonly Annotation[],
+): Promise<{ base: ArrayBuffer; assets: CanvasAssets }> {
+  const blurs = annotations.filter((a): a is BlurAnnotation => a.kind === "blur" && !a.locked);
+  if (blurs.length === 0) return { base: baseBytes, assets };
+  /** The blurs that overlap `rect` (positive area), re-expressed in its local units. */
+  const localBlurs = (rect: { x: number; y: number; w: number; h: number }): BlurAnnotation[] =>
+    blurs
+      .filter(
+        (b) =>
+          b.x < rect.x + rect.w &&
+          b.x + b.w > rect.x &&
+          b.y < rect.y + rect.h &&
+          b.y + b.h > rect.y,
+      )
+      .map((b) => ({
+        ...b,
+        x: (b.x - rect.x) / rect.w,
+        y: (b.y - rect.y) / rect.h,
+        w: b.w / rect.w,
+        h: b.h / rect.h,
+      }));
+  // The base is the unit rect: its local coordinates are the stored ones.
+  const base = await bakeRedactions(baseBytes, localBlurs({ x: 0, y: 0, w: 1, h: 1 }));
+  // One asset can sit on the canvas twice: both placements' blurs apply to its bytes.
+  const perAsset = new Map<string, BlurAnnotation[]>();
+  for (const a of annotations) {
+    if (a.kind !== "image" || !assets[a.assetId]) continue;
+    perAsset.set(a.assetId, [...(perAsset.get(a.assetId) ?? []), ...localBlurs(a)]);
+  }
+  let next = assets;
+  for (const [assetId, local] of perAsset) {
+    const bytes = assets[assetId];
+    const baked = await bakeRedactions(bytes, local);
+    if (baked === bytes) continue;
+    if (next === assets) next = { ...assets };
+    next[assetId] = baked;
+  }
+  return { base, assets: next };
 }

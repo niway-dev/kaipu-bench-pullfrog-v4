@@ -229,6 +229,51 @@ describe("contentExtents", () => {
   });
 });
 
+describe("image annotation bounds", () => {
+  // Illustrative: a 500x300 image placed 100 px to the right of the 1000x600 base.
+  const image = (x: number, y = 0): Annotation => ({
+    id: "i",
+    kind: "image",
+    assetId: "img-x",
+    x,
+    y,
+    w: 0.5,
+    h: 0.5,
+    pixelWidth: 500,
+    pixelHeight: 300,
+  });
+
+  it("is the picture's rect in natural px, with no margin", () => {
+    expect(annotationBounds(image(1.1), W, H, 2, measure)).toEqual({
+      x1: 1100,
+      y1: 0,
+      x2: 1600,
+      y2: 300,
+    });
+  });
+
+  it("a second image to the right grows contentExtents.right exactly", () => {
+    expect(contentExtents([image(1.1)], W, H, 1, measure)).toEqual({
+      left: 0,
+      top: 0,
+      right: 600,
+      bottom: 0,
+    });
+  });
+
+  it("an image above-left grows left and top, and one inside the base grows nothing", () => {
+    const e = contentExtents([image(-0.6, -0.5)], W, H, 1, measure);
+    expect(e.left).toBe(600);
+    expect(e.top).toBe(300);
+    expect(contentExtents([image(0.1, 0.1)], W, H, 1, measure)).toEqual({
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+    });
+  });
+});
+
 describe("layout and frame converters", () => {
   const g = {
     naturalW: W,

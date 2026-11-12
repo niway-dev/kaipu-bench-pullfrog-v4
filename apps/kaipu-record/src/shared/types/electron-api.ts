@@ -624,7 +624,16 @@ export interface KaipuElectronAPI {
   // ── Screenshots ───────────────────────────────────────────────────────
   /** Run a capture in `mode`; always answers captured, cancelled or unsupported. */
   /** `intent: "record"` opens the overlay to choose what to record (ADR 0030). */
-  captureScreenshot(mode: CaptureMode, intent?: CaptureIntent): Promise<CaptureResult>;
+  /**
+   * `options.insert: true` takes the shot for the open image editor's canvas only: main skips
+   * the capture policy (no save, no copy, no toast) and answers the bytes with `saved: null`.
+   * Answers `cancelled` during a take.
+   */
+  captureScreenshot(
+    mode: CaptureMode,
+    intent?: CaptureIntent,
+    options?: { insert?: boolean },
+  ): Promise<CaptureResult>;
   /** Modes this platform can capture; an absent mode renders its entry point disabled. */
   screenshotSupportedModes(): Promise<CaptureMode[]>;
   /**

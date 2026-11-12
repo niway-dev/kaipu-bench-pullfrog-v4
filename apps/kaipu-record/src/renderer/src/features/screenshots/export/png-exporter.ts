@@ -10,8 +10,8 @@ export const pngExporter: Exporter = {
   format: "png",
   mimeType: "image/png",
   extension: "png",
-  export: ({ scene, bytes, displayedW, canvas }) =>
+  export: ({ scene, bytes, displayedW, canvas, assets }) =>
     canvas
-      ? compositeScene(scene, bytes, displayedW, { canvas: true })
+      ? compositeScene(scene, bytes, displayedW, { canvas: true, assets })
       : compositeScene(scene, bytes, displayedW),
 };

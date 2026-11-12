@@ -10,6 +10,18 @@ const theme = (value: "light" | "dark"): Step => ({
   call: "updateSettings",
   args: [{ theme: value }],
 });
+const addImageButton: Step = {
+  click: {
+    area: "editorImage.addImage",
+    part: { role: "button", name: "Add image", exact: true },
+  },
+};
+const fromLibrary: Step = {
+  click: {
+    area: "editorImage.addImage",
+    part: { role: "menuitem", name: "From Library", exact: true },
+  },
+};
 const inspectToggle: Step = {
   click: { area: "editorImage.inspectToggle" },
 };
@@ -98,8 +110,49 @@ export const editorImage = catalog(
       profile: "image-canvas",
       how: "With the flag forced on, open “Settings page” in the image editor: the canvas is marked as the flag's content-box canvas.",
       steps: [open(ASSETS.settingsShot)],
-      demonstrates: ["editorImage.canvasView:default"],
+      demonstrates: ["editorImage.canvasView:default", "editorImage.addImage:closed"],
       gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "add-image-menu": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page” and press Add image: the menu offers New capture and From Library, and says pasting works too.",
+      steps: [open(ASSETS.settingsShot), addImageButton],
+      demonstrates: ["editorImage.addImage:open"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "library-picker": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page”, press Add image and choose From Library: the picker lists the other screenshots in the Library.",
+      steps: [
+        open(ASSETS.settingsShot),
+        addImageButton,
+        fromLibrary,
+        // The list loads after the picker opens: wait for an item, not just the dialog.
+        {
+          waitFor: {
+            area: "editorImage.libraryPicker",
+            part: { role: "button", name: "Dashboard draft", exact: true },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.libraryPicker:open"],
+    },
+    "two-images": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page”, press Add image, choose From Library and click “Dashboard draft”: it lands to the right of the screenshot, selected.",
+      steps: [
+        open(ASSETS.settingsShot),
+        addImageButton,
+        fromLibrary,
+        {
+          click: {
+            area: "editorImage.libraryPicker",
+            part: { role: "button", name: "Dashboard draft", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
+      ],
+      demonstrates: ["editorImage.canvasView:twoImages"],
     },
     "canvas-zoomed-out": {
       profile: "image-canvas",
@@ -303,6 +356,10 @@ export const editorImage = catalog(
   },
   {
     notCapturable: {
+      "editorImage.libraryPicker:empty": nc(
+        "needsSetup",
+        "the picker leaves out the shot being edited, and the seeded vault holds three screenshots, so it always lists two; a vault with a single screenshot would show it (not built)",
+      ),
       "editorImage.textStatus:pending": nc(
         "transient",
         "recognition settles in well under a second on a drawing, and the catalog cannot slow the helper; the panel reads “Recognizing text…” until then",

@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScreenshotAfterCapture, ScreenshotCopyMode } from "@shared/types";
 import type { CaptureAction } from "@shared/types/screenshot-capture";
 import { createCaptureHandler } from "./capture-handler";
-import { clearLastQuietCapture, takeLastQuietCapture } from "./last-quiet-capture";
+import {
+  clearLastQuietCapture,
+  keepLastQuietCapture,
+  takeLastQuietCapture,
+} from "./last-quiet-capture";
 import type { OverlayPort } from "./overlay-port";
 import {
   MacProvider,
@@ -795,5 +799,103 @@ describe("createCaptureHandler — a screenshot during a take (NIW2-688)", () =>
     const { handler, onQuietCapture } = setup(shot);
     await handler({ mode: "frame" });
     expect(onQuietCapture.mock.calls[0]![0]).not.toHaveProperty("presentation");
+  });
+});
+
+describe("createCaptureHandler — insert into the open editor", () => {
+  const shot = (action: CaptureAction = "capture"): ProviderResult => ({
+    kind: "captured",
+    png: Buffer.from([1, 2, 3]),
+    mode: "frame",
+    action,
+  });
+
+  it("returns the bytes with saved null and copied false even when the policy would save and copy", async () => {
+    prefs = { copy: "auto", afterCapture: "preview" };
+    const { handler, windows, rememberMode } = setup(async () => shot("copy"));
+    const result = await handler({ mode: "frame", insert: true });
+    expect(result).toMatchObject({
+      kind: "captured",
+      after: "editor",
+      width: 3,
+      height: 2,
+      mode: "frame",
+      saved: null,
+      copied: false,
+      policy: null,
+    });
+    expect(result.kind === "captured" && new Uint8Array(result.png)).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+    expect(windows.afterCapture).toHaveBeenCalledWith("editor");
+    expect(rememberMode).toHaveBeenCalledWith("frame");
+  });
+
+  it("keeps the quiet capture the toast holds for its Save retry", async () => {
+    keepLastQuietCapture({
+      png: Buffer.from([9, 8, 7]),
+      width: 3,
+      height: 1,
+      mode: "frame",
+      workspaceId: null,
+      policy: { workspaceId: null, screenshotCopy: "auto" },
+    });
+    const { handler } = setup(async () => shot());
+    await handler({ mode: "frame", insert: true });
+    expect(takeLastQuietCapture()?.png).toEqual(Buffer.from([9, 8, 7]));
+  });
+
+  it("never saves, copies or toasts", async () => {
+    prefs = { copy: "auto", afterCapture: "preview" };
+    const { handler, saveToVault, copyToClipboard, onQuietCapture } = setup(async () =>
+      shot("copy"),
+    );
+    await handler({ mode: "frame", insert: true });
+    expect(saveToVault).not.toHaveBeenCalled();
+    expect(copyToClipboard).not.toHaveBeenCalled();
+    expect(onQuietCapture).not.toHaveBeenCalled();
+  });
+
+  it("answers cancelled during a take without opening the overlay or hiding windows", async () => {
+    takeNow = true;
+    const capture = vi.fn(async () => shot());
+    const { handler, windows } = setup(capture);
+    expect(await handler({ mode: "frame", insert: true })).toEqual({ kind: "cancelled" });
+    expect(capture).not.toHaveBeenCalled();
+    expect(windows.beforeCapture).not.toHaveBeenCalled();
+    expect(windows.afterCapture).not.toHaveBeenCalled();
+  });
+
+  it("is not reported as a capture: adding an image is not opening the editor", async () => {
+    const { handler, track } = setup(async () => shot());
+    await handler({ mode: "frame", insert: true });
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it("still reports an insert that failed", async () => {
+    const { handler, track } = setup(async () => {
+      throw new Error("capture broke");
+    });
+    expect(await handler({ mode: "frame", insert: true })).toEqual({ kind: "cancelled" });
+    expect(track).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" }));
+  });
+
+  it("never starts a recording when the overlay's Record switch answers an insert", async () => {
+    const { handler, onRecordTarget, windows } = setup(async () => ({
+      kind: "record",
+      start: true,
+      displayId: 2,
+      rect: { x: 100, y: 50, width: 640, height: 360 },
+    }));
+    expect(await handler({ mode: "frame", insert: true })).toEqual({ kind: "cancelled" });
+    expect(onRecordTarget).not.toHaveBeenCalled();
+    expect(windows.afterCapture).toHaveBeenCalledWith("cancelled");
+  });
+
+  it("refuses an insert that is not a boolean", async () => {
+    const capture = vi.fn();
+    const { handler } = setup(capture);
+    await expect(handler({ mode: "frame", insert: "yes" })).rejects.toThrow(/insert/);
+    expect(capture).not.toHaveBeenCalled();
   });
 });

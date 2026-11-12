@@ -41,4 +41,19 @@ describe("useExtentsCompensation", () => {
     rerender({ extents: outside, measured: true });
     expect(compensate).toHaveBeenCalledWith(none, outside);
   });
+
+  it("calls onSeed once, at the first measurement, and never for later changes", () => {
+    const compensate = vi.fn();
+    const onSeed = vi.fn();
+    const { rerender } = renderHook(
+      ({ extents, measured }: Props) =>
+        useExtentsCompensation(extents, measured, compensate, onSeed),
+      { initialProps: { extents: none, measured: false } as Props },
+    );
+    expect(onSeed).not.toHaveBeenCalled();
+    rerender({ extents: outside, measured: true });
+    expect(onSeed).toHaveBeenCalledTimes(1);
+    rerender({ extents: { ...outside, right: 300 }, measured: true });
+    expect(onSeed).toHaveBeenCalledTimes(1);
+  });
 });

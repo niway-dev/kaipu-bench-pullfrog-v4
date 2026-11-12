@@ -43,6 +43,7 @@ function sameInput(a: ExportInput, b: ExportInput): boolean {
     a.bytes === b.bytes &&
     a.displayedW === b.displayedW &&
     Boolean(a.canvas) === Boolean(b.canvas) &&
+    a.assets === b.assets &&
     sameScene(a.scene, b.scene)
   );
 }

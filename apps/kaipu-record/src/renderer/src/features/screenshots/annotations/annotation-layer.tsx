@@ -25,7 +25,13 @@ import {
   measureTextColor,
   moveMeasure,
 } from "./measure";
-import { nextAnnotationId, stepNumbers, type Annotation } from "./scene";
+import {
+  nextAnnotationId,
+  stepNumbers,
+  type Annotation,
+  type BlurAnnotation,
+  type ImageAnnotation,
+} from "./scene";
 import { useRedactionTile } from "./redaction-preview";
 import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } from "./handles";
 import type { EditorScene } from "./use-editor-scene";
@@ -74,6 +80,12 @@ interface LayerProps {
    */
   canvasMode?: boolean;
   /**
+   * Canvas mode (NIW2-703): display URL of each added image's asset, by asset id. An image
+   * annotation whose asset has no URL here draws nothing. Kept referentially stable by the
+   * editor (a new object only when an asset is added), since the layer is memoized on it.
+   */
+  imageUrls?: Readonly<Record<string, string>>;
+  /**
    * The recognized words and the selection over them (`image-text`). Present while the flag
    * is on; the words take pointer input only with the "Select text" tool active. The words
    * live in the base image's pixels and are normalized like annotations, so they follow the
@@ -94,6 +106,7 @@ function AnnotationLayerImpl({
   src,
   canvas = false,
   canvasMode = false,
+  imageUrls,
   text,
 }: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
@@ -479,6 +492,25 @@ function AnnotationLayerImpl({
         : scene.annotations,
     [scene.annotations, live],
   );
+  // Added images (NIW2-703) wear the base's corner radius and shadow, in the same display
+  // px (the layer's size IS the displayed shot). `state` is absent only in test doubles.
+  const radius = scene.beautify.state?.radius ?? 0;
+  const shadow = scene.beautify.state?.shadow ?? 0;
+  // Every blur still to be baked, drafts included: each one previews on the images it
+  // touches, as the save bakes it into them (see `bakeCanvasRedactions`).
+  // Keyed on the blur draft only: any other draft changes on every pointer move, and a new
+  // array would re-render every memoized added image (filter included) while drawing.
+  const blurDraft = draft?.kind === "blur" ? draft : null;
+  const redactions = useMemo(
+    () =>
+      canvasMode
+        ? [
+            ...shown.filter((a): a is BlurAnnotation => a.kind === "blur" && !a.locked),
+            ...(blurDraft ? [blurDraft] : []),
+          ]
+        : NO_BLURS,
+    [canvasMode, shown, blurDraft],
+  );
   const numbers = useMemo(() => stepNumbers(shown), [shown]);
   const selectedAnnotation =
     tools.tool === "select" && !editing
@@ -509,22 +541,47 @@ function AnnotationLayerImpl({
     >
       {canvas && <div className={styles.hitSurface} data-testid="canvas-hit-surface" aria-hidden />}
       <svg className={styles.svg} width={size.w} height={size.h}>
-        {shown.map((a) =>
+        {shown.map((a, i) =>
           // Hide the label being re-edited — the inline editor sits on top of it.
-          a.id === editing?.id ? null : (
-            <Shape
+          a.id === editing?.id ? null : a.kind === "image" ? (
+            <ImageShape
               key={a.id}
               a={a}
               size={size}
               selected={scene.selectedId === a.id}
-              src={src}
-              canvasMode={canvasMode}
-              n={numbers.get(a.id)}
+              url={imageUrls?.[a.assetId]}
+              radius={radius}
+              shadow={shadow}
+              redactions={redactions}
             />
+          ) : (
+            <React.Fragment key={a.id}>
+              <Shape
+                a={a}
+                size={size}
+                selected={scene.selectedId === a.id}
+                src={src}
+                canvasMode={canvasMode}
+                n={numbers.get(a.id)}
+              />
+              {canvasMode && a.kind === "blur" && (
+                <BlurOverImagesBelow
+                  blur={a}
+                  below={shown.slice(0, i)}
+                  imageUrls={imageUrls}
+                  size={size}
+                />
+              )}
+            </React.Fragment>
           ),
         )}
         {draft && (
-          <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+          <>
+            <Shape a={draft} size={size} selected={false} src={src} canvasMode={canvasMode} />
+            {canvasMode && draft.kind === "blur" && (
+              <BlurOverImagesBelow blur={draft} below={shown} imageUrls={imageUrls} size={size} />
+            )}
+          </>
         )}
         {selectedAnnotation && <Handles a={selectedAnnotation} size={size} />}
         {activeText && activeText.selected.size > 0 && (
@@ -626,6 +683,10 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     p.tools.redactionStyle === n.tools.redactionStyle &&
     p.tools.stepSize === n.tools.stepSize &&
     p.canvasMode === n.canvasMode &&
+    p.imageUrls === n.imageUrls &&
+    // Added images follow the beautify radius and shadow; nothing else of it is read.
+    p.scene.beautify.state?.radius === n.scene.beautify.state?.radius &&
+    p.scene.beautify.state?.shadow === n.scene.beautify.state?.shadow &&
     p.text === n.text
   );
 }
@@ -672,6 +733,10 @@ const Shape = React.memo(function Shape({
   n?: number;
 }): React.JSX.Element {
   const { w: W, h: H } = size;
+
+  // An added image (NIW2-703) is drawn by `ImageShape`, which needs its URL and the
+  // redactions over it; the layer never routes one here.
+  if (a.kind === "image") return <g />;
 
   if (a.kind === "step") {
     const d = stepDiameterPx(a.size);
@@ -909,6 +974,209 @@ const Shape = React.memo(function Shape({
   );
 });
 
+const NO_BLURS: readonly BlurAnnotation[] = [];
+
+/** The drop shadow of the base's `shadowCss`, as an SVG filter (CSS box-shadow cannot style
+ *  an SVG element). Same constants as the export's `#sh` filter, so live and export agree:
+ *  blur radius = 2 × stdDeviation, and the spread is dropped there too. */
+function shadowFilter(value: number): { dy: number; std: number; alpha: string } {
+  return {
+    dy: Math.round(value * 0.45),
+    std: Math.round(value * 0.9 + 8) / 2,
+    alpha: (0.12 + (value / 100) * 0.5).toFixed(2),
+  };
+}
+
+/**
+ * An image added to the canvas (NIW2-703): its asset at its rect, with the beautify radius
+ * as a rounded clip and the beautify shadow behind it, like the base shot. Nothing while
+ * the editor has no URL for the asset. Unlocked blurs that touch it draw their own tile
+ * from THIS image's pixels inside the clip, previewing what the save bakes into it.
+ */
+const ImageShape = React.memo(function ImageShape({
+  a,
+  size,
+  selected,
+  url,
+  radius,
+  shadow,
+  redactions,
+}: {
+  a: ImageAnnotation;
+  size: Size;
+  selected: boolean;
+  url: string | undefined;
+  radius: number;
+  shadow: number;
+  redactions: readonly BlurAnnotation[];
+}): React.JSX.Element | null {
+  if (!url) return null;
+  const x = a.x * size.w;
+  const y = a.y * size.h;
+  const w = a.w * size.w;
+  const h = a.h * size.h;
+  const clip = `iclip-${a.id}`;
+  const sh = shadow > 0 ? shadowFilter(shadow) : null;
+  return (
+    <g data-annotation={a.id}>
+      <defs>
+        <clipPath id={clip}>
+          <rect x={x} y={y} width={w} height={h} rx={radius} />
+        </clipPath>
+        {sh && (
+          <filter id={`ishadow-${a.id}`} x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow
+              dx={0}
+              dy={sh.dy}
+              stdDeviation={sh.std}
+              floodColor="#000"
+              floodOpacity={sh.alpha}
+            />
+          </filter>
+        )}
+      </defs>
+      {sh && (
+        <rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          rx={radius}
+          fill="#000"
+          filter={`url(#ishadow-${a.id})`}
+        />
+      )}
+      {/* The clip sits on a wrapper that carries no transform, so it resolves in the
+          layer's own space. */}
+      <g clipPath={`url(#${clip})`}>
+        <image
+          data-testid="canvas-image"
+          href={url}
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          preserveAspectRatio="none"
+        />
+        {redactions
+          .filter((b) => b.x < a.x + a.w && b.x + b.w > a.x && b.y < a.y + a.h && b.y + b.h > a.y)
+          .map((b) => (
+            <ImageRedactionTile key={b.id} a={a} blur={b} url={url} size={size} />
+          ))}
+      </g>
+      {selected && (
+        <rect className={styles.selOutline} x={x - 4} y={y - 4} width={w + 8} height={h + 8} />
+      )}
+    </g>
+  );
+});
+
+/** A blur's real redaction of one added image, in that image's local coordinates (the
+ *  same mapping `bakeCanvasRedactions` uses), drawn over the image. */
+function ImageRedactionTile({
+  a,
+  blur,
+  url,
+  size,
+}: {
+  a: ImageAnnotation;
+  blur: BlurAnnotation;
+  url: string;
+  size: Size;
+}): React.JSX.Element | null {
+  const tile = useRedactionTile(
+    url,
+    {
+      x: (blur.x - a.x) / a.w,
+      y: (blur.y - a.y) / a.h,
+      w: blur.w / a.w,
+      h: blur.h / a.h,
+    },
+    blur.style ?? "blur",
+    true,
+  );
+  if (!tile) return null;
+  const w = a.w * size.w;
+  const h = a.h * size.h;
+  return (
+    <image
+      data-testid="image-redaction-tile"
+      data-blur={blur.id}
+      href={tile.url}
+      x={a.x * size.w + (tile.rect.x / tile.naturalW) * w}
+      y={a.y * size.h + (tile.rect.y / tile.naturalH) * h}
+      width={(tile.rect.w / tile.naturalW) * w}
+      height={(tile.rect.h / tile.naturalH) * h}
+      preserveAspectRatio="none"
+    />
+  );
+}
+
+/**
+ * Canvas mode: what a blur shows, at its z-position, of the added images BELOW it. The
+ * export redraws those images' baked pixels over the blur's rect (see `bakedBlurSvg`), so
+ * an annotation stacked between them and the blur is covered, while an image above the
+ * blur still draws over it. Unlocked: each image's own redaction tile. Locked: the image's
+ * pixels (its asset already holds the redaction), clipped to the rect.
+ */
+function BlurOverImagesBelow({
+  blur,
+  below,
+  imageUrls,
+  size,
+}: {
+  blur: BlurAnnotation;
+  below: readonly Annotation[];
+  imageUrls: Readonly<Record<string, string>> | undefined;
+  size: Size;
+}): React.JSX.Element | null {
+  const hits = below.filter(
+    (b): b is ImageAnnotation =>
+      b.kind === "image" &&
+      imageUrls?.[b.assetId] !== undefined &&
+      blur.x < b.x + b.w &&
+      blur.x + blur.w > b.x &&
+      blur.y < b.y + b.h &&
+      blur.y + blur.h > b.y,
+  );
+  if (hits.length === 0) return null;
+  const clip = `under-clip-${blur.id}`;
+  return (
+    <g data-testid="redaction-over-images" data-blur={blur.id}>
+      <clipPath id={clip}>
+        <rect
+          x={blur.x * size.w}
+          y={blur.y * size.h}
+          width={blur.w * size.w}
+          height={blur.h * size.h}
+        />
+      </clipPath>
+      <g clipPath={`url(#${clip})`}>
+        {hits.map((b) => {
+          const url = imageUrls![b.assetId]!;
+          // Inside the image's own rounded clip (drawn by its ImageShape), as the export does.
+          return (
+            <g key={b.id} clipPath={`url(#iclip-${b.id})`}>
+              {blur.locked ? (
+                <image
+                  href={url}
+                  x={b.x * size.w}
+                  y={b.y * size.h}
+                  width={b.w * size.w}
+                  height={b.h * size.h}
+                  preserveAspectRatio="none"
+                />
+              ) : (
+                <ImageRedactionTile a={b} blur={blur} url={url} size={size} />
+              )}
+            </g>
+          );
+        })}
+      </g>
+    </g>
+  );
+}
+
 /**
  * Canvas-mode blur: the real redaction as a raster tile over the rect. A locked one is
  * already in the image, so it redraws the image's own pixels over the rect: in z-order it
@@ -1010,7 +1278,7 @@ function hitTest(
     const a = annotations[i];
     // A locked redaction is already part of the stored image: nothing to grab.
     if (canvasMode && a.kind === "blur" && a.locked) continue;
-    if (a.kind === "box" || a.kind === "blur") {
+    if (a.kind === "box" || a.kind === "blur" || a.kind === "image") {
       if (
         p.x >= a.x - 0.01 &&
         p.x <= a.x + a.w + 0.01 &&

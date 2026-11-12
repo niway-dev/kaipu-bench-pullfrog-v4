@@ -76,7 +76,8 @@ export function usePasteToEditor(options: { replace?: boolean } = {}): PasteToEd
   return { pasteFromClipboard, empty };
 }
 
-function isTextField(target: EventTarget | null): boolean {
+/** A paste inside one of these belongs to the field, not to the editor. */
+export function isTextField(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
     (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA")
@@ -84,6 +85,6 @@ function isTextField(target: EventTarget | null): boolean {
 }
 
 /** The clipboard image as main reads it (Electron's native clipboard). */
-async function readFromMain(): Promise<PastedImage | null> {
+export async function readFromMain(): Promise<PastedImage | null> {
   return window.electronAPI.readClipboardImage();
 }

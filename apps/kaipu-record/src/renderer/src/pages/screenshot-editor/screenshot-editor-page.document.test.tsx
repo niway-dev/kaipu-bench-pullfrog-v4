@@ -25,6 +25,10 @@ vi.mock("@renderer/features/screenshots/annotations/redaction", async (importOri
     typeof import("@renderer/features/screenshots/annotations/redaction")
   >()),
   bakeRedactions: vi.fn(async (bytes: ArrayBuffer) => bytes),
+  bakeCanvasRedactions: vi.fn(async (base: ArrayBuffer, assets: Record<string, ArrayBuffer>) => ({
+    base,
+    assets,
+  })),
 }));
 
 const originalRect = Element.prototype.getBoundingClientRect;
@@ -221,7 +225,7 @@ describe("ScreenshotEditor — reopen from the document (image-canvas)", () => {
     ["corrupt JSON", () => readCanvas.mockResolvedValue(stored("{not json"))],
     [
       "an unsupported schema version",
-      () => readCanvas.mockResolvedValue(stored(docJson({ schemaVersion: 2 }))),
+      () => readCanvas.mockResolvedValue(stored(docJson({ schemaVersion: 3 }))),
     ],
     ["a missing base asset", () => readCanvas.mockResolvedValue(stored(docJson(), {}))],
     [
@@ -269,7 +273,7 @@ describe("ScreenshotEditor — saving the document (image-canvas)", () => {
       schemaVersion: number;
       items: { kind: string; locked?: boolean }[];
     };
-    expect(doc.schemaVersion).toBe(1);
+    expect(doc.schemaVersion).toBe(2);
     expect(doc.items.map((i) => i.kind)).toEqual(["image", "blur"]);
     expect(doc.items[1].locked).toBe(true);
     expect(canvas.assets).toHaveLength(1);

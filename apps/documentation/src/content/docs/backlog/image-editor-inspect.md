@@ -107,6 +107,7 @@ check is `apps/kaipu-record/verify/image-colors.verify.ts`.
 
 ## Not in it yet
 
-- Reopening a saved item with its measurements still editable: that needs the editable canvas
-  document (M5, NIW2-700). Until then a pinned measurement is baked into the saved PNG.
+- Reopening a saved item with its measurements still editable works only behind `image-canvas`:
+  the editable canvas document (M3, NIW2-700) keeps them since M6 (NIW2-703). With the flag off,
+  a pinned measurement is baked into the saved PNG.
 - The final look of the HUD, bar and colors panel: NIW2-708.

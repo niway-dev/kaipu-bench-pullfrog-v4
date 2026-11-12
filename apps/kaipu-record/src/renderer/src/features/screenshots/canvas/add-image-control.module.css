@@ -1,0 +1,64 @@
+/*
+ * The image editor's "Add image" menu (NIW2-703), on the app's tokens and the menu look the
+ * workspace chip uses. The button itself takes the toolbar's own classes.
+ */
+.anchor {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 46;
+  width: 240px;
+  padding: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--bg-modal);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  height: 34px;
+  padding: 0 var(--space-sm);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+}
+
+.item:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+}
+
+.item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.hint {
+  margin: 4px 0 0;
+  padding: 6px var(--space-sm) 2px;
+  border-top: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}

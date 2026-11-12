@@ -25,6 +25,11 @@ vi.mock("@renderer/features/screenshots/annotations/redaction", async (importOri
     typeof import("@renderer/features/screenshots/annotations/redaction")
   >()),
   bakeRedactions: vi.fn(async (bytes: ArrayBuffer) => bytes),
+  // Canvas saves bake through this one since M6 (NIW2-703): the base and each added asset.
+  bakeCanvasRedactions: vi.fn(async (base: ArrayBuffer, assets: Record<string, ArrayBuffer>) => ({
+    base,
+    assets,
+  })),
 }));
 
 const originalRect = Element.prototype.getBoundingClientRect;

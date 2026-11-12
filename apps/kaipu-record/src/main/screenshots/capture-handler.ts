@@ -130,10 +130,20 @@ function assertCaptureIntent(value: unknown): CaptureIntent {
   return value;
 }
 
+function assertInsert(value: unknown): boolean {
+  if (value === undefined) return false;
+  if (typeof value !== "boolean") {
+    throw new Error(`screenshot capture: unknown insert ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
 /** Builds the `screenshot:capture` handler: validates, guards re-entrancy, answers a typed result. */
 export function createCaptureHandler(
   deps: CaptureHandlerDeps,
-): (request: { mode?: unknown; intent?: unknown } | undefined) => Promise<CaptureResult> {
+): (
+  request: { mode?: unknown; intent?: unknown; insert?: unknown } | undefined,
+) => Promise<CaptureResult> {
   // Re-entrancy guard: a second capture while one is in flight would stack overlays
   // and clobber the saved window-visibility state (leaving the app stuck hidden on
   // cancel). Answer `cancelled` without touching the first one.
@@ -142,6 +152,7 @@ export function createCaptureHandler(
   return async (request) => {
     const mode = assertCaptureMode(request?.mode);
     const intent = assertCaptureIntent(request?.intent);
+    const insert = assertInsert(request?.insert);
     const report = (
       outcome: ScreenshotCapturedProperties["outcome"],
       after?: "editor" | "quiet",
@@ -167,11 +178,15 @@ export function createCaptureHandler(
       return { kind: "unsupported", mode, platform: deps.platform };
     }
     if (capturing) return { kind: "cancelled" };
+    // An insert belongs to the open editor, which is not reachable during a take.
+    if (insert && readDuringTake(deps)) return { kind: "cancelled" };
     capturing = true;
-    // A new capture frees the previous quiet capture's bytes.
-    clearLastQuietCapture();
+    // A new capture frees the previous quiet capture's bytes. An insert does not replace it
+    // (it never reaches the toast), so the toast's Save retry keeps its shot.
+    if (!insert) clearLastQuietCapture();
     const workspace = readWorkspace(deps);
-    const policy = readPolicy(deps, workspace);
+    // An insert never reads the capture policy: nothing is saved, copied or toasted.
+    const policy = insert ? null : readPolicy(deps, workspace);
     const duringTake = readDuringTake(deps);
     let result: ProviderResult = { kind: "cancelled" };
     let answer: CaptureResult = { kind: "cancelled" };
@@ -197,7 +212,10 @@ export function createCaptureHandler(
         // remembers the mode the user captured in.
         // The instant shortcut is an exception: it never becomes the current mode.
         if (!duringTake && intent !== "instant") remember(deps, result.mode);
-        answer = await finish(deps, result, workspace, policy, duringTake);
+        answer = await finish(deps, result, workspace, policy, duringTake, insert);
+      } else if (result.kind === "record" && insert) {
+        // The overlay's Record switch, from the editor's Add image: an insert only adds a
+        // picture, so it never starts a recording. Answered as a cancel.
       } else if (result.kind === "record") {
         // A recording target, not a screenshot: no save, no mode memory, no analytics here.
         const { displayId, rect, start, ratio } = result;
@@ -224,8 +242,10 @@ export function createCaptureHandler(
         answer.kind === "captured" ? answer.after : recordStarted ? "recording" : "cancelled",
       );
     }
-    // Choosing a recording target is not a screenshot outcome.
-    if (result.kind === "record") return answer;
+    // Choosing a recording target is not a screenshot outcome, and an insert adds an image
+    // to the open editor: counting it would inflate the "captured, opened the editor" numbers.
+    // A failed insert is still reported, so a broken insert path shows up as failures.
+    if (result.kind === "record" || (insert && !failed)) return answer;
     // A throw answers `cancelled` to the renderer but is a failure for the owner's numbers.
     report(
       failed ? "failed" : result.kind,
@@ -296,9 +316,24 @@ async function finish(
   workspace: CaptureWorkspace | null,
   policy: CapturePolicy | null,
   duringTake: boolean,
+  insert: boolean,
 ): Promise<CaptureResult> {
   const { png } = shot;
   const { width, height } = deps.measure(png);
+  if (insert) {
+    // For the open editor's canvas: the bytes go back as they are, whatever the policy says.
+    return {
+      kind: "captured",
+      after: "editor",
+      png: png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer,
+      width,
+      height,
+      mode: shot.mode,
+      saved: null,
+      copied: false,
+      policy: null,
+    };
+  }
   const answer = (
     after: "editor" | "quiet",
     saved: SavedScreenshotRef | null,
