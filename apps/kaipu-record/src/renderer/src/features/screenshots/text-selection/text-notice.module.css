@@ -37,6 +37,22 @@
   background: var(--ie-accent);
 }
 
+.dot[data-activity="pulse"] {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+
 .info {
   flex: none;
   color: var(--ie-mut);
@@ -72,5 +88,9 @@
 @media (prefers-reduced-motion: reduce) {
   .shimmer {
     display: none;
+  }
+
+  .dot[data-activity="pulse"] {
+    animation: none;
   }
 }

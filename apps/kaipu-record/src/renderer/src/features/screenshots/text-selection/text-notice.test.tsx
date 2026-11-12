@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -46,5 +48,22 @@ describe("TextNotice", () => {
     expect(screen.queryByRole("status")).toBeNull();
     rerender(<TextNotice {...props} loaded={false} status="unavailable" />);
     expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("marks the reading dot as an activity indicator, not the unavailable icon", () => {
+    const { rerender } = render(<TextNotice {...props} status="pending" />);
+    act(() => void vi.advanceTimersByTime(READING_NOTICE_DELAY_MS));
+    expect(screen.getByRole("status").querySelector("[data-activity='pulse']")).not.toBeNull();
+    rerender(<TextNotice {...props} status="unavailable" />);
+    expect(screen.getByRole("status").querySelector("[data-activity]")).toBeNull();
+  });
+
+  it("animates the dot, and stops under prefers-reduced-motion", () => {
+    // jsdom does not run CSS animations, so the stylesheet itself is the proof.
+    const css = readFileSync(join(__dirname, "text-notice.module.css"), "utf-8");
+    expect(css).toMatch(/\.dot\[data-activity="pulse"\]\s*\{[^}]*animation:\s*pulse/);
+    expect(css).toMatch(/@keyframes pulse/);
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(reduced).toMatch(/\.dot\[data-activity="pulse"\]\s*\{[^}]*animation:\s*none/);
   });
 });

@@ -89,7 +89,7 @@ export function TextNotice({
       role="status"
     >
       {state === "reading" ? (
-        <span className={styles.dot} aria-hidden />
+        <span className={styles.dot} data-activity="pulse" aria-hidden />
       ) : (
         <Info size={14} className={styles.info} aria-hidden />
       )}
