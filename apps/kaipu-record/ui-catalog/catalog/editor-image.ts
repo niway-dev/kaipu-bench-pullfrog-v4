@@ -606,7 +606,8 @@ export const editorImage = catalog(
         clickAt(0.5, 0.65),
         { press: "Escape" },
         tool("Select"),
-        { click: { area: "editorImage.measure" } },
+        // Back on the first measurement's line (where it was pinned); its <g> root is not clickable.
+        clickAt(0.45, 0.35),
         // The measure root carries data-selected; parts search below an area, so look from the canvas.
         {
           waitFor: {
