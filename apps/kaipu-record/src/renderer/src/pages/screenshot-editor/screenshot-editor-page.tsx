@@ -1226,6 +1226,13 @@ function ScreenshotEditorBody({
   const compact = useCompactEditor(pageRef, image !== null);
   const [panelOpen, setPanelOpen] = useState(false);
   const sheetOpen = compact && panelOpen;
+  // The colors panel floats over the canvas, except in compact: there it lives in the sheet
+  // with Beautify, and the sheet opens when the panel does, so pressing Colors shows something.
+  const colorsShown = inspectEnabled && inspect.active && colors.open;
+  const colorsInSheet = compact && colorsShown;
+  useEffect(() => {
+    if (colorsInSheet) setPanelOpen(true);
+  }, [colorsInSheet]);
   useEffect(() => {
     if (!sheetOpen) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -1234,6 +1241,15 @@ function ScreenshotEditorBody({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sheetOpen]);
+
+  const colorsPanel = (
+    <ColorsPanel
+      colors={colors}
+      format={inspect.format}
+      reading={inspect.status === "decoding"}
+      unreadable={inspect.status === "error"}
+    />
+  );
 
   // Picking a tool, by click or by key, leaves Inspect and starts the tool clean.
   const pickTool = (tool: AnnotationTool): void => {
@@ -1466,6 +1482,7 @@ function ScreenshotEditorBody({
                 canvasMode && scene.exportFrame == null ? (
                   <ExportBox
                     size={exportSize}
+                    filled={scene.beautify.state.bg === "none"}
                     labeled={
                       !inspect.active && tools.tool !== "blur" && tools.tool !== "selectText"
                     }
@@ -1489,14 +1506,7 @@ function ScreenshotEditorBody({
             {inspect.active ? (
               <>
                 <InspectBar inspect={inspect} colors={colors} />
-                {colors.open && (
-                  <ColorsPanel
-                    colors={colors}
-                    format={inspect.format}
-                    reading={inspect.status === "decoding"}
-                    unreadable={inspect.status === "error"}
-                  />
-                )}
+                {colors.open && !compact && colorsPanel}
               </>
             ) : (
               <AnnotationOptions
@@ -1571,6 +1581,7 @@ function ScreenshotEditorBody({
             <>
               <div className={styles.sheetScrim} onClick={() => setPanelOpen(false)} aria-hidden />
               <div className={styles.sheet}>
+                {colorsShown && <div className={styles.sheetColors}>{colorsPanel}</div>}
                 <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} />
               </div>
             </>

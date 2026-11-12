@@ -35,17 +35,18 @@
   border: calc(1.5px / var(--canvas-zoom, 1)) solid var(--ie-accent);
 }
 
-/* Above the top edge, centred, at a fixed size on screen. */
+/* Below the bottom edge, 8 px under it and left-aligned with the image (mock A4), at a fixed
+   size on screen. */
 .tag {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 10px / var(--canvas-zoom, 1));
+  left: 0;
+  top: calc(100% + 8px / var(--canvas-zoom, 1));
   display: flex;
   gap: 6px;
   white-space: nowrap;
   padding: 3px 8px;
-  transform: translateX(-50%) scale(calc(1 / var(--canvas-zoom, 1)));
-  transform-origin: center bottom;
+  transform: scale(calc(1 / var(--canvas-zoom, 1)));
+  transform-origin: left top;
   background: var(--ie-ov-bg);
   border: 1px solid var(--ie-ov-bd);
   border-radius: 5px;

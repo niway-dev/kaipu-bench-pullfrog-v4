@@ -54,7 +54,7 @@ export function AddImageControl({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, onOpenChange]);
 
   const newCapture = async (): Promise<void> => {
     onOpenChange(false);

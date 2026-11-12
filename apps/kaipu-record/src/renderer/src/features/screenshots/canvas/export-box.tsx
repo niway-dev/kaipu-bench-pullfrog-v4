@@ -15,16 +15,19 @@ import styles from "./export-box.module.css";
  * been measured. `labeled` false keeps the box and drops the label (Inspect, Redact and Select
  * text are reading the image and the label would sit on top of what they show).
  *
- * The box has no fill of its own: with no background the frame already paints the white the
- * export has under the content (`canvas-box-fill`), and a stage-coloured fill would show the
- * user a colour Copy does not produce.
+ * `filled` paints the stage colour under the content, so the dot grid does not show through the
+ * box (mock A1). The page passes it when there is no background: the export fills the gaps with
+ * a neutral colour then, never a see-through void, so a solid fill is the truthful preview. With
+ * a background the frame already paints it, and a fill here would cover it.
  */
 export function ExportBox({
   size,
   labeled,
+  filled = false,
 }: {
   size: { w: number; h: number } | null;
   labeled: boolean;
+  filled?: boolean;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const showLabel = labeled && size !== null;
@@ -36,6 +39,7 @@ export function ExportBox({
       data-label={showLabel ? "labeled" : "quiet"}
       aria-hidden
     >
+      {filled && <div className={styles.fill} data-testid="export-box-fill" />}
       <div className={styles.dash} />
       {showLabel && (
         <div className={styles.label} data-testid="export-box-label">

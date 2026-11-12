@@ -223,10 +223,10 @@ export const editorImage = catalog(
     },
     "canvas-export-box-quiet": {
       profile: "image-canvas",
-      how: "Mock A1: with the flag forced on, open “Settings page” and pick the Blur tool: the dashed export box stays, its label is hidden.",
+      how: "Mock A1: with the flag forced on, open “Settings page” and pick the Redact tool: the dashed export box stays, its label is hidden.",
       steps: [
         open(ASSETS.settingsShot),
-        tool("Blur"),
+        tool("Redact"),
         { waitFor: { area: "editorImage.exportBox" } },
       ],
       demonstrates: ["editorImage.exportBox:quiet"],
@@ -274,10 +274,10 @@ export const editorImage = catalog(
     },
     "canvas-export-frame": {
       profile: "image-canvas",
-      how: "Mock A5: with the flag forced on, open “Settings page”, pick the Crop tool and drag a rectangle inside the image: the outside is dimmed, the frame shows its handles and “W × H px · EXPORT FRAME”, and the card at the top left offers Fit to content and Remove.",
+      how: "Mock A5: with the flag forced on, open “Settings page”, pick the Export frame tool and drag a rectangle inside the image: the outside is dimmed, the frame shows its handles and “W × H px · EXPORT FRAME”, and the card at the top left offers Fit to content and Remove.",
       steps: [
         open(ASSETS.settingsShot),
-        tool("Crop"),
+        tool("Export frame"),
         {
           drag: { area: "editorImage.canvas" },
           from: { x: 0.42, y: 0.35 },
