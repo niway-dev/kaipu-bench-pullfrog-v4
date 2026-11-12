@@ -412,7 +412,7 @@ describe("toolbar B3: compact", () => {
     setPageWidth(900);
     fireEvent.click(btn("More"));
     fireEvent.click(screen.getByRole("menuitem", { name: /^Export frame/ }));
-    expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fit to content" })).toBeInTheDocument();
   });
 
   it("closes a menu with Esc", async () => {
@@ -467,6 +467,33 @@ describe("toolbar B3: compact", () => {
     expect(maybeBtn("Pen")).not.toBeNull();
     expect(maybeBtn("Panel")).toBeNull();
     expect(screen.getByText("Beautify")).toBeInTheDocument();
+  });
+
+  it("holds the Inspect colors panel in the sheet, opening it, instead of floating over the stage", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    const colorsPanel = () => document.querySelector('[data-ui-area="editorImage.inspectColors"]');
+    fireEvent.click(btn("Inspect (I)"));
+    expect(colorsPanel()).toBeNull();
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Colors" }));
+    expect(colorsPanel()).not.toBeNull();
+    // It is in the sheet, with Beautify, and the sheet opened on its own.
+    expect(colorsPanel()!.closest('[class*="sheet"]')).not.toBeNull();
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    // Closing the sheet takes the panel with it.
+    fireEvent.click(btn("Panel"));
+    expect(colorsPanel()).toBeNull();
+  });
+
+  it("keeps the Inspect colors panel floating over the stage in the full layout", async () => {
+    await mount(ALL);
+    fireEvent.click(btn("Inspect (I)"));
+    fireEvent.click(screen.getByRole("button", { name: "Colors" }));
+    const panel = document.querySelector('[data-ui-area="editorImage.inspectColors"]');
+    expect(panel).not.toBeNull();
+    expect(panel!.closest('[class*="sheet"]')).toBeNull();
   });
 
   it("marks the toolbar and the map areas", async () => {

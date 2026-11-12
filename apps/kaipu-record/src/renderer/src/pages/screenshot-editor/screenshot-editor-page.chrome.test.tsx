@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
@@ -119,6 +119,29 @@ describe("ScreenshotEditorPage — export box (mock A1)", () => {
     expect(boxLabel()).toHaveTextContent("400 × 400 px");
   });
 
+  it("with no background the box is filled with the stage colour, under the content", async () => {
+    mount();
+    await loadImage();
+    await waitFor(() => expect(box()).not.toBeNull());
+    const fill = screen.getByTestId("export-box-fill");
+    expect(box()).toContainElement(fill);
+    // First in the box, so the dashed outline and label draw over it.
+    expect(box()!.firstElementChild).toBe(fill);
+  });
+
+  it("with a background the box has no fill: the background shows", async () => {
+    mount();
+    await loadImage();
+    await waitFor(() => expect(box()).not.toBeNull());
+    fireEvent.click(
+      within(
+        document.querySelector('[data-ui-area="editorImage.beautify"]') as HTMLElement,
+      ).getByRole("button", { name: "Sunset" }),
+    );
+    await waitFor(() => expect(screen.queryByTestId("export-box-fill")).toBeNull());
+    expect(box()).not.toBeNull();
+  });
+
   it("flag off: there is no box and no label", async () => {
     flags = {};
     mount();
@@ -147,7 +170,7 @@ describe("ScreenshotEditorPage — export box (mock A1)", () => {
     mount();
     await loadImage();
     await waitFor(() => expect(box()).toHaveAttribute("data-label", "labeled"));
-    tool("Blur");
+    tool("Redact");
     expect(box()).toHaveAttribute("data-label", "quiet");
     expect(boxLabel()).toBeNull();
     tool("Box");
@@ -172,7 +195,7 @@ describe("ScreenshotEditorPage — export box (mock A1)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Inspect (I)" }));
     expect(box()).toHaveAttribute("data-label", "quiet");
     expect(boxLabel()).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Inspect (I)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Annotate (Esc)" }));
     expect(box()).toHaveAttribute("data-label", "labeled");
   });
 
@@ -180,7 +203,7 @@ describe("ScreenshotEditorPage — export box (mock A1)", () => {
     mount();
     await loadImage();
     await waitFor(() => expect(box()).not.toBeNull());
-    tool("Crop");
+    tool("Export frame");
     const overlay = await waitFor(() => {
       const el = document.querySelector('[class*="overlay"]');
       expect(el).not.toBeNull();
@@ -209,7 +232,7 @@ describe("ScreenshotEditorPage — export frame card (mock A5)", () => {
     mount();
     await loadImage();
     expect(screen.queryByText("Export frame")).toBeNull();
-    tool("Crop");
+    tool("Export frame");
     expect(screen.getByText("Export frame")).toBeInTheDocument();
     expect(screen.getByText("Copy and Save export exactly this box.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fit to content" })).toBeEnabled();
@@ -234,7 +257,7 @@ describe("ScreenshotEditorPage — export frame card (mock A5)", () => {
     mount();
     await loadImage();
     await waitFor(() => expect(box()).not.toBeNull());
-    tool("Crop");
+    tool("Export frame");
     fireEvent.click(screen.getByRole("button", { name: "Fit to content" }));
     await waitFor(() => expect(exportFrameOf()).toBe("true"));
     // No content past the shot and no padding: the content box is the shot, 0-1 of itself.
@@ -247,7 +270,7 @@ describe("ScreenshotEditorPage — export frame card (mock A5)", () => {
   it("both buttons are undoable", async () => {
     mount();
     await loadImage();
-    tool("Crop");
+    tool("Export frame");
     fireEvent.click(screen.getByRole("button", { name: "Fit to content" }));
     await waitFor(() => expect(exportFrameOf()).toBe("true"));
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
@@ -270,7 +293,7 @@ describe("ScreenshotEditorPage — export frame card (mock A5)", () => {
     fireEvent.pointerDown(surface, { button: 0, clientX: 150, clientY: 50, pointerId: 6 });
     fireEvent.pointerMove(surface, { clientX: 300, clientY: 150, pointerId: 6 });
     fireEvent.pointerUp(surface, { pointerId: 6 });
-    tool("Crop");
+    tool("Export frame");
     fireEvent.click(screen.getByRole("button", { name: "Fit to content" }));
     await waitFor(() => expect(exportFrameOf()).toBe("true"));
     const frame = (await savedFrame()) as { x: number; y: number; w: number; h: number };
@@ -426,7 +449,7 @@ describe("ScreenshotEditorPage — export frame look and Beautify tip (mock A5, 
     mount();
     await loadImage();
     await waitFor(() => expect(box()).not.toBeNull());
-    tool("Crop");
+    tool("Export frame");
     const overlay = await waitFor(() => {
       const el = document.querySelector('[class*="overlay"]');
       expect(el).not.toBeNull();
