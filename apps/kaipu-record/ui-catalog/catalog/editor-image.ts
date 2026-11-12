@@ -393,9 +393,14 @@ export const editorImage = catalog(
         ...placeFourBadges,
       ],
       demonstrates: ["editorImage.canvas:steps"],
-      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
-      // a second shot opens the item as seeded.
-      after: [{ navigate: "/library" }, { action: "restoreVault" }],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
     },
     "step-badge-selected": {
       profile: "image-mocks",
@@ -409,9 +414,14 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.canvas:stepSelected"],
-      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
-      // a second shot opens the item as seeded.
-      after: [{ navigate: "/library" }, { action: "restoreVault" }],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
     },
     "step-badge-sizes": {
       profile: "image-mocks",
@@ -434,9 +444,14 @@ export const editorImage = catalog(
         badgeDrawn,
       ],
       demonstrates: ["editorImage.canvas:stepSizes"],
-      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
-      // a second shot opens the item as seeded.
-      after: [{ navigate: "/library" }, { action: "restoreVault" }],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
     },
     "redaction-card": {
       profile: "image-mocks",
@@ -467,10 +482,12 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.redactionNotice:shown"],
       gates: [{ flag: "image-canvas", side: "on" }],
-      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
-      // a second shot opens the item as seeded.
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
       after: [
         { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
         { action: "restoreVault" },
         { action: "forgetRedactionNotice" },
       ],
@@ -515,10 +532,12 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.canvas:redacted", "editorImage.redactionStyle:solid"],
       gates: [{ flag: "image-canvas", side: "on" }],
-      // Leave the editor first (its leave guard saves pending edits), then put the vault back so
-      // a second shot opens the item as seeded.
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
       after: [
         { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
         { action: "restoreVault" },
         { action: "forgetRedactionNotice" },
       ],
