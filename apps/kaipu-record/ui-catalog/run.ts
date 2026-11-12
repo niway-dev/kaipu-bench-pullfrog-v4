@@ -1072,7 +1072,11 @@ async function shoot(
 
     // A kept toast still closes on its own timer: one gone by the end of the shot means the
     // image may show the state without it, so the state fails instead of keeping that image.
-    if (spec.keepToasts && (await page.locator('[role="alert"]').count()) === 0)
+    // A toast is an alert with a Close button; inline error alerts have none.
+    if (
+      spec.keepToasts &&
+      (await page.locator('[role="alert"]:has(button[aria-label="Close"])').count()) === 0
+    )
       problems.push("keepToasts: no toast was still open when the shot was taken");
 
     // The image must show what it claims, and nothing the state did not ask for.
