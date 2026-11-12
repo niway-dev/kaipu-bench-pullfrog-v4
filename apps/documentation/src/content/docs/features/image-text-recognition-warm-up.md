@@ -37,9 +37,10 @@ background, so repeating it every launch is cheap.
 The editor's recognizer is wrapped by a gate (`withWarmUpGate`):
 
 - An editor request that arrives while a warm-up is running waits for it, instead of starting
-  a second cold helper process for the same model. The wait is not capped: if the helper hangs
-  instead of compiling slowly, the request waits for the warm-up's timeouts (about 47 s: a 2 s
-  version check plus a 45 s run) and then runs with its own 45 s timeout.
+  a second cold helper process for the same model. The wait is not capped: if the helper answers
+  `--version` but then hangs on the recognition run, the request waits up to 45 s for the
+  warm-up and then runs with its own 45 s timeout. If it hangs on `--version` instead, the
+  warm-up gives up after 2 s and the request repeats that check itself.
 - An editor request that arrives before the warm-up has started cancels it, because that request
   already starts the helper cold on its own.
 
