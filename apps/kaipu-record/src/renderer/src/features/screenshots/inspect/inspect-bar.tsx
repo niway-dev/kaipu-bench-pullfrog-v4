@@ -1,12 +1,12 @@
 import React from "react";
-import { Check, Copy, Minus, MoveHorizontal, MoveVertical, Palette, Plus, X } from "lucide-react";
+import { Check, Copy, Minus, MoveHorizontal, MoveVertical, Palette, Plus } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { uiArea } from "@renderer/lib/ui-area";
 import { COLOR_FORMATS, capturedFormat, type ColorFormat } from "./color";
 import type { ColorsController } from "./colors/use-colors";
 import { MAX_TOLERANCE, MIN_TOLERANCE } from "./pixel-run";
 import type { InspectController } from "./use-inspect";
-import styles from "./inspect.module.css";
+import styles from "./inspect-bar.module.css";
 
 const FORMAT_LABEL: Record<ColorFormat, string> = {
   hex: "HEX",
@@ -16,53 +16,37 @@ const FORMAT_LABEL: Record<ColorFormat, string> = {
 };
 
 /**
- * The Inspect bar: format switch, "As captured", Copy and exit. Every key Inspect answers to
- * has a control here. It takes the place of the per-tool options while Inspect is on.
+ * The Inspect controls: width/height rulers, color format, "As captured", tolerance, Outer,
+ * Copy and Colors (mock B1, C2). Every key Inspect answers to has a control here.
+ *
+ * `inline` is the toolbar row that replaces the tool group (mock 586-593); without it the bar
+ * is the floating card compact layouts keep. Exiting is the mode switch's Annotate segment or
+ * Esc, so there is no exit button. The status lines sit at the end of the row.
  */
 export function InspectBar({
   inspect,
   colors,
+  inline = false,
 }: {
   inspect: InspectController;
   /** The colors panel's toggle (NIW2-704). */
   colors?: ColorsController;
+  inline?: boolean;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const shownFormat = inspect.asCaptured ? capturedFormat(inspect.format) : inspect.format;
+  const toleranceShown = inspect.toleranceShown;
+  const ruler = (axis: "x" | "y"): void => inspect.setRuler(inspect.ruler === axis ? null : axis);
   return (
     <div
       {...uiArea("editorImage.inspectBar")}
-      className={styles.bar}
+      className={`${styles.bar} ${inline ? styles.barInline : ""}`}
       role="group"
       aria-label={t("inspectBarLabel")}
       data-format={shownFormat}
       data-as-captured={String(inspect.asCaptured)}
+      data-inline={String(inline)}
     >
-      <div className={styles.barRow}>
-        <div className={styles.segments} role="group" aria-label={t("inspectFormat")}>
-          {COLOR_FORMATS.map((format) => (
-            <button
-              key={format}
-              type="button"
-              className={`${styles.segment} ${shownFormat === format ? styles.segmentOn : ""}`}
-              aria-pressed={shownFormat === format}
-              disabled={inspect.asCaptured && format !== capturedFormat(format)}
-              onClick={() => inspect.setFormat(format)}
-            >
-              {FORMAT_LABEL[format]}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          className={`${styles.barBtn} ${inspect.asCaptured ? styles.barBtnOn : ""}`}
-          aria-pressed={inspect.asCaptured}
-          title={t("inspectAsCapturedTitle")}
-          onClick={() => inspect.setAsCaptured(!inspect.asCaptured)}
-        >
-          {t("inspectAsCaptured")}
-        </button>
-      </div>
       <div
         {...uiArea("editorImage.inspectRuler")}
         className={styles.barRow}
@@ -74,21 +58,25 @@ export function InspectBar({
           type="button"
           className={`${styles.barBtn} ${inspect.ruler === "x" ? styles.barBtnOn : ""}`}
           aria-pressed={inspect.ruler === "x"}
+          aria-label={t("inspectRulerX")}
           title={t("inspectRulerXTitle")}
-          onClick={() => inspect.setRuler(inspect.ruler === "x" ? null : "x")}
+          onClick={() => ruler("x")}
         >
-          <MoveHorizontal size={14} />
-          {t("inspectRulerX")}
+          <MoveHorizontal size={inline ? 16 : 14} />
+          {t("inspectBarWidth")}
+          <kbd className={styles.kbd}>1</kbd>
         </button>
         <button
           type="button"
           className={`${styles.barBtn} ${inspect.ruler === "y" ? styles.barBtnOn : ""}`}
           aria-pressed={inspect.ruler === "y"}
+          aria-label={t("inspectRulerY")}
           title={t("inspectRulerYTitle")}
-          onClick={() => inspect.setRuler(inspect.ruler === "y" ? null : "y")}
+          onClick={() => ruler("y")}
         >
-          <MoveVertical size={14} />
-          {t("inspectRulerY")}
+          <MoveVertical size={inline ? 16 : 14} />
+          {t("inspectBarHeight")}
+          <kbd className={styles.kbd}>2</kbd>
         </button>
         <button
           type="button"
@@ -100,35 +88,71 @@ export function InspectBar({
         >
           {t("inspectOuter")}
         </button>
-        <div
-          className={styles.rulerTolerance}
-          role="group"
-          aria-label={t("inspectTolerance")}
-          title={t("inspectToleranceTitle")}
-        >
-          <button
-            type="button"
-            className={styles.segment}
-            aria-label={t("inspectToleranceDown")}
-            disabled={!inspect.ruler || inspect.tolerance <= MIN_TOLERANCE}
-            onClick={() => inspect.setTolerance(inspect.tolerance - 1)}
-          >
-            <Minus size={12} />
-          </button>
-          <span className={styles.toleranceValue} data-testid="inspect-tolerance">
-            {inspect.tolerance}
-          </span>
-          <button
-            type="button"
-            className={styles.segment}
-            aria-label={t("inspectToleranceUp")}
-            disabled={!inspect.ruler || inspect.tolerance >= MAX_TOLERANCE}
-            onClick={() => inspect.setTolerance(inspect.tolerance + 1)}
-          >
-            <Plus size={12} />
-          </button>
-        </div>
       </div>
+      <span className={styles.divider} aria-hidden />
+      <div className={styles.segments} role="group" aria-label={t("inspectFormat")}>
+        {COLOR_FORMATS.map((format) => (
+          <button
+            key={format}
+            type="button"
+            className={`${styles.segment} ${shownFormat === format ? styles.segmentOn : ""}`}
+            aria-pressed={shownFormat === format}
+            disabled={inspect.asCaptured && format !== capturedFormat(format)}
+            onClick={() => inspect.setFormat(format)}
+          >
+            {FORMAT_LABEL[format]}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className={`${styles.switchBtn} ${inspect.asCaptured ? styles.switchBtnOn : ""}`}
+        aria-pressed={inspect.asCaptured}
+        title={t("inspectAsCapturedTitle")}
+        onClick={() => inspect.setAsCaptured(!inspect.asCaptured)}
+      >
+        <span className={styles.switchTrack} aria-hidden>
+          <span className={styles.switchThumb} />
+        </span>
+        {t("inspectAsCaptured")}
+      </button>
+      <span className={styles.divider} aria-hidden />
+      <div
+        className={styles.rulerTolerance}
+        role="group"
+        aria-label={t("inspectTolerance")}
+        title={t("inspectToleranceTitle")}
+      >
+        <span className={styles.toleranceLabel} aria-hidden>
+          {t("inspectTolerance")}
+        </span>
+        <button
+          type="button"
+          className={styles.segment}
+          aria-label={t("inspectToleranceDown")}
+          disabled={!inspect.ruler || inspect.tolerance <= MIN_TOLERANCE}
+          onClick={() => inspect.setTolerance(inspect.tolerance - 1)}
+        >
+          <Minus size={12} />
+        </button>
+        <span
+          className={`${styles.toleranceValue} ${toleranceShown ? styles.toleranceValueShown : ""}`}
+          data-testid="inspect-tolerance"
+          data-shown={String(toleranceShown)}
+        >
+          {inspect.tolerance}
+        </span>
+        <button
+          type="button"
+          className={styles.segment}
+          aria-label={t("inspectToleranceUp")}
+          disabled={!inspect.ruler || inspect.tolerance >= MAX_TOLERANCE}
+          onClick={() => inspect.setTolerance(inspect.tolerance + 1)}
+        >
+          <Plus size={12} />
+        </button>
+      </div>
+      <span className={styles.divider} aria-hidden />
       <div className={styles.barRow}>
         <button
           type="button"
@@ -138,7 +162,8 @@ export function InspectBar({
           onClick={() => void inspect.copy()}
         >
           {inspect.copied ? <Check size={14} /> : <Copy size={14} />}
-          {inspect.copied ? t("inspectCopied") : t("inspectCopy")}
+          {/* The toolbar row has no room for the words (the mock's row has no copy button). */}
+          {!inline && t("inspectCopy")}
         </button>
         {colors && (
           <button
@@ -146,22 +171,13 @@ export function InspectBar({
             className={`${styles.barBtn} ${colors.open ? styles.barBtnOn : ""}`}
             aria-pressed={colors.open}
             title={t("inspectColorsTitle")}
+            aria-label={t("inspectColors")}
             onClick={colors.toggle}
           >
             <Palette size={14} />
-            {t("inspectColors")}
+            {!inline && t("inspectColors")}
           </button>
         )}
-        <button
-          type="button"
-          className={styles.barBtn}
-          title={t("inspectExitTitle")}
-          aria-label={t("inspectExit")}
-          onClick={() => inspect.setActive(false)}
-        >
-          <X size={14} />
-          {t("inspectExit")}
-        </button>
       </div>
       {inspect.status === "decoding" && (
         <span className={styles.status}>{t("inspectReading")}</span>

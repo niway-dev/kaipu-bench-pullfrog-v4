@@ -25,6 +25,30 @@ const fromLibrary: Step = {
     part: { role: "menuitem", name: "From Library", exact: true },
   },
 };
+const searchLibrary = (value: string): Step => ({
+  fill: {
+    area: "editorImage.libraryPicker",
+    part: { role: "textbox", name: "Search captures", exact: true },
+  },
+  value,
+});
+// The list loads after the picker opens: wait for an item, not just the dialog.
+const libraryListed: Step = {
+  waitFor: {
+    area: "editorImage.libraryPicker",
+    part: { role: "button", name: "Dashboard draft", exact: true },
+  },
+};
+/**
+ * After a state that added an image: leave the editor first (leaving autosaves the image into
+ * “Settings page”, and the Library shows only once that save is done), then put the vault
+ * back. Restoring while the editor is still open would let the save land afterwards.
+ */
+const leaveAndRestore: readonly Step[] = [
+  { navigate: "/library" },
+  { waitFor: { area: "library.page" } },
+  { action: "restoreVault" },
+];
 const inspectToggle: Step = {
   click: { area: "editorImage.inspectToggle" },
 };
@@ -91,6 +115,26 @@ const placeFourBadges: readonly Step[] = [
   tool("Select"),
   badgeDrawn,
 ];
+
+/** Inspect states from the mocks (C1-C12): the pointer rests on the canvas and the HUD shows. */
+const hoverCanvas: Step = { hover: { area: "editorImage.canvas" } };
+const hudShown: Step = { waitFor: { area: "editorImage.inspectHud" } };
+const runShown: Step = { waitFor: { area: "editorImage.inspectRun" } };
+const inspectButton = (name: string): Step => ({
+  click: { area: "editorImage.inspectBar", part: { role: "button", name, exact: true } },
+});
+/** The HUD, aimed by a point of the canvas box (fractions), which the Inspect layer covers. */
+const hoverAt = (x: number, y: number, part?: { css: string }): Step => ({
+  hover: { area: "editorImage.canvas", ...(part ? { part } : {}) },
+  at: { x, y },
+});
+const clickAt = (x: number, y: number): Step => ({
+  click: { area: "editorImage.canvas" },
+  at: { x, y },
+});
+const inCanvas = (css: string) => ({
+  waitFor: { area: "editorImage.canvas" as const, part: { css } },
+});
 
 /** Open the screenshot that draws real text and pick Select text, as `ready` and `selected` start. */
 const openText: readonly Step[] = [
@@ -245,31 +289,75 @@ export const editorImage = catalog(
     },
     "add-image-menu": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page” and press Add image: the menu offers New capture and From Library, and says pasting works too.",
+      how: "Mock E1: with the flag forced on, open “Settings page” and press Add image: the menu offers New capture (focused) and From Library, and says pasting works too, with the paste key in a chip.",
       steps: [open(ASSETS.settingsShot), addImageButton],
       demonstrates: ["editorImage.addImage:open"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
     "library-picker": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page”, press Add image and choose From Library: the picker lists the other screenshots in the Library.",
+      how: "Mock E2: with the flag forced on, open “Settings page”, press Add image and choose From Library: the picker lists the other screenshots, newest first and selected with the accent ring, with a search field, and says where the image lands.",
+      steps: [open(ASSETS.settingsShot), addImageButton, fromLibrary, libraryListed],
+      demonstrates: ["editorImage.libraryPicker:open"],
+    },
+    "library-picker-search": {
+      profile: "image-canvas",
+      how: "Mock E2: with the flag forced on, open the Library picker from “Settings page” and type “dash” in Search captures: only “Dashboard draft” is left, selected.",
       steps: [
         open(ASSETS.settingsShot),
         addImageButton,
         fromLibrary,
-        // The list loads after the picker opens: wait for an item, not just the dialog.
+        libraryListed,
+        searchLibrary("dash"),
+      ],
+      demonstrates: ["editorImage.libraryPicker:filtered"],
+    },
+    "library-picker-no-match": {
+      profile: "image-canvas",
+      how: "Mock E2: with the flag forced on, open the Library picker from “Settings page” and type “invoice” in Search captures: no capture matches, and the picker says so.",
+      steps: [
+        open(ASSETS.settingsShot),
+        addImageButton,
+        fromLibrary,
+        libraryListed,
+        searchLibrary("invoice"),
+        { waitFor: { area: "editorImage.libraryPicker", part: { text: "No captures match" } } },
+      ],
+      demonstrates: ["editorImage.libraryPicker:noMatch"],
+    },
+    "image-just-added": {
+      profile: "image-canvas",
+      how: "Mock E3: with the flag forced on, open the Library picker from “Settings page”, select “Dashboard draft” and press Place on canvas: it lands to the right of the screenshot, selected, tagged “Just added · drag to place”, and a toast says where it went.",
+      steps: [
+        open(ASSETS.settingsShot),
+        addImageButton,
+        fromLibrary,
+        libraryListed,
         {
-          waitFor: {
+          hover: {
             area: "editorImage.libraryPicker",
             part: { role: "button", name: "Dashboard draft", exact: true },
           },
         },
+        {
+          click: {
+            area: "editorImage.libraryPicker",
+            part: { role: "button", name: "Place on canvas", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
+        // The shot must show the tag (the view is still zooming to fit until it is up).
+        { waitFor: { area: "editorImage.canvas", part: { text: "Just added" } } },
       ],
-      demonstrates: ["editorImage.libraryPicker:open"],
+      demonstrates: ["editorImage.canvasView:justAdded"],
+      // No tag, no state: fail instead of keeping a frame that does not show it.
+      stillOnScreen: { area: "editorImage.canvas", part: { text: "Just added" } },
+      keepToasts: true,
+      after: leaveAndRestore,
     },
     "two-images": {
       profile: "image-canvas",
-      how: "Mock A4: with the flag forced on, open “Settings page”, press Add image, choose From Library and click “Dashboard draft”: it lands to the right of the screenshot, selected, with the accent frame, handles, the “Drag to move” tag and the gap to the screenshot.",
+      how: "Mock A4: with the flag forced on, open “Settings page”, press Add image, choose From Library, click “Dashboard draft” and nudge it right: it sits to the right of the screenshot, selected, with the accent frame, handles, the “Drag to move” tag and the gap to the screenshot.",
       steps: [
         open(ASSETS.settingsShot),
         addImageButton,
@@ -281,8 +369,19 @@ export const editorImage = catalog(
           },
         },
         { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
+        // A just-added image is tagged “Just added” (mock E3) until it moves: nudge it, once the
+        // tag is up (the view is still zooming to fit before that, and a drag lands nowhere).
+        { waitFor: { area: "editorImage.canvas", part: { text: "Just added" } } },
+        {
+          drag: { area: "editorImage.canvas", part: { css: '[data-testid="image-selection"]' } },
+          from: { x: 0.5, y: 0.5 },
+          to: { x: 0.56, y: 0.5 },
+        },
       ],
       demonstrates: ["editorImage.canvasView:twoImages"],
+      // A drag that missed leaves the E3 frame: fail instead of keeping it.
+      stillOnScreen: { area: "editorImage.canvas", part: { text: "Drag to move" } },
+      after: leaveAndRestore,
     },
     "canvas-export-box": {
       profile: "image-canvas",
@@ -756,6 +855,219 @@ export const editorImage = catalog(
       ],
       keepPointer: true,
       demonstrates: ["editorImage.measure:pinned"],
+    },
+    "inspect-c1-loupe": {
+      profile: "image-inspect",
+      how: "Mock C1: with the flag forced on, open “Settings page”, press Inspect and rest the pointer on the image: the gridded loupe with its marked centre pixel, the colour chip with its format tag, and the mode pill at the foot of the canvas.",
+      steps: [open(ASSETS.settingsShot), inspectToggle, hoverCanvas, hudShown],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectHud:reading", "editorImage.inspectMode:collapsed"],
+    },
+    "inspect-narrow-card": {
+      profile: "image-inspect",
+      // The editor's floor (1180 px): the Inspect row does not fit beside Copy, Save and PDF.
+      window: "editor-min",
+      how: "With the flag forced on, open “Settings page” in a 1180 px window and press Inspect: the toolbar keeps the annotation tools and the Inspect controls float as a card over the canvas, so Save and PDF stay in view.",
+      steps: [
+        // After open: opening the image sizes the window back to the editor's default.
+        open(ASSETS.settingsShot),
+        { window: "editor-min" },
+        inspectToggle,
+        // The floating card, not the toolbar row (which carries data-inline="true").
+        {
+          waitFor: {
+            area: "editorImage.page",
+            part: { css: "[data-ui-area='editorImage.inspectBar'][data-inline='false']" },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.inspectBar:floating"],
+    },
+    "inspect-c2-format": {
+      profile: "image-inspect",
+      how: "Mock C2: with the flag forced on, open “Settings page”, press Inspect, choose OKLCH and As captured in the bar, then rest the pointer on the image: the chip reads in OKLCH and its tag says it is as captured.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        inspectButton("OKLCH"),
+        inspectButton("As captured"),
+        hoverCanvas,
+        hudShown,
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectBar:asCaptured", "editorImage.inspectHud:reading"],
+    },
+    "inspect-c3-p3": {
+      profile: "image-inspect",
+      how: "Mock C3: with the flag forced on, open “P3 swatches”, a Display P3 sheet, press Inspect and rest the pointer on its teal swatch, which sRGB cannot show: the chip carries the P3 badge and the card under it explains the nearest sRGB color.",
+      steps: [
+        open(ASSETS.p3Shot),
+        inspectToggle,
+        hoverAt(0.1875, 0.75, { css: "img" }),
+        hudShown,
+        inCanvas("[data-ui-area='editorImage.inspectHud'][data-probed='true']"),
+        { waitFor: { area: "editorImage.inspectHud", part: { text: "Out of sRGB" } } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectHud:reading"],
+    },
+    "inspect-c4-copied": {
+      profile: "image-inspect",
+      how: "Mock C4: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press C: the chip shows a check and the mode pill is replaced by “Copied” with the value.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        hoverCanvas,
+        hudShown,
+        { press: "c" },
+        { waitFor: { area: "editorImage.inspectCopied" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectCopied:shown"],
+    },
+    "inspect-c5-width": {
+      profile: "image-inspect",
+      how: "Mock C5: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 1: the horizontal run is drawn with its length pill above it, and Width is on in the toolbar.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        hoverCanvas,
+        hudShown,
+        { press: "1" },
+        runShown,
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRuler:horizontal", "editorImage.inspectRun:horizontal"],
+    },
+    "inspect-c6-height": {
+      profile: "image-inspect",
+      how: "Mock C6: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 2: the vertical run is drawn with its length pill beside it, and Height is on in the toolbar.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        hoverCanvas,
+        hudShown,
+        { press: "2" },
+        runShown,
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRuler:vertical", "editorImage.inspectRun:vertical"],
+    },
+    "inspect-c7-tolerance": {
+      profile: "image-inspect",
+      how: "Mock C7: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image, press 1 and turn the mouse wheel up three notches: the tolerance card with its progress bar appears beside the cursor and the toolbar's Tolerance value turns accent.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        hoverCanvas,
+        hudShown,
+        { press: "1" },
+        runShown,
+        { wheel: { area: "editorImage.canvas" }, deltaY: -100, times: 3 },
+        inCanvas("[data-testid='inspect-tolerance-card']"),
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRun:horizontal"],
+    },
+    "inspect-c8-outer": {
+      profile: "image-inspect",
+      how: "Mock C8: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image, press 1, turn Outer on in the bar (it needs a ruler) and rest the pointer on the image again: the length pill adds the “Outer” sub-label.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        hoverCanvas,
+        hudShown,
+        { press: "1" },
+        inspectButton("Outer"),
+        hoverCanvas,
+        hudShown,
+        runShown,
+        inCanvas("[data-testid='inspect-ruler-length'][data-outer='true']"),
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectRun:horizontal"],
+    },
+    "inspect-c9-pinned": {
+      profile: "image-inspect",
+      how: "Mock C9: with the flag forced on, open “Measure page”, press Inspect, press 1 and click twice at two heights, press 2 and click once more, then press Escape, pick Select and click the first measurement: three pinned measurements, the selected one with an accent label and round end handles.",
+      steps: [
+        open(ASSETS.pinsShot),
+        inspectToggle,
+        // Two moves: one mouse event can land before the Inspect layer listens (seen once on the mini).
+        hoverAt(0.44, 0.34),
+        hoverAt(0.45, 0.35),
+        hudShown,
+        { press: "1" },
+        runShown,
+        clickAt(0.45, 0.35),
+        hoverAt(0.55, 0.5),
+        runShown,
+        clickAt(0.55, 0.5),
+        { press: "2" },
+        hoverAt(0.5, 0.65),
+        runShown,
+        clickAt(0.5, 0.65),
+        { press: "Escape" },
+        tool("Select"),
+        // Back on the first measurement's line (where it was pinned); its <g> root is not clickable.
+        clickAt(0.45, 0.35),
+        // The measure root carries data-selected; parts search below an area, so look from the canvas.
+        {
+          waitFor: {
+            area: "editorImage.canvas",
+            part: { css: "[data-kind='measure'][data-selected='true']" },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.measure:selected"],
+    },
+    "inspect-c10-empty": {
+      profile: "image-toolbar",
+      how: "Mock C10: with the three image-editor flags forced on, open “Settings page”, press Inspect, zoom out and rest the pointer on the empty canvas beside the image: the loupe is hatched with “No pixels here” and the chip says “Nothing to read”.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        zoomOut,
+        hoverAt(0.05, 0.5),
+        { waitFor: { area: "editorImage.inspectEmpty" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectEmpty:shown"],
+    },
+    "inspect-c11-legend": {
+      profile: "image-inspect",
+      how: "Mock C11: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press ?: the mode pill opens into the key legend, with a button that hides it.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        hoverCanvas,
+        hudShown,
+        { press: "?" },
+        {
+          waitFor: {
+            area: "editorImage.inspectMode",
+            part: { role: "button", name: "Hide the keys", exact: true },
+          },
+        },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectMode:legend"],
+    },
+    "inspect-c12-edge": {
+      profile: "image-toolbar",
+      how: "Mock C12: with the three image-editor flags forced on, open “Settings page”, press Inspect, zoom in three steps and rest the pointer near the bottom-right corner of the canvas: the loupe and chip flip to the left and above the pointer, with the chip above the loupe.",
+      steps: [
+        open(ASSETS.settingsShot),
+        inspectToggle,
+        zoomIn,
+        zoomIn,
+        zoomIn,
+        hoverAt(0.97, 0.95),
+        hudShown,
+        inCanvas("[data-ui-area='editorImage.inspectHud'][data-flip-x='true'][data-flip-y='true']"),
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.inspectHud:reading"],
     },
     "text-none": {
       profile: "image-text",

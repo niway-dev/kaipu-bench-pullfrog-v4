@@ -143,8 +143,13 @@ export interface DragPoint {
 export type Step =
   /** Hash navigation in the main window: `{ navigate: "/library" }`. */
   | ({ readonly navigate: string } & On)
-  | ({ readonly click: Target } & On)
-  | ({ readonly hover: Target } & On)
+  /**
+   * `at` aims at a point of the target's box instead of its centre (fractions 0-1, as `drag`
+   * does). The pointer is moved there directly, so it also works over a target another layer
+   * covers (the Inspect layer sits over the image).
+   */
+  | ({ readonly click: Target; readonly at?: DragPoint } & On)
+  | ({ readonly hover: Target; readonly at?: DragPoint } & On)
   /**
    * Move the pointer over the target, then turn the wheel by (`deltaX`, `deltaY`) px, `times`
    * times (default 1), then settle briefly. A plain wheel pans a canvas; Ctrl or Cmd zooms.
@@ -243,7 +248,9 @@ export interface CatalogState<S extends ScreenId> {
   readonly keepPointer?: boolean;
   /**
    * Leave toasts open for the shot. By default the runner closes them, because a toast a step
-   * caused is not part of the state; set this when the toast is the state (a copy confirmation).
+   * caused is not part of the state; set this when the toast is the state (a copy confirmation,
+   * mock E3's "Image added…"). The state then fails if no toast is still open when the shot is
+   * taken, since an image without it would not show what the state claims.
    */
   readonly keepToasts?: boolean;
   /**
@@ -376,8 +383,10 @@ export function describeStep(step: Step): string {
     return `\`${t.area}\`${which}${part}${t.nth ? ` #${t.nth + 1}` : ""}`;
   };
   if ("navigate" in step) return `Go to \`#${step.navigate}\``;
-  if ("click" in step) return `Click ${target(step.click)}`;
-  if ("hover" in step) return `Hover ${target(step.hover)}`;
+  const at = (p?: DragPoint): string =>
+    p ? ` at (${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)` : "";
+  if ("click" in step) return `Click ${target(step.click)}${at(step.at)}`;
+  if ("hover" in step) return `Hover ${target(step.hover)}${at(step.at)}`;
   if ("wheel" in step) {
     const [dx, dy] = [step.deltaX ?? 0, step.deltaY ?? 0];
     const times = step.times && step.times > 1 ? `, ${step.times} times` : "";

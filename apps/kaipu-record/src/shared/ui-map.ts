@@ -294,6 +294,7 @@ export const UI_MAP = {
           "exportFrame",
           "light",
           "twoImages",
+          "justAdded",
           "beautified",
           "offContent",
         ],
@@ -305,7 +306,12 @@ export const UI_MAP = {
       exportFrameCard: { states: ["open"], gatedBy: [{ flag: "image-canvas" }] },
       offContentNotice: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
       addImage: { states: ["closed", "open"], gatedBy: [{ flag: "image-canvas" }] },
-      libraryPicker: { states: ["open", "empty"], gatedBy: [{ flag: "image-canvas" }] },
+      // The Library picker (mock E2): the list with the newest selected, the list narrowed by
+      // the search field, a search that matches nothing, and a Library with nothing to add.
+      libraryPicker: {
+        states: ["open", "filtered", "noMatch", "empty"],
+        gatedBy: [{ flag: "image-canvas" }],
+      },
       redactionStyle: {
         states: ["blur", "solid"],
         gatedBy: [{ flag: "image-canvas" }],
@@ -314,8 +320,17 @@ export const UI_MAP = {
       redactionNotice: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
-      inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
+      // "floating": the card over the canvas where the toolbar row has no room (NIW2-712).
+      inspectBar: {
+        states: ["hex", "asCaptured", "floating"],
+        gatedBy: [{ flag: "image-inspect" }],
+      },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
+      // The readout while the pointer is off the image (NIW2-712).
+      inspectEmpty: { states: ["shown"], gatedBy: [{ flag: "image-inspect" }] },
+      // The pill at the foot of the canvas (mock C11) and the one that replaces it after a copy (C4).
+      inspectMode: { states: ["collapsed", "legend"], gatedBy: [{ flag: "image-inspect" }] },
+      inspectCopied: { states: ["shown"], gatedBy: [{ flag: "image-inspect" }] },
       // The side panel's tab strip (NIW2-714): only where Inspect exists, because the Colors
       // tab is Inspect's. Beautify is selected unless the Colors panel is open.
       panelTabs: { states: ["beautify", "colors"], gatedBy: [{ flag: "image-inspect" }] },
@@ -334,7 +349,7 @@ export const UI_MAP = {
         gatedBy: [{ flag: "image-inspect" }],
       },
       inspectRun: { states: ["horizontal", "vertical"], gatedBy: [{ flag: "image-inspect" }] },
-      measure: { states: ["pinned"], gatedBy: [{ flag: "image-inspect" }] },
+      measure: { states: ["pinned", "selected"], gatedBy: [{ flag: "image-inspect" }] },
       // The "Select text" tool (`image-text`, NIW2-705): the options bar's recognition
       // status, and the image with its recognized words while the tool is active.
       textStatus: {

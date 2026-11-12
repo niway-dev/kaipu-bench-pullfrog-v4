@@ -1,6 +1,6 @@
 /*
- * The Library picker for "Add image" (NIW2-703). It fills the wide modal sheet, which is
- * never taller than the window: only the grid scrolls.
+ * The Library picker for "Add image" (NIW2-703, mock E2). It fills the wide modal sheet, which is
+ * never taller than the window: only the grid scrolls. Editor tokens only.
  */
 .sheet {
   display: flex;
@@ -10,19 +10,82 @@
 }
 
 .header {
-  padding: 22px 22px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ie-sep);
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 200px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--ie-strong);
+  border-radius: 6px;
+  color: var(--ie-mut);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ie-tx);
+  font-family: var(--font-family);
+  font-size: 12px;
+}
+
+.search input::placeholder {
+  color: var(--ie-mut);
+}
+
+.search:focus-within {
+  border-color: var(--ie-accent);
+}
+
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ie-mut);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .body {
   flex: 1;
   min-height: 160px;
   overflow-y: auto;
-  padding: 0 22px;
 }
 
 .note {
   margin: 0;
-  padding: var(--space-xl) 0;
+  padding: var(--space-xl) 16px;
   color: var(--ie-mut);
   font-size: var(--font-size-base);
   text-align: center;
@@ -30,31 +93,29 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--space-md);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
   margin: 0;
-  padding: 0;
+  padding: 16px;
   list-style: none;
 }
 
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 4px;
   width: 100%;
-  padding: 6px;
-  border: 1px solid var(--ie-strong);
-  border-radius: var(--radius-md);
-  background: var(--ie-card);
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--ie-tx);
   font-family: var(--font-family);
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--transition);
 }
 
-.card:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--ie-accent) 55%, transparent);
+.card:focus-visible {
+  outline: none;
 }
 
 .card:disabled {
@@ -68,9 +129,16 @@
   justify-content: center;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: var(--ie-hover);
+  box-shadow: inset 0 0 0 1px var(--ie-sep);
   color: var(--ie-mut);
+}
+
+.card[data-selected="true"] .poster {
+  box-shadow:
+    0 0 0 2px var(--ie-card),
+    0 0 0 4px var(--ie-accent);
 }
 
 .poster img {
@@ -81,11 +149,60 @@
 
 .cardTitle {
   overflow: hidden;
-  font-size: var(--font-size-sm);
+  margin-top: 2px;
+  color: var(--ie-tx);
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.meta {
+  color: var(--ie-mut);
+  font-family: var(--ie-font-mono);
+  font-size: 9.5px;
+}
+
 .footer {
-  padding: var(--space-lg) 22px 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ie-sep);
+}
+
+.hintText {
+  color: var(--ie-mut);
+  font-size: 11.5px;
+}
+
+.ghost,
+.primary {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font-family);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ghost {
+  background: transparent;
+  color: var(--ie-tx2);
+}
+
+.ghost:hover {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
+}
+
+.primary {
+  background: var(--ie-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

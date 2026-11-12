@@ -625,8 +625,15 @@ async function runAction(ctx: Ctx, name: string): Promise<void> {
       await ctx.main.waitForFunction(() => !!window.electronAPI, undefined, { timeout: 15_000 });
       return;
     case "restoreVault": {
+      // A save the app started on leaving the editor can still be writing into
+      // `.kaipu`; the retries ride out ENOTEMPTY from a file landing mid-delete.
       for (const entry of readdirSync(ctx.vaultDir)) {
-        rmSync(path.join(ctx.vaultDir, entry), { recursive: true, force: true });
+        rmSync(path.join(ctx.vaultDir, entry), {
+          recursive: true,
+          force: true,
+          maxRetries: 5,
+          retryDelay: 200,
+        });
       }
       cpSync(ctx.vaultSnapshot, ctx.vaultDir, { recursive: true });
       return;
@@ -725,8 +732,20 @@ async function runStep(ctx: Ctx, step: Step): Promise<void> {
   if ("window" in step && typeof step.window === "string")
     return resizeMain(ctx.app, ctx.main, step.window);
   const page = await pageFor(ctx, "on" in step ? step.on : undefined);
-  if ("click" in step) return targetLocator(page, step.click).click({ timeout: t });
-  if ("hover" in step) return targetLocator(page, step.hover).hover({ timeout: t });
+  if ("click" in step || "hover" in step) {
+    const target = "click" in step ? step.click : step.hover;
+    const locator = targetLocator(page, target);
+    if (step.at) {
+      const box = await locator.boundingBox({ timeout: t });
+      if (!box) throw new Error("the target has no box to aim at");
+      const x = box.x + box.width * step.at.x;
+      const y = box.y + box.height * step.at.y;
+      await page.mouse.move(x, y);
+      if ("click" in step) await page.mouse.click(x, y);
+      return;
+    }
+    return "click" in step ? locator.click({ timeout: t }) : locator.hover({ timeout: t });
+  }
   if ("wheel" in step) {
     const turns = wheelTurns(step);
     await targetLocator(page, step.wheel).hover({ timeout: t });
@@ -968,7 +987,8 @@ async function shoot(
 
   try {
     // A toast a step caused ("Restored your previous edit") covers the corner of the window
-    // for five seconds; it is not part of any state, so it is closed like a user would.
+    // for five seconds; it is not part of the state, so it is closed like a user would,
+    // unless the state says the toast is what it shows.
     if (!target && !spec.keepToasts) {
       await page.evaluate(() => {
         for (const close of document.querySelectorAll<HTMLButtonElement>(
@@ -1066,6 +1086,15 @@ async function shoot(
         );
       }
     }
+
+    // A kept toast still closes on its own timer: one gone by the end of the shot means the
+    // image may show the state without it, so the state fails instead of keeping that image.
+    // A toast is an alert with a Close button; inline error alerts have none.
+    if (
+      spec.keepToasts &&
+      (await page.locator('[role="alert"]:has(button[aria-label="Close"])').count()) === 0
+    )
+      problems.push("keepToasts: no toast was still open when the shot was taken");
 
     // The image must show what it claims, and nothing the state did not ask for.
     for (const claim of spec.demonstrates) {
@@ -1185,6 +1214,7 @@ async function runProfile(name: ProfileName, entries: CatalogEntry[]): Promise<v
           colorsScreenshots: profile.colorsScreenshots,
           lockedRedaction: profile.lockedRedaction,
           mockShots: profile.mockShots,
+          inspectShots: profile.inspectShots,
           corruptCanvas: profile.corruptCanvas,
           reconcile: profile.reconcile,
         }),

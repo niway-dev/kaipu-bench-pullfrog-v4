@@ -10,6 +10,7 @@ export { DEFAULT_TOLERANCE, scanRun, runLength, type PixelRun, type RulerAxis } 
 export { InspectToggle } from "./inspect-toggle";
 export { InspectLayer } from "./inspect-layer";
 export { InspectBar } from "./inspect-bar";
+export { InspectModePill } from "./inspect-mode-pill";
 export {
   COLOR_FORMATS,
   capturedFormat,
