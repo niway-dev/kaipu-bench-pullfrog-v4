@@ -1079,18 +1079,22 @@ function BlurOverImagesBelow({
       <g clipPath={`url(#${clip})`}>
         {hits.map((b) => {
           const url = imageUrls![b.assetId]!;
-          return blur.locked ? (
-            <image
-              key={b.id}
-              href={url}
-              x={b.x * size.w}
-              y={b.y * size.h}
-              width={b.w * size.w}
-              height={b.h * size.h}
-              preserveAspectRatio="none"
-            />
-          ) : (
-            <ImageRedactionTile key={b.id} a={b} blur={blur} url={url} size={size} />
+          // Inside the image's own rounded clip (drawn by its ImageShape), as the export does.
+          return (
+            <g key={b.id} clipPath={`url(#iclip-${b.id})`}>
+              {blur.locked ? (
+                <image
+                  href={url}
+                  x={b.x * size.w}
+                  y={b.y * size.h}
+                  width={b.w * size.w}
+                  height={b.h * size.h}
+                  preserveAspectRatio="none"
+                />
+              ) : (
+                <ImageRedactionTile a={b} blur={blur} url={url} size={size} />
+              )}
+            </g>
           );
         })}
       </g>

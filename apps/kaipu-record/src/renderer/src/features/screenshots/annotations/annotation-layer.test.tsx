@@ -737,7 +737,13 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
         { canvasMode: true, src: "blob:base" },
       );
       const over = container.querySelector('[data-testid="redaction-over-images"]')!;
-      expect(over.querySelector('image[href="blob:added"]')).not.toBeNull();
+      const redrawn = over.querySelector('image[href="blob:added"]')!;
+      expect(redrawn).not.toBeNull();
+      // Through the image's own rounded clip, so a corner the image cuts off stays cut off.
+      const clipped = redrawn.closest(`[clip-path="url(#iclip-${image.id})"]`);
+      expect(clipped).not.toBeNull();
+      expect(over.contains(clipped)).toBe(true);
+      expect(container.querySelector(`clipPath#iclip-${image.id}`)).not.toBeNull();
     });
 
     it("passes the solid style through", () => {
