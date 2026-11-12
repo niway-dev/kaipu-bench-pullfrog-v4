@@ -182,7 +182,7 @@ async function expectCompactRow(page: Page): Promise<void> {
   await expect(toolbar.getByRole("textbox", { name: "Title" })).toHaveCount(0);
 }
 
-test("at 900px below the editor floor the toolbar folds into Draw and More, Save labelled, no title", async () => {
+test("at 900px the toolbar folds into Draw and More, Save labelled, no title", async () => {
   const { app, page, teardown } = await launchApp();
   try {
     await openScreenshotEditor(page);
