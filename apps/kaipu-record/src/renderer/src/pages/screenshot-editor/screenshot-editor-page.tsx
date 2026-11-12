@@ -461,7 +461,6 @@ function ScreenshotEditorBody({
       showToast({
         message: t("textCopied"),
         detail: t("textCopiedLines", { count: distinctLineCount(textSelection.selected) }),
-        rootProps: uiArea("editorImage.textCopied"),
       });
     } catch (error) {
       reportError(t("textCopyError"), error, { context: { phase: "copy-text" } });

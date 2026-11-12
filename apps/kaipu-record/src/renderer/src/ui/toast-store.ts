@@ -13,8 +13,6 @@ export interface ToastSpec {
   message: string;
   /** A second, muted line under the message. */
   detail?: string;
-  /** Attributes for the toast's root, e.g. `uiArea("…")` so the UI catalog can crop it. */
-  rootProps?: Readonly<Record<`data-${string}`, string>>;
   action?: ToastAction;
   durationMs: number;
 }
@@ -35,7 +33,6 @@ function emit(): void {
 export function showToast(spec: {
   message: string;
   detail?: string;
-  rootProps?: Readonly<Record<`data-${string}`, string>>;
   action?: ToastAction;
   durationMs?: number;
 }): string {
@@ -47,7 +44,6 @@ export function showToast(spec: {
       id,
       message: spec.message,
       detail: spec.detail,
-      rootProps: spec.rootProps,
       action: spec.action,
       durationMs,
     },

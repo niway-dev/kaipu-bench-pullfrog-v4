@@ -661,10 +661,11 @@ export const editorImage = catalog(
             part: { css: "[data-testid=text-highlights]" },
           },
         },
+        // The toast renders in the app shell, outside this screen's areas, so no step can wait
+        // on it; it shows in the same render as the copy and stays 4 s, well past the shot.
         { press: "Meta+C" },
-        { waitFor: { area: "editorImage.textCopied" } },
       ],
-      demonstrates: ["editorImage.textCopied:copied"],
+      demonstrates: ["editorImage.textSelection:copied"],
       gates: [{ flag: "image-text", side: "on" }],
     },
     "text-unavailable": {

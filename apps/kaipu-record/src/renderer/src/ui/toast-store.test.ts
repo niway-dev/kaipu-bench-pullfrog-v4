@@ -49,15 +49,13 @@ describe("toast store", () => {
 });
 
 describe("toast detail", () => {
-  it("keeps a second line and root attributes with the toast", () => {
+  it("keeps a second line with the toast", () => {
     const id = showToast({
       message: "Text copied",
       detail: "2 lines",
-      rootProps: { "data-ui-area": "editorImage.textCopied" },
     });
     const found = getToasts().find((x) => x.id === id);
     expect(found?.detail).toBe("2 lines");
-    expect(found?.rootProps).toEqual({ "data-ui-area": "editorImage.textCopied" });
     dismissToast(id);
   });
 });
