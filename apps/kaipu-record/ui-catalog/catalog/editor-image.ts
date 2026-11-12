@@ -862,7 +862,7 @@ export const editorImage = catalog(
     },
     "inspect-ruler": {
       profile: "image-inspect",
-      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 1: the horizontal pixel run under the cursor is drawn with its length, and Horizontal is on in the bar.",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 1: the horizontal pixel run under the cursor is drawn with its length, and Horizontal is on in the side panel's Tool tab.",
       steps: [
         open(ASSETS.settingsShot),
         inspectToggle,
@@ -876,7 +876,7 @@ export const editorImage = catalog(
     },
     "inspect-ruler-vertical": {
       profile: "image-inspect",
-      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 2: the vertical pixel run under the cursor is drawn with its length beside it, and Vertical is on in the bar.",
+      how: "With the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image and press 2: the vertical pixel run under the cursor is drawn with its length beside it, and Vertical is on in the side panel's Tool tab.",
       steps: [
         open(ASSETS.settingsShot),
         inspectToggle,
@@ -913,7 +913,7 @@ export const editorImage = catalog(
     },
     "inspect-c2-format": {
       profile: "image-inspect",
-      how: "Mock C2: with the flag forced on, open “Settings page”, press Inspect, choose OKLCH and As captured in the bar, then rest the pointer on the image: the chip reads in OKLCH and its tag says it is as captured.",
+      how: "Mock C2: with the flag forced on, open “Settings page”, press Inspect, choose OKLCH and As captured in the side panel's Tool tab, then rest the pointer on the image: the chip reads in OKLCH and its tag says it is as captured.",
       steps: [
         open(ASSETS.settingsShot),
         inspectToggle,
@@ -999,7 +999,7 @@ export const editorImage = catalog(
     },
     "inspect-c8-outer": {
       profile: "image-inspect",
-      how: "Mock C8: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image, press 1, turn Outer on in the bar (it needs a ruler) and rest the pointer on the image again: the length pill adds the “Outer” sub-label.",
+      how: "Mock C8: with the flag forced on, open “Settings page”, press Inspect, rest the pointer on the image, press 1, turn Outer on in the side panel's Tool tab (it needs a ruler) and rest the pointer on the image again: the length pill adds the “Outer” sub-label.",
       steps: [
         open(ASSETS.settingsShot),
         inspectToggle,

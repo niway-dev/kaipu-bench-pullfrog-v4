@@ -1510,8 +1510,7 @@ function ScreenshotEditorBody({
   const [addOpen, setAddOpen] = useState(false);
   useToolShortcuts({
     onTool: pickTool,
-    // Leave Inspect first, as picking a tool does: with the inline Inspect row the toolbar,
-    // and the menu rendered inside it, is hidden.
+    // Leave Inspect first, as picking a tool does, so the menu opens over the editing view.
     ...(canvasMode
       ? {
           onAddImage: () => {
