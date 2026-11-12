@@ -463,9 +463,8 @@ describe("toolbar B3: compact", () => {
     setPageWidth(900);
     fireEvent.click(btn("More"));
     fireEvent.click(screen.getByRole("menuitem", { name: /^Export frame/ }));
-    // The card is the Tool tab's content, so it waits in the sheet (which stays closed until asked).
-    expect(maybeBtn("Fit to content")).toBeNull();
-    fireEvent.click(btn("Panel"));
+    // The card is the Tool tab's content, so the sheet opens on it.
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("tab", { name: "Tool" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Fit to content" })).toBeInTheDocument();
   });
@@ -533,8 +532,8 @@ describe("toolbar B3: compact", () => {
     await mount(ALL);
     setPageWidth(900);
     fireEvent.click(btn("Inspect (I)"));
-    // The Inspect controls, Colors among them, are the Tool tab's content: open the sheet for them.
-    fireEvent.click(btn("Panel"));
+    // The Inspect controls, Colors among them, are the Tool tab's content: the sheet opens for them.
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "true");
     const colorsBtn = () => screen.getByRole("button", { name: "Colors" });
     fireEvent.click(colorsBtn());
     expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
@@ -610,9 +609,8 @@ describe("toolbar B3: compact", () => {
     const colorsPanel = () => document.querySelector('[data-ui-area="editorImage.inspectColors"]');
     fireEvent.click(btn("Inspect (I)"));
     expect(colorsPanel()).toBeNull();
-    expect(btn("Panel")).toHaveAttribute("aria-expanded", "false");
-    // The Colors button is in the Tool tab, so the sheet is opened to reach it.
-    fireEvent.click(btn("Panel"));
+    // The Colors button is in the Tool tab, so turning Inspect on opens the sheet to reach it.
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(screen.getByRole("button", { name: "Colors" }));
     expect(colorsPanel()).not.toBeNull();
     // It is in the sheet, with Beautify.
@@ -770,14 +768,21 @@ describe("tool panel: the Tool tab of the side panel", () => {
     expect(within(panel()).getByText("Stroke")).toBeInTheDocument();
   });
 
-  it("holds the options in the sheet in the compact layout, without opening it", async () => {
+  it("opens the sheet on the Tool tab when a tool with options is picked in the compact layout", async () => {
     await mount(ALL);
     setPageWidth(900);
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(btn("Draw"));
     fireEvent.click(screen.getByRole("menuitem", { name: /^Box/ }));
-    expect(btn("Panel")).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(btn("Panel"));
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "true");
     expect(tab("Tool")).toHaveAttribute("aria-selected", "true");
     expect(within(panel()).getByText("Stroke")).toBeInTheDocument();
+  });
+
+  it("does not open the sheet when Select is picked with nothing selected in the compact layout", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Select"));
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "false");
   });
 });

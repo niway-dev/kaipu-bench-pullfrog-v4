@@ -1424,9 +1424,15 @@ function ScreenshotEditorBody({
   const selectedId = scene.selectedId;
   useEffect(() => {
     if (inspectActive) {
-      if (!colorsOpen) setTab("tool");
+      if (!colorsOpen) {
+        setTab("tool");
+        // In compact the panel is a sheet: the options are invisible until it opens.
+        if (compact) setPanelOpen(true);
+      }
     } else if (wasInspecting.current) {
-      setTab(tools.tool === "select" && selectedId === null ? "beautify" : "tool");
+      const toTool = !(tools.tool === "select" && selectedId === null);
+      setTab(toTool ? "tool" : "beautify");
+      if (toTool && compact) setPanelOpen(true);
     }
     wasInspecting.current = inspectActive;
     // Only the Inspect on/off edge matters: the tool, selection and Colors are read as they stand.
@@ -1435,7 +1441,11 @@ function ScreenshotEditorBody({
   // A selected annotation has options (colour, size, delete): show them where they live now.
   const selectedToolId = inspectActive ? null : selectedId;
   useEffect(() => {
-    if (selectedToolId !== null) setTab("tool");
+    if (selectedToolId === null) return;
+    setTab("tool");
+    if (compact) setPanelOpen(true);
+    // Only a new selection opens the sheet: closing it by hand stays respected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedToolId]);
   const beautifyPanel = (
     <BeautifyPanel beautify={scene.beautify} canvasMode={canvasMode} embedded />
@@ -1482,11 +1492,15 @@ function ScreenshotEditorBody({
       : null;
 
   // Picking a tool, by click or by key, leaves Inspect, starts the tool clean and shows its
-  // options in the Tool tab. Select has none, so it leaves the tab as it was.
+  // options in the Tool tab (opening the sheet in compact). Select has none, so it leaves the
+  // tab and the sheet as they were.
   const afterPick = (tool: AnnotationTool): void => {
     scene.select(null);
     inspect.setActive(false);
-    if (tool !== "select") setTab("tool");
+    if (tool !== "select") {
+      setTab("tool");
+      if (compact) setPanelOpen(true);
+    }
   };
   const pickTool = (tool: AnnotationTool): void => {
     tools.setTool(tool);
