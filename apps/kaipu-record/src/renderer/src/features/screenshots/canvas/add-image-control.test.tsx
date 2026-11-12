@@ -33,6 +33,31 @@ describe("AddImageControl menu", () => {
     expect(library).toHaveFocus();
   });
 
+  it("Escape closes the menu and puts focus back on the Add image button", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <AddImageControl
+        onAdd={vi.fn()}
+        excludeId={null}
+        excludeAssetId={null}
+        open
+        onOpenChange={onOpenChange}
+      />,
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    rerender(
+      <AddImageControl
+        onAdd={vi.fn()}
+        excludeId={null}
+        excludeAssetId={null}
+        open={false}
+        onOpenChange={onOpenChange}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Add image" })).toHaveFocus();
+  });
+
   it("renders the paste hint with a key chip", () => {
     const { container } = mount();
     expect(screen.getByRole("menu")).toHaveTextContent(/paste an image with/i);

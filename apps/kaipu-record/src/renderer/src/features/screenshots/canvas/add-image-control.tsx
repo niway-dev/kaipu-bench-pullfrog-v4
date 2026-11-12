@@ -72,10 +72,14 @@ export function AddImageControl({
     items[next]?.focus();
   };
 
+  const anchorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") onOpenChange(false);
+      if (e.key !== "Escape") return;
+      onOpenChange(false);
+      // Closing unmounts the focused item: hand focus back to the button, as ToolbarMenu does.
+      anchorRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -100,7 +104,12 @@ export function AddImageControl({
 
   return (
     <>
-      <div {...uiArea("editorImage.addImage")} className={styles.anchor} data-open={open}>
+      <div
+        {...uiArea("editorImage.addImage")}
+        ref={anchorRef}
+        className={styles.anchor}
+        data-open={open}
+      >
         {showButton && (
           <ToolButton
             label={t("addImage")}
