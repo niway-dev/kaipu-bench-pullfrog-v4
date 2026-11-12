@@ -936,7 +936,7 @@ describe.each([
       "Highlight #ffffff and the values grouped with it",
     );
     expect(screen.getByTitle("Highlight only #fdfdfd")).toBeInTheDocument();
-    expect(screen.getByText(/1 pair is nearly identical/)).toBeInTheDocument();
+    expect(screen.getByText(/1 set of colors is nearly identical/)).toBeInTheDocument();
   });
 
   it("Group off lists every exact value as its own row, and Group on brings the boxes back", async () => {

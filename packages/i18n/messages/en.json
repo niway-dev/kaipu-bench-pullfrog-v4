@@ -1337,7 +1337,7 @@
     "inspectColorsAlmostSame": "Almost the same",
     "inspectColorsDeltaE": "ΔE {value}",
     "inspectColorsShowBoth": "Show both",
-    "inspectColorsPairs": "{boxes, plural, one {# pair is nearly identical. They are probably meant to be one color.} other {# pairs are nearly identical. They are probably meant to be one color.}}",
+    "inspectColorsPairs": "{boxes, plural, one {# set of colors is nearly identical. They are probably meant to be one color.} other {# sets of colors are nearly identical. Each set is probably meant to be one color.}}",
     "inspectColorsLocatedNote": "Click the color again to stop highlighting.",
     "inspectColorsTag": "{color} · {areas, plural, one {# area} other {# areas}} · {share} of the image",
     "inspectColorsCopyRow": "Copy {color}",
