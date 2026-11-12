@@ -40,6 +40,7 @@ import {
   ColorsPanel,
   InspectBar,
   InspectLayer,
+  InspectModePill,
   InspectToggle,
   isEditingTarget,
   LocateOverlay,
@@ -1309,18 +1310,22 @@ function ScreenshotEditorBody({
             <span className={styles.divider} aria-hidden />
           </>
         )}
-        <AnnotationToolbar
-          tools={tools}
-          onPick={() => {
-            scene.select(null);
-            inspect.setActive(false);
-          }}
-          textTool={textEnabled}
-          canvasMode={canvasMode}
-          compact={compact}
-          idle={inspect.active}
-          addImage={canvasMode ? addImageControl(true) : undefined}
-        />
+        {inspect.active && !compact && <InspectBar inspect={inspect} colors={colors} inline />}
+        {/* Stays mounted while the Inspect row stands in for it (hidden, not removed). */}
+        <div className={inspect.active && !compact ? styles.toolsHidden : styles.tools}>
+          <AnnotationToolbar
+            tools={tools}
+            onPick={() => {
+              scene.select(null);
+              inspect.setActive(false);
+            }}
+            textTool={textEnabled}
+            canvasMode={canvasMode}
+            compact={compact}
+            idle={inspect.active}
+            addImage={canvasMode ? addImageControl(true) : undefined}
+          />
+        </div>
         {compact ? (
           <>
             <MoreMenu
@@ -1513,7 +1518,7 @@ function ScreenshotEditorBody({
           <div className={styles.optionsFloat}>
             {inspect.active ? (
               <>
-                <InspectBar inspect={inspect} colors={colors} />
+                {compact && <InspectBar inspect={inspect} colors={colors} />}
                 {colors.open && !compact && colorsPanel}
               </>
             ) : (
@@ -1525,6 +1530,10 @@ function ScreenshotEditorBody({
               />
             )}
           </div>
+
+          {inspectEnabled && inspect.active && (
+            <InspectModePill copied={inspect.copied} readout={inspect.readout} />
+          )}
 
           {/* Zoom pinned at the foot of the canvas — a familiar editor convention. */}
           <div className={styles.zoomFloat}>

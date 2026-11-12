@@ -1,0 +1,199 @@
+/*
+ * The Inspect controls (mock 586-593): one row in the toolbar (`barInline`), or the floating
+ * card compact layouts keep. Tokens only.
+ */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 560px;
+  padding: var(--space-md);
+  background: var(--ie-card);
+  border: 1px solid var(--ie-sep);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ie-shadow);
+}
+
+/* In the toolbar: no card, no wrap; the toolbar is the surface. */
+.barInline {
+  flex-wrap: nowrap;
+  max-width: none;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  white-space: nowrap;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--ie-sep);
+}
+
+.segments {
+  display: flex;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--ie-hover);
+}
+
+.segment,
+.barBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--ie-tx2);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.segment {
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: var(--ie-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ie-mut);
+}
+
+.barBtn {
+  height: 34px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.segment:hover:not(:disabled),
+.barBtn:hover:not(:disabled) {
+  color: var(--ie-tx);
+}
+
+.segment:disabled,
+.barBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* The picked format: lifted onto the card with a hairline. */
+.segmentOn,
+.segmentOn:hover:not(:disabled) {
+  background: var(--ie-card);
+  box-shadow: inset 0 0 0 1px var(--ie-strong);
+  color: var(--ie-tx);
+}
+
+.barBtnOn,
+.barBtnOn:hover:not(:disabled) {
+  background: var(--ie-accent-soft);
+  color: var(--ie-accent);
+}
+
+.kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--ie-hover);
+  border: 1px solid var(--ie-strong);
+  font-family: var(--ie-font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+  color: var(--ie-tx2);
+}
+
+/* "As captured": a switch that still behaves as one button. */
+.switchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--ie-mut);
+  cursor: pointer;
+}
+
+.switchBtnOn {
+  color: var(--ie-tx);
+}
+
+.switchTrack {
+  position: relative;
+  box-sizing: border-box;
+  width: 26px;
+  height: 15px;
+  border-radius: 8px;
+  background: var(--ie-hover);
+  border: 1px solid var(--ie-strong);
+}
+
+.switchBtnOn .switchTrack {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+}
+
+.switchThumb {
+  position: absolute;
+  top: 1.5px;
+  left: 1.5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ie-ink-light);
+  transition: left var(--transition);
+}
+
+.switchBtnOn .switchThumb {
+  left: 12.5px;
+}
+
+.rulerTolerance {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.toleranceLabel {
+  margin-right: 4px;
+  font-size: 12px;
+  color: var(--ie-mut);
+}
+
+.toleranceValue {
+  min-width: 28px;
+  text-align: center;
+  font-family: var(--ie-font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ie-tx);
+}
+
+/* While the wheel or the buttons just changed it (mock C7). */
+.toleranceValueShown {
+  color: var(--ie-accent);
+}
+
+.status {
+  font-size: 11.5px;
+  color: var(--ie-tx2);
+}
