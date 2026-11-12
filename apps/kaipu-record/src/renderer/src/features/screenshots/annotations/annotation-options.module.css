@@ -1,17 +1,13 @@
 /*
- * Floating per-tool options panel (Excalidraw-style) shown over the canvas.
- * Colors/spacing use base.css tokens; swatch colors are drawing values from tools.ts.
+ * The active tool's options, in the side panel's Tool tab (NIW2-723). The panel body is the
+ * surface, so there is no card of its own. Colors/spacing use base.css tokens; swatch colors
+ * are drawing values from tools.ts.
  */
 
 .panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  padding: var(--space-md);
-  background: var(--ie-card);
-  border: 1px solid var(--ie-sep);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--ie-shadow);
 }
 
 .label {
@@ -27,13 +23,13 @@
 
 .palette {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, 24px);
   gap: var(--space-sm);
 }
 
 .swatch {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -47,7 +43,7 @@
 
 .swatchOn {
   box-shadow:
-    0 0 0 2px var(--ie-card),
+    0 0 0 2px var(--ie-panel),
     0 0 0 3.5px var(--ie-accent);
 }
 
@@ -58,7 +54,7 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs);
-  background: var(--ie-panel);
+  background: var(--ie-card);
   border: 1px solid var(--ie-sep);
   border-radius: var(--radius-md);
 }
@@ -110,7 +106,7 @@
   height: 30px;
   border: 1px solid var(--ie-sep);
   border-radius: var(--radius-md);
-  background: var(--ie-panel);
+  background: var(--ie-card);
   color: var(--ie-mut);
   cursor: pointer;
   transition:
@@ -153,7 +149,7 @@
   padding: 0 var(--space-sm);
   border: 1px solid var(--ie-sep);
   border-radius: var(--radius-md);
-  background: var(--ie-panel);
+  background: var(--ie-card);
   color: var(--ie-tx);
   cursor: pointer;
   font-size: var(--font-size-xs);
@@ -169,11 +165,6 @@
 }
 
 /* ── Redaction style (canvas mode) ───────────── */
-
-.panelRedaction {
-  box-sizing: border-box;
-  width: 236px;
-}
 
 .redaction {
   display: flex;

@@ -19,19 +19,17 @@ const FORMAT_LABEL: Record<ColorFormat, string> = {
  * The Inspect controls: width/height rulers, color format, "As captured", tolerance, Outer,
  * Copy and Colors (mock B1, C2). Every key Inspect answers to has a control here.
  *
- * `inline` is the toolbar row that replaces the tool group (mock 586-593); without it the bar
- * is the floating card compact layouts keep. Exiting is the mode switch's Annotate segment or
- * Esc, so there is no exit button. The status lines sit at the end of the row.
+ * They are the Tool tab's content while Inspect is on (NIW2-723): a column in the side panel,
+ * where they used to be a toolbar row or a floating card. Exiting is the mode switch's Annotate
+ * segment or Esc, so there is no exit button. The status lines sit at the end.
  */
 export function InspectBar({
   inspect,
   colors,
-  inline = false,
 }: {
   inspect: InspectController;
   /** The colors panel's toggle (NIW2-704). */
   colors?: ColorsController;
-  inline?: boolean;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const shownFormat = inspect.asCaptured ? capturedFormat(inspect.format) : inspect.format;
@@ -40,12 +38,11 @@ export function InspectBar({
   return (
     <div
       {...uiArea("editorImage.inspectBar")}
-      className={`${styles.bar} ${inline ? styles.barInline : ""}`}
+      className={styles.bar}
       role="group"
       aria-label={t("inspectBarLabel")}
       data-format={shownFormat}
       data-as-captured={String(inspect.asCaptured)}
-      data-inline={String(inline)}
     >
       <div
         {...uiArea("editorImage.inspectRuler")}
@@ -62,7 +59,7 @@ export function InspectBar({
           title={t("inspectRulerXTitle")}
           onClick={() => ruler("x")}
         >
-          <MoveHorizontal size={inline ? 16 : 14} />
+          <MoveHorizontal size={14} />
           {t("inspectBarWidth")}
           <kbd className={styles.kbd}>1</kbd>
         </button>
@@ -74,7 +71,7 @@ export function InspectBar({
           title={t("inspectRulerYTitle")}
           onClick={() => ruler("y")}
         >
-          <MoveVertical size={inline ? 16 : 14} />
+          <MoveVertical size={14} />
           {t("inspectBarHeight")}
           <kbd className={styles.kbd}>2</kbd>
         </button>
@@ -162,8 +159,7 @@ export function InspectBar({
           onClick={() => void inspect.copy()}
         >
           {inspect.copied ? <Check size={14} /> : <Copy size={14} />}
-          {/* The toolbar row has no room for the words (the mock's row has no copy button). */}
-          {!inline && t("inspectCopy")}
+          {t("inspectCopy")}
         </button>
         {colors && (
           <button
@@ -175,7 +171,7 @@ export function InspectBar({
             onClick={colors.toggle}
           >
             <Palette size={14} />
-            {!inline && t("inspectColors")}
+            {t("inspectColors")}
           </button>
         )}
       </div>

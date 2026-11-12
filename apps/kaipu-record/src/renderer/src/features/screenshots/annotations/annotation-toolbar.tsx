@@ -43,13 +43,14 @@ export function AnnotationToolbar({
   /** The Add image control, placed after Export frame; the page passes it in canvas mode. */
   addImage?: React.ReactNode;
   /** Fired when the user manually picks a tool — used to deselect the current shape
-   *  so the freshly-picked tool starts clean (auto-select otherwise leaves one selected). */
-  onPick?: () => void;
+   *  so the freshly-picked tool starts clean (auto-select otherwise leaves one selected),
+   *  and to show the tool's options in the side panel. */
+  onPick?: (tool: AnnotationTool) => void;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const pick = (tool: AnnotationTool): void => {
     tools.setTool(tool);
-    onPick?.();
+    onPick?.(tool);
   };
   const button = (tool: AnnotationTool, size: number): React.JSX.Element => {
     const { labelKey, Icon } = toolMeta(tool, canvasMode);

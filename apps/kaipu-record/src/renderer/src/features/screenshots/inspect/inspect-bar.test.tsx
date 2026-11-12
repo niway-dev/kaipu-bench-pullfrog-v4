@@ -59,21 +59,13 @@ describe("InspectBar", () => {
     expect(screen.getByTestId("inspect-tolerance").getAttribute("data-shown")).toBe("true");
   });
 
-  it("renders as a toolbar row when inline", () => {
-    render(<InspectBar inspect={fake()} inline />);
-    expect(screen.getByRole("group", { name: "Inspect options" }).getAttribute("data-inline")).toBe(
-      "true",
-    );
-    expect(screen.getByText("Width")).toBeTruthy();
-  });
-
-  it("shows Copy color and Colors as icons in the toolbar row, keeping their names", () => {
+  it("names every control with words: Width, Height, Outer, Tolerance, Copy color and Colors", () => {
     const colors = { open: false, toggle: vi.fn() } as unknown as ColorsController;
-    const { rerender } = render(<InspectBar inspect={fake()} colors={colors} inline />);
-    expect(screen.getByRole("button", { name: "Copy color" }).textContent).toBe("");
-    expect(screen.getByRole("button", { name: "Colors" }).textContent).toBe("");
-    // The floating card keeps the words.
-    rerender(<InspectBar inspect={fake()} colors={colors} />);
+    render(<InspectBar inspect={fake({ ruler: "x" })} colors={colors} />);
+    expect(screen.getByText("Width")).toBeTruthy();
+    expect(screen.getByText("Height")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Outer" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Tolerance" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy color" }).textContent).toBe("Copy color");
     expect(screen.getByRole("button", { name: "Colors" }).textContent).toBe("Colors");
   });

@@ -1,47 +1,26 @@
 /*
- * The Inspect controls (mock 586-593): one row in the toolbar (`barInline`), or the floating
- * card compact layouts keep. Tokens only.
+ * The Inspect controls, as a column in the side panel's Tool tab (NIW2-723). The panel body is
+ * the surface, so there is no card. Tokens only.
  */
 
 .bar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-sm);
-  max-width: 560px;
-  padding: var(--space-md);
-  background: var(--ie-card);
-  border: 1px solid var(--ie-sep);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--ie-shadow);
-}
-
-/* In the toolbar: no card, no wrap; the toolbar is the surface. */
-.barInline {
-  flex-wrap: nowrap;
-  max-width: none;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  white-space: nowrap;
-}
-
-/* The row must fit the default 1440 px window beside Copy, Save and PDF. */
-.barInline .barBtn {
-  padding: 0 7px;
 }
 
 .barRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
 }
 
+/* A hairline between the groups, across the column. */
 .divider {
-  width: 1px;
-  height: 20px;
+  width: 100%;
+  height: 1px;
   flex-shrink: 0;
   background: var(--ie-sep);
 }

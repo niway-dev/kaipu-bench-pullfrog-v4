@@ -1,16 +1,6 @@
-/* The export frame card (mock A5): pinned to the stage's top-left, 220 px wide. */
+/* The export frame tool's options (mock A5), in the side panel's Tool tab (NIW2-723). */
 .card {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 2;
-  width: 220px;
   box-sizing: border-box;
-  padding: 12px;
-  background: var(--ie-card);
-  border: 1px solid var(--ie-strong);
-  border-radius: 8px;
-  box-shadow: var(--ie-shadow);
 }
 
 .title {
