@@ -1441,7 +1441,16 @@ function ScreenshotEditorBody({
   const [addOpen, setAddOpen] = useState(false);
   useToolShortcuts({
     onTool: pickTool,
-    ...(canvasMode ? { onAddImage: () => setAddOpen(true) } : {}),
+    // Leave Inspect first, as picking a tool does: with the inline Inspect row the toolbar,
+    // and the menu rendered inside it, is hidden.
+    ...(canvasMode
+      ? {
+          onAddImage: () => {
+            inspect.setActive(false);
+            setAddOpen(true);
+          },
+        }
+      : {}),
   });
 
   // The Add image control: a toolbar button, or (compact) only its menu, opened from "•••".

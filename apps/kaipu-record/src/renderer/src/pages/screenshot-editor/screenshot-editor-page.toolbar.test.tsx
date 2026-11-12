@@ -319,6 +319,16 @@ describe("toolbar B2: keys", () => {
     expect(isActive("Redact")).toBe(true);
   });
 
+  it("M leaves Inspect before opening Add image, so the menu is not inside the hidden toolbar", async () => {
+    await mount(ALL);
+    setPageWidth(1400);
+    fireEvent.click(btn("Inspect (I)"));
+    expect(btn("Inspect (I)")).toHaveAttribute("aria-pressed", "true");
+    press("m");
+    expect(btn("Inspect (I)")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
   it("shows no tool as active while Inspect is on, and Esc returns to Annotate", async () => {
     await mount(ALL);
     fireEvent.click(btn("Inspect (I)"));
