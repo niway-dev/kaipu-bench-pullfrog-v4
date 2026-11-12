@@ -957,7 +957,9 @@ function ScreenshotEditorBody({
       assetsRef.current,
       snap.annotations,
     );
-    const docJson = JSON.stringify(buildCanvasDoc(snap, { pixelWidth, pixelHeight }));
+    const docJson = JSON.stringify(
+      buildCanvasDoc(snap, { pixelWidth, pixelHeight }, { now: Date.now() }),
+    );
     // The base, then each image asset the scene still references, once (one asset may sit on
     // the canvas twice). Main prunes whatever else the vault held for this shot.
     const assets: CanvasSavePayload["assets"] = [{ assetId: BASE_ASSET_ID, png: baked.base }];

@@ -65,6 +65,9 @@ export interface BlurAnnotation {
   /** True = its pixels were baked into the stored asset by an earlier save. It is kept in
    * the document but not drawn again and not selectable. */
   locked?: boolean;
+  /** Epoch ms of the save that locked it; shown as "Permanent · saved Nov 11". Absent on a
+   * redaction locked before the time was recorded. */
+  lockedAt?: number;
 }
 /**
  * Canvas mode only (NIW2-703): an image added to the canvas. Geometry is in the same

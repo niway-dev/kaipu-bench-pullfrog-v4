@@ -169,3 +169,44 @@ describe("AnnotationLayer — reports what is on screen while a drag is in fligh
     expect(onLive.mock.calls.at(-1)![0]).toBeNull();
   });
 });
+
+describe("AnnotationLayer — selected saved redaction (mock H4a)", () => {
+  const SAVED = new Date(2026, 10, 11, 12, 0, 0).getTime();
+  const redaction = (over: Partial<Annotation> = {}): Annotation =>
+    ({
+      id: "r1",
+      kind: "blur",
+      x: 0.25,
+      y: 0.5,
+      w: 0.5,
+      h: 0.25,
+      locked: true,
+      ...over,
+    }) as Annotation;
+
+  it("tags a selected locked redaction right of its region, with the save date", () => {
+    renderLayer(makeScene([redaction({ lockedAt: SAVED })], "r1"), makeTools());
+    const tag = screen.getByTestId("redaction-lock-tag");
+    // Layer px: the region spans x 25..75 and starts at y 50: the tag anchors at its top-right corner
+    // (the 6 px right, 1 px down offsets are CSS, in screen px).
+    expect(tag).toHaveStyle({ left: "75px", top: "50px" });
+    expect(tag).toHaveTextContent("Permanent · saved Nov 11");
+    expect(tag).toHaveAttribute("data-ui-area", "editorImage.redactionLock");
+  });
+
+  it("says just Permanent when the redaction has no save time", () => {
+    renderLayer(makeScene([redaction()], "r1"), makeTools());
+    expect(screen.getByTestId("redaction-lock-tag")).toHaveTextContent(/^Permanent$/);
+  });
+
+  it("is absent for an unlocked redaction, with nothing selected, and with the flag off", () => {
+    const { unmount } = renderLayer(makeScene([redaction({ locked: false })], "r1"), makeTools());
+    expect(screen.queryByTestId("redaction-lock-tag")).toBeNull();
+    unmount();
+    const second = renderLayer(makeScene([redaction()], null), makeTools());
+    expect(screen.queryByTestId("redaction-lock-tag")).toBeNull();
+    second.unmount();
+    renderLayer(makeScene([redaction()], "r1"), makeTools(), { canvasMode: false });
+    expect(screen.queryByTestId("redaction-lock-tag")).toBeNull();
+  });
+});

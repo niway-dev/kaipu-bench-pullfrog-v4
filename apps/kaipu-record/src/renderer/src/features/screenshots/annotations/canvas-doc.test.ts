@@ -371,3 +371,49 @@ describe("canvas document", () => {
     expect(parseCanvasDoc(docWith((d) => (d.items[0].w = 0)))).toBeNull();
   });
 });
+
+describe("canvas document — lockedAt", () => {
+  const SAVED = Date.UTC(2026, 10, 11, 12, 0, 0);
+  const EARLIER = Date.UTC(2026, 9, 1, 8, 0, 0);
+
+  it("stamps the save time on a redaction this save locks, when a time is given", () => {
+    const doc = buildCanvasDoc(scene, base, { now: SAVED });
+    const blurs = doc.items.filter((i) => i.kind === "blur") as { lockedAt?: number }[];
+    expect(blurs).toHaveLength(2);
+    expect(blurs.map((b) => b.lockedAt)).toEqual([SAVED, SAVED]);
+  });
+
+  it("writes no lockedAt without a time, so a document stays what it was", () => {
+    const doc = buildCanvasDoc(scene, base);
+    expect(doc.items.some((i) => "lockedAt" in i)).toBe(false);
+  });
+
+  it("keeps the time an earlier save wrote, and does not date one that has none", () => {
+    const reopened: Scene = {
+      ...scene,
+      annotations: [
+        { id: "k1", kind: "blur", x: 0.1, y: 0.1, w: 0.1, h: 0.1, locked: true, lockedAt: EARLIER },
+        { id: "k2", kind: "blur", x: 0.3, y: 0.3, w: 0.1, h: 0.1, locked: true },
+        { id: "k3", kind: "blur", x: 0.5, y: 0.5, w: 0.1, h: 0.1 },
+      ],
+    };
+    const doc = buildCanvasDoc(reopened, base, { now: SAVED });
+    const [, k1, k2, k3] = doc.items as { lockedAt?: number }[];
+    expect(k1.lockedAt).toBe(EARLIER);
+    expect(k2.lockedAt).toBeUndefined();
+    expect(k3.lockedAt).toBe(SAVED);
+  });
+
+  it("round-trips lockedAt through parse", () => {
+    const parsed = parseCanvasDoc(JSON.stringify(buildCanvasDoc(scene, base, { now: SAVED })))!;
+    const blurs = parsed.scene.annotations.filter((a) => a.kind === "blur");
+    expect(blurs.map((b) => (b.kind === "blur" ? b.lockedAt : null))).toEqual([SAVED, SAVED]);
+  });
+
+  it("returns null when lockedAt is not a finite number", () => {
+    for (const bad of ["yesterday", null, true, {}]) {
+      const json = docWith((d) => (d.items[5].lockedAt = bad));
+      expect(parseCanvasDoc(json), String(bad)).toBeNull();
+    }
+  });
+});

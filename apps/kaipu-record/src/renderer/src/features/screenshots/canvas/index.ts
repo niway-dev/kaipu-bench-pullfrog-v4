@@ -2,6 +2,7 @@ export { AddImageControl } from "./add-image-control";
 export { ExportBox } from "./export-box";
 export { ExportFrameCard } from "./export-frame-card";
 export { contentBoxFrame } from "./content-box";
+export { RedactionLockTag } from "./redaction-lock-tag";
 export { OffContentNotice } from "./off-content-notice";
 export { useOffContent } from "./use-off-content";
 export { useCanvasViewport, type CanvasViewport, type PanMode } from "./use-canvas-viewport";

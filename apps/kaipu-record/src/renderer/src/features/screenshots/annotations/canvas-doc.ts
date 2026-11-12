@@ -147,10 +147,15 @@ const toNormMaps = (b: WorldBase) =>
  * redaction is written `locked`: this save bakes its pixels into every image it touches.
  * `crop` is not stored (canvas mode exports by `exportFrame`). An image annotation is
  * written as an image item at its z-position, after the base.
+ *
+ * `now` (epoch ms) is the save time: a redaction this save locks gets it as `lockedAt`. One
+ * that is already locked keeps what it has, even nothing: this save does not lock it. Without
+ * `now` no `lockedAt` is written.
  */
 export function buildCanvasDoc(
   scene: Scene,
   base: { pixelWidth: number; pixelHeight: number; assetId?: string },
+  opts: { now?: number } = {},
 ): CanvasDocV2 {
   const image: CanvasImageItem = {
     id: "image-base",
@@ -166,7 +171,9 @@ export function buildCanvasDoc(
   const maps = toWorldMaps(image);
   const annotations = scene.annotations.map((a): Annotation => {
     const world = mapGeometry(a, ...maps, true);
-    return world.kind === "blur" ? { ...world, locked: true } : world;
+    if (world.kind !== "blur") return world;
+    const stamp = opts.now !== undefined && !world.locked ? { lockedAt: opts.now } : {};
+    return { ...world, ...stamp, locked: true };
   });
   const doc: CanvasDocV2 = {
     schemaVersion: CANVAS_DOC_VERSION,
@@ -254,6 +261,7 @@ function parseAnnotation(o: Obj): Annotation | null {
       if (!nums(o, ["x", "y", "w", "h"])) return null;
       if (o.style !== undefined && o.style !== "blur" && o.style !== "solid") return null;
       if (o.locked !== undefined && typeof o.locked !== "boolean") return null;
+      if (o.lockedAt !== undefined && !num(o.lockedAt)) return null;
       return o as unknown as Annotation;
     default:
       return null;

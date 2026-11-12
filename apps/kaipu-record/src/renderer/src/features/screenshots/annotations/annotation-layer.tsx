@@ -47,6 +47,7 @@ import type { RecognizedWord } from "@kaipu/domain/schemas";
 import { nearestWord, wordBoxNorm, type TextLayerModel } from "../text-selection";
 import { gapMeasures, type WorldRect } from "../canvas/image-gap";
 import { ImageSelection } from "../canvas/image-selection";
+import { RedactionLockTag } from "../canvas/redaction-lock-tag";
 import styles from "./annotation-layer.module.css";
 
 interface Size {
@@ -549,6 +550,12 @@ function AnnotationLayerImpl({
   // the export has. Follows the drag, because it reads `shown`.
   const selectedImage =
     canvasMode && selectedAnnotation?.kind === "image" ? selectedAnnotation : null;
+  // A selected saved redaction says it is permanent (mock H4a). It is part of the stored image:
+  // the card offers no style or delete for it either.
+  const selectedLocked =
+    canvasMode && selectedAnnotation?.kind === "blur" && selectedAnnotation.locked
+      ? selectedAnnotation
+      : null;
   const gaps = useMemo(() => {
     if (!selectedImage || !natural || natural.w <= 0 || natural.h <= 0) return [];
     const world = (a: { x: number; y: number; w: number; h: number }): WorldRect => ({
@@ -665,6 +672,13 @@ function AnnotationLayerImpl({
           pixelHeight={selectedImage.pixelHeight}
           gaps={gaps}
           unit={natural && natural.w > 0 ? size.w / natural.w : 1}
+        />
+      )}
+      {selectedLocked && (
+        <RedactionLockTag
+          left={(selectedLocked.x + selectedLocked.w) * size.w}
+          top={selectedLocked.y * size.h}
+          lockedAt={selectedLocked.lockedAt}
         />
       )}
       {editing && (

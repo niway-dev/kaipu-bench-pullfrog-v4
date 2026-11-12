@@ -557,6 +557,10 @@ export const editorImage = catalog(
         "inducedFailure",
         "showing it needs a run without the recognition helper; the catalog could only get that with a test-only override of the helper path in production code (or by deleting the helper on the runner), and the real-app proof `verify/image-text.verify.ts` covers it by renaming the helper away",
       ),
+      "editorImage.redactionLock:shown": nc(
+        "needsSetup",
+        "the tag shows on a selected saved redaction, and the select tool cannot click one (a saved redaction is not a hit target); the layer test pins it, and a catalog step waits for the owner to decide how a saved redaction gets selected",
+      ),
       "editorImage.inspectColors:counting": nc(
         "transient",
         "the count of a catalog-sized image ends in well under a second, before a screenshot can be taken",
