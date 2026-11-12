@@ -96,6 +96,21 @@ const image = (id: string, assetId: string, x: number, y = 0.25): ImageAnnotatio
 });
 
 describe("AnnotationLayer — selected added image (mock A4)", () => {
+  it("reads just added, without the pixel size, when told the image was just added", () => {
+    renderLayer(makeScene([image("i1", "a", 0.5)], "i1"), makeTools(), { justAddedId: "i1" });
+    const tag = screen.getByTestId("image-tag");
+    expect(tag).toHaveAttribute("data-just-added");
+    expect(tag).toHaveTextContent("Just added · drag to place");
+    expect(tag).not.toHaveTextContent("px");
+  });
+
+  it("keeps the normal tag when the just-added id is another image", () => {
+    renderLayer(makeScene([image("i1", "a", 0.5)], "i1"), makeTools(), { justAddedId: "zz" });
+    const tag = screen.getByTestId("image-tag");
+    expect(tag).not.toHaveAttribute("data-just-added");
+    expect(tag).toHaveTextContent("Drag to move");
+  });
+
   it("wears the frame, eight handles and the tag with the image's pixel size", () => {
     renderLayer(makeScene([image("i1", "a", 0.5)], "i1"), makeTools());
     const chrome = screen.getByTestId("image-selection");

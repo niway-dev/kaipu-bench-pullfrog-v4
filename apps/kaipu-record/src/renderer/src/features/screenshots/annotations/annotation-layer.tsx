@@ -106,6 +106,8 @@ interface LayerProps {
    * shows the gap to its nearest neighbour in source px. Absent = no gap measure.
    */
   natural?: { w: number; h: number };
+  /** The image that was just added and has not been touched: its tag says so (NIW2-715). */
+  justAddedId?: string | null;
 }
 
 /**
@@ -124,6 +126,7 @@ function AnnotationLayerImpl({
   text,
   onLive,
   natural,
+  justAddedId = null,
 }: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
@@ -656,6 +659,7 @@ function AnnotationLayerImpl({
           }}
           pixelWidth={selectedImage.pixelWidth}
           pixelHeight={selectedImage.pixelHeight}
+          justAdded={justAddedId != null && justAddedId === selectedImage.id}
           gaps={gaps}
           unit={natural && natural.w > 0 ? size.w / natural.w : 1}
         />

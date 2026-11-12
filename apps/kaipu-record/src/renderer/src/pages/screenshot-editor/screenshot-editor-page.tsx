@@ -825,9 +825,31 @@ function ScreenshotEditorBody({
     height: imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0,
   });
 
+  // The image `addImage` just placed, where it placed it (mock E3).
+  const [justAdded, setJustAdded] = useState<{ id: string; x: number; y: number } | null>(null);
+  // The memory ends the moment the selection moves to anything else, so reselecting the image
+  // later shows the normal tag. (An undone add leaves an id no annotation has: nothing shows.)
+  useEffect(() => {
+    if (justAdded && scene.selectedId !== justAdded.id) setJustAdded(null);
+  }, [justAdded, scene.selectedId]);
+  const justAddedAnnotation = justAdded
+    ? scene.annotations.find((a) => a.id === justAdded.id)
+    : undefined;
+  const justAddedId =
+    justAdded &&
+    scene.selectedId === justAdded.id &&
+    justAddedAnnotation &&
+    justAddedAnnotation.kind === "image" &&
+    justAddedAnnotation.x === justAdded.x &&
+    justAddedAnnotation.y === justAdded.y
+      ? justAdded.id
+      : null;
+
   /**
    * Put a PNG on the canvas as an image annotation (NIW2-703): to the right of the content
    * box, top-aligned with the base, selected, with the select tool active so it can be moved.
+   * Its tag says "just added" until it moves or the selection changes, and a toast says
+   * where it went (mock E3, NIW2-715).
    * It goes through `addAnnotation`, so it is an undoable edit that marks the scene dirty.
    */
   const addImage = (png: ArrayBuffer, pixelWidth: number, pixelHeight: number): void => {
@@ -863,6 +885,8 @@ function ScreenshotEditorBody({
     scene.addAnnotation(annotation);
     scene.select(annotation.id);
     tools.setTool("select");
+    setJustAdded({ id: annotation.id, x: annotation.x, y: annotation.y });
+    showToast({ message: t("imageAddedRight"), tone: "success" });
   };
   // The paste listener below outlives a render: it calls the latest closure.
   const addImageRef = useRef(addImage);
@@ -1460,6 +1484,7 @@ function ScreenshotEditorBody({
                     src={image.displayUrl}
                     canvas={canvasMode}
                     canvasMode={canvasMode}
+                    justAddedId={justAddedId}
                     {...(canvasMode
                       ? {
                           imageUrls,
