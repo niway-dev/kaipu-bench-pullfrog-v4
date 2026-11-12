@@ -63,6 +63,9 @@ export interface PinnedRun extends PixelRun {
   imageH: number;
 }
 
+/** How long the tolerance card stays after the last change, in ms. */
+const TOLERANCE_CARD_MS = 900;
+
 export interface InspectController {
   enabled: boolean;
   active: boolean;
@@ -94,6 +97,11 @@ export interface InspectController {
   /** Per-channel tolerance of the run scan, 0–255. The wheel changes it while a run is shown. */
   tolerance: number;
   setTolerance(value: number): void;
+  /** True for a moment after the tolerance changes (wheel or buttons): the cursor card shows. */
+  toleranceShown: boolean;
+  /** Where the pointer is while it is over the layer but not on an image pixel (the image is
+   * read). `hover` stays null then. */
+  empty: { clientX: number; clientY: number } | null;
   /** The bar's Outer toggle; holding Shift has the same effect while held. */
   outerLocked: boolean;
   setOuterLocked(on: boolean): void;
@@ -175,6 +183,9 @@ export function useInspect({
   const [outerLocked, setOuterLockedState] = useState(false);
   const [shiftHeld, setShiftHeld] = useState(false);
   const [run, setRun] = useState<InspectRun | null>(null);
+  const [toleranceShown, setToleranceShown] = useState(false);
+  const [empty, setEmpty] = useState<{ clientX: number; clientY: number } | null>(null);
+  const toleranceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rulerRef = useRef<RulerAxis | null>(null);
   const toleranceRef = useRef(DEFAULT_TOLERANCE);
   const outerLockedRef = useRef(false);
@@ -326,6 +337,7 @@ export function useInspect({
     if (!activeRef.current || !buf || !img || !pointer) {
       publish(null);
       setLoupe(null);
+      setEmpty(null);
       return;
     }
     const rect = img.getBoundingClientRect();
@@ -336,8 +348,10 @@ export function useInspect({
     if (!px || !color) {
       publish(null);
       setLoupe(null);
+      setEmpty({ clientX: pointer.clientX, clientY: pointer.clientY });
       return;
     }
+    setEmpty(null);
     const known = tileRef.current && readProbe(tileRef.current, px.x, px.y);
     publish({
       x: px.x,
@@ -418,6 +432,10 @@ export function useInspect({
         lastHoverRef.current = null;
         publish(null);
         setLoupe(null);
+        setEmpty(null);
+        if (toleranceTimer.current !== null) clearTimeout(toleranceTimer.current);
+        toleranceTimer.current = null;
+        setToleranceShown(false);
       }
     },
     [enabled, ensureDecoded, publish, stopWatch],
@@ -439,6 +457,12 @@ export function useInspect({
       const next = clampTolerance(value);
       toleranceRef.current = next;
       setToleranceState(next);
+      setToleranceShown(true);
+      if (toleranceTimer.current !== null) clearTimeout(toleranceTimer.current);
+      toleranceTimer.current = setTimeout(() => {
+        toleranceTimer.current = null;
+        if (alive.current) setToleranceShown(false);
+      }, TOLERANCE_CARD_MS);
       scheduleFlush();
     },
     [scheduleFlush],
@@ -534,6 +558,7 @@ export function useInspect({
     stopWatch();
     publish(null);
     setLoupe(null);
+    setEmpty(null);
   }, [publish, stopWatch]);
 
   // Keys: a window listener, only while the flag is on.
@@ -599,6 +624,7 @@ export function useInspect({
       watchFrame.current = null;
       if (restTimer.current !== null) clearTimeout(restTimer.current);
       if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      if (toleranceTimer.current !== null) clearTimeout(toleranceTimer.current);
     };
   }, []);
 
@@ -625,6 +651,8 @@ export function useInspect({
     setRuler,
     tolerance,
     setTolerance,
+    toleranceShown,
+    empty,
     outerLocked,
     setOuterLocked,
     outer: outerLocked || shiftHeld,
