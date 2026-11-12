@@ -728,6 +728,8 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
       const over = container.querySelector('[data-testid="redaction-over-images"]')!;
       expect(follows(added, baseTile)).toBe(true);
       expect(follows(baseTile, over)).toBe(true);
+      // The image's redaction is redrawn through the image's own rounded clip.
+      expect(over.querySelector(`[clip-path="url(#iclip-${image.id})"]`)).not.toBeNull();
     });
 
     it("a locked blur above an image redraws the image's own (already baked) pixels", () => {
