@@ -37,6 +37,11 @@ const inspectColors: Step = {
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
+/**
+ * The runner sizes the window after the steps, so a step that needs the compact toolbar
+ * (a menu only it has) shrinks the window first.
+ */
+const compactWindow: Step = { window: "editor-image-min" };
 /** The compact toolbar (mock B3): a button of the toolbar, by its accessible name. */
 const toolbarButton = (name: string): Step => ({
   click: { area: "editorImage.toolbar", part: { role: "button", name, exact: true } },
@@ -132,21 +137,21 @@ export const editorImage = catalog(
       profile: "image-toolbar",
       window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press Draw: the menu lists Pen, Box, Arrow, Text and Step with their keys.",
-      steps: [open(ASSETS.settingsShot), toolbarButton("Draw")],
+      steps: [open(ASSETS.settingsShot), compactWindow, toolbarButton("Draw")],
       demonstrates: ["editorImage.drawMenu:open"],
     },
     "toolbar-compact-more-menu": {
       profile: "image-toolbar",
       window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press •••: the menu lists Export frame, Add image, Select text, Undo, Redo and PDF.",
-      steps: [open(ASSETS.settingsShot), toolbarButton("More")],
+      steps: [open(ASSETS.settingsShot), compactWindow, toolbarButton("More")],
       demonstrates: ["editorImage.moreMenu:open"],
     },
     "toolbar-compact-panel": {
       profile: "image-toolbar",
       window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press the panel toggle: the Beautify panel opens as a sheet over the stage's right edge.",
-      steps: [open(ASSETS.settingsShot), toolbarButton("Panel")],
+      steps: [open(ASSETS.settingsShot), compactWindow, toolbarButton("Panel")],
       demonstrates: ["editorImage.panelToggle:open"],
     },
     "toolbar-saved": {
@@ -276,10 +281,11 @@ export const editorImage = catalog(
       how: "Mock A3: with the flag forced on, open “Settings page”, pick the Box tool and drag from inside the image to the empty canvas on its right: the export box and its label grow to include the box.",
       steps: [
         open(ASSETS.settingsShot),
+        // At 100% the shot fills the stage; zoomed out, 97% of the stage is past its right edge.
+        zoomOut,
         tool("Box"),
         {
           drag: { area: "editorImage.canvas" },
-          // The shot is centred at 100%; its right edge is well short of 97% of the stage.
           from: { x: 0.55, y: 0.4 },
           to: { x: 0.97, y: 0.6 },
         },
