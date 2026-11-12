@@ -278,9 +278,11 @@ export const editorImage = catalog(
     },
     "canvas-content-outside": {
       profile: "image-canvas",
-      how: "Mock A3: with the flag forced on, open “Settings page”, pick the Box tool and drag from inside the image to the empty canvas on its right: the export box and its label grow to include the box.",
+      how: "Mock A3: with the flag forced on, open “Dashboard draft”, pick the Box tool and drag from inside the image to the empty canvas on its right: the export box and its label grow to include the box.",
       steps: [
-        open(ASSETS.settingsShot),
+        // Its own item: the box this drag adds is saved to the document, and a later state that
+        // opens the same item would show it.
+        open(ASSETS.dashboardShot),
         // At 100% the shot fills the stage; zoomed out, 97% of the stage is past its right edge.
         zoomOut,
         tool("Box"),
