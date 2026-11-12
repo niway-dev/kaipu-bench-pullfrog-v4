@@ -300,7 +300,9 @@ export const editorImage = catalog(
           },
         },
         { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
-        // A just-added image is tagged “Just added” (mock E3) until it moves: nudge it.
+        // A just-added image is tagged “Just added” (mock E3) until it moves: nudge it, once the
+        // tag is up (the view is still zooming to fit before that, and a drag lands nowhere).
+        { waitFor: { area: "editorImage.canvas", part: { text: "Just added" } } },
         {
           drag: { area: "editorImage.canvas", part: { css: '[data-testid="image-selection"]' } },
           from: { x: 0.5, y: 0.5 },
@@ -308,6 +310,8 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.canvasView:twoImages"],
+      // A drag that missed leaves the E3 frame: fail instead of keeping it.
+      stillOnScreen: { area: "editorImage.canvas", part: { text: "Drag to move" } },
       after: leaveAndRestore,
     },
     "canvas-export-box": {
