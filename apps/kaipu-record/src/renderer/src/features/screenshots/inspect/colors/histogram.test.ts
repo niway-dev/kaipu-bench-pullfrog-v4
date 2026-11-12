@@ -327,43 +327,19 @@ describe("deltaE", () => {
 
 describe("flatColors", () => {
   it("lists every member by count descending, ties by rgb ascending", () => {
-    const groups = [
-      {
-        id: 0,
-        rgb: 3,
-        count: 0,
-        distinct: 2,
-        members: [
-          { rgb: 0x30, count: 5 },
-          { rgb: 0x10, count: 2 },
-        ],
-      },
-      {
-        id: 1,
-        rgb: 4,
-        count: 0,
-        distinct: 2,
-        members: [
-          { rgb: 0x20, count: 5 },
-          { rgb: 0x40, count: 9 },
-        ],
-      },
-    ];
-    const flat = flatColors({
-      width: 1,
-      height: 1,
-      counted: 0,
-      distinct: 4,
-      totalGroups: 2,
-      groups,
-      exact: [
-        { rgb: 0x40, count: 9 },
-        { rgb: 0x20, count: 5 },
-        { rgb: 0x30, count: 5 },
-        { rgb: 0x10, count: 2 },
-      ],
-    });
-    expect(flat.map((m) => m.rgb)).toEqual([0x40, 0x20, 0x30, 0x10]);
+    // Runs are given out of order on purpose: the order comes from analyzeColors, not the input.
+    const img = image([
+      [[0x10, 0, 0], 2],
+      [[0x30, 0, 0], 5],
+      [[0x40, 0, 0], 9],
+      [[0x20, 0, 0], 5],
+    ]);
+    const { analysis } = analyzeColors(img.data, img.width, img.height);
+    expect(isPhoto(analysis)).toBe(false);
+    const expected = [0x400000, 0x200000, 0x300000, 0x100000];
+    expect(analysis.exact.map((m) => m.rgb)).toEqual(expected);
+    expect(flatColors(analysis).map((m) => m.rgb)).toEqual(expected);
+    expect(flatColors(analysis).map((m) => m.count)).toEqual([9, 5, 5, 2]);
   });
 });
 
