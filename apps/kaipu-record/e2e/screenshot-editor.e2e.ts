@@ -52,7 +52,7 @@ test("editing a screenshot and saving writes a valid PNG to the vault", async ()
 
 /** Everything a resize of the toolbar could break, measured in the renderer. */
 interface ToolbarLayout {
-  /** `data-compact` on the row: "true" once the action labels have been dropped. */
+  /** `data-compact` on the row: "true" once the tools fold into Draw and More (mock B3). */
   compact: string | null;
   /** The toolbar's own scroll width exceeds its box — a control ran past the edge. */
   overflows: boolean;
@@ -65,7 +65,7 @@ interface ToolbarLayout {
 }
 
 /**
- * The toolbar settles a frame after the window does: useCompactRow re-measures from a
+ * The toolbar settles a frame after the window does: useCompactEditor re-measures from a
  * ResizeObserver, so a reading taken the instant `innerWidth` matches can still carry the
  * previous width's `data-compact` (seen on CI: "false" with the actions pushed outside at
  * 680px, then "true" and clean a moment later). Poll the reading instead of taking one.
@@ -74,7 +74,7 @@ async function expectToolbar(page: Page, expected: ToolbarLayout): Promise<void>
   await expect.poll(() => measureToolbar(page)).toEqual(expected);
 }
 
-/** The capture title field's width: what the compact row exists to protect (NIW2-351). */
+/** The capture title field's width: the full row keeps it readable down to 1180px (NIW2-351). */
 async function titleFieldWidth(page: Page): Promise<number> {
   return page
     .getByRole("toolbar")
@@ -143,10 +143,10 @@ async function resizeWindow(
 
 const ONE_CLEAN_ROW = { overflows: false, overlaps: [], outside: [], rowSpread: 0 };
 
-// The window the editor lives in: WINDOW_PRESETS.editor (shared/window-size.ts) names 1440
-// as its starting width and 1180 as the floor the window refuses to shrink below — every
-// /editor route shares it. Both must hold one clean row, and with room to spare the
-// action labels stay.
+// A screenshot opens in the image editor, whose window (WINDOW_PRESETS.editorImage in
+// shared/window-size.ts) starts at 1440 and has a 720 floor, so both widths here are above
+// the floor. 1180 is the floor of the other /editor routes (WINDOW_PRESETS.editor), not this
+// one. Both widths must hold one clean row, and with room to spare the action labels stay.
 for (const width of [1440, 1180]) {
   test(`the editor toolbar keeps one row, labels on, at ${width}px`, async () => {
     const { app, page, teardown } = await launchApp();
@@ -162,40 +162,43 @@ for (const width of [1440, 1180]) {
   });
 }
 
-// A display too small for the editor floor: `fitPresetToDisplay` clamps the floor to the
-// work area, so the image editor still runs at 900px on a small laptop. The row cannot
-// hold the tools, the labelled actions and a readable title there, and the title wins
-// (NIW2-351): the action labels go, the controls stay in one clean row, and the name
-// keeps its readable minimum instead of shrinking to "Scree…".
-test("at 900px below the editor floor the toolbar drops the labels and keeps the title readable", async () => {
+// The compact row (the owner's mock B3, which supersedes NIW2-351's below-floor rule) gives
+// the title way to the tools. The image editor's floor is 720 (see above), so 900px is above
+// it: the compact row is the normal layout at this width, not a fallback for a small display.
+// Only a display whose work area is narrower than the floor clamps it further
+// (`fitPresetToDisplay`). Compact row: Save keeps its label, Copy is icon-only, the tools fold
+// into Draw and More, and the capture title input is not rendered.
+async function expectCompactRow(page: Page): Promise<void> {
+  await expectToolbar(page, { ...ONE_CLEAN_ROW, compact: "true" });
+  const toolbar = page.getByRole("toolbar");
+  const save = toolbar.getByRole("button", { name: "Save", exact: true });
+  await expect(save).toBeVisible();
+  await expect(save.getByText("Save")).toBeVisible();
+  const copy = toolbar.getByRole("button", { name: "Copy", exact: true });
+  await expect(copy).toBeVisible();
+  await expect(copy.getByText("Copy")).toBeHidden();
+  await expect(toolbar.getByRole("button", { name: "Draw", exact: true })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "More", exact: true })).toBeVisible();
+  await expect(toolbar.getByRole("textbox", { name: "Title" })).toHaveCount(0);
+}
+
+test("at 900px the toolbar folds into Draw and More, Save labelled, no title", async () => {
   const { app, page, teardown } = await launchApp();
   try {
     await openScreenshotEditor(page);
     await resizeWindow(app, page, 900, { belowFloor: true });
-    await expectToolbar(page, { ...ONE_CLEAN_ROW, compact: "true" });
-    const save = page.getByRole("button", { name: "Save", exact: true });
-    await expect(save).toBeVisible();
-    await expect(save.getByText("Save")).toBeHidden();
-    expect(await titleFieldWidth(page)).toBeGreaterThanOrEqual(READABLE_TITLE_WIDTH);
+    await expectCompactRow(page);
   } finally {
     await teardown();
   }
 });
 
-// Narrower than the app allows — a display too small for the floor, or a control added
-// later — the row gives up the action labels rather than overlapping. With the labels gone
-// the title is the only thing left that may give: its readable minimum is released, so the
-// icon-only actions never run past the toolbar's edge.
-test("below the window floor the editor toolbar drops the action labels instead of overlapping", async () => {
+test("at 680px below the window floor the compact toolbar stays one clean row without overlapping", async () => {
   const { app, page, teardown } = await launchApp();
   try {
     await openScreenshotEditor(page);
     await resizeWindow(app, page, 680, { belowFloor: true });
-    await expectToolbar(page, { ...ONE_CLEAN_ROW, compact: "true" });
-    const save = page.getByRole("button", { name: "Save", exact: true });
-    await expect(save).toBeVisible();
-    await expect(save.getByText("Save")).toBeHidden();
-    expect(await titleFieldWidth(page)).toBeGreaterThan(0);
+    await expectCompactRow(page);
   } finally {
     await teardown();
   }
@@ -216,6 +219,8 @@ test("exporting a screenshot as PDF writes a one-page PDF to the chosen path", a
     }, target);
 
     await openScreenshotEditor(page);
+    // The CI display is small enough that the editor otherwise opens compact, and PDF lives in More.
+    await resizeWindow(app, page, 1440);
 
     const exportButton = page.getByRole("button", { name: /^PDF/ });
     await expect(exportButton).toBeEnabled({ timeout: 15_000 });

@@ -347,14 +347,43 @@ describe("compositor image annotations (canvas mode)", () => {
       seed: 3,
     };
     const svg = buildSvg(scene([second, box, { ...second, id: "a10", x: 1.1, y: 0.6 }]), g);
-    expect(svg.split('<image id="asset-img-abc123def456"')).toHaveLength(2);
+    expect(svg.split('<image id="asset-img-abc123def456-500x300"')).toHaveLength(2);
     expect(svg).toContain(`href="data:image/png;base64,BBBB" width="500" height="300"`);
     // Annotation space is translated to the shot at the padding (40,40): x = 1.1 * 1000.
     expect(svg).toContain(`translate(40,40)`);
-    expect(svg).toContain(`<use href="#asset-img-abc123def456" x="1100" y="0"/>`);
-    expect(svg).toContain(`<use href="#asset-img-abc123def456" x="1100" y="360"/>`);
+    expect(svg).toContain(`<use href="#asset-img-abc123def456-500x300" x="1100" y="0"/>`);
+    expect(svg).toContain(`<use href="#asset-img-abc123def456-500x300" x="1100" y="360"/>`);
     const fullW = 1000 + 600 + 80;
     expect(svg).toContain(`width="${fullW}" height="680" viewBox="0 0 ${fullW} 680"`);
+  });
+
+  it("draws a resized image at its new size, scaling the asset (illustrative: 500x300 -> 750x450)", () => {
+    const resized: Annotation = { ...second, w: 0.75, h: 0.75 };
+    const svg = buildSvg(scene([resized]), g);
+    expect(svg).toContain(`href="data:image/png;base64,BBBB" width="750" height="450"`);
+    expect(svg).toContain(
+      `<clipPath id="ic-a9"><rect x="1100" y="0" width="750" height="450" rx="12"/></clipPath>`,
+    );
+  });
+
+  it("defines one asset per size, each placement using the def of its own size", () => {
+    const resized: Annotation = { ...second, id: "a10", y: 1, w: 0.75, h: 0.75 };
+    const svg = buildSvg(scene([second, resized]), g);
+    expect(svg.match(/<image id="asset-/g)).toHaveLength(2);
+    expect(svg).toContain(
+      `<image id="asset-img-abc123def456-500x300" href="data:image/png;base64,BBBB" width="500" height="300"`,
+    );
+    expect(svg).toContain(
+      `<image id="asset-img-abc123def456-750x450" href="data:image/png;base64,BBBB" width="750" height="450"`,
+    );
+    expect(svg).toContain(`<use href="#asset-img-abc123def456-500x300" x="1100" y="0"/>`);
+    expect(svg).toContain(`<use href="#asset-img-abc123def456-750x450" x="1100" y="600"/>`);
+  });
+
+  it("keeps one def for two placements of equal size", () => {
+    const svg = buildSvg(scene([second, { ...second, id: "a10", y: 1 }]), g);
+    expect(svg.match(/<image id="asset-/g)).toHaveLength(1);
+    expect(svg.match(/<use href="#asset-/g)).toHaveLength(2);
   });
 
   it("clips each image to its own rounded rect in a non-transformed group", () => {
@@ -362,7 +391,7 @@ describe("compositor image annotations (canvas mode)", () => {
     expect(svg).toContain(
       `<clipPath id="ic-a9"><rect x="1100" y="0" width="500" height="300" rx="12"/></clipPath>`,
     );
-    expect(svg).toContain(`<g clip-path="url(#ic-a9)"><use href="#asset-img-abc123def456"`);
+    expect(svg).toContain(`<g clip-path="url(#ic-a9)"><use href="#asset-img-abc123def456-500x300"`);
   });
 
   it("gives an image the base's drop shadow only when shadow > 0", () => {
@@ -439,6 +468,32 @@ describe("compositor step badges", () => {
     expect(light).toContain('fill="#1a1a1a"');
     const dark = buildSvg(scene([step("a", 0.5, "#f6055c")]), geom);
     expect(dark).toContain('stroke="#ffffff"');
+  });
+});
+
+describe("compositor step badges - mock ring, hairline and shadow (NIW2-713)", () => {
+  it("rings a light fill in white and keeps the number dark", () => {
+    const svg = buildSvg(
+      scene([{ id: "a", kind: "step", x: 0.5, y: 0.5, color: "#f5f5f5", size: 1 }]),
+      geom,
+    );
+    expect(svg).toMatch(/<circle [^>]*fill="#f5f5f5"[^>]*stroke="#ffffff"/);
+    expect(svg).toContain('fill="#1a1a1a"');
+  });
+
+  it("draws the hairline and drop shadow with one filter, still one circle per badge", () => {
+    const svg = buildSvg(
+      scene([
+        { id: "a", kind: "step", x: 0.25, y: 0.5, color: "#f6055c", size: 1 },
+        { id: "b", kind: "step", x: 0.75, y: 0.5, color: "#f6055c", size: 1 },
+      ]),
+      geom,
+    );
+    expect(svg.match(/<circle /g)).toHaveLength(2);
+    const ref = svg.match(/<circle [^>]*filter="url\(#([^)]+)\)"/);
+    expect(ref).not.toBeNull();
+    expect(svg).toContain(`<filter id="${ref![1]}"`);
+    expect(svg.match(/<filter id="stepf/g)).toHaveLength(1);
   });
 });
 

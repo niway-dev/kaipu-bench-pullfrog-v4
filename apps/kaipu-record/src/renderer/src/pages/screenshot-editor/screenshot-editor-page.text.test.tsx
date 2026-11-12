@@ -152,7 +152,7 @@ const drag = (from: [number, number], to: [number, number]) => {
 };
 /** Draw a redaction over display px (10,15)-(120,35): it covers the first line. */
 function redactFirstLine(): void {
-  fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+  fireEvent.click(screen.getByRole("button", { name: "Redact" }));
   const surface = screen.getByTestId("canvas-hit-surface");
   fireEvent.pointerDown(surface, { button: 0, clientX: 10, clientY: 15, pointerId: 1 });
   fireEvent.pointerMove(surface, { clientX: 120, clientY: 35, pointerId: 1 });

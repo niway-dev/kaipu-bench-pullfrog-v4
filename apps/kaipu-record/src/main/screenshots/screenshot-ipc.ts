@@ -27,7 +27,7 @@ import {
   updateAppSettings,
 } from "../infrastructure/settings-store";
 import { currentVault, scopedAdmitted, screenshotFilePath } from "../library";
-import { readCanvas } from "./screenshot-canvas";
+import { readCanvas, statCanvas } from "./screenshot-canvas";
 import { recognizeScreenshotText } from "./screenshot-text";
 import { createTextRecognizer } from "./text-recognition";
 import type {
@@ -307,6 +307,15 @@ export function registerScreenshotHandlers(
     scopedAdmitted("library", async (id: string): Promise<CanvasReadResult | null> => {
       // readCanvas refuses an id that is not a plain item id (no path out of the vault).
       return readCanvas(currentVault(), id);
+    }),
+  );
+
+  // Whether a canvas document exists beside a shot, and when it was written. Null only when it
+  // is missing; any other stat error rejects, so the renderer reports the document as unreadable.
+  ipcMain.handle(
+    IPC_CHANNELS.screenshotStatCanvas,
+    scopedAdmitted("library", async (id: string): Promise<{ savedAt: number } | null> => {
+      return statCanvas(currentVault(), id);
     }),
   );
 

@@ -1,28 +1,26 @@
 /*
- * Annotation tool group (top bar). The per-tool controls live in the floating
- * AnnotationOptions panel (annotation-options.module.css).
+ * Annotation tool group (top bar, mock B1). Plain 34px buttons on the toolbar itself: the mock
+ * has no box around the group. The per-tool controls live in the floating AnnotationOptions
+ * panel (annotation-options.module.css).
  */
 
 .toolGroup {
   display: flex;
+  align-items: center;
   flex-shrink: 0;
-  gap: 3px;
-  padding: 3px;
-  background: var(--bg-modal);
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  gap: 2px;
 }
 
 .tool {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: 34px;
   height: 34px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
   cursor: pointer;
   transition:
     background var(--transition),
@@ -30,11 +28,26 @@
 }
 
 .tool:hover {
-  color: var(--text-primary);
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .toolActive,
 .toolActive:hover {
-  background: var(--accent-primary);
+  background: var(--ie-accent);
   color: #fff;
+}
+
+.divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 20px;
+  margin: 0 5px;
+  background: var(--ie-sep);
+}
+
+/* Compact (mock B3): 30px buttons. */
+.toolGroup[data-compact="true"] .tool {
+  width: 30px;
+  height: 30px;
 }

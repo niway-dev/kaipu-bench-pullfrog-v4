@@ -623,6 +623,34 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
     expect(patch.w).toBeUndefined(); // it moves, it does not resize
   });
 
+  it("dragging a corner resizes it with its ratio kept, in one commit", () => {
+    const scene = makeScene([image], "i1");
+    const { layer } = renderImageLayer(scene, makeTools({ tool: "select" }));
+    // The se corner is at (90, 55) of the 100 x 100 layer.
+    fireEvent.pointerDown(layer, { clientX: 90, clientY: 55 });
+    fireEvent.pointerMove(layer, { clientX: 100, clientY: 60 });
+    fireEvent.pointerUp(layer);
+    expect(scene.commitAnnotation).toHaveBeenCalledTimes(1);
+    const [id, patch] = (scene.commitAnnotation as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(id).toBe("i1");
+    expect(patch.x).toBeCloseTo(0.5); // the nw corner stayed
+    expect(patch.y).toBeCloseTo(0.25);
+    expect(patch.w).toBeCloseTo(0.5);
+    expect(patch.h).toBeCloseTo(0.375);
+    expect(patch.w / patch.h).toBeCloseTo(40 / 30);
+  });
+
+  it("an edge handle still drags the image instead of resizing it", () => {
+    const scene = makeScene([image], "i1");
+    const { layer } = renderImageLayer(scene, makeTools({ tool: "select" }));
+    fireEvent.pointerDown(layer, { clientX: 90, clientY: 40 }); // the e handle, inside the image
+    fireEvent.pointerMove(layer, { clientX: 95, clientY: 40 });
+    fireEvent.pointerUp(layer);
+    const [, patch] = (scene.commitAnnotation as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(patch.w).toBeUndefined();
+    expect(patch.x).toBeCloseTo(0.55);
+  });
+
   it("moves in the DOM before the commit", () => {
     const scene = makeScene([image], null);
     const { layer, container } = renderImageLayer(scene, makeTools({ tool: "select" }));
@@ -1054,5 +1082,41 @@ describe("AnnotationLayer — Select text tool", () => {
     fireEvent.pointerDown(layer, { clientX: 20, clientY: 12, pointerId: 1 });
     expect(select).not.toHaveBeenCalled();
     expect(clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("AnnotationLayer — step badge ring (NIW2-713)", () => {
+  const badge = (color: string): Annotation => ({
+    id: "s1",
+    kind: "step",
+    x: 0.5,
+    y: 0.5,
+    color,
+    size: 1,
+  });
+
+  it("rings a light fill in white and keeps the number dark", () => {
+    const { container } = render(
+      <AnnotationLayer scene={makeScene([badge("#f5f5f5")], null)} tools={makeTools()} src="" />,
+    );
+    const circle = container.querySelector("g[data-annotation] circle")!;
+    expect(circle.getAttribute("stroke")).toBe("#ffffff");
+    expect(container.querySelector("g[data-annotation] text")!.getAttribute("fill")).toBe(
+      "#1a1a1a",
+    );
+    expect(circle.getAttribute("filter")).toMatch(/^url\(#stepf/);
+  });
+
+  it("draws an accent ring only while the badge is selected", () => {
+    const rings = (selectedId: string | null): number =>
+      render(
+        <AnnotationLayer
+          scene={makeScene([badge("#f6055c")], selectedId)}
+          tools={makeTools()}
+          src=""
+        />,
+      ).container.querySelectorAll("g[data-annotation] circle[data-step-selected]").length;
+    expect(rings(null)).toBe(0);
+    expect(rings("s1")).toBe(1);
   });
 });

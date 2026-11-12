@@ -1,0 +1,183 @@
+/*
+ * Pieces the image editor's toolbar shares (mock B1-B3): the tooltip and its key chip, the
+ * Draw / More menus, the panel toggle. Colors are the editor's --ie-* tokens only.
+ */
+
+/* ── Key chip (the mock's kbd(): mono 9.5px) ──────────────────────── */
+
+.kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--ie-strong);
+  border-radius: 4px;
+  background: var(--ie-hover);
+  color: var(--ie-tx2);
+  font-family: var(--ie-font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+/* ── Tooltip ──────────────────────────────────────────────────────── */
+
+.tipWrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--ie-strong);
+  border-radius: 6px;
+  background: var(--ie-card);
+  box-shadow: var(--ie-shadow);
+  color: var(--ie-tx);
+  font-size: 11.5px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* ── Menu button (Draw, More) ─────────────────────────────────────── */
+
+.menuAnchor {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.menuButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 6px 0 7px;
+  border: 1px solid var(--ie-sep);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ie-tx2);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.menuButton:hover {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
+}
+
+.menuAnchor[data-open="true"] .menuButton {
+  border-color: var(--ie-accent);
+}
+
+/* A drawing tool is the active one: the button reads as an active tool. */
+.menuButtonActive,
+.menuButtonActive:hover {
+  border-color: var(--ie-accent);
+  background: var(--ie-accent);
+  color: #fff;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 46;
+  width: 196px;
+  padding: 5px;
+  border: 1px solid var(--ie-strong);
+  border-radius: 8px;
+  background: var(--ie-card);
+  box-shadow: var(--ie-shadow);
+  color: var(--ie-tx);
+  text-align: left;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ie-tx);
+  font-family: var(--font-family);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.menuItem:hover:not(:disabled),
+.menuItemActive {
+  background: var(--ie-hover);
+}
+
+.menuItem:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.menuIcon {
+  display: flex;
+  color: var(--ie-tx2);
+}
+
+.menuSpacer {
+  flex: 1;
+}
+
+.menuDivider {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--ie-sep);
+}
+
+/* ── Panel toggle (compact) ───────────────────────────────────────── */
+
+.panelToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ie-sep);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ie-tx2);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.panelToggle:hover {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
+}
+
+.panelToggle[aria-expanded="true"] {
+  border-color: var(--ie-accent);
+  background: var(--ie-accent-soft);
+  color: var(--ie-accent);
+}

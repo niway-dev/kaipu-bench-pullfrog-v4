@@ -8,10 +8,10 @@
   max-height: min(420px, calc(100vh - 260px));
   margin-top: var(--space-sm);
   padding: var(--space-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--ie-card);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--ie-shadow);
 }
 
 .header {
@@ -23,13 +23,13 @@
 .title {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 .summary,
 .status {
   font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
 }
 
 .list {
@@ -58,7 +58,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-primary);
+  color: var(--ie-tx);
   font-size: var(--font-size-xs);
   text-align: left;
   cursor: pointer;
@@ -66,13 +66,13 @@
 
 .group:hover,
 .member:hover {
-  background: var(--bg-card-hover);
+  background: var(--ie-hover);
 }
 
 .on,
 .on:hover {
-  border-color: var(--accent-primary);
-  background: var(--accent-primary-soft);
+  border-color: var(--ie-accent);
+  background: var(--ie-accent-soft);
 }
 
 .members {
@@ -81,11 +81,11 @@
   gap: 1px;
   margin-left: 22px;
   padding-left: var(--space-xs);
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--ie-sep);
 }
 
 .member {
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
 }
 
 .swatch,
@@ -109,7 +109,7 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-family: var(--font-mono);
+  font-family: var(--ie-font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -117,7 +117,7 @@
 .share {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
 }
 
 .footer {
@@ -132,17 +132,17 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--border);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
   font-size: var(--font-size-xs);
   white-space: nowrap;
   cursor: pointer;
 }
 
 .clear:hover {
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 /*

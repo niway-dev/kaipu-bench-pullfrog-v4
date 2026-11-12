@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useEditorScene } from "./use-editor-scene";
-import type { BoxAnnotation } from "./scene";
+import type { BoxAnnotation, ImageAnnotation } from "./scene";
 
 const box: BoxAnnotation = {
   id: "b1",
@@ -44,6 +44,27 @@ describe("useEditorScene", () => {
 
     act(() => result.current.undo());
     expect(colorOf(result.current.annotations[0])).toBe("#f00");
+  });
+
+  it("a resize of an added image is one undoable change", () => {
+    const image: ImageAnnotation = {
+      id: "i1",
+      kind: "image",
+      assetId: "img-aaaaaaaaaaaa",
+      x: 0.5,
+      y: 0.25,
+      w: 0.4,
+      h: 0.3,
+      pixelWidth: 40,
+      pixelHeight: 30,
+    };
+    const { result } = renderHook(() => useEditorScene());
+    act(() => result.current.addAnnotation(image));
+    act(() => result.current.commitAnnotation("i1", { w: 0.2, h: 0.15 }));
+    expect(result.current.annotations[0]).toMatchObject({ w: 0.2, h: 0.15, pixelWidth: 40 });
+
+    act(() => result.current.undo());
+    expect(result.current.annotations[0]).toMatchObject({ w: 0.4, h: 0.3, pixelHeight: 30 });
   });
 
   it("a fresh add clears the redo stack", () => {

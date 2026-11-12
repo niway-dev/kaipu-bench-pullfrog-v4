@@ -6,6 +6,9 @@ const open = (assetId: string): Step => ({ navigate: `/editor/image/${assetId}` 
 const zoomOut: Step = {
   click: { area: "editorImage.canvas", part: { role: "button", name: "Zoom out", exact: true } },
 };
+const zoomIn: Step = {
+  click: { area: "editorImage.canvas", part: { role: "button", name: "Zoom in", exact: true } },
+};
 const theme = (value: "light" | "dark"): Step => ({
   call: "updateSettings",
   args: [{ theme: value }],
@@ -34,6 +37,49 @@ const inspectColors: Step = {
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
+/**
+ * The runner sizes the window after the steps, so a step that needs the compact toolbar
+ * (a menu only it has) shrinks the window first.
+ */
+const compactWindow: Step = { window: "editor-image-min" };
+/** The compact toolbar (mock B3): a button of the toolbar, by its accessible name. */
+const toolbarButton = (name: string): Step => ({
+  click: { area: "editorImage.toolbar", part: { role: "button", name, exact: true } },
+});
+
+/**
+ * Drop a step badge: the Step tool places one on press, so a drag that never moves is a click at
+ * a chosen point (`click` only hits the centre). The Select tool selects what it presses on, and a
+ * press that never moves leaves the badge where it is.
+ */
+const pressAt = (x: number, y: number): Step => ({
+  drag: { area: "editorImage.canvas" },
+  from: { x, y },
+  to: { x, y },
+});
+/** A size button of the Step tool's card ("Size S", "Size M", "Size L"). */
+const stepSize = (label: "S" | "M" | "L"): Step => ({
+  click: {
+    area: "editorImage.canvas",
+    part: { role: "button", name: `Size ${label}`, exact: true },
+  },
+});
+/** A badge's number is drawn as SVG text: once one is there, the placements have rendered. */
+const badgeDrawn: Step = { waitFor: { area: "editorImage.canvas", part: { css: "svg text" } } };
+/** Where the four badges of mock D1 and D2 go: spread over the image, clear of the card at the top left. */
+const STEP_POINTS = [
+  { x: 0.3, y: 0.35 },
+  { x: 0.62, y: 0.3 },
+  { x: 0.72, y: 0.62 },
+  { x: 0.38, y: 0.75 },
+] as const;
+const placeFourBadges: readonly Step[] = [
+  tool("Step"),
+  ...STEP_POINTS.map((p) => pressAt(p.x, p.y)),
+  // The Step tool keeps its card open; Select with nothing selected shows none.
+  tool("Select"),
+  badgeDrawn,
+];
 
 /** Open the screenshot that draws real text and pick Select text, as `ready` and `selected` start. */
 const openText: readonly Step[] = [
@@ -85,6 +131,63 @@ export const editorImage = catalog(
       steps: [open(ASSETS.settingsShot), tool("Crop")],
       demonstrates: ["editorImage.tools:crop", "editorImage.canvas:crop"],
     },
+    toolbar: {
+      profile: "image-toolbar",
+      how: "Mock B1: with the three image-editor flags forced on, open “Settings page” at the editor's default size: the toolbar reads mode switch (Annotate | Inspect), Select Pen Box Arrow Text Step, Redact, Export frame, Add image, Select text, Undo Redo, the title, then Copy, Save and PDF.",
+      steps: [open(ASSETS.settingsShot)],
+      demonstrates: ["editorImage.toolbar:default"],
+    },
+    "toolbar-tooltip": {
+      profile: "image-toolbar",
+      how: "Mock B2: with the three image-editor flags forced on, open “Settings page” and rest the pointer on the Step tool: a tooltip names it and shows its key, N.",
+      steps: [
+        open(ASSETS.settingsShot),
+        {
+          hover: {
+            area: "editorImage.tools",
+            part: { role: "button", name: "Step", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.toolbar", part: { css: "[role='tooltip']" } } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.toolbar:tooltip"],
+    },
+    "toolbar-compact": {
+      profile: "image-toolbar",
+      // The smallest window the image editor allows (720×560). Compact needs the editor page
+      // under 1000 px.
+      window: "editor-image-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window: Pen, Box, Arrow, Text and Step are one Draw menu, the rest sit in the ••• menu, the title is gone and the right panel is behind its toggle.",
+      steps: [open(ASSETS.settingsShot)],
+      demonstrates: [
+        "editorImage.toolbar:compact",
+        "editorImage.drawMenu:closed",
+        "editorImage.moreMenu:closed",
+        "editorImage.panelToggle:closed",
+      ],
+    },
+    "toolbar-compact-draw-menu": {
+      profile: "image-toolbar",
+      window: "editor-image-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press Draw: the menu lists Pen, Box, Arrow, Text and Step with their keys.",
+      steps: [open(ASSETS.settingsShot), compactWindow, toolbarButton("Draw")],
+      demonstrates: ["editorImage.drawMenu:open"],
+    },
+    "toolbar-compact-more-menu": {
+      profile: "image-toolbar",
+      window: "editor-image-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press •••: the menu lists Export frame, Add image, Select text, Undo, Redo and PDF.",
+      steps: [open(ASSETS.settingsShot), compactWindow, toolbarButton("More")],
+      demonstrates: ["editorImage.moreMenu:open"],
+    },
+    "toolbar-compact-panel": {
+      profile: "image-toolbar",
+      window: "editor-image-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press the panel toggle: the Beautify panel opens as a sheet over the stage's right edge.",
+      steps: [open(ASSETS.settingsShot), compactWindow, toolbarButton("Panel")],
+      demonstrates: ["editorImage.panelToggle:open"],
+    },
     "toolbar-saved": {
       profile: "default",
       how: "Open “Error dialog”, press Save and answer Overwrite: the Save button turns into Saved.",
@@ -113,6 +216,22 @@ export const editorImage = catalog(
       demonstrates: ["editorImage.canvasView:default", "editorImage.addImage:closed"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
+    "canvas-off-content": {
+      profile: "image-canvas",
+      how: "Mock A6: with the flag forced on, open “Settings page”, zoom in three steps and turn the mouse wheel over the canvas toward the right and down until less than half of the content is on stage: a notice says where the content went.",
+      steps: [
+        open(ASSETS.settingsShot),
+        zoomIn,
+        zoomIn,
+        zoomIn,
+        // A plain wheel pans (Ctrl or Cmd would zoom); a positive delta moves the view right
+        // and down. The pan stops with 64 px of the content still on stage.
+        { wheel: { area: "editorImage.canvas" }, deltaX: 600, deltaY: 600, times: 6 },
+        { waitFor: { area: "editorImage.offContentNotice" } },
+      ],
+      demonstrates: ["editorImage.canvasView:offContent", "editorImage.offContentNotice:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
     "add-image-menu": {
       profile: "image-canvas",
       how: "With the flag forced on, open “Settings page” and press Add image: the menu offers New capture and From Library, and says pasting works too.",
@@ -139,7 +258,7 @@ export const editorImage = catalog(
     },
     "two-images": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page”, press Add image, choose From Library and click “Dashboard draft”: it lands to the right of the screenshot, selected.",
+      how: "Mock A4: with the flag forced on, open “Settings page”, press Add image, choose From Library and click “Dashboard draft”: it lands to the right of the screenshot, selected, with the accent frame, handles, the “Drag to move” tag and the gap to the screenshot.",
       steps: [
         open(ASSETS.settingsShot),
         addImageButton,
@@ -154,6 +273,76 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.canvasView:twoImages"],
     },
+    "canvas-export-box": {
+      profile: "image-canvas",
+      how: "Mock A1: with the flag forced on, open “Settings page”: a dashed box surrounds the image, labelled EXPORT and the exact pixel size Copy and Save produce.",
+      steps: [open(ASSETS.settingsShot), { waitFor: { area: "editorImage.exportBox" } }],
+      demonstrates: ["editorImage.exportBox:labeled"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "canvas-export-box-quiet": {
+      profile: "image-canvas",
+      how: "Mock A1: with the flag forced on, open “Settings page” and pick the Redact tool: the dashed export box stays, its label is hidden.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Redact"),
+        { waitFor: { area: "editorImage.exportBox" } },
+      ],
+      demonstrates: ["editorImage.exportBox:quiet"],
+    },
+    "canvas-beautified": {
+      profile: "image-canvas",
+      how: "Mock A2: with the flag forced on, open “Settings page”, pick the Sunset background and raise Padding to its maximum: the export box wraps the background and the padding, and the Beautify tip says the dotted canvas around them is not exported.",
+      steps: [
+        open(ASSETS.settingsShot),
+        {
+          click: {
+            area: "editorImage.beautify",
+            part: { role: "button", name: "Sunset", exact: true },
+          },
+        },
+        // The first slider is Padding; End takes a range input to its maximum.
+        {
+          press: "End",
+          target: { area: "editorImage.beautify", part: { role: "slider" }, nth: 0 },
+        },
+        { waitFor: { area: "editorImage.exportBox" } },
+      ],
+      demonstrates: ["editorImage.canvasView:beautified"],
+    },
+    "canvas-content-outside": {
+      profile: "image-canvas",
+      how: "Mock A3: with the flag forced on, open “Dashboard draft”, pick the Box tool and drag from inside the image to the empty canvas on its right: the export box and its label grow to include the box.",
+      steps: [
+        // Its own item: the box this drag adds is saved to the document, and a later state that
+        // opens the same item would show it.
+        open(ASSETS.dashboardShot),
+        // At 100% the shot fills the stage; zoomed out, 97% of the stage is past its right edge.
+        zoomOut,
+        tool("Box"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.55, y: 0.4 },
+          to: { x: 0.97, y: 0.6 },
+        },
+      ],
+      demonstrates: ["editorImage.canvasView:contentOutside"],
+    },
+    "canvas-export-frame": {
+      profile: "image-canvas",
+      how: "Mock A5: with the flag forced on, open “Settings page”, pick the Export frame tool and drag a rectangle inside the image: the outside is dimmed, the frame shows its handles and “W × H px · EXPORT FRAME”, and the card at the top left offers Fit to content and Remove.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Export frame"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.42, y: 0.35 },
+          to: { x: 0.62, y: 0.6 },
+        },
+        { waitFor: { area: "editorImage.exportFrameCard" } },
+      ],
+      demonstrates: ["editorImage.canvasView:exportFrame", "editorImage.exportFrameCard:open"],
+    },
     "canvas-zoomed-out": {
       profile: "image-canvas",
       how: "With the flag forced on, open “Settings page” and press Zoom out once: the zoom goes below 100%.",
@@ -162,17 +351,17 @@ export const editorImage = catalog(
     },
     "redaction-blur": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page” and pick the Blur tool: the panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
-      steps: [open(ASSETS.settingsShot), tool("Blur")],
+      how: "With the flag forced on, open “Settings page” and pick the Redact tool: the panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
+      steps: [open(ASSETS.settingsShot), tool("Redact")],
       demonstrates: ["editorImage.redactionStyle:blur"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
     "redaction-solid": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page”, pick the Blur tool and press Solid in the panel: Solid is now the selected style.",
+      how: "With the flag forced on, open “Settings page”, pick the Redact tool and press Solid in the panel: Solid is now the selected style.",
       steps: [
         open(ASSETS.settingsShot),
-        tool("Blur"),
+        tool("Redact"),
         {
           click: {
             area: "editorImage.redactionStyle",
@@ -181,6 +370,177 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.redactionStyle:solid"],
+    },
+    "redaction-locked": {
+      profile: "image-canvas-saved",
+      how: "Mock H4: with the flag forced on, open “Saved redaction” (a screenshot saved with one redaction over its middle) and rest the pointer on the redaction: a tag beside it says it is permanent and when it was saved. Clicking it selects nothing.",
+      steps: [
+        open(ASSETS.lockedShot),
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.redactionLock" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.redactionLock:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "step-badges": {
+      profile: "image-mocks",
+      how: "Mock D1: with the three image-editor flags forced on, open “Steps demo”, pick Step and click four spread-out points of the image, then pick Select: four badges numbered 1 to 4 in the default color, none selected, no card.",
+      steps: [
+        // Its own item: the badges are saved to the document (autosave), and a later state that
+        // opens the same item would show them.
+        open(ASSETS.stepsShot),
+        ...placeFourBadges,
+      ],
+      demonstrates: ["editorImage.canvas:steps"],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
+    },
+    "step-badge-selected": {
+      profile: "image-mocks",
+      how: "Mock D2: with the three image-editor flags forced on, open “Step selected”, place four badges with the Step tool, pick Select and press the third one: it wears the selection ring, and the card shows Color, Size and “Delete renumbers the rest”.",
+      steps: [
+        open(ASSETS.stepSelectedShot),
+        ...placeFourBadges,
+        pressAt(STEP_POINTS[2].x, STEP_POINTS[2].y),
+        {
+          waitFor: { area: "editorImage.canvas", part: { text: "Delete renumbers the rest" } },
+        },
+      ],
+      demonstrates: ["editorImage.canvas:stepSelected"],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
+    },
+    "step-badge-sizes": {
+      profile: "image-mocks",
+      how: "Mock D3: with the three image-editor flags forced on, open “Step sizes” (dark top half, light bottom half), pick Step, then place S, M and L badges over the dark half and S, M and L over the light half, picking the size in the card before each: the badges stay readable on both.",
+      steps: [
+        open(ASSETS.stepSizesShot),
+        tool("Step"),
+        // The size picks are in the card, which the Step tool keeps open at the top left; the
+        // two rows of badges sit well below it, at 0.32 (dark) and 0.68 (light) of the canvas.
+        ...([0.32, 0.68] as const).flatMap((y) =>
+          (
+            [
+              ["S", 0.35],
+              ["M", 0.5],
+              ["L", 0.65],
+            ] as const
+          ).flatMap(([label, x]) => [stepSize(label), pressAt(x, y)]),
+        ),
+        tool("Select"),
+        badgeDrawn,
+      ],
+      demonstrates: ["editorImage.canvas:stepSizes"],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
+    },
+    "redaction-card": {
+      profile: "image-mocks",
+      how: "Mock H1: with the three image-editor flags forced on, open “Settings page” and pick the Redact tool: the card shows Blur (selected) and Solid, each with its icon, and the note that only Solid hides content for certain. Nothing is drawn.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Redact"),
+        { waitFor: { area: "editorImage.redactionStyle" } },
+      ],
+      demonstrates: ["editorImage.redactionStyle:blur"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "redaction-notice": {
+      profile: "image-mocks",
+      how: "With the flag forced on, open “Notice demo”, pick Redact and drag a box over the image: the “Saving makes redactions permanent” card opens over the canvas, with Undo redaction and Got it.",
+      steps: [
+        // Its own item: the drawn region is autosaved to the document, and a later state that
+        // opens the same item would show it. It never presses Got it, so the notice stays
+        // unacknowledged for "redaction-styles" below, which does.
+        open(ASSETS.noticeShot),
+        tool("Redact"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.42, y: 0.35 },
+          to: { x: 0.62, y: 0.6 },
+        },
+        { waitFor: { area: "editorImage.redactionNotice" } },
+      ],
+      demonstrates: ["editorImage.redactionNotice:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+        { action: "forgetRedactionNotice" },
+      ],
+    },
+    "redaction-styles": {
+      profile: "image-mocks",
+      how: "Mock H2: with the three image-editor flags forced on, open “Redaction demo” (text-like rows), pick Redact and draw a blur over the left column, press Got it on the permanence notice, pick Redact again, press Solid and draw a second region over the right column: one blurred and one solid region side by side.",
+      steps: [
+        // Its own item. The one-time notice is acknowledged here and nowhere else (the earlier
+        // "redaction-notice" leaves it open on purpose), so it is still unacknowledged when
+        // region 1 is drawn, whether this state runs alone or after that one.
+        open(ASSETS.redactionShot),
+        tool("Redact"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.2, y: 0.36 },
+          to: { x: 0.46, y: 0.54 },
+        },
+        { waitFor: { area: "editorImage.redactionNotice" } },
+        {
+          click: {
+            area: "editorImage.redactionNotice",
+            part: { role: "button", name: "Got it", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.redactionNotice", state: "hidden" } },
+        // Picking the tool again deselects region 1, so Solid sets the next region's style and
+        // does not restyle the one just drawn.
+        tool("Redact"),
+        {
+          click: {
+            area: "editorImage.redactionStyle",
+            part: { role: "button", name: "Solid", exact: true },
+          },
+        },
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.54, y: 0.36 },
+          to: { x: 0.8, y: 0.54 },
+        },
+        { waitFor: { area: "editorImage.redactionStyle" } },
+      ],
+      demonstrates: ["editorImage.canvas:redacted", "editorImage.redactionStyle:solid"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+        { action: "forgetRedactionNotice" },
+      ],
     },
     "inspect-off": {
       profile: "image-inspect",
@@ -345,6 +705,43 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.textSelection:selected"],
     },
+    "reopen-editable": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page”, pick Step, click the canvas, press Save and answer Overwrite; leave the editor and open “Settings page” again: a pill at the top of the stage says it reopened with everything editable, with the time it was saved, and fades after about four seconds.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Step"),
+        { click: { area: "editorImage.canvas" } },
+        {
+          click: {
+            area: "editorImage.toolbar",
+            part: { role: "button", name: "Save", exact: true },
+          },
+        },
+        { click: { area: "editorImage.page", part: { role: "button", name: "Overwrite" } } },
+        {
+          waitFor: {
+            area: "editorImage.toolbar",
+            part: { role: "button", name: "Saved", exact: true },
+          },
+        },
+        { navigate: "/library" },
+        open(ASSETS.settingsShot),
+        { waitFor: { area: "editorImage.reopenNotice" } },
+      ],
+      demonstrates: ["editorImage.reopenNotice:editable"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+      // Save wrote the step annotation into the profile's vault: restore it so “Settings page”
+      // opens unmodified in canvas-light and in a second shot of this state.
+      after: [{ action: "restoreVault" }],
+    },
+    "reopen-flat": {
+      profile: "image-canvas-unreadable",
+      how: "With the flag forced on and a corrupt editable document beside “Settings page”, open it: the flat image opens, with a pill that says the earlier drawings are part of it now and can no longer be moved, and stays until dismissed.",
+      steps: [open(ASSETS.settingsShot), { waitFor: { area: "editorImage.reopenNotice" } }],
+      demonstrates: ["editorImage.reopenNotice:flat"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
     "canvas-light": {
       profile: "image-canvas",
       how: "With the flag forced on, switch to the light theme and open “Settings page”: the canvas's dot grid takes the light colours.",
@@ -375,14 +772,6 @@ export const editorImage = catalog(
       "editorImage.inspectColors:error": nc(
         "inducedFailure",
         "shown only when the image cannot be decoded or the colors worker fails; the page tests pin it",
-      ),
-      "editorImage.canvasView:exportFrame": nc(
-        "needsSetup",
-        "the export frame is set by dragging the crop rectangle, and the catalog steps cannot drag; a fixture that starts from a saved frame would show it (not built)",
-      ),
-      "editorImage.canvasView:contentOutside": nc(
-        "needsSetup",
-        "content past the image edge needs a click outside the image, and the catalog clicks only the centre of an area; a fixture with an annotation past the edge would show it (not built)",
       ),
     },
   },

@@ -15,30 +15,44 @@
 /* ── Toolbar ─────────────────────────────────────── */
 
 /*
- * One row: the tool group leading, the actions trailing. Neither group shrinks,
- * so the row's groups never squeeze into each other; when they would not fit,
- * useCompactRow (screenshot-editor-page.tsx) sets data-compact and the action
- * labels give way instead — see the compact rules below.
+ * One row (mock B1): mode switch, tools, undo/redo, the title in the middle, then the actions.
+ * 52px on the app background. Below 1000px the page sets data-compact (useCompactEditor in
+ * features/screenshots/toolbar) and the row folds (mock B3): 46px, the tools into the Draw and
+ * "..." menus, no title, Copy as an icon, the right panel behind a toggle.
  */
 .toolbar {
+  position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: 0 0 var(--space-sm);
+  gap: 2px;
+  height: 52px;
+  padding: 0 12px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--line);
+  background: var(--ie-app);
+  border-bottom: 1px solid var(--ie-sep);
+}
+
+.toolbar[data-compact="true"] {
+  height: 46px;
+  padding: 0 8px;
 }
 
 .actions {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: var(--space-sm);
+  gap: 6px;
 }
 
-/* The text beside an action's icon; the only thing the compact row drops. */
-.label {
+/* No title in the middle to take the slack: the actions stay at the right edge. */
+.toolbar[data-compact="true"] .actions {
+  margin-left: auto;
+}
+
+/* The text beside an action's icon; compact drops it from the secondary actions (Save keeps its own). */
+.label,
+.saveLabel {
   white-space: nowrap;
 }
 
@@ -46,9 +60,13 @@
   display: none;
 }
 
-/* Icon-only: square-ish buttons, matching the undo/redo pair beside them. */
 .toolbar[data-compact="true"] .secondary,
 .toolbar[data-compact="true"] .save {
+  height: 30px;
+}
+
+/* Icon-only: square-ish buttons, matching the other compact controls. */
+.toolbar[data-compact="true"] .secondary {
   padding: 0 var(--space-sm);
 }
 
@@ -56,12 +74,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  width: 32px;
   height: 34px;
   background: transparent;
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 6px;
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
   cursor: pointer;
   transition:
     background var(--transition),
@@ -69,8 +87,8 @@
 }
 
 .iconBtn:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .iconBtn:disabled {
@@ -79,10 +97,11 @@
 }
 
 .divider {
+  flex-shrink: 0;
   width: 1px;
-  height: 24px;
-  background: var(--line);
-  margin: 0 var(--space-xs);
+  height: 20px;
+  background: var(--ie-sep);
+  margin: 0 5px;
 }
 
 /* ── Floating zoom pill (foot of the canvas) ─────── */
@@ -96,10 +115,10 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--ie-card);
+  border: 1px solid var(--ie-sep);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--ie-shadow);
 }
 
 .zoomBtn {
@@ -111,7 +130,7 @@
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--ie-tx2);
   cursor: pointer;
   transition:
     background var(--transition),
@@ -119,8 +138,8 @@
 }
 
 .zoomBtn:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .zoomBtn:disabled {
@@ -135,8 +154,8 @@
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
+  color: var(--ie-tx2);
+  font-family: var(--ie-font-mono);
   font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -146,12 +165,46 @@
 }
 
 .zoomLabel:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .zoomLabel:disabled {
   cursor: default;
+}
+
+/* Canvas mode: a divider, then the Fit icon (mock A6). Accent while the off-content notice shows. */
+.zoomDivider {
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--space-xs);
+  background: var(--ie-sep);
+}
+
+.zoomFit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--ie-tx2);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.zoomFit:hover {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
+}
+
+.zoomFit[data-notice="true"] {
+  color: var(--ie-accent);
 }
 
 .secondary,
@@ -160,30 +213,30 @@
   align-items: center;
   gap: var(--space-sm);
   height: 34px;
-  padding: 0 var(--space-lg);
+  padding: 0 12px;
   border-radius: 6px;
   font-family: var(--font-family);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
 .secondary {
   background: transparent;
-  border: 1px solid var(--border-light);
-  color: var(--text-primary);
+  border: 1px solid var(--ie-strong);
+  color: var(--ie-tx);
   transition:
     background var(--transition),
     border-color var(--transition);
 }
 
 .secondary:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--text-muted);
+  background: var(--ie-hover);
+  border-color: var(--ie-mut);
 }
 
 .save {
-  background: var(--accent-primary);
+  background: var(--ie-accent);
   border: none;
   color: #fff;
   font-weight: var(--font-weight-semibold);
@@ -220,10 +273,10 @@
   align-items: center;
   gap: 11px;
   padding: 10px 16px 10px 11px;
-  background: var(--bg-modal);
-  border: 1px solid var(--border-light);
+  background: var(--ie-panel);
+  border: 1px solid var(--ie-strong);
   border-radius: 12px;
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--ie-shadow);
   animation: toastIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -248,12 +301,12 @@
 .savedToastTitle {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  color: var(--ie-tx);
 }
 
 .savedToastName {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--ie-mut);
 }
 
 @keyframes toastIn {
@@ -270,10 +323,11 @@
 /* ── Body: canvas + beautify panel ───────────────── */
 
 .body {
+  position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
-  background: var(--bg-canvas);
+  background: var(--ie-stage);
   overflow: hidden;
 }
 
@@ -298,7 +352,7 @@
   overflow: auto;
   min-width: 0;
   min-height: 0;
-  background: var(--bg-canvas);
+  background: var(--ie-stage);
 }
 
 /* Once zoomed in, anchor the shot to the top-left so it lines up with the frame's
@@ -316,7 +370,7 @@
   justify-content: center;
   /* The dot grid: one dot per tile, centred. useDotGrid pins the tiles to the shot so the
      dots pan and zoom with it; the defaults are its rest values before the first measure. */
-  background-image: radial-gradient(circle, var(--canvas-dot) 1.2px, transparent 1.6px);
+  background-image: radial-gradient(circle, var(--ie-dot) 1.2px, transparent 1.6px);
   background-size: var(--dot-size, 24px) var(--dot-size, 24px);
   background-position: var(--dot-x, 0) var(--dot-y, 0);
 }
@@ -338,4 +392,54 @@
   top: var(--space-md);
   left: var(--space-md);
   z-index: 2;
+}
+
+/* ── Right panel as a sheet (compact, mock B3) ───── */
+
+/* Over the stage's right edge, 280px like the panel in the flow; the panel brings its own
+   width, border and background, the sheet adds the shadow. */
+.sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  box-shadow: var(--ie-shadow);
+}
+
+/* The panels below the Inspect colors share the sheet's height; Beautify keeps scrolling. */
+.sheet > :not(.sheetColors) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* The Inspect colors panel, above Beautify, inside the sheet's own width. */
+.sheetColors {
+  flex: none;
+  max-height: 55%;
+  overflow-y: auto;
+  padding: var(--space-md);
+  background: var(--ie-panel);
+  border-left: 1px solid var(--ie-sep);
+  border-bottom: 1px solid var(--ie-sep);
+}
+
+.sheetColors > * {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0;
+  box-shadow: none;
+}
+
+/* The stage beside the sheet: a click on it closes the sheet. */
+.sheetScrim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 280px;
+  z-index: 29;
 }

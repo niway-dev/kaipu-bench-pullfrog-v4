@@ -1,5 +1,5 @@
 import React from "react";
-import { Trash2 } from "lucide-react";
+import { Droplet, Info, Lock, Square, Trash2 } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { uiArea } from "@renderer/lib/ui-area";
 import { isWindowsHost } from "@renderer/features/shortcuts/host-platform";
@@ -155,11 +155,17 @@ export function AnnotationOptions({
   const t = useTranslations("screenshots");
   const selected = scene.annotations.find((a) => a.id === scene.selectedId) ?? null;
   const controls = resolveControls(tools, scene, selected);
-  const isCrop = tools.tool === "crop";
+  // Canvas mode: the crop tool edits the export frame and has its own card (mock A5), so the
+  // classic "Crop / Reset" row is not shown there.
+  const isCrop = tools.tool === "crop" && !canvasMode;
   // Canvas mode: the style control shows for the blur tool or a selected blur, and edits
   // that blur (one undoable change) or the style the next redaction takes.
   const styleTarget = selected?.kind === "blur" ? selected : null;
-  const showRedactionStyle = canvasMode && (styleTarget !== null || tools.tool === "blur");
+  // A saved redaction's pixels are baked into the stored image: its style cannot change and it
+  // cannot be deleted, so its card says so instead (mock H4).
+  const lockedTarget = canvasMode && styleTarget?.locked === true;
+  const showRedactionStyle =
+    canvasMode && !lockedTarget && (styleTarget !== null || tools.tool === "blur");
   const redactionStyle = styleTarget ? (styleTarget.style ?? "blur") : tools.redactionStyle;
   const pickRedactionStyle = (style: RedactionStyle): void => {
     if (styleTarget) scene.commitAnnotation(styleTarget.id, { style });
@@ -171,7 +177,9 @@ export function AnnotationOptions({
   if (!controls && !selected && !isCrop && !showRedactionStyle && !showText) return null;
 
   return (
-    <div className={styles.panel}>
+    <div
+      className={`${styles.panel} ${showRedactionStyle || lockedTarget ? styles.panelRedaction : ""}`}
+    >
       {isCrop && (
         <>
           <span className={styles.label}>{t("cropLabel")}</span>
@@ -262,24 +270,56 @@ export function AnnotationOptions({
       {showRedactionStyle && (
         <div className={styles.redaction} {...uiArea("editorImage.redactionStyle")}>
           <span className={styles.label}>{t("redactionStyleLabel")}</span>
-          <div className={styles.picker}>
-            {(["blur", "solid"] as const).map((style) => (
-              <button
-                key={style}
-                type="button"
-                aria-pressed={redactionStyle === style}
-                className={`${styles.pickerItem} ${styles.styleItem} ${redactionStyle === style ? styles.pickerOn : ""}`}
-                onClick={() => pickRedactionStyle(style)}
-              >
-                {t(style === "blur" ? "redactionBlur" : "redactionSolid")}
-              </button>
-            ))}
+          <div className={styles.styleRow}>
+            {(["blur", "solid"] as const).map((style) => {
+              const Icon = style === "blur" ? Droplet : Square;
+              return (
+                <button
+                  key={style}
+                  type="button"
+                  aria-pressed={redactionStyle === style}
+                  className={`${styles.styleButton} ${redactionStyle === style ? styles.styleButtonOn : ""}`}
+                  onClick={() => pickRedactionStyle(style)}
+                >
+                  <Icon
+                    size={13}
+                    aria-hidden
+                    {...(style === "solid" ? { fill: "currentColor" } : {})}
+                  />
+                  {t(style === "blur" ? "redactionBlur" : "redactionSolid")}
+                </button>
+              );
+            })}
           </div>
-          <p className={styles.note}>{t("redactionNote")}</p>
+          <div className={styles.noteRow}>
+            <Info size={13} className={styles.noteIcon} aria-hidden />
+            <p className={styles.note}>{t("redactionNote")}</p>
+          </div>
         </div>
       )}
 
-      {selected && (
+      {lockedTarget && (
+        <div className={styles.redaction}>
+          <div className={styles.noteRow} data-testid="redaction-locked-note">
+            <Lock size={13} className={styles.noteIcon} aria-hidden />
+            <p className={styles.note}>{t("redactionLockedNote")}</p>
+          </div>
+        </div>
+      )}
+
+      {selected?.kind === "step" && (
+        <button
+          type="button"
+          title={t(isWindowsHost() ? "deleteTitleWindows" : "deleteTitle")}
+          className={styles.deleteLine}
+          onClick={() => scene.removeSelected()}
+        >
+          <Trash2 size={13} />
+          {t("stepDeleteRenumbers")}
+        </button>
+      )}
+
+      {selected && selected.kind !== "step" && !lockedTarget && (
         <button
           type="button"
           aria-label={t("deleteAria")}

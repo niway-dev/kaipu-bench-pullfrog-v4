@@ -89,6 +89,11 @@ export const KNOWN_VARIABLE: readonly KnownVariable[] = [
     reason: "show absolute dates, which are the run's clock",
   },
   {
+    areas: ["editorImage.reopenNotice"],
+    states: ["editorImage/reopen-editable"],
+    reason: "shows when the document was saved, which is the run's clock",
+  },
+  {
     areas: ["screenshots.recent", "editor.continue", "editor.hero", "editorCapture.page"],
     reason: "show dates and the title a pasted image gets, which are the run's clock",
   },

@@ -1,30 +1,18 @@
 /*
- * The capture's name, in the toolbar's middle stretch. Reads as a label until
- * focused, then as a field — the toolbar stays calm while the name is editable.
+ * The capture's name, centered in the toolbar's remaining space (mock B1). Reads as a label until
+ * focused, then as a field: the toolbar stays calm while the name is editable.
  *
- * The min-width keeps a readable stretch of the name: once the row cannot give
- * it that, the row overflows and useCompactRow drops the action labels, instead
- * of the name shrinking to "Scree…" first. The side spacing is padding, not
- * margin, because useCompactRow sums offsetWidth, which leaves margins out — a
- * margin would let the row overflow by that much before it compacts.
- *
- * Once the row is compact the minimum is released: the labels are already gone,
- * so the name is the only thing left that can give. Without this a window
- * narrower than the tools, the icon-only actions and the minimum together (below
- * the editor's floor) pushed the actions past the toolbar's edge. `data-compact`
- * is set on the toolbar by useCompactRow (screenshot-editor-page.tsx); the
- * attribute selector reaches across CSS modules, a class could not.
+ * It takes whatever the tools and actions leave (`flex: 1`), capped at 520px, and shrinks to
+ * nothing before anything else moves: the name truncates with an ellipsis. The compact toolbar
+ * (mock B3) does not render it. Editor tokens only.
  */
 
 .field {
   flex: 1;
-  min-width: calc(160px + 2 * var(--space-md));
-  max-width: 520px;
-  padding: 0 var(--space-md);
-}
-
-[data-compact="true"] .field {
   min-width: 0;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 0 var(--space-md);
 }
 
 .input {
@@ -32,9 +20,10 @@
   height: 34px;
   padding: 0 var(--space-md);
   font-family: var(--font-family);
-  font-size: var(--font-size-base);
+  font-size: 12.5px;
   font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
+  color: var(--ie-tx);
+  text-align: center;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -46,14 +35,14 @@
 }
 
 .input::placeholder {
-  color: var(--text-muted);
+  color: var(--ie-faint);
 }
 
 .input:hover {
-  border-color: var(--border);
+  border-color: var(--ie-sep);
 }
 
 .input:focus {
-  background: var(--bg-input);
-  border-color: var(--accent-primary);
+  background: var(--ie-card);
+  border-color: var(--ie-accent);
 }

@@ -15,13 +15,25 @@
    the corner handles for attention. */
 .selOutline {
   fill: none;
-  stroke: var(--accent-primary);
+  stroke: var(--ie-accent);
   stroke-width: 1;
 }
 
+/* A selected step badge (mock D2): a 2 px accent ring outside the white ring. */
+.stepSelected {
+  fill: none;
+  stroke: var(--ie-accent);
+}
+
+/* A selected added image (mock A4): 1.5 px on screen whatever the zoom. */
+.imageFrame {
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
 .handle {
-  fill: var(--bg-card, #fff);
-  stroke: var(--accent-primary);
+  fill: var(--ie-card, #fff);
+  stroke: var(--ie-accent);
   stroke-width: 1.5;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
@@ -32,7 +44,7 @@
   padding: 2px 4px;
   background: rgba(0, 0, 0, 0.04);
   border: none;
-  outline: 1px dashed var(--accent-primary);
+  outline: 1px dashed var(--ie-accent);
   border-radius: 2px;
   font-weight: 600;
   line-height: 1;
@@ -48,6 +60,6 @@
 
 /* Selected words of the "Select text" tool: a translucent fill over each word's box. */
 .textHighlights rect {
-  fill: var(--accent-primary);
+  fill: var(--ie-accent);
   fill-opacity: 0.3;
 }

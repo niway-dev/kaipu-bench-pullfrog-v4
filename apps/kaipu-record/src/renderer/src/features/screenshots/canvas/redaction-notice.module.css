@@ -1,0 +1,84 @@
+/* "Saving makes redactions permanent" (mock H4b): a card centred over the canvas stage. */
+.notice {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  box-sizing: border-box;
+  width: 400px;
+  max-width: calc(100% - 24px);
+  transform: translate(-50%, -50%);
+  padding: 20px;
+  background: var(--ie-card);
+  border: 1px solid var(--ie-strong);
+  border-radius: 12px;
+  box-shadow: var(--ie-shadow);
+  font-family: var(--font-family);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tile {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ie-accent-soft);
+  color: var(--ie-accent);
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ie-tx);
+}
+
+.body {
+  margin: 12px 0 16px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ie-tx2);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.secondary,
+.primary {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary {
+  background: transparent;
+  border: 1px solid var(--ie-strong);
+  color: var(--ie-tx2);
+}
+
+.primary {
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  color: #fff;
+}
+
+.footnote {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--ie-faint);
+}

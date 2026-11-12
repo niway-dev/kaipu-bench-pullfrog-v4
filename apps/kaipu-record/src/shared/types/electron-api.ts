@@ -710,6 +710,13 @@ export interface KaipuElectronAPI {
    */
   readScreenshotCanvas(id: string): Promise<CanvasReadResult | null>;
   /**
+   * When the canvas document beside a screenshot was last written, or null when no document
+   * file exists. `readScreenshotCanvas` answers null for a missing and an unusable document
+   * alike; this tells them apart (a null read with a document present is "unreadable"), and
+   * gives the saved time. Any other stat error (permissions, I/O) rejects with its code.
+   */
+  statScreenshotCanvas(id: string): Promise<{ savedAt: number } | null>;
+  /**
    * The words recognized in one image of the editor (ADR 0055). Served from
    * `.kaipu/<id>.text.json` when the cached hash matches the bytes; otherwise the platform
    * backend runs (up to 30 s or more the first time on a Mac, while Vision compiles its

@@ -20,6 +20,12 @@ export interface Profile {
   readonly cursorRecording?: boolean;
   /** Add the screenshot that draws real text (`fixtures/text/`), for the Select text states. */
   readonly textScreenshot?: boolean;
+  /** Add the screenshot saved with one locked redaction (`seed-vault.ts`), for the Permanent tag. */
+  readonly lockedRedaction?: boolean;
+  /** Add the screenshots of the step badge and Redact card states (`seed-vault.ts`). */
+  readonly mockShots?: boolean;
+  /** Leave an unparseable canvas document beside "Settings page" (`seed-vault.ts`). */
+  readonly corruptCanvas?: boolean;
   /** Seed something "Check and fix files" reports (`seed-vault.ts`). */
   readonly reconcile?: "fixable" | "attention";
   /** Forced feature flags, passed as `KAIPU_FLAG_OVERRIDES` (ignored by packaged builds). */
@@ -85,6 +91,20 @@ export const PROFILES = {
     seed: "demo",
     flags: { "image-canvas": true },
   },
+  "image-canvas-saved": {
+    description:
+      "Flag image-canvas forced on, and the vault adds “Saved redaction”, a screenshot saved with one redaction: its Permanent tag. A profile of its own, so the Library picker of the other canvas states still lists the same screenshots.",
+    seed: "demo",
+    flags: { "image-canvas": true },
+    lockedRedaction: true,
+  },
+  "image-canvas-unreadable": {
+    description:
+      "Flag image-canvas forced on, and the canvas document beside “Settings page” is corrupt: reopening it opens the flat image.",
+    seed: "demo",
+    flags: { "image-canvas": true },
+    corruptCanvas: true,
+  },
   "image-inspect": {
     description:
       "Flag image-inspect forced on: the image editor's Inspect mode (loupe, live colour, format bar).",
@@ -97,6 +117,19 @@ export const PROFILES = {
     seed: "demo",
     flags: { "image-text": true },
     textScreenshot: true,
+  },
+  "image-toolbar": {
+    description:
+      "Flags image-canvas, image-inspect and image-text forced on together: the image editor's whole toolbar (mode switch, Export frame, Add image, Select text).",
+    seed: "demo",
+    flags: { "image-canvas": true, "image-inspect": true, "image-text": true },
+  },
+  "image-mocks": {
+    description:
+      "Flags image-canvas, image-inspect and image-text forced on, and the vault adds five screenshots of its own (Steps demo, Step selected, Step sizes, Redaction demo, Notice demo): the step badge, Redact card and redaction notice states, each editing its own item. A profile of its own, so the Library picker of the other toolbar states lists the same screenshots.",
+    seed: "demo",
+    flags: { "image-canvas": true, "image-inspect": true, "image-text": true },
+    mockShots: true,
   },
   exporting: {
     description:

@@ -16,6 +16,7 @@ import {
   type Point,
   type View,
 } from "./viewport";
+import { isFitContentKey } from "./fit-key";
 
 /** What the canvas is doing about panning, for the cursor and the UI map. */
 export type PanMode = "idle" | "ready" | "active";
@@ -239,6 +240,20 @@ export function useCanvasViewport(
     },
     [enabled, apply],
   );
+
+  // Shift+1 fits the content in view (mock A6). Not while typing, with a dialog open, or with
+  // an open toolbar menu (the same overlay guard as useToolShortcuts).
+  useEffect(() => {
+    if (!enabled) return;
+    const onKey = (e: KeyboardEvent): void => {
+      const overlayOpen = document.querySelector('[role="menu"], [aria-modal="true"]') !== null;
+      if (!isFitContentKey(e, overlayOpen)) return;
+      e.preventDefault();
+      fit();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [enabled, fit]);
 
   const zoomStep = useCallback(
     (direction: 1 | -1): void => {
