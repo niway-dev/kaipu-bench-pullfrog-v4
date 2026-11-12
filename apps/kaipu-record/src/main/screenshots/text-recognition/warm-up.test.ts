@@ -1,0 +1,183 @@
+import { describe, expect, it, vi } from "vitest";
+import type { RecognizedWord, TextRecognizer } from "@kaipu/domain/schemas";
+import { TextRecognitionWarmUp, withWarmUpGate, type WarmUpDeps } from "./warm-up";
+import { warmUpPng } from "./warm-up-image";
+
+const WORDS: RecognizedWord[] = [];
+
+function setup(overrides: Partial<WarmUpDeps> = {}) {
+  let stamp: string | null = null;
+  let binary: { size: number; mtimeMs: number } | null = { size: 100, mtimeMs: 5 };
+  const recognize = vi.fn(async (): Promise<RecognizedWord[] | "unavailable"> => WORDS);
+  const recognizer: TextRecognizer = { recognize };
+  const idle: Array<() => void> = [];
+  const deps: WarmUpDeps = {
+    recognizer,
+    platform: "darwin",
+    helperVersion: "v1",
+    statHelper: async () => binary,
+    readStamp: async () => stamp,
+    writeStamp: async (value) => {
+      stamp = value;
+    },
+    scheduleIdle: (run) => void idle.push(run),
+    ...overrides,
+  };
+  const warmUp = new TextRecognitionWarmUp(deps);
+  return {
+    warmUp,
+    recognize,
+    recognizer,
+    get stamp() {
+      return stamp;
+    },
+    setStamp: (value: string | null) => (stamp = value),
+    setBinary: (value: typeof binary) => (binary = value),
+    fireIdle: () => idle.splice(0).forEach((run) => run()),
+  };
+}
+
+describe("TextRecognitionWarmUp", () => {
+  it("waits for the idle delay and for the flag before it recognizes anything", async () => {
+    const t = setup();
+    t.warmUp.start();
+    t.warmUp.setEnabled(true);
+    await t.warmUp.whenSettled();
+    expect(t.recognize).not.toHaveBeenCalled();
+    t.fireIdle();
+    await t.warmUp.whenSettled();
+    expect(t.recognize).toHaveBeenCalledTimes(1);
+    expect(t.recognize).toHaveBeenCalledWith(warmUpPng());
+  });
+
+  it("runs once the flag arrives after the idle delay, and only once", async () => {
+    const t = setup();
+    t.warmUp.start();
+    t.fireIdle();
+    await t.warmUp.whenSettled();
+    expect(t.recognize).not.toHaveBeenCalled();
+    t.warmUp.setEnabled(true);
+    t.warmUp.setEnabled(true);
+    await t.warmUp.whenSettled();
+    expect(t.recognize).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes the stamp after a successful run and skips the next launch", async () => {
+    const t = setup();
+    t.warmUp.start();
+    t.warmUp.setEnabled(true);
+    t.fireIdle();
+    await t.warmUp.whenSettled();
+    expect(t.stamp).toBe("v1:100:5");
+
+    const next = setup();
+    next.setStamp(t.stamp);
+    next.warmUp.start();
+    next.warmUp.setEnabled(true);
+    next.fireIdle();
+    await next.warmUp.whenSettled();
+    expect(next.recognize).not.toHaveBeenCalled();
+  });
+
+  it("warms again for a new binary (size or mtime) or helper version", async () => {
+    for (const change of [
+      { binary: { size: 101, mtimeMs: 5 } },
+      { binary: { size: 100, mtimeMs: 6 } },
+      { helperVersion: "v2" },
+    ]) {
+      const t = setup({ ...("helperVersion" in change ? change : {}) });
+      t.setStamp("v1:100:5");
+      if ("binary" in change) t.setBinary(change.binary ?? null);
+      t.warmUp.start();
+      t.warmUp.setEnabled(true);
+      t.fireIdle();
+      await t.warmUp.whenSettled();
+      expect(t.recognize).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("does not write the stamp when the recognition is unavailable or throws", async () => {
+    for (const recognize of [
+      vi.fn(async () => "unavailable" as const),
+      vi.fn(async (): Promise<never> => {
+        throw new Error("boom");
+      }),
+    ]) {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const t = setup({ recognizer: { recognize } });
+      t.warmUp.start();
+      t.warmUp.setEnabled(true);
+      t.fireIdle();
+      await t.warmUp.whenSettled();
+      expect(t.stamp).toBeNull();
+      warn.mockRestore();
+    }
+  });
+
+  it("does nothing off macOS, with the flag off, or when the helper is missing", async () => {
+    const win = setup({ platform: "win32" });
+    win.warmUp.start();
+    win.warmUp.setEnabled(true);
+    win.fireIdle();
+    await win.warmUp.whenSettled();
+    expect(win.recognize).not.toHaveBeenCalled();
+
+    const off = setup();
+    off.warmUp.start();
+    off.warmUp.setEnabled(false);
+    off.fireIdle();
+    await off.warmUp.whenSettled();
+    expect(off.recognize).not.toHaveBeenCalled();
+
+    const missing = setup();
+    missing.setBinary(null);
+    missing.warmUp.start();
+    missing.warmUp.setEnabled(true);
+    missing.fireIdle();
+    await missing.warmUp.whenSettled();
+    expect(missing.recognize).not.toHaveBeenCalled();
+  });
+});
+
+describe("withWarmUpGate", () => {
+  it("holds an editor recognition until the running warm-up ends, then runs it once", async () => {
+    let release: () => void = () => {};
+    const recognize = vi.fn(async (png: Uint8Array): Promise<RecognizedWord[] | "unavailable"> => {
+      if (png.byteLength === warmUpPng().byteLength) await new Promise<void>((r) => (release = r));
+      return WORDS;
+    });
+    const t = setup({ recognizer: { recognize } });
+    t.warmUp.start();
+    t.warmUp.setEnabled(true);
+    t.fireIdle();
+    await vi.waitFor(() => expect(recognize).toHaveBeenCalledTimes(1));
+
+    const gated = withWarmUpGate({ recognize }, t.warmUp);
+    const editorPng = new Uint8Array([1, 2, 3]);
+    const editor = gated.recognize(editorPng);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(recognize).toHaveBeenCalledTimes(1); // no second parallel cold helper
+
+    release();
+    await editor;
+    expect(recognize).toHaveBeenCalledTimes(2);
+    expect(recognize).toHaveBeenLastCalledWith(editorPng);
+  });
+
+  it("skips a warm-up that has not started when an editor recognition got there first", async () => {
+    const t = setup();
+    t.warmUp.start();
+    t.fireIdle();
+    await withWarmUpGate(t.recognizer, t.warmUp).recognize(new Uint8Array([9]));
+    t.warmUp.setEnabled(true);
+    await t.warmUp.whenSettled();
+    expect(t.recognize).toHaveBeenCalledTimes(1); // the editor's, not a warm-up
+  });
+
+  it("passes straight through when no warm-up is running", async () => {
+    const t = setup();
+    const gated = withWarmUpGate(t.recognizer, t.warmUp);
+    await gated.recognize(new Uint8Array([9]));
+    expect(t.recognize).toHaveBeenCalledTimes(1);
+  });
+});
