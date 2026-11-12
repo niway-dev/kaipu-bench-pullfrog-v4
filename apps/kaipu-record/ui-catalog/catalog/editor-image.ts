@@ -34,6 +34,17 @@ const inspectColors: Step = {
     part: { role: "button", name: "Colors", exact: true },
   },
 };
+/** A row of the Colors panel by what its button says it highlights (`title`, in English). */
+const colorsRow = (title: string): Step => ({
+  click: { area: "editorImage.inspectColors", part: { css: `button[title='${title}']` } },
+});
+/** Open a Colors-panel screenshot, turn Inspect on and open the Colors tab, once it is listed. */
+const colorsPanelOpen = (assetId: string): readonly Step[] => [
+  open(assetId),
+  inspectToggle,
+  inspectColors,
+  { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
+];
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
@@ -387,7 +398,7 @@ export const editorImage = catalog(
     },
     "inspect-colors": {
       profile: "image-inspect",
-      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors: the panel lists the image's colors, largest first, with their share; a group with more than one exact value lists them under it.",
+      how: "With the flag forced on, open “Settings page”, press Inspect, then Colors: the side panel switches to its Colors tab, which lists the image's colors, largest first, with their share; a group with more than one exact value lists them in a box.",
       steps: [
         open(ASSETS.settingsShot),
         inspectToggle,
@@ -404,12 +415,98 @@ export const editorImage = catalog(
         inspectToggle,
         inspectColors,
         { waitFor: { area: "editorImage.inspectColors", part: { css: "ul" } } },
-        { click: { area: "editorImage.inspectColors", part: { css: "li > button" }, nth: 1 } },
+        {
+          click: {
+            area: "editorImage.inspectColors",
+            part: { css: "li button[title^='Highlight']" },
+            nth: 1,
+          },
+        },
         {
           waitFor: { area: "editorImage.canvas", part: { css: "[data-testid='inspect-locate']" } },
         },
       ],
       demonstrates: ["editorImage.inspectColors:located"],
+    },
+    "colors-flat": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Pricing page”, press Inspect, then Colors, and turn Group off: every exact value is its own row, largest first (mock F1).",
+      steps: [
+        ...colorsPanelOpen(ASSETS.colorsShot),
+        {
+          click: {
+            area: "editorImage.inspectColors",
+            part: { role: "switch", name: "Group", exact: true },
+          },
+        },
+        {
+          waitFor: {
+            area: "editorImage.inspectColors",
+            part: { css: "[role='switch'][aria-checked='false']" },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.inspectColors:flat", "editorImage.panelTabs:colors"],
+    },
+    "colors-grouped": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Pricing page”, press Inspect, then Colors: the page white and the card's near-white, and the two pinks, each sit in an “Almost the same” box with their distance and a Show both button (mock F2).",
+      steps: [
+        ...colorsPanelOpen(ASSETS.colorsShot),
+        { waitFor: { area: "editorImage.inspectColors", part: { text: "Almost the same" } } },
+      ],
+      demonstrates: ["editorImage.inspectColors:grouped", "editorImage.panelTabs:colors"],
+    },
+    "colors-located": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Pricing page”, press Inspect, then Colors, and click the card's near-white inside its box: the image dims everywhere else and a tag under the largest area gives the color, its areas and its share (mock F3).",
+      steps: [
+        ...colorsPanelOpen(ASSETS.colorsShot),
+        colorsRow("Highlight only #fdfdfd"),
+        {
+          waitFor: {
+            area: "editorImage.canvas",
+            part: { css: "[data-testid='inspect-locate-tag']" },
+          },
+        },
+      ],
+      demonstrates: ["editorImage.inspectColors:located"],
+    },
+    "colors-copied": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Pricing page”, press Inspect, then Colors, and press a row's copy button: the row's bar and share are replaced by a green check and Copied for a moment, and a toast names the color (mock F5).",
+      steps: [
+        ...colorsPanelOpen(ASSETS.colorsShot),
+        {
+          click: {
+            area: "editorImage.inspectColors",
+            part: { role: "button", name: "Copy #fdfdfd", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.inspectColors", part: { text: "Copied" } } },
+      ],
+      keepPointer: true,
+      // The mark lasts about 1.5 s: a shot taken after it went would not show the state.
+      stillOnScreen: { area: "editorImage.inspectColors", part: { text: "Copied" } },
+      demonstrates: ["editorImage.inspectColors:copied"],
+    },
+    "colors-photo": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Landscape photo”, press Inspect, then Colors: the groups that cover 80% of the image, an Other row last, and a card that says it looks like a photo (mock F4).",
+      steps: [
+        ...colorsPanelOpen(ASSETS.photoShot),
+        {
+          waitFor: { area: "editorImage.inspectColors", part: { text: "This looks like a photo" } },
+        },
+      ],
+      demonstrates: ["editorImage.inspectColors:photo"],
+    },
+    "panel-tabs": {
+      profile: "image-inspect",
+      how: "With the flag forced on, open “Settings page”: the side panel has a Beautify | Colors tab strip with Beautify selected (mock A1).",
+      steps: [open(ASSETS.settingsShot), { waitFor: { area: "editorImage.panelTabs" } }],
+      demonstrates: ["editorImage.panelTabs:beautify"],
+      gates: [{ flag: "image-inspect", side: "on" }],
     },
     "inspect-ruler": {
       profile: "image-inspect",
@@ -537,7 +634,12 @@ export const editorImage = catalog(
             nth: 1,
           },
         },
-        { waitFor: { area: "editorImage.textSelection", part: { css: "[data-testid=text-line-tag]" } } },
+        {
+          waitFor: {
+            area: "editorImage.textSelection",
+            part: { css: "[data-testid=text-line-tag]" },
+          },
+        },
       ],
       keepPointer: true,
       demonstrates: ["editorImage.textSelection:hover"],

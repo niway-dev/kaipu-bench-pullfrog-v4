@@ -35,6 +35,10 @@ export const ASSETS = {
   dialogShot: "c0a1a10c-0000-4000-8000-000000000103",
   /** Seeded only where `textScreenshot` is on: a screenshot that draws real text. */
   textShot: "c0a1a10c-0000-4000-8000-000000000104",
+  /** Seeded only where `colorsScreenshots` is on: an interface drawing with exact colors. */
+  colorsShot: "c0a1a10c-0000-4000-8000-000000000105",
+  /** Seeded with `colorsShot`: a photograph stand-in with thousands of exact colors. */
+  photoShot: "c0a1a10c-0000-4000-8000-000000000106",
   loopGif: "c0a1a10c-0000-4000-8000-000000000201",
 } as const;
 
@@ -60,6 +64,8 @@ export const ITEM_IDS = {
   settingsShot: "Settings page",
   dialogShot: "Error dialog",
   textShot: TEXT_SHOT.stem,
+  colorsShot: "Pricing page",
+  photoShot: "Landscape photo",
   walkthrough: "Walkthrough 1",
   teamNotes: "Team notes",
   bugReport: "Bug report",
@@ -189,6 +195,8 @@ export interface SeedOptions {
   cursorRecording?: boolean;
   /** Add the screenshot that draws real text (profiles that exercise text recognition). */
   textScreenshot?: boolean;
+  /** Add the two screenshots the Colors panel states open (profiles that exercise it). */
+  colorsScreenshots?: boolean;
   /**
    * Leave a canvas document that cannot be parsed beside "Settings page" (the image editor's
    * reopen then opens the flat image and says so).
@@ -416,6 +424,32 @@ export async function seedCatalogVault(vaultDir: string, options: SeedOptions): 
       title: TEXT_SHOT.title,
       createdAt: now - TEXT_SHOT.ago,
     });
+  }
+
+  if (options.colorsScreenshots) {
+    const extras = [
+      {
+        file: FIXTURE_FILES.colorsShot,
+        assetId: ASSETS.colorsShot,
+        stem: ITEM_IDS.colorsShot,
+        ago: 5 * HOUR,
+      },
+      {
+        file: FIXTURE_FILES.photoShot,
+        assetId: ASSETS.photoShot,
+        stem: ITEM_IDS.photoShot,
+        ago: 7 * HOUR,
+      },
+    ];
+    for (const shot of extras) {
+      await copyFile(path.join(fixtures, shot.file), path.join(vaultDir, `${shot.stem}.png`));
+      await writeJson(path.join(meta, `${shot.stem}.json`), {
+        sidecarVersion: 2,
+        assetId: shot.assetId,
+        title: shot.stem,
+        createdAt: now - shot.ago,
+      });
+    }
   }
 
   if (options.reconcile === "fixable") {

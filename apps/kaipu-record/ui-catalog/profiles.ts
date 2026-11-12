@@ -20,6 +20,8 @@ export interface Profile {
   readonly cursorRecording?: boolean;
   /** Add the screenshot that draws real text (`fixtures/text/`), for the Select text states. */
   readonly textScreenshot?: boolean;
+  /** Add the screenshots the Colors panel states open (`fixtures/make-fixtures.ts`). */
+  readonly colorsScreenshots?: boolean;
   /** Leave an unparseable canvas document beside "Settings page" (`seed-vault.ts`). */
   readonly corruptCanvas?: boolean;
   /** Seed something "Check and fix files" reports (`seed-vault.ts`). */
@@ -99,6 +101,7 @@ export const PROFILES = {
       "Flag image-inspect forced on: the image editor's Inspect mode (loupe, live colour, format bar).",
     seed: "demo",
     flags: { "image-inspect": true },
+    colorsScreenshots: true,
   },
   "image-text": {
     description:

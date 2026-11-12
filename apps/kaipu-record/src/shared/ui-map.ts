@@ -303,10 +303,15 @@ export const UI_MAP = {
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
-      // The colors panel (NIW2-704): the list, the list with one color highlighted, while it
-      // counts, and when the image could not be read.
+      // The side panel's tab strip (NIW2-714): only where Inspect exists, because the Colors
+      // tab is Inspect's. Beautify is selected unless the Colors panel is open.
+      panelTabs: { states: ["beautify", "colors"], gatedBy: [{ flag: "image-inspect" }] },
+      // The colors panel (NIW2-704), the Colors tab of the side panel (NIW2-714): the list
+      // (`list` is grouped, the default; `grouped` is the same list with a box of
+      // near-identical values; `flat` has Group off), one color highlighted, after a copy,
+      // a photograph, while it counts, and when the image could not be read.
       inspectColors: {
-        states: ["list", "located", "counting", "error"],
+        states: ["list", "flat", "grouped", "located", "copied", "photo", "counting", "error"],
         gatedBy: [{ flag: "image-inspect" }],
       },
       // The ruler (NIW2-702): its row in the Inspect bar, the run drawn under the cursor, and

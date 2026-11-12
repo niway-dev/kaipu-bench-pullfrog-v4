@@ -3,6 +3,7 @@ export { ExportBox } from "./export-box";
 export { ExportFrameCard } from "./export-frame-card";
 export { contentBoxFrame } from "./content-box";
 export { OffContentNotice } from "./off-content-notice";
+export { SidePanel, type PanelTab } from "./panel-tabs";
 export { useOffContent } from "./use-off-content";
 export { useCanvasViewport, type CanvasViewport, type PanMode } from "./use-canvas-viewport";
 export { useShotMetrics, type ShotMetrics } from "./use-shot-metrics";

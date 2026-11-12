@@ -547,13 +547,17 @@ describe("toolbar B3: compact", () => {
     expect(colorsPanel()).toBeNull();
   });
 
-  it("keeps the Inspect colors panel floating over the stage in the full layout", async () => {
+  it("holds the Inspect colors panel in the side panel's Colors tab in the full layout", async () => {
     await mount(ALL);
     fireEvent.click(btn("Inspect (I)"));
     fireEvent.click(screen.getByRole("button", { name: "Colors" }));
     const panel = document.querySelector('[data-ui-area="editorImage.inspectColors"]');
     expect(panel).not.toBeNull();
+    // In the side panel under its tab, not in the sheet and not floating over the stage.
+    expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toContainElement(panel as HTMLElement);
     expect(panel!.closest('[class*="sheet"]')).toBeNull();
+    expect(panel!.closest('[class*="optionsFloat"]')).toBeNull();
   });
 
   it("marks the toolbar and the map areas", async () => {

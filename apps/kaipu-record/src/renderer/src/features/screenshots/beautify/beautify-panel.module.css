@@ -12,6 +12,16 @@
   overflow-y: auto;
 }
 
+/* In the tabbed side panel: its body is the frame, so this panel only lays out its content. */
+.embedded {
+  width: auto;
+  flex-shrink: 1;
+  padding: 0;
+  overflow: visible;
+  border-left: 0;
+  background: transparent;
+}
+
 .heading {
   margin: 0 0 var(--space-lg);
   font-family: var(--font-family);
