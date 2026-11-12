@@ -16,7 +16,7 @@
 
 /*
  * One row (mock B1): mode switch, tools, undo/redo, the title in the middle, then the actions.
- * 52px on the app background. Below 1100px the page sets data-compact (useCompactEditor in
+ * 52px on the app background. Below 1000px the page sets data-compact (useCompactEditor in
  * features/screenshots/toolbar) and the row folds (mock B3): 46px, the tools into the Draw and
  * "..." menus, no title, Copy as an icon, the right panel behind a toggle.
  */

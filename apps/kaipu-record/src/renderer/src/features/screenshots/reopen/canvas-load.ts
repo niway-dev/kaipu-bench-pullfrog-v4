@@ -13,8 +13,8 @@ export type CanvasLoad<Doc> =
   | { status: "unreadable" };
 
 /**
- * When the document beside a shot was last written, or null when no document file exists
- * (or the answer could not be had). Never rejects.
+ * When the document beside a shot was last written, or null when no document file exists,
+ * or "failed" when the stat itself could not be had. Never rejects.
  */
 async function statDocument(id: string): Promise<{ savedAt: number } | null | "failed"> {
   try {

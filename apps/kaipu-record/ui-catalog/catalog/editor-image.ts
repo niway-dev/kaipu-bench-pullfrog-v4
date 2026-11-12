@@ -122,7 +122,7 @@ export const editorImage = catalog(
     "toolbar-compact": {
       profile: "image-toolbar",
       // The smallest window the image editor allows (720×560). Compact needs the editor page
-      // under 1100 px.
+      // under 1000 px.
       window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window: Pen, Box, Arrow, Text and Step are one Draw menu, the rest sit in the ••• menu, the title is gone and the right panel is behind its toggle.",
       steps: [open(ASSETS.settingsShot)],

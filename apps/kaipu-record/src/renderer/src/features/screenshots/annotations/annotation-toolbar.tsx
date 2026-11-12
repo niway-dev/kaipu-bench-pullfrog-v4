@@ -36,7 +36,7 @@ export function AnnotationToolbar({
   textTool?: boolean;
   /** `image-canvas`: the blur tool is "Redact" and the crop tool is "Export frame". */
   canvasMode?: boolean;
-  /** The page is narrower than 1100 px (mock B3). */
+  /** The page is narrower than 1000 px (mock B3). */
   compact?: boolean;
   /** Inspect is on: no tool reads as active (the tools stay one click away). */
   idle?: boolean;

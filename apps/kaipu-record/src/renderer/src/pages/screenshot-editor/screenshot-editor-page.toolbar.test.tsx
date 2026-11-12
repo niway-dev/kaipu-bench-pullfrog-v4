@@ -336,12 +336,12 @@ describe("toolbar B2: keys", () => {
 });
 
 describe("toolbar B3: compact", () => {
-  it("is the full toolbar until the page reports a width under 1100 px", async () => {
+  it("is the full toolbar until the page reports a width under 1000 px", async () => {
     await mount(ALL);
     expect(maybeBtn("Pen")).not.toBeNull();
-    setPageWidth(1100);
+    setPageWidth(1000);
     expect(maybeBtn("Pen")).not.toBeNull();
-    setPageWidth(1099);
+    setPageWidth(999);
     expect(maybeBtn("Pen")).toBeNull();
   });
 

@@ -266,7 +266,7 @@ export const UI_MAP = {
     route: ROUTES.editorImage,
     areas: {
       page: { states: ["saved"] },
-      // B1 (default), B2 (a tool's tooltip) and B3 (below 1100 px: the folded toolbar).
+      // B1 (default), B2 (a tool's tooltip) and B3 (below 1000 px: the folded toolbar).
       toolbar: { states: ["default", "saved", "tooltip", "compact"] },
       tools: { states: ["select", "annotate", "crop", "step"] },
       // The compact toolbar's Draw and "..." menus and the button that opens the right panel

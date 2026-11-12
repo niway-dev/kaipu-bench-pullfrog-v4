@@ -1222,7 +1222,7 @@ function ScreenshotEditorBody({
     feedback?.kind === "saved" || feedback?.kind === "savedAndCopied" ? feedback.name : null;
   const exportedName = feedback?.kind === "exported" ? feedback.name : null;
 
-  // Compact layout (mock B3): below 1100 px the toolbar folds and the right panel becomes a
+  // Compact layout (mock B3): below 1000 px the toolbar folds and the right panel becomes a
   // sheet. Measured on the page element; the revision re-measures once the image has mounted it.
   const compact = useCompactEditor(pageRef, image !== null);
   const [panelOpen, setPanelOpen] = useState(false);
