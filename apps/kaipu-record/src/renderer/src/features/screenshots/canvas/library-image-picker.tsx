@@ -149,7 +149,11 @@ export function LibraryImagePicker({
     const at = selected ? visible.indexOf(selected) : 0;
     const next = visible[Math.min(visible.length - 1, Math.max(0, at + step))]!;
     setSelectedId(next.id);
-    if (inGrid) cardRefs.current.get(next.id)?.focus();
+    const card = cardRefs.current.get(next.id);
+    if (inGrid) card?.focus();
+    // From the field nothing moves focus, so bring the card into view: Enter must not place one
+    // the user cannot see.
+    else card?.scrollIntoView?.({ block: "nearest" });
   };
 
   return (

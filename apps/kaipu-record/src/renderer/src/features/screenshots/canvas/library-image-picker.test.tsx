@@ -97,6 +97,20 @@ describe("LibraryImagePicker", () => {
     expect(selectedTitle()).toBe("Alpha");
   });
 
+  it("scrolls the newly selected card into view when the arrow key comes from the field", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView as never;
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Alpha" });
+      fireEvent.keyDown(screen.getByLabelText("Search captures"), { key: "ArrowRight" });
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      // @ts-expect-error — jsdom has no scrollIntoView; drop the stub
+      delete Element.prototype.scrollIntoView;
+    }
+  });
+
   it("Place on canvas places the selected card with its bytes and size", async () => {
     mount();
     fireEvent.mouseEnter(await screen.findByRole("button", { name: "Gamma" }));
