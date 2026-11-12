@@ -10,15 +10,8 @@ import { flushSync } from "react-dom";
 export const COMPACT_BELOW_PX = 1000;
 
 /**
- * Below this page width the Inspect controls do not fit in the toolbar row beside Copy, Save and
- * PDF, so they use the floating card that compact uses. The default 1440 px window (about
- * 1336 px of page content) keeps the row.
- */
-export const INSPECT_INLINE_MIN_PX = 1300;
-
-/**
- * True while the element is narrower than `below` (default `COMPACT_BELOW_PX`), from a ResizeObserver on the page
- * element: it follows what the editor was actually given, not the window. The observer reports
+ * True while the element is narrower than `below` (default `COMPACT_BELOW_PX`), from a
+ * ResizeObserver on the page element: it follows what the editor was actually given, not the window. The observer reports
  * the size once as soon as it observes, so the first paint already has the right layout (the
  * update is flushed inside the callback, before the browser paints). Until it reports, and in an
  * environment that never reports (jsdom), the answer is "not compact".

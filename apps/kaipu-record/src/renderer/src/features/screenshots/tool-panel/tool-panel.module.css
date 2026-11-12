@@ -1,0 +1,28 @@
+/* The side panel's Tool tab body (NIW2-723): the active tool's options, or its empty state. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* "No tool selected": quiet, like the video inspector's empty hint. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ie-tx);
+}
+
+.emptyBody {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ie-mut);
+}

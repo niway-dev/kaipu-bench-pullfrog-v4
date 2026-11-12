@@ -92,16 +92,16 @@ const pressAt = (x: number, y: number): Step => ({
   from: { x, y },
   to: { x, y },
 });
-/** A size button of the Step tool's card ("Size S", "Size M", "Size L"). */
+/** A size button of the Step tool's options in the Tool tab ("Size S", "Size M", "Size L"). */
 const stepSize = (label: "S" | "M" | "L"): Step => ({
   click: {
-    area: "editorImage.canvas",
+    area: "editorImage.toolPanel",
     part: { role: "button", name: `Size ${label}`, exact: true },
   },
 });
 /** A badge's number is drawn as SVG text: once one is there, the placements have rendered. */
 const badgeDrawn: Step = { waitFor: { area: "editorImage.canvas", part: { css: "svg text" } } };
-/** Where the four badges of mock D1 and D2 go: spread over the image, clear of the card at the top left. */
+/** Where the four badges of mock D1 and D2 go: spread over the image. */
 const STEP_POINTS = [
   { x: 0.3, y: 0.35 },
   { x: 0.62, y: 0.3 },
@@ -188,7 +188,36 @@ export const editorImage = catalog(
     "tool-box": {
       profile: "default",
       steps: [open(ASSETS.settingsShot), tool("Box")],
-      demonstrates: ["editorImage.tools:annotate", "editorImage.canvas:annotate"],
+      demonstrates: [
+        "editorImage.tools:annotate",
+        "editorImage.canvas:annotate",
+        "editorImage.toolPanel:stroke",
+      ],
+    },
+    "tool-panel-text": {
+      profile: "default",
+      how: "Open “Settings page” and pick Text: the side panel switches to its Tool tab, which offers Color and Size for the next label.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Text"),
+        { waitFor: { area: "editorImage.toolPanel", part: { text: "Size", exact: true } } },
+      ],
+      demonstrates: ["editorImage.toolPanel:size"],
+    },
+    "tool-panel-empty": {
+      profile: "default",
+      how: "Open “Settings page” and press the Tool tab of the side panel: with Select and nothing selected it says “No tool selected” and where to pick one.",
+      steps: [
+        open(ASSETS.settingsShot),
+        {
+          click: {
+            area: "editorImage.panelTabs",
+            part: { role: "tab", name: "Tool", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.toolPanel", part: { text: "No tool selected" } } },
+      ],
+      demonstrates: ["editorImage.panelTabs:tool", "editorImage.toolPanel:empty"],
     },
     "tool-step": {
       profile: "default",
@@ -364,7 +393,7 @@ export const editorImage = catalog(
         // The shot must show the tag (the view is still zooming to fit until it is up).
         { waitFor: { area: "editorImage.canvas", part: { text: "Just added" } } },
       ],
-      demonstrates: ["editorImage.canvasView:justAdded"],
+      demonstrates: ["editorImage.canvasView:justAdded", "editorImage.toolPanel:selection"],
       // No tag, no state: fail instead of keeping a frame that does not show it.
       stillOnScreen: { area: "editorImage.canvas", part: { text: "Just added" } },
       keepToasts: true,
@@ -455,7 +484,7 @@ export const editorImage = catalog(
     },
     "canvas-export-frame": {
       profile: "image-canvas",
-      how: "Mock A5: with the flag forced on, open “Settings page”, pick the Export frame tool and drag a rectangle inside the image: the outside is dimmed, the frame shows its handles and “W × H px · EXPORT FRAME”, and the card at the top left offers Fit to content and Remove.",
+      how: "Mock A5: with the flag forced on, open “Settings page”, pick the Export frame tool and drag a rectangle inside the image: the outside is dimmed, the frame shows its handles and “W × H px · EXPORT FRAME”, and the Tool tab of the side panel offers Fit to content and Remove.",
       steps: [
         open(ASSETS.settingsShot),
         tool("Export frame"),
@@ -466,7 +495,11 @@ export const editorImage = catalog(
         },
         { waitFor: { area: "editorImage.exportFrameCard" } },
       ],
-      demonstrates: ["editorImage.canvasView:exportFrame", "editorImage.exportFrameCard:open"],
+      demonstrates: [
+        "editorImage.canvasView:exportFrame",
+        "editorImage.exportFrameCard:open",
+        "editorImage.toolPanel:crop",
+      ],
     },
     "canvas-zoomed-out": {
       profile: "image-canvas",
@@ -476,9 +509,9 @@ export const editorImage = catalog(
     },
     "redaction-blur": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page” and pick the Redact tool: the panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
+      how: "With the flag forced on, open “Settings page” and pick the Redact tool: the Tool tab of the side panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
       steps: [open(ASSETS.settingsShot), tool("Redact")],
-      demonstrates: ["editorImage.redactionStyle:blur"],
+      demonstrates: ["editorImage.redactionStyle:blur", "editorImage.toolPanel:redact"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
     "redaction-solid": {
@@ -529,16 +562,16 @@ export const editorImage = catalog(
     },
     "step-badge-selected": {
       profile: "image-mocks",
-      how: "Mock D2: with the three image-editor flags forced on, open “Step selected”, place four badges with the Step tool, pick Select and press the third one: it wears the selection ring, and the card shows Color, Size and “Delete renumbers the rest”.",
+      how: "Mock D2: with the three image-editor flags forced on, open “Step selected”, place four badges with the Step tool, pick Select and press the third one: it wears the selection ring, and the Tool tab shows Color, Size and “Delete renumbers the rest”.",
       steps: [
         open(ASSETS.stepSelectedShot),
         ...placeFourBadges,
         pressAt(STEP_POINTS[2].x, STEP_POINTS[2].y),
         {
-          waitFor: { area: "editorImage.canvas", part: { text: "Delete renumbers the rest" } },
+          waitFor: { area: "editorImage.toolPanel", part: { text: "Delete renumbers the rest" } },
         },
       ],
-      demonstrates: ["editorImage.canvas:stepSelected"],
+      demonstrates: ["editorImage.canvas:stepSelected", "editorImage.toolPanel:stepSelected"],
       // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
       // unmount so the save has landed before the restore. Then put the vault back so a second
       // shot opens the item as seeded.
@@ -550,12 +583,12 @@ export const editorImage = catalog(
     },
     "step-badge-sizes": {
       profile: "image-mocks",
-      how: "Mock D3: with the three image-editor flags forced on, open “Step sizes” (dark top half, light bottom half), pick Step, then place S, M and L badges over the dark half and S, M and L over the light half, picking the size in the card before each: the badges stay readable on both.",
+      how: "Mock D3: with the three image-editor flags forced on, open “Step sizes” (dark top half, light bottom half), pick Step, then place S, M and L badges over the dark half and S, M and L over the light half, picking the size in the Tool tab before each: the badges stay readable on both.",
       steps: [
         open(ASSETS.stepSizesShot),
         tool("Step"),
-        // The size picks are in the card, which the Step tool keeps open at the top left; the
-        // two rows of badges sit well below it, at 0.32 (dark) and 0.68 (light) of the canvas.
+        // The size picks are in the Tool tab of the side panel, which the Step tool opens, so
+        // the badges can go anywhere on the canvas: 0.32 (dark) and 0.68 (light) of its height.
         ...([0.32, 0.68] as const).flatMap((y) =>
           (
             [
@@ -580,7 +613,7 @@ export const editorImage = catalog(
     },
     "redaction-card": {
       profile: "image-mocks",
-      how: "Mock H1: with the three image-editor flags forced on, open “Settings page” and pick the Redact tool: the card shows Blur (selected) and Solid, each with its icon, and the note that only Solid hides content for certain. Nothing is drawn.",
+      how: "Mock H1: with the three image-editor flags forced on, open “Settings page” and pick the Redact tool: the Tool tab shows Blur (selected) and Solid, each with its icon, and the note that only Solid hides content for certain. Nothing is drawn.",
       steps: [
         open(ASSETS.settingsShot),
         tool("Redact"),
@@ -676,7 +709,7 @@ export const editorImage = catalog(
     },
     "inspect-on": {
       profile: "image-inspect",
-      how: "With the flag forced on, open “Settings page” and press Inspect: the button turns on and the Inspect bar replaces the tool options.",
+      how: "With the flag forced on, open “Settings page” and press Inspect: the button turns on and the side panel's Tool tab shows the Inspect controls (Width, Height, Outer, color format, As captured, Tolerance, Copy color, Colors).",
       steps: [
         open(ASSETS.settingsShot),
         inspectToggle,
@@ -686,6 +719,7 @@ export const editorImage = catalog(
         "editorImage.inspectToggle:on",
         "editorImage.inspectBar:hex",
         "editorImage.inspectRuler:off",
+        "editorImage.toolPanel:inspect",
       ],
     },
     "inspect-as-captured": {
@@ -822,10 +856,9 @@ export const editorImage = catalog(
     },
     "panel-tabs": {
       profile: "image-inspect",
-      how: "With the flag forced on, open “Settings page”: the side panel has a Beautify | Colors tab strip with Beautify selected (mock A1).",
+      how: "With the flag forced on, open “Settings page”: the side panel has a Tool | Beautify | Colors tab strip with Beautify selected (mock A1).",
       steps: [open(ASSETS.settingsShot), { waitFor: { area: "editorImage.panelTabs" } }],
       demonstrates: ["editorImage.panelTabs:beautify"],
-      gates: [{ flag: "image-inspect", side: "on" }],
     },
     "inspect-ruler": {
       profile: "image-inspect",
@@ -877,26 +910,6 @@ export const editorImage = catalog(
       steps: [open(ASSETS.settingsShot), inspectToggle, hoverCanvas, hudShown],
       keepPointer: true,
       demonstrates: ["editorImage.inspectHud:reading", "editorImage.inspectMode:collapsed"],
-    },
-    "inspect-narrow-card": {
-      profile: "image-inspect",
-      // The editor's floor (1180 px): the Inspect row does not fit beside Copy, Save and PDF.
-      window: "editor-min",
-      how: "With the flag forced on, open “Settings page” in a 1180 px window and press Inspect: the toolbar keeps the annotation tools and the Inspect controls float as a card over the canvas, so Save and PDF stay in view.",
-      steps: [
-        // After open: opening the image sizes the window back to the editor's default.
-        open(ASSETS.settingsShot),
-        { window: "editor-min" },
-        inspectToggle,
-        // The floating card, not the toolbar row (which carries data-inline="true").
-        {
-          waitFor: {
-            area: "editorImage.page",
-            part: { css: "[data-ui-area='editorImage.inspectBar'][data-inline='false']" },
-          },
-        },
-      ],
-      demonstrates: ["editorImage.inspectBar:floating"],
     },
     "inspect-c2-format": {
       profile: "image-inspect",
@@ -1086,7 +1099,7 @@ export const editorImage = catalog(
     },
     "text-none": {
       profile: "image-text",
-      how: "With the flag forced on, open “Settings page” (a drawing with no text) and pick the Select text tool: once recognition finishes, the panel says no text was found.",
+      how: "With the flag forced on, open “Settings page” (a drawing with no text) and pick the Select text tool: once recognition finishes, the Tool tab says no text was found.",
       steps: [
         open(ASSETS.settingsShot),
         tool("Select text"),
@@ -1104,9 +1117,9 @@ export const editorImage = catalog(
     },
     "text-ready": {
       profile: "image-text",
-      how: "With the flag forced on, open “Display settings” (a screenshot of a settings panel with real text) and pick the Select text tool: once recognition finishes, the panel counts the words found and offers Select all and Copy text.",
+      how: "With the flag forced on, open “Display settings” (a screenshot of a settings panel with real text) and pick the Select text tool: once recognition finishes, the Tool tab counts the words found and offers Select all and Copy text.",
       steps: openText,
-      demonstrates: ["editorImage.textStatus:ready"],
+      demonstrates: ["editorImage.textStatus:ready", "editorImage.toolPanel:selectText"],
       gates: [{ flag: "image-text", side: "on" }],
     },
     "text-selected": {
@@ -1131,7 +1144,7 @@ export const editorImage = catalog(
     },
     "text-hide-ready": {
       profile: "image-text-canvas",
-      how: "With both flags forced on, open “Display settings” and pick the Redact tool: once recognition finishes, the options bar says a click on a line of text hides it.",
+      how: "With both flags forced on, open “Display settings” and pick the Redact tool: once recognition finishes, the Tool tab says a click on a line of text hides it.",
       steps: openTextHide,
       demonstrates: ["editorImage.textHideHint:ready"],
       gates: [
@@ -1172,7 +1185,7 @@ export const editorImage = catalog(
     },
     "text-pending": {
       profile: "image-text-slow",
-      how: "With the flag forced on and text recognition held for a minute, open “Display settings” and pick Select text: the panel reads “Recognizing text…”.",
+      how: "With the flag forced on and text recognition held for a minute, open “Display settings” and pick Select text: the Tool tab reads “Recognizing text…”.",
       steps: [
         open(ASSETS.textShot),
         tool("Select text"),
@@ -1251,7 +1264,7 @@ export const editorImage = catalog(
     },
     "text-unavailable-panel": {
       profile: "image-text-unavailable",
-      how: "With the flag forced on and text recognition answering unavailable, open “Display settings” and pick Select text: the panel says text recognition is not available.",
+      how: "With the flag forced on and text recognition answering unavailable, open “Display settings” and pick Select text: the Tool tab says text recognition is not available.",
       steps: [
         open(ASSETS.textShot),
         tool("Select text"),

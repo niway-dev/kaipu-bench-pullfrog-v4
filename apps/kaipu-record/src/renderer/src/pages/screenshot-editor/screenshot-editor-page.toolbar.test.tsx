@@ -463,6 +463,10 @@ describe("toolbar B3: compact", () => {
     setPageWidth(900);
     fireEvent.click(btn("More"));
     fireEvent.click(screen.getByRole("menuitem", { name: /^Export frame/ }));
+    // The card is the Tool tab's content, so it waits in the sheet (which stays closed until asked).
+    expect(maybeBtn("Fit to content")).toBeNull();
+    fireEvent.click(btn("Panel"));
+    expect(screen.getByRole("tab", { name: "Tool" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Fit to content" })).toBeInTheDocument();
   });
 
@@ -529,15 +533,18 @@ describe("toolbar B3: compact", () => {
     await mount(ALL);
     setPageWidth(900);
     fireEvent.click(btn("Inspect (I)"));
+    // The Inspect controls, Colors among them, are the Tool tab's content: open the sheet for them.
+    fireEvent.click(btn("Panel"));
     const colorsBtn = () => screen.getByRole("button", { name: "Colors" });
     fireEvent.click(colorsBtn());
-    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
     press("Escape");
     expect(screen.queryByText("Beautify")).toBeNull();
+    fireEvent.click(btn("Panel"));
+    fireEvent.click(screen.getByRole("tab", { name: "Tool" }));
     expect(colorsBtn()).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(colorsBtn());
-    expect(screen.getByText("Beautify")).toBeInTheDocument();
-    expect(colorsBtn()).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("closes the sheet with Esc while a Beautify range slider has focus", async () => {
@@ -604,9 +611,11 @@ describe("toolbar B3: compact", () => {
     fireEvent.click(btn("Inspect (I)"));
     expect(colorsPanel()).toBeNull();
     expect(btn("Panel")).toHaveAttribute("aria-expanded", "false");
+    // The Colors button is in the Tool tab, so the sheet is opened to reach it.
+    fireEvent.click(btn("Panel"));
     fireEvent.click(screen.getByRole("button", { name: "Colors" }));
     expect(colorsPanel()).not.toBeNull();
-    // It is in the sheet, with Beautify, and the sheet opened on its own.
+    // It is in the sheet, with Beautify.
     expect(colorsPanel()!.closest('[class*="sheet"]')).not.toBeNull();
     expect(btn("Panel")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Beautify")).toBeInTheDocument();
@@ -635,5 +644,140 @@ describe("toolbar B3: compact", () => {
     for (const area of ["drawMenu", "moreMenu", "panelToggle"]) {
       expect(document.querySelector(`[data-ui-area="editorImage.${area}"]`)).not.toBeNull();
     }
+  });
+});
+
+// NIW2-723: each tool's options moved from the top bar and the stage popover into the side
+// panel's Tool tab, which follows the active tool and the selection like the video editor's
+// inspector.
+describe("tool panel: the Tool tab of the side panel", () => {
+  const tab = (name: string): HTMLElement => screen.getByRole("tab", { name });
+  const panel = (): HTMLElement => screen.getByRole("tabpanel");
+  const toolPanelState = (): string | null =>
+    document.querySelector('[data-ui-area="editorImage.toolPanel"]')?.getAttribute("data-state") ??
+    null;
+
+  it("opens on Beautify, and the Tool tab says no tool is selected", async () => {
+    await mount(ALL);
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(tab("Tool"));
+    expect(toolPanelState()).toBe("empty");
+    expect(within(panel()).getByText("No tool selected")).toBeInTheDocument();
+    expect(
+      within(panel()).getByText("Pick a tool in the toolbar to see its options here."),
+    ).toBeInTheDocument();
+  });
+
+  it("switches to the Tool tab when a tool with options is picked, and Beautify is still one click away", async () => {
+    await mount(ALL);
+    fireEvent.click(btn("Box"));
+    expect(tab("Tool")).toHaveAttribute("aria-selected", "true");
+    expect(toolPanelState()).toBe("stroke");
+    expect(within(panel()).getByText("Color")).toBeInTheDocument();
+    expect(within(panel()).getByText("Stroke")).toBeInTheDocument();
+    fireEvent.click(tab("Beautify"));
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+    expect(document.querySelector('[data-ui-area="editorImage.beautify"]')).not.toBeNull();
+    // The tool is still the Box tool: only the panel changed.
+    expect(isActive("Box")).toBe(true);
+  });
+
+  it("switches on the tool's key as well as on its click", async () => {
+    await mount(ALL);
+    press("p");
+    expect(tab("Tool")).toHaveAttribute("aria-selected", "true");
+    expect(within(panel()).getByText("Stroke")).toBeInTheDocument();
+  });
+
+  it("picking Select leaves the tab as it was", async () => {
+    await mount(ALL);
+    press("v");
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("the top bar renders no per-tool options", async () => {
+    await mount(ALL);
+    for (const name of ["Pen", "Text", "Step", "Redact", "Export frame"]) {
+      fireEvent.click(btn(name));
+      for (const label of ["Color", "Stroke", "Size", "Style", "Fit to content"]) {
+        expect(within(toolbar()).queryByText(label)).toBeNull();
+      }
+    }
+  });
+
+  it.each([
+    ["Pen", "Stroke"],
+    ["Text", "Size"],
+    ["Step", "Size"],
+  ])("%s shows %s in the panel, not over the stage", async (tool, label) => {
+    await mount(ALL);
+    fireEvent.click(btn(tool));
+    expect(within(panel()).getByText(label)).toBeInTheDocument();
+    expect(document.querySelector('[class*="optionsFloat"]')).toBeNull();
+  });
+
+  it("Redact shows its Blur / Solid style in the panel", async () => {
+    await mount(ALL);
+    fireEvent.click(btn("Redact"));
+    expect(toolPanelState()).toBe("redact");
+    expect(within(panel()).getByRole("button", { name: "Solid" })).toBeInTheDocument();
+  });
+
+  it("Export frame shows its card in the panel, not over the stage", async () => {
+    await mount(ALL);
+    fireEvent.click(btn("Export frame"));
+    expect(toolPanelState()).toBe("crop");
+    expect(within(panel()).getByRole("button", { name: "Fit to content" })).toBeInTheDocument();
+    const card = document.querySelector('[data-ui-area="editorImage.exportFrameCard"]');
+    expect(card?.closest('[role="tabpanel"]')).not.toBeNull();
+  });
+
+  it("Select text shows its recognition status in the panel (its buttons: the text page tests)", async () => {
+    await mount(ALL);
+    fireEvent.click(btn("Select text"));
+    expect(toolPanelState()).toBe("selectText");
+    // jsdom has no recognizer, so the status is the only part that exists here.
+    expect(within(panel()).getByRole("status")).toBeInTheDocument();
+  });
+
+  it("Inspect shows its controls in the panel, and leaving it returns to Beautify", async () => {
+    await mount(ALL);
+    fireEvent.click(btn("Inspect (I)"));
+    expect(tab("Tool")).toHaveAttribute("aria-selected", "true");
+    expect(toolPanelState()).toBe("inspect");
+    for (const name of ["Width", "Height", "Outer", "Copy color", "Colors"]) {
+      expect(within(panel()).getByText(name)).toBeInTheDocument();
+    }
+    // Nothing of Inspect is left in the top bar except its mode switch.
+    expect(within(toolbar()).queryByRole("button", { name: "Copy color" })).toBeNull();
+    press("Escape");
+    expect(tab("Beautify")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("Inspect's keys still work with the controls in the panel", async () => {
+    await mount(ALL);
+    press("i");
+    expect(screen.getByRole("tab", { name: "Tool" })).toHaveAttribute("aria-selected", "true");
+    press("Escape");
+    expect(btn("Annotate (Esc)")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps the tab strip with the Tool and Beautify tabs where Inspect does not exist", async () => {
+    await mount(["image-canvas"]);
+    expect(screen.queryByRole("tab", { name: "Colors" })).toBeNull();
+    fireEvent.click(btn("Pen"));
+    expect(tab("Tool")).toHaveAttribute("aria-selected", "true");
+    expect(within(panel()).getByText("Stroke")).toBeInTheDocument();
+  });
+
+  it("holds the options in the sheet in the compact layout, without opening it", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Draw"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Box/ }));
+    expect(btn("Panel")).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(btn("Panel"));
+    expect(tab("Tool")).toHaveAttribute("aria-selected", "true");
+    expect(within(panel()).getByText("Stroke")).toBeInTheDocument();
   });
 });
