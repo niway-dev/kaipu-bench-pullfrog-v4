@@ -483,6 +483,18 @@ describe("toolbar B3: compact", () => {
     expect(view.getAttribute("data-export-frame")).toBe("true");
   });
 
+  it("closes only the open menu with Esc while the sheet is open, then the sheet with the next Esc", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Panel"));
+    fireEvent.click(btn("Draw"));
+    press("Escape");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    press("Escape");
+    expect(screen.queryByText("Beautify")).toBeNull();
+  });
+
   it("hides the title, keeps Save's label and makes Copy an icon", async () => {
     await mount(ALL);
     setPageWidth(900);
