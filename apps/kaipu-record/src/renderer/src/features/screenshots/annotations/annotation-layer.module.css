@@ -19,7 +19,7 @@
   stroke-width: 1;
 }
 
-/* A selected step badge (mock D3): a 2 px accent ring outside the white ring. */
+/* A selected step badge (mock D2): a 2 px accent ring outside the white ring. */
 .stepSelected {
   fill: none;
   stroke: var(--ie-accent);
