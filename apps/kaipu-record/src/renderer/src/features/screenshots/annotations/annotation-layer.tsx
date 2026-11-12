@@ -44,7 +44,17 @@ import { handleCursor, handlesFor, hitHandle, resizeAnnotation, type HandleId } 
 import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import type { RecognizedWord } from "@kaipu/domain/schemas";
-import { lineBoxesNorm, nearestWord, wordBoxNorm, type TextLayerModel } from "../text-selection";
+import {
+  blockRedactionRect,
+  lineBoxesNorm,
+  nearestBlock,
+  nearestWord,
+  pixelRectToNorm,
+  textBlocks,
+  wordBoxNorm,
+  type TextBlock,
+  type TextLayerModel,
+} from "../text-selection";
 import { gapMeasures, type WorldRect } from "../canvas/image-gap";
 import { ImageSelection } from "../canvas/image-selection";
 import { RedactionLockTag } from "../canvas/redaction-lock-tag";
@@ -59,7 +69,12 @@ interface Pt {
   y: number;
 }
 type Drag =
-  | { mode: "draw-box" | "draw-arrow" | "draw-pen" | "draw-blur"; start: Pt }
+  | { mode: "draw-box" | "draw-arrow" | "draw-pen"; start: Pt }
+  /**
+   * A redaction drag. `block` = the press landed on a recognized text block (NIW2-706): a
+   * release without a real drag hides that block instead of drawing nothing.
+   */
+  | { mode: "draw-blur"; start: Pt; block?: TextBlock }
   | { mode: "move"; id: string; start: Pt; orig: Annotation }
   | { mode: "resize"; id: string; handle: HandleId; orig: Annotation }
   /** A text selection drag (the "Select text" tool); the range runs from `anchor`. */
@@ -99,7 +114,8 @@ interface LayerProps {
    * The recognized words and the selection over them (`image-text`). Present while the flag
    * is on; the words take pointer input only with the "Select text" tool active. The words
    * live in the base image's pixels and are normalized like annotations, so they follow the
-   * same pan and zoom.
+   * same pan and zoom. In canvas mode the redact tool also uses them: each line is a target
+   * that one click hides (NIW2-706).
    */
   text?: TextLayerModel;
   /**
@@ -151,6 +167,22 @@ function AnnotationLayerImpl({
     [activeText],
   );
   const hoverTag = recognizedLines.find((l) => l.line === hoverLine)?.box ?? null;
+  // The redact tool's text targets (NIW2-706): canvas mode only, where a redaction really
+  // replaces the pixels; the classic editor's gaussian is partly reversible, so it offers none.
+  const redactText = canvasMode && tools.tool === "blur" ? text : undefined;
+  const textWords = text?.words;
+  const blocks = useMemo(() => (textWords ? textBlocks(textWords) : []), [textWords]);
+  // The line under the pointer, by line number: a hide removes its block, and an index would
+  // then name the next one.
+  const [hoverBlockLine, setHoverBlockLine] = useState<number | null>(null);
+  // Leaving the tool forgets the hover, so coming back does not outline a stale line.
+  if (!redactText && hoverBlockLine !== null) setHoverBlockLine(null);
+  const hoverBlock = redactText ? (blocks.find((b) => b.line === hoverBlockLine) ?? null) : null;
+  const blockAt = (p: Pt): TextBlock | null => {
+    if (!redactText) return null;
+    const hit = nearestBlock(blocks, p, redactText.natural, size);
+    return hit && hit.distPx <= TEXT_HIT_PX ? blocks[hit.index] : null;
+  };
   // A move/resize in flight lives here, not in the scene: the dragged shape renders as
   // `{ ...a, ...patch }` and the scene is touched once, on release, so a drag re-renders
   // this layer only (not the whole editor page) and ends up as one undo entry. The ref
@@ -366,8 +398,16 @@ function AnnotationLayerImpl({
       (e.target as Element).setPointerCapture?.(e.pointerId);
       return;
     }
-    const mode =
-      tools.tool === "box" ? "draw-box" : tools.tool === "blur" ? "draw-blur" : "draw-arrow";
+    if (tools.tool === "blur") {
+      // Only the primary button hides a block: a middle-button pan must not redact.
+      const block = e.button === 0 ? blockAt(p) : null;
+      drag.current = block
+        ? { mode: "draw-blur", start: p, block }
+        : { mode: "draw-blur", start: p };
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+      return;
+    }
+    const mode = tools.tool === "box" ? "draw-box" : "draw-arrow";
     drag.current = { mode, start: p };
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
@@ -385,6 +425,7 @@ function AnnotationLayerImpl({
           hit !== null && hit.distPx <= TEXT_HIT_PX ? activeText.words[hit.index].line : null,
         );
       }
+      if (redactText) setHoverBlockLine(blockAt(toNorm(e))?.line ?? null);
       return;
     }
     const p = toNorm(e);
@@ -414,6 +455,10 @@ function AnnotationLayerImpl({
       return;
     }
     if (d.mode === "draw-blur") {
+      // Once the pointer leaves the click tolerance the gesture is a drag, even if it comes
+      // back: only a press that stays put hides the line under it.
+      const away = Math.hypot((p.x - d.start.x) * size.w, (p.y - d.start.y) * size.h);
+      if (d.block && away > TEXT_HIT_PX) drag.current = { mode: "draw-blur", start: d.start };
       setDraft({
         id: "draft",
         kind: "blur",
@@ -469,6 +514,13 @@ function AnnotationLayerImpl({
       commitLive();
       return;
     }
+    // Still a click (the block is dropped once the pointer leaves the tolerance): hide the
+    // line, whatever size the jitter drew; on a small layer 1% is less than the tolerance.
+    if (d.mode === "draw-blur" && d.block && redactText) {
+      hideBlock(d.block, redactText);
+      setDraft(null);
+      return;
+    }
     if (draft && isBigEnough(draft)) {
       const { id, seed } = nextAnnotationId();
       // Paths/blurs carry no rough jitter, so they need no seed.
@@ -481,6 +533,25 @@ function AnnotationLayerImpl({
       scene.select(id);
     }
     setDraft(null);
+  };
+
+  // One click on a text block: a redaction over its box, grown by a small margin, in the
+  // style the tool has. The tool stays on and nothing is selected (like the step tool), so
+  // the next line is one more click; the hidden words leave `text.words` at once, so the
+  // block stops being a target.
+  const hideBlock = (block: TextBlock, model: TextLayerModel): void => {
+    const { natural } = model;
+    const r = blockRedactionRect(block, model.words, natural);
+    if (r.w <= 0 || r.h <= 0) return;
+    const { id } = nextAnnotationId();
+    scene.addAnnotation({
+      id,
+      kind: "blur",
+      ...pixelRectToNorm(r, natural),
+      ...(tools.redactionStyle === "solid" ? { style: "solid" as const } : {}),
+    });
+    scene.select(null);
+    setHoverBlockLine(null);
   };
 
   // A pointer gesture can end without a pointerup (system gesture, capture stolen).
@@ -604,7 +675,11 @@ function AnnotationLayerImpl({
     <div
       ref={ref}
       className={styles.layer}
-      {...(activeText ? uiArea("editorImage.textSelection") : {})}
+      {...(activeText
+        ? uiArea("editorImage.textSelection")
+        : redactText
+          ? uiArea("editorImage.textHide")
+          : {})}
       style={{
         cursor:
           tools.tool === "select"
@@ -613,13 +688,16 @@ function AnnotationLayerImpl({
               ? overWord
                 ? "text"
                 : "default"
-              : "crosshair",
+              : hoverBlock
+                ? "pointer"
+                : "crosshair",
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerLeave={() => {
         setHoverLockedId(null);
         setHoverLine(null);
+        setHoverBlockLine(null);
       }}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerAbort}
@@ -698,6 +776,9 @@ function AnnotationLayerImpl({
               </React.Fragment>
             ))}
           </g>
+        )}
+        {hoverBlock && redactText && !draft && (
+          <TextTarget block={hoverBlock} model={redactText} size={size} />
         )}
         {activeText && activeText.selected.size > 0 && (
           <g data-testid="text-highlights" className={styles.textHighlights}>
@@ -840,6 +921,29 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
 }
 
 export const AnnotationLayer = React.memo(AnnotationLayerImpl, sameLayerProps);
+
+/**
+ * The outline of the text block a click would hide (the redact tool, NIW2-706). It traces
+ * the rect the redaction will take, margin included, so what is outlined is what is hidden.
+ */
+function TextTarget({
+  block,
+  model,
+  size,
+}: {
+  block: TextBlock;
+  model: TextLayerModel;
+  size: Size;
+}): React.JSX.Element {
+  const r = blockRedactionRect(block, model.words, model.natural);
+  const sx = size.w / model.natural.w;
+  const sy = size.h / model.natural.h;
+  return (
+    <g data-testid="text-target" className={styles.textTarget}>
+      <rect x={r.x * sx} y={r.y * sy} width={r.w * sx} height={r.h * sy} rx={3} />
+    </g>
+  );
+}
 
 /** Resize handles drawn over the selected shape. Hit-testing is geometric (in the
  *  layer's onPointerDown), so these are purely visual + carry the resize cursor. */

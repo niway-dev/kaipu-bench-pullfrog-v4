@@ -150,6 +150,13 @@ export const PROFILES = {
     flags: { "image-canvas": true, "image-inspect": true, "image-text": true },
     mockShots: true,
   },
+  "image-text-canvas": {
+    description:
+      "Flags image-text and image-canvas forced on: the redact tool's one-click hide of recognized text.",
+    seed: "demo",
+    flags: { "image-text": true, "image-canvas": true },
+    textScreenshot: true,
+  },
   exporting: {
     description:
       "The demo workspace; states here start real exports of its short recording, so the vault ends up holding the copies.",

@@ -1370,6 +1370,8 @@
     "redactionNoticeUndo": "Deshacer censura",
     "redactionNoticeOk": "Entendido",
     "redactionNoticeFootnote": "Se muestra una vez, antes de guardar tu primera censura.",
+    "textHidePending": "Reconociendo texto… Mientras tanto, arrastra sobre lo que quieras ocultar.",
+    "textHideReady": "Haz clic en una línea de texto para ocultarla, o arrastra sobre una región.",
     "colorPink": "Rosa",
     "colorBlack": "Negro",
     "colorWhite": "Blanco",

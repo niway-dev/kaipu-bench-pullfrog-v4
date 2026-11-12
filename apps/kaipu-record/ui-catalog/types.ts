@@ -144,7 +144,8 @@ export type Step =
   /** Hash navigation in the main window: `{ navigate: "/library" }`. */
   | ({ readonly navigate: string } & On)
   | ({ readonly click: Target } & On)
-  | ({ readonly hover: Target } & On)
+  /** Hover the target's centre, or `at` (fractions of its box, like a drag point). */
+  | ({ readonly hover: Target; readonly at?: DragPoint } & On)
   /**
    * Move the pointer over the target, then turn the wheel by (`deltaX`, `deltaY`) px, `times`
    * times (default 1), then settle briefly. A plain wheel pans a canvas; Ctrl or Cmd zooms.
@@ -375,16 +376,20 @@ export function describeStep(step: Step): string {
     const which = t.hasText ? ` "${t.hasText}"` : "";
     return `\`${t.area}\`${which}${part}${t.nth ? ` #${t.nth + 1}` : ""}`;
   };
+  const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
   if ("navigate" in step) return `Go to \`#${step.navigate}\``;
   if ("click" in step) return `Click ${target(step.click)}`;
-  if ("hover" in step) return `Hover ${target(step.hover)}`;
+  if ("hover" in step) {
+    return step.at
+      ? `Hover ${target(step.hover)} at ${pt(step.at)}`
+      : `Hover ${target(step.hover)}`;
+  }
   if ("wheel" in step) {
     const [dx, dy] = [step.deltaX ?? 0, step.deltaY ?? 0];
     const times = step.times && step.times > 1 ? `, ${step.times} times` : "";
     return `Turn the wheel over ${target(step.wheel)} by (${dx}, ${dy}) px${times}`;
   }
   if ("drag" in step) {
-    const pt = (p: DragPoint): string => `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`;
     return `Drag across ${target(step.drag)} from ${pt(step.from)} to ${pt(step.to)}`;
   }
   if ("press" in step)

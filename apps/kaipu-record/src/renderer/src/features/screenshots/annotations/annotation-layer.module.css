@@ -98,3 +98,13 @@
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* The text block a click in the redact tool would hide (NIW2-706). */
+.textTarget rect {
+  fill: var(--ie-accent);
+  fill-opacity: 0.12;
+  stroke: var(--ie-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}

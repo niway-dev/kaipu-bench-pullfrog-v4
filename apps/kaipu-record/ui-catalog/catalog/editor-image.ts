@@ -103,6 +103,21 @@ const openText: readonly Step[] = [
   },
 ];
 
+/**
+ * Open the text screenshot with the canvas on and pick the redact tool, waiting until its
+ * lines are click targets (NIW2-706).
+ */
+const openTextHide: readonly Step[] = [
+  open(ASSETS.textShot),
+  tool("Redact"),
+  {
+    waitFor: { area: "editorImage.textHideHint", part: { text: "Click a line of text" } },
+    timeoutMs: 60_000,
+  },
+];
+// The fixture is 560x340 px; its first row ("Language: English") spans x 44-170 at y 92-108.
+const FIRST_ROW = { x: 100 / 560, y: 100 / 340 };
+
 /** The image editor on a saved screenshot (`#/editor/image/:assetId`). */
 export const editorImage = catalog(
   "editorImage",
@@ -941,6 +956,40 @@ export const editorImage = catalog(
       demonstrates: ["editorImage.reopenNotice:flat"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
+    "text-hide-ready": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings” and pick the Redact tool: once recognition finishes, the options bar says a click on a line of text hides it.",
+      steps: openTextHide,
+      demonstrates: ["editorImage.textHideHint:ready"],
+      gates: [
+        { flag: "image-text", side: "on" },
+        { flag: "image-canvas", side: "on" },
+      ],
+    },
+    "text-hide-hover": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings”, pick the Redact tool and rest the pointer on its first row: the line a click would hide is outlined.",
+      steps: [
+        ...openTextHide,
+        { hover: { area: "editorImage.textHide" }, at: FIRST_ROW },
+        { waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=text-target]" } } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.textHide:hover"],
+    },
+    "text-hidden": {
+      profile: "image-text-canvas",
+      how: "With both flags forced on, open “Display settings”, pick the Redact tool and click its first row: that line is redacted, and the rows around it stay sharp.",
+      steps: [
+        ...openTextHide,
+        // A press and release on the same point is a click.
+        { drag: { area: "editorImage.textHide" }, from: FIRST_ROW, to: FIRST_ROW },
+        {
+          waitFor: { area: "editorImage.textHide", part: { css: "[data-testid=redaction-tile]" } },
+        },
+      ],
+      demonstrates: ["editorImage.textHide:hidden"],
+    },
     "canvas-light": {
       profile: "image-canvas",
       how: "With the flag forced on, switch to the light theme and open “Settings page”: the canvas's dot grid takes the light colours.",
@@ -955,6 +1004,10 @@ export const editorImage = catalog(
       "editorImage.libraryPicker:empty": nc(
         "needsSetup",
         "the picker leaves out the shot being edited, and the seeded vault holds three screenshots, so it always lists two; a vault with a single screenshot would show it (not built)",
+      ),
+      "editorImage.textHideHint:pending": nc(
+        "transient",
+        "recognition settles in well under a second on a drawing, and no profile holds recognition for the canvas flag together (image-text-slow has no image-canvas); the hint reads “Recognizing text…” until then",
       ),
       "editorImage.inspectColors:counting": nc(
         "transient",

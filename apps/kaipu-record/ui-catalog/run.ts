@@ -726,7 +726,16 @@ async function runStep(ctx: Ctx, step: Step): Promise<void> {
     return resizeMain(ctx.app, ctx.main, step.window);
   const page = await pageFor(ctx, "on" in step ? step.on : undefined);
   if ("click" in step) return targetLocator(page, step.click).click({ timeout: t });
-  if ("hover" in step) return targetLocator(page, step.hover).hover({ timeout: t });
+  if ("hover" in step) {
+    const locator = targetLocator(page, step.hover);
+    if (!step.at) return locator.hover({ timeout: t });
+    const box = await locator.boundingBox({ timeout: t });
+    if (!box) throw new Error("the hover target has no box");
+    return locator.hover({
+      timeout: t,
+      position: { x: box.width * step.at.x, y: box.height * step.at.y },
+    });
+  }
   if ("wheel" in step) {
     const turns = wheelTurns(step);
     await targetLocator(page, step.wheel).hover({ timeout: t });

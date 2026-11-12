@@ -1370,6 +1370,8 @@
     "redactionNoticeUndo": "Undo redaction",
     "redactionNoticeOk": "Got it",
     "redactionNoticeFootnote": "Shown once, before your first redaction is saved.",
+    "textHidePending": "Recognizing text… Drag over what to hide meanwhile.",
+    "textHideReady": "Click a line of text to hide it, or drag over a region.",
     "colorPink": "Pink",
     "colorBlack": "Black",
     "colorWhite": "White",

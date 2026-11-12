@@ -302,6 +302,12 @@ reads the PNG on stdin instead of a path; the timeout is 45 s; the cache keys ea
 sha256 of the bytes recognized; selection is a **Select text** tool, so dragging elsewhere keeps
 moving annotations. Details in ADR 0055's Implementation status.
 
+**As built in M9 (NIW2-706).** Canvas mode only: the classic editor's gaussian blur is not a
+redaction, so it offers no targets. A block is a recognized line (the words sharing a `line`
+index). The margin is a quarter of the line's height, 2 to 16 px, and halves, then drops, rather
+than touch another line's word. A press that turns into a drag still draws a region; the tool stays
+on after a click so several lines are hidden in a row.
+
 **As built in M10 (NIW2-707).** Windows, behind the same flag. A PowerShell 5.1 script passed
 with `-EncodedCommand` reads the PNG base64 on stdin and prints the helper's JSON; boxes are
 rotated back by the text angle; every word reports confidence 1, which Windows OCR does not
