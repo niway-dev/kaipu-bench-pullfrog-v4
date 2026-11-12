@@ -1,11 +1,33 @@
 /*
- * The image editor's "Add image" menu (NIW2-703), on the app's tokens and the menu look the
- * workspace chip uses. The button itself takes the toolbar's own classes.
+ * The image editor's "Add image" menu (NIW2-703) and its toolbar button (mock B1: a 34px icon
+ * button like the tools beside it). Editor tokens only.
  */
 .anchor {
   position: relative;
   display: inline-flex;
   flex-shrink: 0;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ie-tx2);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.button:hover,
+.button[aria-expanded="true"] {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
 }
 
 .backdrop {
@@ -17,7 +39,7 @@
 .menu {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  left: 0;
   z-index: 46;
   width: 240px;
   padding: 6px;

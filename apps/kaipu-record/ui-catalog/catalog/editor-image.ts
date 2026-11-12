@@ -34,6 +34,10 @@ const inspectColors: Step = {
 const tool = (name: string): Step => ({
   click: { area: "editorImage.tools", part: { role: "button", name, exact: true } },
 });
+/** The compact toolbar (mock B3): a button of the toolbar, by its accessible name. */
+const toolbarButton = (name: string): Step => ({
+  click: { area: "editorImage.toolbar", part: { role: "button", name, exact: true } },
+});
 
 /** Open the screenshot that draws real text and pick Select text, as `ready` and `selected` start. */
 const openText: readonly Step[] = [
@@ -84,6 +88,62 @@ export const editorImage = catalog(
       profile: "default",
       steps: [open(ASSETS.settingsShot), tool("Crop")],
       demonstrates: ["editorImage.tools:crop", "editorImage.canvas:crop"],
+    },
+    toolbar: {
+      profile: "image-toolbar",
+      how: "Mock B1: with the three image-editor flags forced on, open “Settings page” at the editor's default size: the toolbar reads mode switch (Annotate | Inspect), Select Pen Box Arrow Text Step, Redact, Export frame, Add image, Select text, Undo Redo, the title, then Copy, Save and PDF.",
+      steps: [open(ASSETS.settingsShot)],
+      demonstrates: ["editorImage.toolbar:default"],
+    },
+    "toolbar-tooltip": {
+      profile: "image-toolbar",
+      how: "Mock B2: with the three image-editor flags forced on, open “Settings page” and rest the pointer on the Step tool: a tooltip names it and shows its key, N.",
+      steps: [
+        open(ASSETS.settingsShot),
+        {
+          hover: {
+            area: "editorImage.tools",
+            part: { role: "button", name: "Step", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.toolbar", part: { css: "[role='tooltip']" } } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.toolbar:tooltip"],
+    },
+    "toolbar-compact": {
+      profile: "image-toolbar",
+      // The smallest window the shell offers. Compact needs the editor page under 1100 px.
+      window: "main-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window: Pen, Box, Arrow, Text and Step are one Draw menu, the rest sit in the ••• menu, the title is gone and the right panel is behind its toggle.",
+      steps: [open(ASSETS.settingsShot)],
+      demonstrates: [
+        "editorImage.toolbar:compact",
+        "editorImage.drawMenu:closed",
+        "editorImage.moreMenu:closed",
+        "editorImage.panelToggle:closed",
+      ],
+    },
+    "toolbar-compact-draw-menu": {
+      profile: "image-toolbar",
+      window: "main-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press Draw: the menu lists Pen, Box, Arrow, Text and Step with their keys.",
+      steps: [open(ASSETS.settingsShot), toolbarButton("Draw")],
+      demonstrates: ["editorImage.drawMenu:open"],
+    },
+    "toolbar-compact-more-menu": {
+      profile: "image-toolbar",
+      window: "main-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press •••: the menu lists Export frame, Add image, Select text, Undo, Redo and PDF.",
+      steps: [open(ASSETS.settingsShot), toolbarButton("More")],
+      demonstrates: ["editorImage.moreMenu:open"],
+    },
+    "toolbar-compact-panel": {
+      profile: "image-toolbar",
+      window: "main-min",
+      how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press the panel toggle: the Beautify panel opens as a sheet over the stage's right edge.",
+      steps: [open(ASSETS.settingsShot), toolbarButton("Panel")],
+      demonstrates: ["editorImage.panelToggle:open"],
     },
     "toolbar-saved": {
       profile: "default",
@@ -162,17 +222,17 @@ export const editorImage = catalog(
     },
     "redaction-blur": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page” and pick the Blur tool: the panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
-      steps: [open(ASSETS.settingsShot), tool("Blur")],
+      how: "With the flag forced on, open “Settings page” and pick the Redact tool: the panel offers Blur (selected) and Solid, with the note that only Solid hides content for certain.",
+      steps: [open(ASSETS.settingsShot), tool("Redact")],
       demonstrates: ["editorImage.redactionStyle:blur"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
     "redaction-solid": {
       profile: "image-canvas",
-      how: "With the flag forced on, open “Settings page”, pick the Blur tool and press Solid in the panel: Solid is now the selected style.",
+      how: "With the flag forced on, open “Settings page”, pick the Redact tool and press Solid in the panel: Solid is now the selected style.",
       steps: [
         open(ASSETS.settingsShot),
-        tool("Blur"),
+        tool("Redact"),
         {
           click: {
             area: "editorImage.redactionStyle",

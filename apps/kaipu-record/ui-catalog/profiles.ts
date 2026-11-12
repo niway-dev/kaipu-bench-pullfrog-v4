@@ -107,6 +107,12 @@ export const PROFILES = {
     flags: { "image-text": true },
     textScreenshot: true,
   },
+  "image-toolbar": {
+    description:
+      "Flags image-canvas, image-inspect and image-text forced on together: the image editor's whole toolbar (mode switch, Export frame, Add image, Select text).",
+    seed: "demo",
+    flags: { "image-canvas": true, "image-inspect": true, "image-text": true },
+  },
   exporting: {
     description:
       "The demo workspace; states here start real exports of its short recording, so the vault ends up holding the copies.",

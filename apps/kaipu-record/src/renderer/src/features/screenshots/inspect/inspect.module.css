@@ -1,44 +1,7 @@
 /*
- * Inspect mode (NIW2-699): the toolbar button, the layer over the canvas with its loupe chip,
+ * Inspect mode (NIW2-699): the layer over the canvas with its loupe chip,
  * and the floating bar. Tokens only; this file is the view, the logic is in use-inspect.ts.
  */
-
-/* ── Toolbar button (same look as the annotation tools) ───────────── */
-
-.toggleGroup {
-  display: flex;
-  flex-shrink: 0;
-  padding: 3px;
-  background: var(--ie-panel);
-  border: 1px solid var(--ie-sep);
-  border-radius: 7px;
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 34px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--ie-tx2);
-  cursor: pointer;
-  transition:
-    background var(--transition),
-    color var(--transition);
-}
-
-.toggle:hover {
-  color: var(--ie-tx);
-}
-
-.toggleOn,
-.toggleOn:hover {
-  background: var(--ie-accent);
-  color: #fff;
-}
 
 /* ── Layer over the canvas ────────────────────────────────────────── */
 

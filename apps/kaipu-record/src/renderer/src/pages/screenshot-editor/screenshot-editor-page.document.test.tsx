@@ -254,7 +254,7 @@ describe("ScreenshotEditor — reopen from the document (image-canvas)", () => {
 
 describe("ScreenshotEditor — saving the document (image-canvas)", () => {
   async function drawBlurAndSave() {
-    fireEvent.click(screen.getByRole("button", { name: "Blur" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redact" }));
     const surface = screen.getByTestId("canvas-hit-surface");
     fireEvent.pointerDown(surface, { button: 0, clientX: 20, clientY: 20, pointerId: 3 });
     fireEvent.pointerMove(surface, { clientX: 120, clientY: 90, pointerId: 3 });

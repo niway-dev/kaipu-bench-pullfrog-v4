@@ -74,6 +74,7 @@ import {
   useAnnotationTools,
   useEditorScene,
   worldToFrame,
+  type AnnotationTool,
   type CanvasAssets,
   type CanvasGeom,
   type CropRect,
@@ -109,7 +110,10 @@ import {
   type ExportFormat,
 } from "@renderer/features/screenshots/export";
 import { useTransientValue } from "@renderer/ui/use-transient-value";
-import { useCompactRow } from "@renderer/ui/use-compact-row";
+import { PanelToggle } from "@renderer/features/screenshots/toolbar/panel-toggle";
+import { MoreMenu } from "@renderer/features/screenshots/toolbar/more-menu";
+import { useCompactEditor } from "@renderer/features/screenshots/toolbar/use-compact-editor";
+import { useToolShortcuts } from "@renderer/features/screenshots/toolbar/use-tool-shortcuts";
 import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { showToast } from "@renderer/ui/toast-store";
 import { ItemWorkspaceChip } from "@renderer/features/workspaces/move/item-workspace-chip";
@@ -312,7 +316,7 @@ function ScreenshotEditorBody({
   const tools = useAnnotationTools();
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const toolbarRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   // Infinite canvas (NIW2-698): content may leave the image, the view pans, export is the
   // content box. `canvasMode` is latched at mount by `ScreenshotEditor`: `useFlag` is
   // reactive, but a shot must never mix the two models (a classic crop would be dropped, or
@@ -1122,13 +1126,43 @@ function ScreenshotEditorBody({
     feedback?.kind === "saved" || feedback?.kind === "savedAndCopied" ? feedback.name : null;
   const exportedName = feedback?.kind === "exported" ? feedback.name : null;
 
-  // The toolbar drops the action labels only when the row cannot hold them (see
-  // useCompactRow). The revision names what changes the row's content without
-  // resizing it: the toolbar mounting with the image, a label flipping to its
-  // "done" wording (Saved, Exported), Discard appearing after an auto-save.
-  useCompactRow(
-    toolbarRef,
-    `${hasImage}:${copied}:${savedName ?? ""}:${exportedName ?? ""}:${autoSaved}`,
+  // Compact layout (mock B3): below 1100 px the toolbar folds and the right panel becomes a
+  // sheet. Measured on the page element; the revision re-measures once the image has mounted it.
+  const compact = useCompactEditor(pageRef, image !== null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const sheetOpen = compact && panelOpen;
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setPanelOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheetOpen]);
+
+  // Picking a tool, by click or by key, leaves Inspect and starts the tool clean.
+  const pickTool = (tool: AnnotationTool): void => {
+    tools.setTool(tool);
+    scene.select(null);
+    inspect.setActive(false);
+  };
+  // The Add image menu is open: the page owns it so the `M` key and "•••" can open it too.
+  const [addOpen, setAddOpen] = useState(false);
+  useToolShortcuts({
+    onTool: pickTool,
+    ...(canvasMode ? { onAddImage: () => setAddOpen(true) } : {}),
+  });
+
+  // The Add image control: a toolbar button, or (compact) only its menu, opened from "•••".
+  const addImageControl = (showButton: boolean): React.JSX.Element => (
+    <AddImageControl
+      onAdd={addImageLatest}
+      excludeId={savedId}
+      excludeAssetId={savedAssetIdRef.current ?? null}
+      open={addOpen}
+      onOpenChange={setAddOpen}
+      showButton={showButton}
+    />
   );
 
   // `image` is null on the first render while the reader resolves — render nothing.
@@ -1138,17 +1172,24 @@ function ScreenshotEditorBody({
   return (
     <div
       {...(fresh ? uiArea("editorCapture.page") : uiArea("editorImage.page"))}
+      ref={pageRef}
       className={styles.editor}
     >
       {/* "IN · Work ▾" once the shot is saved in a workspace (ADR 0033). */}
       <ItemWorkspaceChip assetId={savedId ? (savedAssetIdRef.current ?? null) : null} />
       <div
         {...uiArea("editorImage.toolbar")}
-        ref={toolbarRef}
         className={styles.toolbar}
         role="toolbar"
         aria-label={t("editorToolbar")}
+        data-compact={compact}
       >
+        {inspectEnabled && (
+          <>
+            <InspectToggle active={inspect.active} compact={compact} onSelect={inspect.setActive} />
+            <span className={styles.divider} aria-hidden />
+          </>
+        )}
         <AnnotationToolbar
           tools={tools}
           onPick={() => {
@@ -1156,38 +1197,49 @@ function ScreenshotEditorBody({
             inspect.setActive(false);
           }}
           textTool={textEnabled}
+          canvasMode={canvasMode}
+          compact={compact}
+          idle={inspect.active}
+          addImage={canvasMode ? addImageControl(true) : undefined}
         />
-        {inspectEnabled && <InspectToggle active={inspect.active} onToggle={inspect.toggle} />}
-        <CaptureTitleInput title={captureTitle} />
-        <div className={styles.actions}>
-          {canvasMode && (
-            <AddImageControl
-              onAdd={addImageLatest}
-              excludeId={savedId}
-              excludeAssetId={savedAssetIdRef.current ?? null}
-              buttonClassName={styles.secondary}
-              labelClassName={styles.label}
+        {compact ? (
+          <>
+            <MoreMenu
+              canvasMode={canvasMode}
+              textTool={textEnabled}
+              onPick={pickTool}
+              onAddImage={() => setAddOpen(true)}
+              undo={{ onSelect: scene.undo, disabled: !scene.canUndo }}
+              redo={{ onSelect: scene.redo, disabled: !scene.canRedo }}
+              pdf={{ onSelect: () => void onExportPdf(), disabled: !imageReady }}
             />
-          )}
-          <button
-            type="button"
-            className={styles.iconBtn}
-            title={t("undo")}
-            disabled={!scene.canUndo}
-            onClick={scene.undo}
-          >
-            <Undo2 size={18} />
-          </button>
-          <button
-            type="button"
-            className={styles.iconBtn}
-            title={t("redo")}
-            disabled={!scene.canRedo}
-            onClick={scene.redo}
-          >
-            <Redo2 size={18} />
-          </button>
-          <span className={styles.divider} />
+            {canvasMode && addImageControl(false)}
+          </>
+        ) : (
+          <>
+            <span className={styles.divider} aria-hidden />
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title={t("undo")}
+              disabled={!scene.canUndo}
+              onClick={scene.undo}
+            >
+              <Undo2 size={17} />
+            </button>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title={t("redo")}
+              disabled={!scene.canRedo}
+              onClick={scene.redo}
+            >
+              <Redo2 size={17} />
+            </button>
+            <CaptureTitleInput title={captureTitle} />
+          </>
+        )}
+        <div className={styles.actions}>
           <button
             type="button"
             className={styles.secondary}
@@ -1216,21 +1268,25 @@ function ScreenshotEditorBody({
             onClick={onSave}
           >
             {savedName ? <Check size={16} /> : <Download size={16} />}
-            <span className={styles.label}>{savedName ? t("saved") : t("save")}</span>
+            <span className={styles.saveLabel}>{savedName ? t("saved") : t("save")}</span>
           </button>
-          <button
-            type="button"
-            className={styles.secondary}
-            data-done={exportedName !== null}
-            disabled={!imageReady}
-            title={
-              exportedName ? t("exportedPdfTitle", { name: exportedName }) : t("exportPdfTitle")
-            }
-            onClick={() => void onExportPdf()}
-          >
-            {exportedName ? <Check size={16} /> : <FileText size={16} />}
-            <span className={styles.label}>{exportedName ? t("exportedPdf") : t("exportPdf")}</span>
-          </button>
+          {!compact && (
+            <button
+              type="button"
+              className={styles.secondary}
+              data-done={exportedName !== null}
+              disabled={!imageReady}
+              title={
+                exportedName ? t("exportedPdfTitle", { name: exportedName }) : t("exportPdfTitle")
+              }
+              onClick={() => void onExportPdf()}
+            >
+              {exportedName ? <Check size={16} /> : <FileText size={16} />}
+              <span className={styles.label}>
+                {exportedName ? t("exportedPdf") : t("exportPdf")}
+              </span>
+            </button>
+          )}
           {autoSaved && (
             <button
               type="button"
@@ -1243,6 +1299,7 @@ function ScreenshotEditorBody({
               <span className={styles.label}>{t("discardSaved")}</span>
             </button>
           )}
+          {compact && <PanelToggle open={sheetOpen} onToggle={() => setPanelOpen(!panelOpen)} />}
         </div>
       </div>
       <div className={styles.body}>
@@ -1352,7 +1409,18 @@ function ScreenshotEditorBody({
           </div>
           <ReopenNoticeSlot reopen={reopen} edited={dirty} />
         </div>
-        <BeautifyPanel beautify={scene.beautify} />
+        {compact ? (
+          sheetOpen && (
+            <>
+              <div className={styles.sheetScrim} onClick={() => setPanelOpen(false)} aria-hidden />
+              <div className={styles.sheet}>
+                <BeautifyPanel beautify={scene.beautify} />
+              </div>
+            </>
+          )
+        ) : (
+          <BeautifyPanel beautify={scene.beautify} />
+        )}
       </div>
 
       {savedName && (

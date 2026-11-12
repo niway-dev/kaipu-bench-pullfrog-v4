@@ -1,0 +1,49 @@
+/*
+ * The editor's mode switch (mock B1): two segments on a hover-colored track. The active
+ * segment lifts onto the card color with a hairline, which reads as raised in both themes.
+ */
+
+.switch {
+  display: flex;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--ie-hover);
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ie-mut);
+  font-family: var(--font-family);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.segment:hover {
+  color: var(--ie-tx);
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: var(--ie-card);
+  color: var(--ie-tx);
+  box-shadow: inset 0 0 0 1px var(--ie-strong);
+}
+
+/* Compact (mock B3): icons only. */
+.switch[data-compact="true"] .segment {
+  height: 26px;
+  padding: 0 8px;
+}

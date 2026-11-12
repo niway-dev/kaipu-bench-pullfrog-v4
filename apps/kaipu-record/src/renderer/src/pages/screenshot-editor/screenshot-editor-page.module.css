@@ -15,30 +15,44 @@
 /* ── Toolbar ─────────────────────────────────────── */
 
 /*
- * One row: the tool group leading, the actions trailing. Neither group shrinks,
- * so the row's groups never squeeze into each other; when they would not fit,
- * useCompactRow (screenshot-editor-page.tsx) sets data-compact and the action
- * labels give way instead — see the compact rules below.
+ * One row (mock B1): mode switch, tools, undo/redo, the title in the middle, then the actions.
+ * 52px on the app background. Below 1100px the page sets data-compact (useCompactEditor in
+ * features/screenshots/toolbar) and the row folds (mock B3): 46px, the tools into the Draw and
+ * "..." menus, no title, Copy as an icon, the right panel behind a toggle.
  */
 .toolbar {
+  position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: 0 0 var(--space-sm);
+  gap: 2px;
+  height: 52px;
+  padding: 0 12px;
   flex-shrink: 0;
+  background: var(--ie-app);
   border-bottom: 1px solid var(--ie-sep);
+}
+
+.toolbar[data-compact="true"] {
+  height: 46px;
+  padding: 0 8px;
 }
 
 .actions {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: var(--space-sm);
+  gap: 6px;
 }
 
-/* The text beside an action's icon; the only thing the compact row drops. */
-.label {
+/* No title in the middle to take the slack: the actions stay at the right edge. */
+.toolbar[data-compact="true"] .actions {
+  margin-left: auto;
+}
+
+/* The text beside an action's icon; compact drops it from the secondary actions (Save keeps its own). */
+.label,
+.saveLabel {
   white-space: nowrap;
 }
 
@@ -46,9 +60,13 @@
   display: none;
 }
 
-/* Icon-only: square-ish buttons, matching the undo/redo pair beside them. */
 .toolbar[data-compact="true"] .secondary,
 .toolbar[data-compact="true"] .save {
+  height: 30px;
+}
+
+/* Icon-only: square-ish buttons, matching the other compact controls. */
+.toolbar[data-compact="true"] .secondary {
   padding: 0 var(--space-sm);
 }
 
@@ -56,10 +74,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  width: 32px;
   height: 34px;
   background: transparent;
-  border: 1px solid var(--ie-sep);
+  border: none;
   border-radius: 6px;
   color: var(--ie-tx2);
   cursor: pointer;
@@ -79,10 +97,11 @@
 }
 
 .divider {
+  flex-shrink: 0;
   width: 1px;
-  height: 24px;
+  height: 20px;
   background: var(--ie-sep);
-  margin: 0 var(--space-xs);
+  margin: 0 5px;
 }
 
 /* ── Floating zoom pill (foot of the canvas) ─────── */
@@ -160,11 +179,11 @@
   align-items: center;
   gap: var(--space-sm);
   height: 34px;
-  padding: 0 var(--space-lg);
+  padding: 0 12px;
   border-radius: 6px;
   font-family: var(--font-family);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
@@ -270,6 +289,7 @@
 /* ── Body: canvas + beautify panel ───────────────── */
 
 .body {
+  position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
@@ -338,4 +358,28 @@
   top: var(--space-md);
   left: var(--space-md);
   z-index: 2;
+}
+
+/* ── Right panel as a sheet (compact, mock B3) ───── */
+
+/* Over the stage's right edge, 280px like the panel in the flow; the panel brings its own
+   width, border and background, the sheet adds the shadow. */
+.sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  box-shadow: var(--ie-shadow);
+}
+
+/* The stage beside the sheet: a click on it closes the sheet. */
+.sheetScrim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 280px;
+  z-index: 29;
 }
