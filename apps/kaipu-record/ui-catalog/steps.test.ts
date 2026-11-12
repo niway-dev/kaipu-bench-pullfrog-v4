@@ -45,3 +45,20 @@ describe("window sizes", () => {
     expect(WINDOW_SIZES[WINDOW_SIZE_OF_PRESET.editorImage]).toEqual(WINDOW_SIZES.editor);
   });
 });
+
+describe("the at point of a hover and a click", () => {
+  it("names the point as percentages of the target's box", () => {
+    expect(describeStep({ hover: { area: "editorImage.canvas" }, at: { x: 0.97, y: 0.95 } })).toBe(
+      "Hover `editorImage.canvas` at (97%, 95%)",
+    );
+    expect(describeStep({ click: { area: "editorImage.canvas" }, at: { x: 0.25, y: 0.5 } })).toBe(
+      "Click `editorImage.canvas` at (25%, 50%)",
+    );
+  });
+
+  it("says nothing extra without a point", () => {
+    expect(describeStep({ hover: { area: "editorImage.canvas" } })).toBe(
+      "Hover `editorImage.canvas`",
+    );
+  });
+});

@@ -301,8 +301,17 @@ export const UI_MAP = {
       },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
-      inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
+      // "floating": the card over the canvas where the toolbar row has no room (NIW2-712).
+      inspectBar: {
+        states: ["hex", "asCaptured", "floating"],
+        gatedBy: [{ flag: "image-inspect" }],
+      },
       inspectHud: { states: ["reading"], gatedBy: [{ flag: "image-inspect" }] },
+      // The readout while the pointer is off the image (NIW2-712).
+      inspectEmpty: { states: ["shown"], gatedBy: [{ flag: "image-inspect" }] },
+      // The pill at the foot of the canvas (mock C11) and the one that replaces it after a copy (C4).
+      inspectMode: { states: ["collapsed", "legend"], gatedBy: [{ flag: "image-inspect" }] },
+      inspectCopied: { states: ["shown"], gatedBy: [{ flag: "image-inspect" }] },
       // The colors panel (NIW2-704): the list, the list with one color highlighted, while it
       // counts, and when the image could not be read.
       inspectColors: {
@@ -316,7 +325,7 @@ export const UI_MAP = {
         gatedBy: [{ flag: "image-inspect" }],
       },
       inspectRun: { states: ["horizontal", "vertical"], gatedBy: [{ flag: "image-inspect" }] },
-      measure: { states: ["pinned"], gatedBy: [{ flag: "image-inspect" }] },
+      measure: { states: ["pinned", "selected"], gatedBy: [{ flag: "image-inspect" }] },
       // The "Select text" tool (`image-text`, NIW2-705): the options bar's recognition
       // status, and the image with its recognized words while the tool is active.
       textStatus: {

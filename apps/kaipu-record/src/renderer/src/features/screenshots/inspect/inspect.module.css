@@ -17,28 +17,78 @@
   overflow: hidden;
 }
 
+/* The drawn crosshair stands in for the system cursor while a pointer position is known. */
+.layerBare {
+  cursor: none;
+}
+
+/* White arms with a dark outline and a small hollow centre, 22px across. */
+.cross {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.crossH,
+.crossV {
+  position: absolute;
+  background: var(--ie-ink-light);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.55);
+}
+
+.crossH {
+  left: -11px;
+  top: -1px;
+  width: 22px;
+  height: 2px;
+}
+
+.crossV {
+  left: -1px;
+  top: -11px;
+  width: 2px;
+  height: 22px;
+}
+
+.crossCentre {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border: 1px solid var(--ie-ink-dark);
+  box-sizing: border-box;
+}
+
+/* The loupe and the chip float on their own: no card behind them. */
 .hud {
   position: absolute;
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  width: 184px;
-  padding: var(--space-sm);
-  background: var(--ie-card);
-  border: 1px solid var(--ie-sep);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--ie-shadow);
+  align-items: flex-start;
+  gap: 6px;
   pointer-events: none;
 }
 
+/* Flipped up: the chip sits above the loupe. Visual only, the DOM order never changes. */
+.hudFlipY {
+  flex-direction: column-reverse;
+}
+
+/* 15 cells of 8px = 120px, inside a 2px white frame. */
 .loupeFrame {
   position: relative;
+  box-sizing: content-box;
   width: 120px;
   height: 120px;
-  align-self: center;
-  border-radius: var(--radius-md);
+  border: 2px solid var(--ie-ink-light);
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.6),
+    0 14px 34px -10px rgb(0 0 0 / 0.8);
   overflow: hidden;
-  background: var(--ie-stage);
+  background: var(--ie-ink-light);
 }
 
 .loupe {
@@ -48,125 +98,188 @@
   image-rendering: pixelated;
 }
 
-/* The centre pixel: 120px / 15 cells = 8px, starting at 56px. */
+/* Cell lines at the 8px pitch, over the scaled pixels. */
+.loupeGrid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgb(128 128 128 / 0.28) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(128 128 128 / 0.28) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+/* The centre pixel: cell 7 of 15 starts at 56px; the marker is 1px larger on each side. */
 .loupeCentre {
   position: absolute;
-  left: 56px;
-  top: 56px;
-  width: 8px;
-  height: 8px;
+  left: 55px;
+  top: 55px;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--ie-ink-light);
   box-shadow:
-    0 0 0 1px #000,
-    inset 0 0 0 1px #fff;
+    0 0 0 1px var(--ie-ink-dark),
+    inset 0 0 0 1px var(--ie-ink-dark);
+}
+
+.loupeEmpty {
+  background: repeating-linear-gradient(45deg, var(--ie-panel) 0 6px, var(--ie-hover) 6px 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loupeEmptyLabel {
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--ie-ov-bg);
+  color: var(--ie-mut);
+  font-family: var(--ie-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
 }
 
 .chip {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  min-width: 0;
+  gap: 7px;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 0 9px 0 6px;
+  border-radius: 6px;
+  background: var(--ie-ov-bg);
+  border: 1px solid var(--ie-ov-bd);
+  box-shadow: 0 8px 22px -8px rgb(0 0 0 / 0.7);
+  white-space: nowrap;
 }
 
 .chipSwatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.5);
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+
+/* Copied: a green check in place of the colour. */
+.chipSwatchCopied {
+  border: none;
+  box-shadow: none;
+  color: var(--ie-ok);
+}
+
+.chipSwatchEmpty {
+  background: repeating-linear-gradient(45deg, rgb(255 255 255 / 0.25) 0 2px, transparent 2px 5px);
 }
 
 .chipText {
   min-width: 0;
-  font-size: var(--font-size-sm);
-  color: var(--ie-tx);
-  overflow-wrap: anywhere;
+  font-family: var(--ie-font-mono);
+  font-size: 11.5px;
+  color: var(--ie-ov-tx);
+}
+
+.chipTextMuted {
+  color: var(--ie-mut);
+}
+
+.chipTag {
+  font-family: var(--ie-font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--ie-mut);
+}
+
+.chipBadge {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--ie-ink-light);
+  color: var(--ie-ink-dark);
+  font-family: var(--ie-font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
 .coords {
-  font-size: var(--font-size-xs);
-  color: var(--ie-tx2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--ie-ov-bg);
+  font-family: var(--ie-font-mono);
+  font-size: 10px;
+  color: var(--ie-mut);
 }
 
+/* The out-of-sRGB explanation card under the chip. */
 .gamut {
-  align-self: flex-start;
-  padding: 1px var(--space-sm);
-  border: 1px solid var(--ie-sep);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  color: var(--ie-tx2);
-}
-
-/* ── Floating bar (takes the options float's place) ───────────────── */
-
-.bar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  background: var(--ie-card);
-  border: 1px solid var(--ie-sep);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--ie-shadow);
-}
-
-.barRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.segments {
-  display: flex;
   gap: 2px;
-  padding: 2px;
-  background: var(--ie-panel);
-  border: 1px solid var(--ie-sep);
-  border-radius: var(--radius-md);
+  width: 250px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--ie-ov-bg);
+  border: 1px solid var(--ie-ov-bd);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ie-ov-tx);
 }
 
-.segment,
-.barBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ie-tx2);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition:
-    background var(--transition),
-    color var(--transition);
+.gamutTitle {
+  font-weight: 600;
 }
 
-.segment:hover:not(:disabled),
-.barBtn:hover:not(:disabled) {
-  color: var(--ie-tx);
+/* The tolerance card beside the cursor while the wheel changes it. */
+.toleranceCard {
+  position: absolute;
+  box-sizing: border-box;
+  width: 150px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--ie-ov-bg);
+  border: 1px solid var(--ie-ov-bd);
+  pointer-events: none;
 }
 
-.segment:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.toleranceCardRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
 }
 
-.segmentOn,
-.segmentOn:hover:not(:disabled),
-.barBtnOn,
-.barBtnOn:hover:not(:disabled) {
+.toleranceCardLabel {
+  font-family: var(--ie-font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--ie-mut);
+}
+
+.toleranceCardValue {
+  font-family: var(--ie-font-mono);
+  font-size: 11px;
+  color: var(--ie-ov-tx);
+}
+
+.toleranceCardTrack {
+  position: relative;
+  height: 3px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.18);
+}
+
+.toleranceCardFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
   background: var(--ie-accent);
-  color: #fff;
-}
-
-.barBtn {
-  border: 1px solid var(--ie-sep);
-}
-
-.status {
-  font-size: var(--font-size-xs);
-  color: var(--ie-tx2);
 }
 
 /* ── Ruler (NIW2-702) ─────────────────────────────────────────────── */
@@ -181,26 +294,48 @@
   overflow: visible;
 }
 
-/* A dark halo under the accent line, so it reads on light and dark pixels alike. */
+/* The white halo under the accent line, so it reads on light and dark pixels alike. */
+.rulerHalo {
+  stroke: var(--ie-ink-light);
+  stroke-opacity: 0.9;
+  stroke-width: 3.5;
+  shape-rendering: crispEdges;
+}
+
 .rulerLine {
   stroke: var(--ie-accent);
   stroke-width: 1.5;
   shape-rendering: crispEdges;
-  paint-order: stroke;
-  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.8));
 }
 
 .rulerLabel {
   position: absolute;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-sm);
-  background: var(--ie-accent);
-  color: #fff;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--ie-ov-bg);
+  border: 1px solid var(--ie-ov-bd);
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.7);
+  color: var(--ie-ink-light);
+  font-family: var(--ie-font-mono);
+  font-size: 11px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* The "OUTER" sub, drawn from data-sub so the label's text stays just "<n> px". */
+.rulerLabel[data-sub]::after {
+  content: attr(data-sub);
+  font-size: 8.5px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 0.7);
 }
 
 .rulerLabelH {
@@ -209,19 +344,4 @@
 
 .rulerLabelV {
   transform: translateY(-50%);
-}
-
-.rulerTolerance {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.toleranceValue {
-  min-width: 28px;
-  text-align: center;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--ie-tx);
 }

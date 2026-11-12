@@ -32,6 +32,11 @@
   --ie-ov-bd: rgba(255, 255, 255, 0.24);
   --ie-ov-tx: #e8e8ed;
   --ie-dim: rgba(6, 6, 7, 0.68);
+  --ie-ink-light: #fff;
+  --ie-ink-dark: #000;
+  --ie-ok: #4ade80;
+  /* The check on chrome drawn in the theme (the copied pill), a shade that reads on white too. */
+  --ie-ok-chrome: #22c55e;
   --ie-font-mono: var(--font-mono);
 }
 
