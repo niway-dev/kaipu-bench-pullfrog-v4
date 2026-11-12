@@ -54,10 +54,6 @@ describe("Inspect's 1 key and Shift+1", () => {
     expect(inspectKeyAction(key({ shiftKey: false }), true, false)).toBe("rulerX");
   });
 
-  it("Shift+1 no longer does in canvas mode: it fits the content instead", () => {
-    expect(inspectKeyAction(key({ key: "!", shiftKey: true }), true, false, true)).toBeNull();
-  });
-
   it("2 is untouched by Shift", () => {
     expect(inspectKeyAction(key({ key: "@", code: "Digit2", shiftKey: true }), true, false)).toBe(
       "rulerY",

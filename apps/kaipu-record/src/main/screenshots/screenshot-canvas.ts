@@ -139,7 +139,8 @@ export async function readCanvas(
  * Whether a document is stored beside the shot, and when it was last written. `readCanvas`
  * answers null for a missing document and for an unusable one alike; the editor asks this
  * after a null to tell "a plain screenshot" from "a document that could not be read", and
- * after a load for the saved time. It never rejects: no answer reads as no document.
+ * after a load for the saved time. Null only for a missing document; any other stat error
+ * (permissions, I/O) rejects with its code, so the renderer reads it as unknown, not absent.
  */
 export async function statCanvas(
   vault: LibraryVault,
@@ -149,7 +150,11 @@ export async function statCanvas(
   try {
     const info = await stat(vault.companionPaths(id).canvasDoc);
     return info.isFile() ? { savedAt: Math.round(info.mtimeMs) } : null;
-  } catch {
-    return null;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return null;
+    console.warn("[screenshot-canvas] checking the canvas document failed:", error);
+    // Only the code crosses to the renderer: the message names absolute vault paths.
+    throw Object.assign(new Error(`canvas document stat failed: ${code ?? "unknown"}`), { code });
   }
 }

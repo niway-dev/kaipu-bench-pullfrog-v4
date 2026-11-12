@@ -1264,12 +1264,27 @@ function ScreenshotEditorBody({
   useEffect(() => {
     if (colorsInSheet) setPanelOpen(true);
   }, [colorsInSheet]);
+  // Colors lives only in the sheet in compact, so closing the sheet turns it off: otherwise its
+  // button would read "on" with nothing visible, and the next press would only turn it off.
+  const colorsSetOpen = colors.setOpen;
+  const wasSheetOpen = useRef(false);
+  useEffect(() => {
+    if (wasSheetOpen.current && !sheetOpen && compact) colorsSetOpen(false);
+    wasSheetOpen.current = sheetOpen;
+  }, [sheetOpen, compact, colorsSetOpen]);
   useEffect(() => {
     if (!sheetOpen) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== "Escape") return;
       // A field or a dialog keeps its own Esc.
-      if (isEditingTarget(e.target) || document.querySelector('[aria-modal="true"]')) return;
+      // A range slider or checkbox takes no text, so Esc on it still closes the sheet.
+      const t = e.target;
+      const keysOwnEsc =
+        isEditingTarget(t) &&
+        !(t instanceof HTMLInputElement && ["range", "checkbox", "radio"].includes(t.type));
+      if (keysOwnEsc || document.querySelector('[aria-modal="true"]')) return;
+      // An open toolbar menu takes this Esc; the sheet closes on the next one.
+      if (document.querySelector('[role="menu"]')) return;
       // Capture phase + stop: the crop overlay also clears its frame on Esc.
       e.stopPropagation();
       setPanelOpen(false);

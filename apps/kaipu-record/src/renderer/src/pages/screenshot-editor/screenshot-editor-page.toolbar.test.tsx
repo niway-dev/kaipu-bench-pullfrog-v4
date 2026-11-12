@@ -483,6 +483,55 @@ describe("toolbar B3: compact", () => {
     expect(view.getAttribute("data-export-frame")).toBe("true");
   });
 
+  it("closes only the open menu with Esc while the sheet is open, then the sheet with the next Esc", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Panel"));
+    fireEvent.click(btn("Draw"));
+    press("Escape");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    press("Escape");
+    expect(screen.queryByText("Beautify")).toBeNull();
+  });
+
+  it("returns focus to the menu button when the menu closes by Esc or by picking an item", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Draw"));
+    press("Escape");
+    expect(document.activeElement).toBe(btn("Draw"));
+    fireEvent.click(btn("Draw"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Arrow/ }));
+    expect(document.activeElement).toBe(btn("Draw"));
+  });
+
+  it("turns Colors off when the sheet closes, so the next press opens it again", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Inspect (I)"));
+    const colorsBtn = () => screen.getByRole("button", { name: "Colors" });
+    fireEvent.click(colorsBtn());
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    press("Escape");
+    expect(screen.queryByText("Beautify")).toBeNull();
+    expect(colorsBtn()).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(colorsBtn());
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    expect(colorsBtn()).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("closes the sheet with Esc while a Beautify range slider has focus", async () => {
+    await mount(ALL);
+    setPageWidth(900);
+    fireEvent.click(btn("Panel"));
+    const slider = document.querySelector<HTMLInputElement>('[class*="sheet"] input[type="range"]');
+    expect(slider).not.toBeNull();
+    slider!.focus();
+    fireEvent.keyDown(slider!, { key: "Escape" });
+    expect(screen.queryByText("Beautify")).toBeNull();
+  });
+
   it("hides the title, keeps Save's label and makes Copy an icon", async () => {
     await mount(ALL);
     setPageWidth(900);
