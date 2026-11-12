@@ -646,7 +646,7 @@ export const editorImage = catalog(
     },
     "text-copied": {
       profile: "image-text",
-      how: "Mock G3 (two-line selection and copy confirmation). With the flag forced on, open “Display settings”, pick Select text, drag from its first row (“Language: English”) down to its second (“Theme: Dark mode”) and press Cmd+C: the toast says “Text copied” and “2 lines”.",
+      how: "Mock G3 (two-line selection and copy confirmation). With the flag forced on, open “Display settings”, pick Select text, drag from its first row (“Language: English”) down to its second (“Theme: Dark mode”) and click Copy text (the same copy as Cmd+C): the toast says “Text copied” and “2 lines”.",
       steps: [
         ...openText,
         {
@@ -661,9 +661,16 @@ export const editorImage = catalog(
             part: { css: "[data-testid=text-highlights]" },
           },
         },
-        // The toast renders in the app shell, outside this screen's areas, so no step can wait
-        // on it; it shows in the same render as the copy and stays 4 s, well past the shot.
-        { press: "Meta+C" },
+        // The panel's Copy text runs the same copy as Cmd+C. A click gives the page focus and a
+        // user gesture, which the clipboard write needs under the driver; a bare keypress did not
+        // copy there. The toast renders in the app shell, outside this screen's areas, so no step
+        // can wait on it; it stays 4 s, past the shot.
+        {
+          click: {
+            area: "editorImage.textStatus",
+            part: { role: "button", name: "Copy text", exact: true },
+          },
+        },
       ],
       demonstrates: ["editorImage.textSelection:copied"],
       gates: [{ flag: "image-text", side: "on" }],
