@@ -717,7 +717,18 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
     });
 
     it("a blur above an image redraws that image's redacted pixels over the base's tile", () => {
-      tileMock.mockImplementation(baseTileOnly);
+      tileMock.mockImplementation(
+        (url: string) =>
+          baseTileOnly(url) ??
+          (url === "blob:added"
+            ? {
+                url: "data:image-tile",
+                rect: { x: 0, y: 0, w: 4, h: 3 },
+                naturalW: 40,
+                naturalH: 30,
+              }
+            : null),
+      );
       // As the export: at the blur's z-position the baked base, then the baked image below it.
       const { container } = renderImageLayer(makeScene([image, blur], null), makeTools(), {
         canvasMode: true,
@@ -728,8 +739,10 @@ describe("AnnotationLayer — added images (NIW2-703)", () => {
       const over = container.querySelector('[data-testid="redaction-over-images"]')!;
       expect(follows(added, baseTile)).toBe(true);
       expect(follows(baseTile, over)).toBe(true);
-      // The image's redaction is redrawn through the image's own rounded clip.
-      expect(over.querySelector(`[clip-path="url(#iclip-${image.id})"]`)).not.toBeNull();
+      // The image's redaction is redrawn, inside the blur, through the image's own rounded clip.
+      const redrawn = over.querySelector('[data-testid="image-redaction-tile"]')!;
+      expect(redrawn.getAttribute("href")).toBe("data:image-tile");
+      expect(redrawn.closest(`[clip-path="url(#iclip-${image.id})"]`)).not.toBeNull();
     });
 
     it("a locked blur above an image redraws the image's own (already baked) pixels", () => {
