@@ -280,10 +280,13 @@ function CanvasChrome({
   return (
     <>
       <svg className={styles.svg} width={1} height={1}>
-        <rect className={styles.canvasDim} x={-R} y={-R} width={2 * R} height={R + y} />
-        <rect className={styles.canvasDim} x={-R} y={y + h} width={2 * R} height={R} />
-        <rect className={styles.canvasDim} x={-R} y={y} width={R + x} height={h} />
-        <rect className={styles.canvasDim} x={x + w} y={y} width={R} height={h} />
+        {/* Presses on the dim belong to the stage, not to a crop draw. */}
+        <g pointerEvents="none" data-testid="export-frame-dim">
+          <rect className={styles.canvasDim} x={-R} y={-R} width={2 * R} height={R + y} />
+          <rect className={styles.canvasDim} x={-R} y={y + h} width={2 * R} height={R} />
+          <rect className={styles.canvasDim} x={-R} y={y} width={R + x} height={h} />
+          <rect className={styles.canvasDim} x={x + w} y={y} width={R} height={h} />
+        </g>
         <rect
           className={styles.rule}
           x={x - px}

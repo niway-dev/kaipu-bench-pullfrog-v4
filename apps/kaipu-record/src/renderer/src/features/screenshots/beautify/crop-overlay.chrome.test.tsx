@@ -113,4 +113,9 @@ describe("CropOverlay canvas chrome (mock A5)", () => {
       expect.objectContaining({ w: expect.closeTo(0.5), x: expect.closeTo(0.1 + 0.1) }),
     );
   });
+
+  it("leaves the dimmed stage inert to pointer presses", () => {
+    mount(makeScene(FRAME));
+    expect(screen.getByTestId("export-frame-dim")).toHaveAttribute("pointer-events", "none");
+  });
 });
