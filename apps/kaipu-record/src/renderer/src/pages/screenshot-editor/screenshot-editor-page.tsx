@@ -386,10 +386,12 @@ function ScreenshotEditorBody({
   const recognizedRef = useRef(recognized);
   recognizedRef.current = recognized;
   // The base image's pixel size: the space the recognized words are in. The decoded image
-  // first; the known sizes cover an image that has not reported one (see buildCanvasPayload).
+  // first; the known sizes cover an image that has not reported one, in `basePixels`' order:
+  // a reopened document's base before the source, whose size is the flat export's (with added
+  // images, the whole content box).
   const naturalNow = (): PixelSize => ({
-    w: imgRef.current?.naturalWidth || source.width || doc?.pixelWidth || 0,
-    h: imgRef.current?.naturalHeight || source.height || doc?.pixelHeight || 0,
+    w: imgRef.current?.naturalWidth || doc?.pixelWidth || source.width || 0,
+    h: imgRef.current?.naturalHeight || doc?.pixelHeight || source.height || 0,
   });
   const [natural, setNatural] = useState<PixelSize | null>(null);
   // The words a person can select: those no redaction of this session (saved or not) covers.
