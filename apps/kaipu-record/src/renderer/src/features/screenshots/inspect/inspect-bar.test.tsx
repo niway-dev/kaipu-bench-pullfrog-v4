@@ -10,6 +10,7 @@ function fake(over: Partial<InspectController> = {}): InspectController {
     format: "hex",
     asCaptured: false,
     ruler: null,
+    toleranceShown: false,
     outer: false,
     outerLocked: false,
     tolerance: 12,
@@ -52,7 +53,7 @@ describe("InspectBar", () => {
     const { rerender } = render(<InspectBar inspect={fake()} />);
     const value = screen.getByTestId("inspect-tolerance");
     expect(value.getAttribute("data-shown")).toBe("false");
-    rerender(<InspectBar inspect={fake({ toleranceShown: true } as Partial<InspectController>)} />);
+    rerender(<InspectBar inspect={fake({ toleranceShown: true })} />);
     expect(screen.getByTestId("inspect-tolerance").getAttribute("data-shown")).toBe("true");
   });
 

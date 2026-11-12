@@ -605,7 +605,13 @@ export const editorImage = catalog(
         { press: "Escape" },
         tool("Select"),
         { click: { area: "editorImage.measure" } },
-        { waitFor: { area: "editorImage.measure" } },
+        // The measure root carries data-selected; parts search below an area, so look from the canvas.
+        {
+          waitFor: {
+            area: "editorImage.canvas",
+            part: { css: "[data-kind='measure'][data-selected='true']" },
+          },
+        },
       ],
       demonstrates: ["editorImage.measure:selected"],
     },

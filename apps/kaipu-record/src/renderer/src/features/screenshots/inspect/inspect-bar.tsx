@@ -35,8 +35,7 @@ export function InspectBar({
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const shownFormat = inspect.asCaptured ? capturedFormat(inspect.format) : inspect.format;
-  // U1's `toleranceShown`: true for a moment after the tolerance changed.
-  const toleranceShown = (inspect as { toleranceShown?: boolean }).toleranceShown === true;
+  const toleranceShown = inspect.toleranceShown;
   const ruler = (axis: "x" | "y"): void => inspect.setRuler(inspect.ruler === axis ? null : axis);
   return (
     <div

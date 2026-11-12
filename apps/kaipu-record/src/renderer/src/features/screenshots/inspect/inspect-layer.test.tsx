@@ -107,6 +107,7 @@ describe("InspectLayer HUD", () => {
     const cross = screen.getByTestId("inspect-crosshair");
     expect(cross.style.left).toBe("100px");
     expect(cross.style.top).toBe("80px");
+    expect(screen.getByTestId("inspect-layer").className).toMatch(/layerBare/);
   });
 
   it("tags the chip with the shown format", () => {

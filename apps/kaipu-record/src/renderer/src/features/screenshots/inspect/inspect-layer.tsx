@@ -121,7 +121,9 @@ function useHudPlacement(layer: React.RefObject<HTMLDivElement | null>, at: Poin
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  });
+    // One observer per mount: the layer mounts the HUD only while there is a pointer, so its node
+    // never changes underneath this effect.
+  }, []);
   const rect = layer.current?.getBoundingClientRect();
   const width = rect?.width || Infinity;
   const height = rect?.height || Infinity;
@@ -131,7 +133,7 @@ function useHudPlacement(layer: React.RefObject<HTMLDivElement | null>, at: Poin
   const flipY = y + HUD_OFFSET + size.height > height;
   const left = Math.max(0, flipX ? x - HUD_OFFSET - size.width : x + HUD_OFFSET);
   const top = Math.max(0, flipY ? y - HUD_OFFSET - size.height : y + HUD_OFFSET);
-  return { ref, left, top, flipX, flipY };
+  return { ref, left, top, flipX, flipY, x, y };
 }
 
 function Hud({
@@ -143,7 +145,7 @@ function Hud({
 }): React.JSX.Element | null {
   const t = useTranslations("screenshots");
   const { hover, readout, run } = inspect;
-  const { ref, left, top, flipX, flipY } = useHudPlacement(
+  const { ref, left, top, flipX, flipY, x, y } = useHudPlacement(
     layer,
     hover ?? { clientX: 0, clientY: 0 },
   );
@@ -151,58 +153,79 @@ function Hud({
   const tag = inspect.asCaptured
     ? t(hover.outOfGamut ? "inspectTagAsCapturedP3" : "inspectTagAsCaptured")
     : inspect.format.toUpperCase();
+  // The tolerance card goes on the side the HUD did not take (its measured flip).
+  const toleranceLeft = flipX ? x + 12 : x - 12 - TOLERANCE_CARD_WIDTH;
+  const toleranceFill =
+    ((inspect.tolerance - MIN_TOLERANCE) / (MAX_TOLERANCE - MIN_TOLERANCE)) * 100;
   return (
-    <div
-      ref={ref}
-      {...uiArea("editorImage.inspectHud")}
-      // "true" once the captured tile for this pixel is read: the gamut mark is final then.
-      data-probed={hover.outOfGamut !== undefined}
-      data-flip-x={String(flipX)}
-      data-flip-y={String(flipY)}
-      className={`${styles.hud} ${flipY ? styles.hudFlipY : ""}`}
-      style={{ left, top }}
-    >
-      <Loupe pixels={inspect.loupe} />
-      <div className={styles.chip}>
-        <span
-          className={`${styles.chipSwatch} ${inspect.copied ? styles.chipSwatchCopied : ""}`}
-          style={
-            inspect.copied
-              ? undefined
-              : {
-                  background: `rgba(${hover.color.r}, ${hover.color.g}, ${hover.color.b}, ${hover.color.a / 255})`,
-                }
-          }
-          data-copied={inspect.copied ? "true" : undefined}
-        >
-          {inspect.copied && <Check size={13} strokeWidth={2.4} aria-hidden="true" />}
+    <>
+      <div
+        ref={ref}
+        {...uiArea("editorImage.inspectHud")}
+        // "true" once the captured tile for this pixel is read: the gamut mark is final then.
+        data-probed={hover.outOfGamut !== undefined}
+        data-flip-x={String(flipX)}
+        data-flip-y={String(flipY)}
+        className={`${styles.hud} ${flipY ? styles.hudFlipY : ""}`}
+        style={{ left, top }}
+      >
+        <Loupe pixels={inspect.loupe} />
+        <div className={styles.chip}>
+          <span
+            className={`${styles.chipSwatch} ${inspect.copied ? styles.chipSwatchCopied : ""}`}
+            style={
+              inspect.copied
+                ? undefined
+                : {
+                    background: `rgba(${hover.color.r}, ${hover.color.g}, ${hover.color.b}, ${hover.color.a / 255})`,
+                  }
+            }
+            data-copied={inspect.copied ? "true" : undefined}
+          >
+            {inspect.copied && <Check size={13} strokeWidth={2.4} aria-hidden="true" />}
+          </span>
+          <span className={styles.chipText}>{readout ?? "…"}</span>
+          <span className={styles.chipTag} data-testid="inspect-format-tag">
+            {tag}
+          </span>
+          {hover.outOfGamut && <span className={styles.chipBadge}>{t("inspectGamutBadge")}</span>}
+        </div>
+        <span className={styles.coords}>
+          {hover.x}, {hover.y}
         </span>
-        <span className={styles.chipText}>{readout ?? "…"}</span>
-        <span className={styles.chipTag} data-testid="inspect-format-tag">
-          {tag}
-        </span>
-        {hover.outOfGamut && <span className={styles.chipBadge}>{t("inspectGamutBadge")}</span>}
+        {run && (
+          <span className={styles.coords} data-testid="inspect-run-readout">
+            {t(run.outer ? "inspectRunOuter" : "inspectRun", {
+              length: run.length,
+              tolerance: inspect.tolerance,
+            })}
+          </span>
+        )}
+        {hover.outOfGamut && (
+          <span className={styles.gamut}>
+            <span className={styles.gamutTitle}>{t("inspectOutOfSrgb")}</span>
+            {!inspect.asCaptured && (
+              <span>{t.rich("inspectOutOfSrgbBody", { b: (chunks) => <b>{chunks}</b> })}</span>
+            )}
+          </span>
+        )}
       </div>
-      <span className={styles.coords}>
-        {hover.x}, {hover.y}
-      </span>
-      {run && (
-        <span className={styles.coords} data-testid="inspect-run-readout">
-          {t(run.outer ? "inspectRunOuter" : "inspectRun", {
-            length: run.length,
-            tolerance: inspect.tolerance,
-          })}
-        </span>
+      {inspect.toleranceShown && (
+        <div
+          className={styles.toleranceCard}
+          data-testid="inspect-tolerance-card"
+          style={{ left: Math.max(0, toleranceLeft), top: y + 12 }}
+        >
+          <div className={styles.toleranceCardRow}>
+            <span className={styles.toleranceCardLabel}>{t("inspectToleranceCard")}</span>
+            <span className={styles.toleranceCardValue}>{inspect.tolerance}</span>
+          </div>
+          <div className={styles.toleranceCardTrack}>
+            <div className={styles.toleranceCardFill} style={{ width: `${toleranceFill}%` }} />
+          </div>
+        </div>
       )}
-      {hover.outOfGamut && (
-        <span className={styles.gamut}>
-          <span className={styles.gamutTitle}>{t("inspectOutOfSrgb")}</span>
-          {!inspect.asCaptured && (
-            <span>{t.rich("inspectOutOfSrgbBody", { b: (chunks) => <b>{chunks}</b> })}</span>
-          )}
-        </span>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -245,7 +268,6 @@ function EmptyHud({
  * click pins the run. It sits above the annotation layer, so nothing is drawn or moved meanwhile.
  */
 export function InspectLayer({ inspect }: { inspect: InspectController }): React.JSX.Element {
-  const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
   const { hover, run, empty } = inspect;
   const press = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -269,11 +291,6 @@ export function InspectLayer({ inspect }: { inspect: InspectController }): React
   const rect = ref.current?.getBoundingClientRect();
   const px = pointer ? pointer.clientX - (rect?.left ?? 0) : 0;
   const py = pointer ? pointer.clientY - (rect?.top ?? 0) : 0;
-  // The tolerance card goes on the side the HUD is not on.
-  const hudRight = !rect || px + HUD_OFFSET + HUD_WIDTH <= rect.width;
-  const toleranceLeft = hudRight ? px - 12 - TOLERANCE_CARD_WIDTH : px + 12;
-  const toleranceFill =
-    ((inspect.tolerance - MIN_TOLERANCE) / (MAX_TOLERANCE - MIN_TOLERANCE)) * 100;
 
   return (
     <div
@@ -309,21 +326,6 @@ export function InspectLayer({ inspect }: { inspect: InspectController }): React
       )}
       {hover && <Hud inspect={inspect} layer={ref} />}
       {!hover && empty && <EmptyHud at={empty} layer={ref} />}
-      {pointer && inspect.toleranceShown && (
-        <div
-          className={styles.toleranceCard}
-          data-testid="inspect-tolerance-card"
-          style={{ left: Math.max(0, toleranceLeft), top: py + 12 }}
-        >
-          <div className={styles.toleranceCardRow}>
-            <span className={styles.toleranceCardLabel}>{t("inspectToleranceCard")}</span>
-            <span className={styles.toleranceCardValue}>{inspect.tolerance}</span>
-          </div>
-          <div className={styles.toleranceCardTrack}>
-            <div className={styles.toleranceCardFill} style={{ width: `${toleranceFill}%` }} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
