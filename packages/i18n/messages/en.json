@@ -1272,6 +1272,8 @@
     "toolCrop": "Crop",
     "inspectTitle": "Inspect (I)",
     "toolRedact": "Redact",
+    "toolRedactTip": "Redact — hide sensitive info",
+    "toolRedactHint": "Hides sensitive info in the image: blurred or covered, and permanent once saved",
     "toolExportFrame": "Export frame",
     "modeSwitchLabel": "Mode",
     "modeAnnotate": "Annotate",
