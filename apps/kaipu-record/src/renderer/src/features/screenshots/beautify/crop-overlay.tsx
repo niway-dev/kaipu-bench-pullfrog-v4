@@ -280,7 +280,8 @@ function CanvasChrome({
   return (
     <>
       <svg className={styles.svg} width={1} height={1}>
-        {/* Presses on the dim belong to the stage, not to a crop draw. */}
+        {/* The dim reaches far past the overlay: a press out there belongs to the stage. On the
+            overlay, a drag outside the export rect still draws a new one, like the flat crop. */}
         <g pointerEvents="none" data-testid="export-frame-dim">
           <rect className={styles.canvasDim} x={-R} y={-R} width={2 * R} height={R + y} />
           <rect className={styles.canvasDim} x={-R} y={y + h} width={2 * R} height={R} />
