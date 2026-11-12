@@ -17,7 +17,7 @@ export function inspectKeyAction(
     key: string;
     /** The physical key: with Shift held (the outer-size modifier) `1` arrives as `!`. */
     code?: string;
-    /** Shift+1 is "fit the content" (canvas mode): it never picks the ruler axis. */
+    /** With Shift (Inspect's outer-size modifier) and `fitKeyTaken`, Digit1 is Fit, not the ruler. */
     shiftKey?: boolean;
     metaKey: boolean;
     ctrlKey: boolean;
@@ -26,6 +26,8 @@ export function inspectKeyAction(
   },
   active: boolean,
   modalOpen: boolean,
+  /** Canvas mode is on, so Shift+Digit1 is "fit the content" (canvas/fit-key.ts). */
+  fitKeyTaken = false,
 ): InspectKeyAction | null {
   // Cmd/Ctrl+C and friends keep their own meaning.
   if (e.metaKey || e.ctrlKey || e.altKey) return null;
@@ -34,8 +36,8 @@ export function inspectKeyAction(
   if (e.key === "Escape") return active ? "exit" : null;
   if (e.key === "c" || e.key === "C") return active ? "copy" : null;
   if (e.key === "1" || e.code === "Digit1" || e.code === "Numpad1") {
-    // Shift+1 belongs to "fit the content" (see canvas/fit-key.ts): both must not fire.
-    if (e.shiftKey) return null;
+    // In canvas mode Shift+Digit1 belongs to Fit (see canvas/fit-key.ts): both must not fire.
+    if (fitKeyTaken && e.shiftKey && e.code === "Digit1") return null;
     return active ? "rulerX" : null;
   }
   if (e.key === "2" || e.code === "Digit2" || e.code === "Numpad2") return active ? "rulerY" : null;

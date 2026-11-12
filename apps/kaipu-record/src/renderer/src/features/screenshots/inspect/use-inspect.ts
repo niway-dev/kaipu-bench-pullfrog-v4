@@ -115,6 +115,8 @@ export interface InspectController {
 interface Options {
   /** The latched `image-inspect` flag. Off: no listener, no decode, nothing. */
   enabled: boolean;
+  /** Canvas mode is on: Shift+1 is "fit the content" there, so the ruler key leaves it alone. */
+  canvasMode?: boolean;
   image: ResolvedImage | null;
   imgRef: RefObject<HTMLImageElement | null>;
   /** Called when Inspect turns on (the page selects the Select tool). */
@@ -150,7 +152,14 @@ export function runLine(
   return { x1: x, y1: rect.top + run.from * sy, x2: x, y2: rect.top + run.to * sy };
 }
 
-export function useInspect({ enabled, image, imgRef, onEnter, onPin }: Options): InspectController {
+export function useInspect({
+  enabled,
+  canvasMode = false,
+  image,
+  imgRef,
+  onEnter,
+  onPin,
+}: Options): InspectController {
   const t = useTranslations("screenshots");
   const [active, setActiveState] = useState(false);
   const [format, setFormat] = useState<ColorFormat>("hex");
@@ -535,6 +544,7 @@ export function useInspect({ enabled, image, imgRef, onEnter, onPin }: Options):
         e,
         activeRef.current,
         document.querySelector('[aria-modal="true"]') !== null,
+        canvasMode,
       );
       if (e.key === "Shift" && activeRef.current) setShift(true);
       if (!action) return;

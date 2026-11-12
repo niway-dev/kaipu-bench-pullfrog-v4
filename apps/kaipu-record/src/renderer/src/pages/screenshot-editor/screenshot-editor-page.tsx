@@ -336,6 +336,7 @@ function ScreenshotEditorBody({
   const [inspectEnabled] = useState(useFlag("image-inspect"));
   const inspect = useInspect({
     enabled: inspectEnabled,
+    canvasMode,
     image,
     imgRef,
     // Inspect reads the image, it does not edit it: leave any drawing tool (a crop included).
