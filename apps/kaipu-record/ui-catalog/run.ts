@@ -48,7 +48,9 @@ import { renderReadme } from "./readme";
 import { RUN_ENV } from "./run-env";
 import {
   WINDOW_SIZES,
+  WINDOW_SIZE_OF_PRESET,
   describeStep,
+  wheelTurns,
   flattenCatalog,
   isKnownVariable,
   matchesOnly,
@@ -720,6 +722,14 @@ async function runStep(ctx: Ctx, step: Step): Promise<void> {
   const page = await pageFor(ctx, "on" in step ? step.on : undefined);
   if ("click" in step) return targetLocator(page, step.click).click({ timeout: t });
   if ("hover" in step) return targetLocator(page, step.hover).hover({ timeout: t });
+  if ("wheel" in step) {
+    const turns = wheelTurns(step);
+    await targetLocator(page, step.wheel).hover({ timeout: t });
+    for (const [dx, dy] of turns) await page.mouse.wheel(dx, dy);
+    // The viewport applies each turn on the next frame; let the last one land.
+    await page.waitForTimeout(300);
+    return;
+  }
   if ("drag" in step) {
     const box = await targetLocator(page, step.drag).boundingBox({ timeout: t });
     if (!box) throw new Error("the drag target has no box");
@@ -928,8 +938,7 @@ async function shoot(
       );
     } else {
       const path = await run.main.evaluate(() => location.hash.slice(1));
-      mainSize =
-        spec.window ?? (presetForPath(path.split("?")[0]) === "editor" ? "editor" : "main");
+      mainSize = spec.window ?? WINDOW_SIZE_OF_PRESET[presetForPath(path.split("?")[0])];
       await resizeMain(run.app, run.main, mainSize);
     }
 
@@ -1327,7 +1336,9 @@ function manifestScreens(): ManifestScreen[] {
         id,
         kind: s.kind,
         where,
-        windowSize: preset ? `${WINDOW_SIZES[preset].width}×${WINDOW_SIZES[preset].height}` : null,
+        windowSize: preset
+          ? `${WINDOW_SIZES[WINDOW_SIZE_OF_PRESET[preset]].width}×${WINDOW_SIZES[WINDOW_SIZE_OF_PRESET[preset]].height}`
+          : null,
         areas: screenAreas(id).map((area) => ({
           id: area,
           states: [...areaStates(area)],

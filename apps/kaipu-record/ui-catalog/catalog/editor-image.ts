@@ -6,6 +6,9 @@ const open = (assetId: string): Step => ({ navigate: `/editor/image/${assetId}` 
 const zoomOut: Step = {
   click: { area: "editorImage.canvas", part: { role: "button", name: "Zoom out", exact: true } },
 };
+const zoomIn: Step = {
+  click: { area: "editorImage.canvas", part: { role: "button", name: "Zoom in", exact: true } },
+};
 const theme = (value: "light" | "dark"): Step => ({
   call: "updateSettings",
   args: [{ theme: value }],
@@ -113,8 +116,9 @@ export const editorImage = catalog(
     },
     "toolbar-compact": {
       profile: "image-toolbar",
-      // The smallest window the shell offers. Compact needs the editor page under 1100 px.
-      window: "main-min",
+      // The smallest window the image editor allows (720×560). Compact needs the editor page
+      // under 1100 px.
+      window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window: Pen, Box, Arrow, Text and Step are one Draw menu, the rest sit in the ••• menu, the title is gone and the right panel is behind its toggle.",
       steps: [open(ASSETS.settingsShot)],
       demonstrates: [
@@ -126,21 +130,21 @@ export const editorImage = catalog(
     },
     "toolbar-compact-draw-menu": {
       profile: "image-toolbar",
-      window: "main-min",
+      window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press Draw: the menu lists Pen, Box, Arrow, Text and Step with their keys.",
       steps: [open(ASSETS.settingsShot), toolbarButton("Draw")],
       demonstrates: ["editorImage.drawMenu:open"],
     },
     "toolbar-compact-more-menu": {
       profile: "image-toolbar",
-      window: "main-min",
+      window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press •••: the menu lists Export frame, Add image, Select text, Undo, Redo and PDF.",
       steps: [open(ASSETS.settingsShot), toolbarButton("More")],
       demonstrates: ["editorImage.moreMenu:open"],
     },
     "toolbar-compact-panel": {
       profile: "image-toolbar",
-      window: "main-min",
+      window: "editor-image-min",
       how: "Mock B3: with the three image-editor flags forced on, open “Settings page” in a narrow window and press the panel toggle: the Beautify panel opens as a sheet over the stage's right edge.",
       steps: [open(ASSETS.settingsShot), toolbarButton("Panel")],
       demonstrates: ["editorImage.panelToggle:open"],
@@ -171,6 +175,22 @@ export const editorImage = catalog(
       how: "With the flag forced on, open “Settings page” in the image editor: the canvas is marked as the flag's content-box canvas.",
       steps: [open(ASSETS.settingsShot)],
       demonstrates: ["editorImage.canvasView:default", "editorImage.addImage:closed"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "canvas-off-content": {
+      profile: "image-canvas",
+      how: "Mock A6: with the flag forced on, open “Settings page”, zoom in three steps and turn the mouse wheel over the canvas toward the right and down until less than half of the content is on stage: a notice says where the content went.",
+      steps: [
+        open(ASSETS.settingsShot),
+        zoomIn,
+        zoomIn,
+        zoomIn,
+        // A plain wheel pans (Ctrl or Cmd would zoom); a positive delta moves the view right
+        // and down. The pan stops with 64 px of the content still on stage.
+        { wheel: { area: "editorImage.canvas" }, deltaX: 600, deltaY: 600, times: 6 },
+        { waitFor: { area: "editorImage.offContentNotice" } },
+      ],
+      demonstrates: ["editorImage.canvasView:offContent", "editorImage.offContentNotice:shown"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
     "add-image-menu": {
@@ -542,14 +562,6 @@ export const editorImage = catalog(
       "editorImage.inspectColors:error": nc(
         "inducedFailure",
         "shown only when the image cannot be decoded or the colors worker fails; the page tests pin it",
-      ),
-      "editorImage.canvasView:offContent": nc(
-        "needsSetup",
-        "mock A6 needs the view panned until most of the content is off the stage, and panning is a wheel scroll or a Space or middle-button drag; the catalog has no wheel step and no held key, and zooming in keeps the stage centre on the content, which shows no notice (not built)",
-      ),
-      "editorImage.offContentNotice:shown": nc(
-        "needsSetup",
-        "the notice appears only once the view is panned off the content (see canvasView:offContent); the page tests pin it with measured rectangles",
       ),
     },
   },
