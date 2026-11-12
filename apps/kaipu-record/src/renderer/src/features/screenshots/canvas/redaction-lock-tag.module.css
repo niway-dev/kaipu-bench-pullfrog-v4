@@ -1,0 +1,27 @@
+/*
+ * The tag of a selected saved redaction (mock H4a). It lives in the annotation layer, which the
+ * canvas scales by the view's zoom; `--canvas-zoom` undoes that, so the 6 px / 1 px offsets and
+ * the tag itself stay one size on screen. Nothing here takes pointer input.
+ */
+.tag {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  margin: calc(1px / var(--canvas-zoom, 1)) 0 0 calc(6px / var(--canvas-zoom, 1));
+  padding: 0 7px;
+  box-sizing: border-box;
+  transform: scale(calc(1 / var(--canvas-zoom, 1)));
+  transform-origin: left top;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--ie-ov-bg);
+  border: 1px solid var(--ie-ov-bd);
+  border-radius: 5px;
+  color: var(--ie-ov-tx);
+  font-family: var(--ie-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

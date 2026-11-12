@@ -631,6 +631,11 @@ async function runAction(ctx: Ctx, name: string): Promise<void> {
       cpSync(ctx.vaultSnapshot, ctx.vaultDir, { recursive: true });
       return;
     }
+    case "forgetRedactionNotice":
+      // The key literal is the renderer's REDACTION_NOTICE_KEY
+      // (src/renderer/src/features/screenshots/canvas/redaction-notice-store.ts); a test pins it.
+      await page.evaluate(() => localStorage.removeItem("kaipu.imageEditor.redactionNoticeSeen"));
+      return;
     case "lockVault":
       chmodSync(ctx.vaultDir, 0o000);
       return;
@@ -1178,6 +1183,8 @@ async function runProfile(name: ProfileName, entries: CatalogEntry[]): Promise<v
           cursorRecording: profile.cursorRecording,
           textScreenshot: profile.textScreenshot,
           colorsScreenshots: profile.colorsScreenshots,
+          lockedRedaction: profile.lockedRedaction,
+          mockShots: profile.mockShots,
           corruptCanvas: profile.corruptCanvas,
           reconcile: profile.reconcile,
         }),

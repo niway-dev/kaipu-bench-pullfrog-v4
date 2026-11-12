@@ -11,6 +11,13 @@ import {
   resolveFontPx,
   stepFontPx,
   stepInk,
+  STEP_HAIRLINE_ALPHA,
+  STEP_HAIRLINE_PX,
+  STEP_RING_COLOR,
+  STEP_SELECTED_RING_PX,
+  STEP_SHADOW_ALPHA,
+  STEP_SHADOW_DY,
+  STEP_SHADOW_STD,
   stepRingPx,
   textBoxPx,
   textLines,
@@ -40,6 +47,7 @@ import type { RecognizedWord } from "@kaipu/domain/schemas";
 import { lineBoxesNorm, nearestWord, wordBoxNorm, type TextLayerModel } from "../text-selection";
 import { gapMeasures, type WorldRect } from "../canvas/image-gap";
 import { ImageSelection } from "../canvas/image-selection";
+import { RedactionLockTag } from "../canvas/redaction-lock-tag";
 import styles from "./annotation-layer.module.css";
 
 interface Size {
@@ -133,6 +141,9 @@ function AnnotationLayerImpl({
   // cursor, the line's soft fill and the "drag to select" tag. Null off the words.
   const [hoverLine, setHoverLine] = useState<number | null>(null);
   const overWord = hoverLine !== null;
+  // The saved (locked) redaction under the pointer, for its "Permanent" tag (mock H4a). A locked
+  // redaction is not a hit target, so this is a separate, read-only hover: it selects nothing.
+  const [hoverLockedId, setHoverLockedId] = useState<string | null>(null);
   const activeText = tools.tool === "selectText" ? text : undefined;
   // One underline per line, under the words' union box. Cheap, and only for the active tool.
   const recognizedLines = useMemo(
@@ -232,6 +243,12 @@ function AnnotationLayerImpl({
     return () => cancelAnimationFrame(raf);
   }, [editing]);
 
+  // The hover is stale once the tool changes or the layer is resized (a zoom moves the content
+  // under a still pointer); the next pointer move sets it again.
+  useEffect(() => {
+    setHoverLockedId(null);
+  }, [tools.tool, size.w, size.h]);
+
   const toNorm = (e: { clientX: number; clientY: number }): Pt => {
     const r = ref.current!.getBoundingClientRect();
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
@@ -258,6 +275,7 @@ function AnnotationLayerImpl({
   };
 
   const onPointerDown = (e: React.PointerEvent): void => {
+    setHoverLockedId(null);
     // The crop tool's overlay owns presses on the frame; one that reaches the hit surface
     // outside it must not start a drawing.
     if (canvas && tools.tool === "crop") return;
@@ -357,6 +375,10 @@ function AnnotationLayerImpl({
   const onPointerMove = (e: React.PointerEvent): void => {
     const d = drag.current;
     if (!d) {
+      if (canvasMode) {
+        const locked = hitLockedBlur(scene.annotations, toNorm(e));
+        setHoverLockedId(locked?.id ?? null);
+      }
       if (activeText) {
         const hit = nearestWord(activeText.words, toNorm(e), activeText.natural, size);
         setHoverLine(
@@ -552,6 +574,18 @@ function AnnotationLayerImpl({
   // the export has. Follows the drag, because it reads `shown`.
   const selectedImage =
     canvasMode && selectedAnnotation?.kind === "image" ? selectedAnnotation : null;
+  // A selected saved redaction says it is permanent (mock H4a). It is part of the stored image:
+  // the card offers no style or delete for it either.
+  const hoveredLocked = canvasMode
+    ? ((shown.find((a) => a.id === hoverLockedId && a.kind === "blur" && a.locked) as
+        | BlurAnnotation
+        | undefined) ?? null)
+    : null;
+  const selectedLocked =
+    hoveredLocked ??
+    (canvasMode && selectedAnnotation?.kind === "blur" && selectedAnnotation.locked
+      ? selectedAnnotation
+      : null);
   const gaps = useMemo(() => {
     if (!selectedImage || !natural || natural.w <= 0 || natural.h <= 0) return [];
     const world = (a: { x: number; y: number; w: number; h: number }): WorldRect => ({
@@ -583,9 +617,12 @@ function AnnotationLayerImpl({
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
+      onPointerLeave={() => {
+        setHoverLockedId(null);
+        setHoverLine(null);
+      }}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerAbort}
-      onPointerLeave={() => setHoverLine(null)}
       onLostPointerCapture={onPointerAbort}
       onDoubleClick={onDoubleClick}
     >
@@ -703,6 +740,13 @@ function AnnotationLayerImpl({
           pixelHeight={selectedImage.pixelHeight}
           gaps={gaps}
           unit={natural && natural.w > 0 ? size.w / natural.w : 1}
+        />
+      )}
+      {selectedLocked && (
+        <RedactionLockTag
+          left={(selectedLocked.x + selectedLocked.w) * size.w}
+          top={selectedLocked.y * size.h}
+          lockedAt={selectedLocked.lockedAt}
         />
       )}
       {editing && (
@@ -848,9 +892,40 @@ const Shape = React.memo(function Shape({
     const ink = stepInk(a.color);
     const cx = a.x * W;
     const cy = a.y * H;
+    const ring = stepRingPx(d);
+    const filterId = `stepf-${a.id}`;
     return (
       <g data-annotation={a.id}>
-        <circle cx={cx} cy={cy} r={d / 2} fill={a.color} stroke={ink} strokeWidth={stepRingPx(d)} />
+        <defs>
+          <filter id={filterId} x="-100%" y="-100%" width="300%" height="300%">
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius={STEP_HAIRLINE_PX}
+              result="halo"
+            />
+            <feFlood floodColor="#000" floodOpacity={STEP_HAIRLINE_ALPHA} />
+            <feComposite in2="halo" operator="in" result="hair" />
+            <feGaussianBlur in="halo" stdDeviation={STEP_SHADOW_STD} result="blur" />
+            <feOffset in="blur" dx={0} dy={STEP_SHADOW_DY} result="off" />
+            <feFlood floodColor="#000" floodOpacity={STEP_SHADOW_ALPHA} />
+            <feComposite in2="off" operator="in" result="shadow" />
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="hair" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={d / 2}
+          fill={a.color}
+          stroke={STEP_RING_COLOR}
+          strokeWidth={ring}
+          filter={`url(#${filterId})`}
+        />
         <text
           x={cx}
           y={cy}
@@ -864,7 +939,16 @@ const Shape = React.memo(function Shape({
         >
           {num}
         </text>
-        {selected && <circle className={styles.selOutline} cx={cx} cy={cy} r={d / 2 + 4} />}
+        {selected && (
+          <circle
+            data-step-selected=""
+            className={styles.stepSelected}
+            cx={cx}
+            cy={cy}
+            r={d / 2 + ring / 2 + STEP_SELECTED_RING_PX / 2}
+            strokeWidth={STEP_SELECTED_RING_PX}
+          />
+        )}
       </g>
     );
   }
@@ -1439,6 +1523,16 @@ function hitTest(
     } else if (distToSegment(p, { x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }) < 0.02) {
       return a;
     }
+  }
+  return null;
+}
+
+/** The topmost saved redaction under `p`, for the hover tag: no margin, and never a selection. */
+function hitLockedBlur(annotations: Annotation[], p: Pt): BlurAnnotation | null {
+  for (let i = annotations.length - 1; i >= 0; i -= 1) {
+    const a = annotations[i];
+    if (a.kind !== "blur" || !a.locked) continue;
+    if (p.x >= a.x && p.x <= a.x + a.w && p.y >= a.y && p.y <= a.y + a.h) return a;
   }
   return null;
 }

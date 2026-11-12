@@ -233,6 +233,58 @@ describe("a label sized by dragging a corner", () => {
     });
   });
 
+  describe("redaction card (canvas mode)", () => {
+    const blur: Annotation = { id: "u1", kind: "blur", x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+    const locked: Annotation = { ...blur, id: "l1", locked: true };
+
+    it("labels the group Style and draws a decorative icon in each choice", () => {
+      render(
+        <AnnotationOptions
+          tools={makeTools({ tool: "blur" })}
+          scene={makeScene([], null)}
+          canvasMode
+        />,
+      );
+      expect(screen.getByText("Style")).toBeTruthy();
+      for (const name of ["Blur", "Solid"]) {
+        const icon = screen.getByRole("button", { name }).querySelector("svg");
+        expect(icon).not.toBeNull();
+        expect(icon!.getAttribute("aria-hidden")).toBe("true");
+      }
+    });
+
+    it("keeps the note as one text node beside its own icon", () => {
+      render(
+        <AnnotationOptions
+          tools={makeTools({ tool: "blur" })}
+          scene={makeScene([], null)}
+          canvasMode
+        />,
+      );
+      const note = screen.getByText(
+        "Only Solid hides content for certain. Blur keeps a trace of the original colors.",
+      );
+      expect(note.childNodes).toHaveLength(1);
+      expect(note.parentElement!.querySelector("svg")).not.toBeNull();
+    });
+
+    it("a selected locked redaction shows the lock line, no picker and no delete", () => {
+      render(
+        <AnnotationOptions tools={makeTools()} scene={makeScene([locked], "l1")} canvasMode />,
+      );
+      expect(screen.getByText("Its pixels were removed when it was saved.")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Blur" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Solid" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    });
+
+    it("an unlocked selected redaction still has its picker and delete button", () => {
+      render(<AnnotationOptions tools={makeTools()} scene={makeScene([blur], "u1")} canvasMode />);
+      expect(screen.getByRole("button", { name: "Solid" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
+    });
+  });
+
   describe("Select text tool", () => {
     const status = (over: Partial<TextToolStatus> = {}): TextToolStatus => ({
       status: "ready",
@@ -315,5 +367,23 @@ describe("AnnotationOptions - measure (NIW2-702)", () => {
     expect(scene.commitAnnotation).toHaveBeenCalledWith("m1", {
       color: ANNOTATION_COLORS[2].value,
     });
+  });
+});
+
+describe("AnnotationOptions — step delete line (NIW2-713)", () => {
+  it("shows the renumber line for a selected step and deletes on click", () => {
+    const step: Annotation = { id: "s1", kind: "step", x: 0.5, y: 0.5, color: "#f6055c", size: 1 };
+    const scene = makeScene([step], "s1");
+    render(<AnnotationOptions tools={makeTools()} scene={scene} />);
+    // The visible text is the accessible name (no aria-label hiding it), so a screen reader
+    // hears the renumbering warning and voice control can say what it sees.
+    const line = screen.getByRole("button", { name: "Delete renumbers the rest" });
+    fireEvent.click(line);
+    expect(scene.removeSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the icon delete button for other kinds", () => {
+    render(<AnnotationOptions tools={makeTools()} scene={makeScene([box], "b1")} />);
+    expect(screen.queryByText("Delete renumbers the rest")).toBeNull();
   });
 });

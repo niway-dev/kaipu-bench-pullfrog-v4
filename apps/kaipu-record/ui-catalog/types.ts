@@ -107,6 +107,12 @@ export const ACTIONS = [
    * vault. Pair it with the state's own undo only when that cannot be done in the UI.
    */
   "restoreVault",
+  /**
+   * Forget that the one-time redaction notice was acknowledged (removes the renderer's
+   * `kaipu.imageEditor.redactionNoticeSeen` localStorage key from the main window), so a
+   * second shot of a state that presses Got it sees the notice again.
+   */
+  "forgetRedactionNotice",
   /** Reload the main window, so per-session renderer state (the reconcile scan) starts over. */
   "reloadMain",
   /** Empty the system clipboard (`clipboard.clear()` in main), so "no image on it" is a state. */

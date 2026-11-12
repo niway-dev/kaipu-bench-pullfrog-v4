@@ -1084,3 +1084,39 @@ describe("AnnotationLayer — Select text tool", () => {
     expect(clear).not.toHaveBeenCalled();
   });
 });
+
+describe("AnnotationLayer — step badge ring (NIW2-713)", () => {
+  const badge = (color: string): Annotation => ({
+    id: "s1",
+    kind: "step",
+    x: 0.5,
+    y: 0.5,
+    color,
+    size: 1,
+  });
+
+  it("rings a light fill in white and keeps the number dark", () => {
+    const { container } = render(
+      <AnnotationLayer scene={makeScene([badge("#f5f5f5")], null)} tools={makeTools()} src="" />,
+    );
+    const circle = container.querySelector("g[data-annotation] circle")!;
+    expect(circle.getAttribute("stroke")).toBe("#ffffff");
+    expect(container.querySelector("g[data-annotation] text")!.getAttribute("fill")).toBe(
+      "#1a1a1a",
+    );
+    expect(circle.getAttribute("filter")).toMatch(/^url\(#stepf/);
+  });
+
+  it("draws an accent ring only while the badge is selected", () => {
+    const rings = (selectedId: string | null): number =>
+      render(
+        <AnnotationLayer
+          scene={makeScene([badge("#f6055c")], selectedId)}
+          tools={makeTools()}
+          src=""
+        />,
+      ).container.querySelectorAll("g[data-annotation] circle[data-step-selected]").length;
+    expect(rings(null)).toBe(0);
+    expect(rings("s1")).toBe(1);
+  });
+});

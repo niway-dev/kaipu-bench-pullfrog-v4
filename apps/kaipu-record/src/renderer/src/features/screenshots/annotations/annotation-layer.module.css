@@ -19,6 +19,12 @@
   stroke-width: 1;
 }
 
+/* A selected step badge (mock D2): a 2 px accent ring outside the white ring. */
+.stepSelected {
+  fill: none;
+  stroke: var(--ie-accent);
+}
+
 /* A selected added image (mock A4): 1.5 px on screen whatever the zoom. */
 .imageFrame {
   stroke-width: 1.5;

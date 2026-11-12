@@ -58,6 +58,40 @@ const toolbarButton = (name: string): Step => ({
   click: { area: "editorImage.toolbar", part: { role: "button", name, exact: true } },
 });
 
+/**
+ * Drop a step badge: the Step tool places one on press, so a drag that never moves is a click at
+ * a chosen point (`click` only hits the centre). The Select tool selects what it presses on, and a
+ * press that never moves leaves the badge where it is.
+ */
+const pressAt = (x: number, y: number): Step => ({
+  drag: { area: "editorImage.canvas" },
+  from: { x, y },
+  to: { x, y },
+});
+/** A size button of the Step tool's card ("Size S", "Size M", "Size L"). */
+const stepSize = (label: "S" | "M" | "L"): Step => ({
+  click: {
+    area: "editorImage.canvas",
+    part: { role: "button", name: `Size ${label}`, exact: true },
+  },
+});
+/** A badge's number is drawn as SVG text: once one is there, the placements have rendered. */
+const badgeDrawn: Step = { waitFor: { area: "editorImage.canvas", part: { css: "svg text" } } };
+/** Where the four badges of mock D1 and D2 go: spread over the image, clear of the card at the top left. */
+const STEP_POINTS = [
+  { x: 0.3, y: 0.35 },
+  { x: 0.62, y: 0.3 },
+  { x: 0.72, y: 0.62 },
+  { x: 0.38, y: 0.75 },
+] as const;
+const placeFourBadges: readonly Step[] = [
+  tool("Step"),
+  ...STEP_POINTS.map((p) => pressAt(p.x, p.y)),
+  // The Step tool keeps its card open; Select with nothing selected shows none.
+  tool("Select"),
+  badgeDrawn,
+];
+
 /** Open the screenshot that draws real text and pick Select text, as `ready` and `selected` start. */
 const openText: readonly Step[] = [
   open(ASSETS.textShot),
@@ -347,6 +381,177 @@ export const editorImage = catalog(
         },
       ],
       demonstrates: ["editorImage.redactionStyle:solid"],
+    },
+    "redaction-locked": {
+      profile: "image-canvas-saved",
+      how: "Mock H4: with the flag forced on, open “Saved redaction” (a screenshot saved with one redaction over its middle) and rest the pointer on the redaction: a tag beside it says it is permanent and when it was saved. Clicking it selects nothing.",
+      steps: [
+        open(ASSETS.lockedShot),
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.redactionLock" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.redactionLock:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "step-badges": {
+      profile: "image-mocks",
+      how: "Mock D1: with the three image-editor flags forced on, open “Steps demo”, pick Step and click four spread-out points of the image, then pick Select: four badges numbered 1 to 4 in the default color, none selected, no card.",
+      steps: [
+        // Its own item: the badges are saved to the document (autosave), and a later state that
+        // opens the same item would show them.
+        open(ASSETS.stepsShot),
+        ...placeFourBadges,
+      ],
+      demonstrates: ["editorImage.canvas:steps"],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
+    },
+    "step-badge-selected": {
+      profile: "image-mocks",
+      how: "Mock D2: with the three image-editor flags forced on, open “Step selected”, place four badges with the Step tool, pick Select and press the third one: it wears the selection ring, and the card shows Color, Size and “Delete renumbers the rest”.",
+      steps: [
+        open(ASSETS.stepSelectedShot),
+        ...placeFourBadges,
+        pressAt(STEP_POINTS[2].x, STEP_POINTS[2].y),
+        {
+          waitFor: { area: "editorImage.canvas", part: { text: "Delete renumbers the rest" } },
+        },
+      ],
+      demonstrates: ["editorImage.canvas:stepSelected"],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
+    },
+    "step-badge-sizes": {
+      profile: "image-mocks",
+      how: "Mock D3: with the three image-editor flags forced on, open “Step sizes” (dark top half, light bottom half), pick Step, then place S, M and L badges over the dark half and S, M and L over the light half, picking the size in the card before each: the badges stay readable on both.",
+      steps: [
+        open(ASSETS.stepSizesShot),
+        tool("Step"),
+        // The size picks are in the card, which the Step tool keeps open at the top left; the
+        // two rows of badges sit well below it, at 0.32 (dark) and 0.68 (light) of the canvas.
+        ...([0.32, 0.68] as const).flatMap((y) =>
+          (
+            [
+              ["S", 0.35],
+              ["M", 0.5],
+              ["L", 0.65],
+            ] as const
+          ).flatMap(([label, x]) => [stepSize(label), pressAt(x, y)]),
+        ),
+        tool("Select"),
+        badgeDrawn,
+      ],
+      demonstrates: ["editorImage.canvas:stepSizes"],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+      ],
+    },
+    "redaction-card": {
+      profile: "image-mocks",
+      how: "Mock H1: with the three image-editor flags forced on, open “Settings page” and pick the Redact tool: the card shows Blur (selected) and Solid, each with its icon, and the note that only Solid hides content for certain. Nothing is drawn.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Redact"),
+        { waitFor: { area: "editorImage.redactionStyle" } },
+      ],
+      demonstrates: ["editorImage.redactionStyle:blur"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "redaction-notice": {
+      profile: "image-mocks",
+      how: "With the flag forced on, open “Notice demo”, pick Redact and drag a box over the image: the “Saving makes redactions permanent” card opens over the canvas, with Undo redaction and Got it.",
+      steps: [
+        // Its own item: the drawn region is autosaved to the document, and a later state that
+        // opens the same item would show it. It never presses Got it, so the notice stays
+        // unacknowledged for "redaction-styles" below, which does.
+        open(ASSETS.noticeShot),
+        tool("Redact"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.42, y: 0.35 },
+          to: { x: 0.62, y: 0.6 },
+        },
+        { waitFor: { area: "editorImage.redactionNotice" } },
+      ],
+      demonstrates: ["editorImage.redactionNotice:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+        { action: "forgetRedactionNotice" },
+      ],
+    },
+    "redaction-styles": {
+      profile: "image-mocks",
+      how: "Mock H2: with the three image-editor flags forced on, open “Redaction demo” (text-like rows), pick Redact and draw a blur over the left column, press Got it on the permanence notice, pick Redact again, press Solid and draw a second region over the right column: one blurred and one solid region side by side.",
+      steps: [
+        // Its own item. The one-time notice is acknowledged here and nowhere else (the earlier
+        // "redaction-notice" leaves it open on purpose), so it is still unacknowledged when
+        // region 1 is drawn, whether this state runs alone or after that one.
+        open(ASSETS.redactionShot),
+        tool("Redact"),
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.2, y: 0.36 },
+          to: { x: 0.46, y: 0.54 },
+        },
+        { waitFor: { area: "editorImage.redactionNotice" } },
+        {
+          click: {
+            area: "editorImage.redactionNotice",
+            part: { role: "button", name: "Got it", exact: true },
+          },
+        },
+        { waitFor: { area: "editorImage.redactionNotice", state: "hidden" } },
+        // Picking the tool again deselects region 1, so Solid sets the next region's style and
+        // does not restyle the one just drawn.
+        tool("Redact"),
+        {
+          click: {
+            area: "editorImage.redactionStyle",
+            part: { role: "button", name: "Solid", exact: true },
+          },
+        },
+        {
+          drag: { area: "editorImage.canvas" },
+          from: { x: 0.54, y: 0.36 },
+          to: { x: 0.8, y: 0.54 },
+        },
+        { waitFor: { area: "editorImage.redactionStyle" } },
+      ],
+      demonstrates: ["editorImage.canvas:redacted", "editorImage.redactionStyle:solid"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+      // Leave the editor first (its leave guard saves pending edits), waiting for the editor to
+      // unmount so the save has landed before the restore. Then put the vault back so a second
+      // shot opens the item as seeded.
+      after: [
+        { navigate: "/library" },
+        { waitFor: { area: "editorImage.canvas", state: "hidden" } },
+        { action: "restoreVault" },
+        { action: "forgetRedactionNotice" },
+      ],
     },
     "inspect-off": {
       profile: "image-inspect",

@@ -97,8 +97,11 @@ import {
   ExportBox,
   ExportFrameCard,
   OffContentNotice,
+  RedactionNotice,
   SidePanel,
   contentBoxFrame,
+  hasSeenRedactionNotice,
+  markRedactionNoticeSeen,
   isIdentityView,
   useCanvasViewport,
   useOffContent,
@@ -948,6 +951,47 @@ function ScreenshotEditorBody({
     if (await copyToClipboard()) showFeedback({ kind: "copied" });
   };
 
+  // The one-time notice before redactions become permanent (mock H4b). This editor saves as you
+  // edit and every save bakes redactions into the stored asset, so the notice opens the first
+  // time an unsaved redaction exists on a machine that has not acknowledged it. It is derived,
+  // not scheduled: no unsaved redaction (none drawn, all undone, or all already locked in a
+  // reopened document) means no notice. The edit autosave keeps running while it is open: the
+  // in-memory image stays unredacted, so "Undo redaction" still works after a save.
+  const [noticeSeen, setNoticeSeen] = useState(hasSeenRedactionNotice);
+  const [noticeHidden, setNoticeHidden] = useState(false);
+  const hasUnsavedRedaction =
+    canvasMode && scene.annotations.some((a) => a.kind === "blur" && !a.locked);
+  useEffect(() => {
+    // "Undo redaction" closes it without acknowledging; the next first redaction opens it again.
+    if (!hasUnsavedRedaction) setNoticeHidden(false);
+  }, [hasUnsavedRedaction]);
+  const noticeOpen = hasUnsavedRedaction && !noticeSeen && !noticeHidden;
+  // Queued saves run later than the render that enqueued them: they read the live value.
+  const noticeOpenRef = useRef(noticeOpen);
+  noticeOpenRef.current = noticeOpen;
+  const acknowledgeNotice = (): void => {
+    markRedactionNoticeSeen();
+    setNoticeSeen(true);
+  };
+  const undoLastRedaction = (): void => {
+    const last = scene.annotations.findLast((a) => a.kind === "blur" && !a.locked);
+    if (last) scene.removeAnnotation(last.id);
+    setNoticeHidden(true);
+  };
+
+  const firstSave = useRef(new Map<string, number>());
+  /**
+   * The first save that baked this redaction: later autosaves of the session keep it.
+   * A new stamp goes into `staged`, not `firstSave`: it only counts once the save succeeded.
+   */
+  const firstSaveAt = (id: string, staged: Map<string, number>): number => {
+    const known = firstSave.current.get(id) ?? staged.get(id);
+    if (known !== undefined) return known;
+    const now = Date.now();
+    staged.set(id, now);
+    return now;
+  };
+
   /**
    * The document and base asset a canvas-mode save stores beside the PNG (ADR 0053).
    *
@@ -960,7 +1004,10 @@ function ScreenshotEditorBody({
    * Null when the image's pixel size is unknown (the document would be invalid): the save
    * then stores the flat PNG alone, and main drops any stale document.
    */
-  const buildCanvasPayload = async (snap: Scene): Promise<CanvasSavePayload | null> => {
+  const buildCanvasPayload = async (
+    snap: Scene,
+    staged: Map<string, number>,
+  ): Promise<CanvasSavePayload | null> => {
     // The decoded image first; the known sizes cover an image that has not reported one.
     const { width: pixelWidth, height: pixelHeight } = basePixels();
     if (pixelWidth <= 0 || pixelHeight <= 0) return null;
@@ -969,7 +1016,13 @@ function ScreenshotEditorBody({
       assetsRef.current,
       snap.annotations,
     );
-    const docJson = JSON.stringify(buildCanvasDoc(snap, { pixelWidth, pixelHeight }));
+    const docJson = JSON.stringify(
+      buildCanvasDoc(
+        snap,
+        { pixelWidth, pixelHeight },
+        { lockedAt: (id) => firstSaveAt(id, staged) },
+      ),
+    );
     // The base, then each image asset the scene still references, once (one asset may sit on
     // the canvas twice). Main prunes whatever else the vault held for this shot.
     const assets: CanvasSavePayload["assets"] = [{ assetId: BASE_ASSET_ID, png: baked.base }];
@@ -1019,6 +1072,8 @@ function ScreenshotEditorBody({
   }): Promise<string | null> =>
     enqueue(async () => {
       if (!alive.current) return null;
+      // An explicit save bakes the redactions in: it counts as having read the notice.
+      if (!opts.silent && noticeOpenRef.current) acknowledgeNotice();
       const revision = sceneRevision.current;
       const snap = latest.current.scene;
       const draftAtStart = latest.current.draft;
@@ -1031,7 +1086,8 @@ function ScreenshotEditorBody({
             : undefined;
       try {
         const png = await exportAs("png", snap);
-        const canvas = canvasMode ? await buildCanvasPayload(snap) : null;
+        const stagedStamps = new Map<string, number>();
+        const canvas = canvasMode ? await buildCanvasPayload(snap, stagedStamps) : null;
         const text = canvas ? buildTextPayload(snap) : null;
         const saved = await window.electronAPI.saveScreenshot(png, {
           // The live field, not only its committed value: Save must write what the
@@ -1048,6 +1104,10 @@ function ScreenshotEditorBody({
           // words are not known (flag off, still pending, unavailable).
           ...(text ? { text } : {}),
         });
+        // The save landed: its redaction stamps are now the first-save times.
+        for (const [id, at] of stagedStamps) {
+          if (!firstSave.current.has(id)) firstSave.current.set(id, at);
+        }
         savedIdRef.current = saved.id;
         savedAssetIdRef.current = saved.assetId;
         setSavedId(saved.id);
@@ -1639,6 +1699,9 @@ function ScreenshotEditorBody({
           />
           {canvasMode && offContent && (
             <OffContentNotice direction={offContent} onFit={() => viewport.fit()} />
+          )}
+          {noticeOpen && (
+            <RedactionNotice onUndo={undoLastRedaction} onAcknowledge={acknowledgeNotice} />
           )}
           {canvasMode && tools.tool === "crop" && (
             <ExportFrameCard

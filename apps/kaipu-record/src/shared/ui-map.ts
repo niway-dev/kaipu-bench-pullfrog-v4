@@ -274,7 +274,18 @@ export const UI_MAP = {
       drawMenu: { states: ["closed", "open"] },
       moreMenu: { states: ["closed", "open"] },
       panelToggle: { states: ["closed", "open"] },
-      canvas: { states: ["default", "crop", "annotate", "step"] },
+      canvas: {
+        states: [
+          "default",
+          "crop",
+          "annotate",
+          "step",
+          "steps",
+          "stepSelected",
+          "stepSizes",
+          "redacted",
+        ],
+      },
       canvasView: {
         states: [
           "default",
@@ -299,6 +310,8 @@ export const UI_MAP = {
         states: ["blur", "solid"],
         gatedBy: [{ flag: "image-canvas" }],
       },
+      redactionLock: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
+      redactionNotice: { states: ["shown"], gatedBy: [{ flag: "image-canvas" }] },
       // Inspect mode (NIW2-699): the toolbar button, the floating bar and the loupe chip.
       inspectToggle: { states: ["off", "on"], gatedBy: [{ flag: "image-inspect" }] },
       inspectBar: { states: ["hex", "asCaptured"], gatedBy: [{ flag: "image-inspect" }] },
