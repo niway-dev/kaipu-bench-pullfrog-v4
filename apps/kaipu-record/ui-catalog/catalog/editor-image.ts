@@ -111,7 +111,7 @@ const STEP_POINTS = [
 const placeFourBadges: readonly Step[] = [
   tool("Step"),
   ...STEP_POINTS.map((p) => pressAt(p.x, p.y)),
-  // The Step tool keeps its card open; Select with nothing selected shows none.
+  // Select with nothing selected leaves the Tool tab on its empty state.
   tool("Select"),
   badgeDrawn,
 ];
