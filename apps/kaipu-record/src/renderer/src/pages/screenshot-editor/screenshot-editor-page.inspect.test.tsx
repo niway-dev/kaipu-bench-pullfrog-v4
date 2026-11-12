@@ -967,6 +967,16 @@ describe.each([
     expect(screen.getByText("Almost the same")).toBeInTheDocument();
   });
 
+  it("keeps Group off after a visit to the Tool tab", async () => {
+    await openColors();
+    fireEvent.click(screen.getByRole("switch", { name: "Group" }));
+    fireEvent.click(tab("Tool"));
+    fireEvent.click(tab("Colors"));
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
+    expect(screen.getByRole("switch", { name: "Group" })).toHaveAttribute("aria-checked", "false");
+    expect(panel()).toHaveAttribute("data-grouped", "false");
+  });
+
   it("highlighting a color tags its largest area on the image and tells how to stop", async () => {
     await openColors();
     fireEvent.click(screen.getByTitle("Highlight only #fdfdfd"));
