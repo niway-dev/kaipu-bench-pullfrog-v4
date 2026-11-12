@@ -215,14 +215,14 @@ export function LibraryImagePicker({
                       onMouseEnter={(e) => {
                         setSelectedId(shot.id);
                         // Keyboard focus in the grid follows the pointer, so Enter places the
-                        // card the ring is on, not a focused card that no longer shows it.
+                        // card the ring is on. No scroll: a card half out of view must not move the list.
                         const focused = document.activeElement;
                         if (
                           focused instanceof HTMLButtonElement &&
                           focused !== e.currentTarget &&
                           cardRefs.current.has(focused.dataset.shotId ?? "")
                         )
-                          e.currentTarget.focus();
+                          e.currentTarget.focus({ preventScroll: true });
                       }}
                       onFocus={() => setSelectedId(shot.id)}
                       onClick={() => void pick(shot)}
