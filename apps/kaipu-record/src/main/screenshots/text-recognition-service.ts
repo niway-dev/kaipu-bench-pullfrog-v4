@@ -1,11 +1,9 @@
-import { join } from "node:path";
 import { app } from "electron";
 import type { TextRecognizer } from "@kaipu/domain/schemas";
 import { activeFlagOverrides } from "../flag-overrides";
 import { createTextRecognizer, textRecognitionHelperPath } from "./text-recognition";
-import { TEXT_RECOGNITION_HELPER_VERSION } from "./text-recognition/macos-vision";
 import {
-  fileWarmUpIo,
+  fileHelperPresent,
   TextRecognitionWarmUp,
   WARM_UP_IDLE_DELAY_MS,
   withWarmUpGate,
@@ -32,8 +30,7 @@ export function getTextRecognitionService(): TextRecognitionService {
   const warmUp = new TextRecognitionWarmUp({
     recognizer: raw,
     platform: process.platform,
-    helperVersion: TEXT_RECOGNITION_HELPER_VERSION,
-    ...fileWarmUpIo(helperPath, join(app.getPath("userData"), "text-recognition-warm-up.stamp")),
+    helperPresent: fileHelperPresent(helperPath),
     scheduleIdle: (run) => void setTimeout(run, WARM_UP_IDLE_DELAY_MS).unref(),
   });
   service = { recognizer: withWarmUpGate(raw, warmUp), warmUp };

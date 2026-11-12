@@ -6,20 +6,14 @@ import { warmUpPng } from "./warm-up-image";
 const WORDS: RecognizedWord[] = [];
 
 function setup(overrides: Partial<WarmUpDeps> = {}) {
-  let stamp: string | null = null;
-  let binary: { size: number; mtimeMs: number } | null = { size: 100, mtimeMs: 5 };
+  let present = true;
   const recognize = vi.fn(async (): Promise<RecognizedWord[] | "unavailable"> => WORDS);
   const recognizer: TextRecognizer = { recognize };
   const idle: Array<() => void> = [];
   const deps: WarmUpDeps = {
     recognizer,
     platform: "darwin",
-    helperVersion: "v1",
-    statHelper: async () => binary,
-    readStamp: async () => stamp,
-    writeStamp: async (value) => {
-      stamp = value;
-    },
+    helperPresent: async () => present,
     scheduleIdle: (run) => void idle.push(run),
     ...overrides,
   };
@@ -28,11 +22,7 @@ function setup(overrides: Partial<WarmUpDeps> = {}) {
     warmUp,
     recognize,
     recognizer,
-    get stamp() {
-      return stamp;
-    },
-    setStamp: (value: string | null) => (stamp = value),
-    setBinary: (value: typeof binary) => (binary = value),
+    setPresent: (value: boolean) => (present = value),
     fireIdle: () => idle.splice(0).forEach((run) => run()),
   };
 }
@@ -62,32 +52,9 @@ describe("TextRecognitionWarmUp", () => {
     expect(t.recognize).toHaveBeenCalledTimes(1);
   });
 
-  it("writes the stamp after a successful run and skips the next launch", async () => {
-    const t = setup();
-    t.warmUp.start();
-    t.warmUp.setEnabled(true);
-    t.fireIdle();
-    await t.warmUp.whenSettled();
-    expect(t.stamp).toBe("v1:100:5");
-
-    const next = setup();
-    next.setStamp(t.stamp);
-    next.warmUp.start();
-    next.warmUp.setEnabled(true);
-    next.fireIdle();
-    await next.warmUp.whenSettled();
-    expect(next.recognize).not.toHaveBeenCalled();
-  });
-
-  it("warms again for a new binary (size or mtime) or helper version", async () => {
-    for (const change of [
-      { binary: { size: 101, mtimeMs: 5 } },
-      { binary: { size: 100, mtimeMs: 6 } },
-      { helperVersion: "v2" },
-    ]) {
-      const t = setup({ ...("helperVersion" in change ? change : {}) });
-      t.setStamp("v1:100:5");
-      if ("binary" in change) t.setBinary(change.binary ?? null);
+  it("warms again on every launch: there is no stamp to skip it", async () => {
+    for (let launch = 0; launch < 2; launch++) {
+      const t = setup();
       t.warmUp.start();
       t.warmUp.setEnabled(true);
       t.fireIdle();
@@ -96,7 +63,7 @@ describe("TextRecognitionWarmUp", () => {
     }
   });
 
-  it("does not write the stamp when the recognition is unavailable or throws", async () => {
+  it("never throws when the recognition is unavailable or fails", async () => {
     for (const recognize of [
       vi.fn(async () => "unavailable" as const),
       vi.fn(async (): Promise<never> => {
@@ -108,8 +75,8 @@ describe("TextRecognitionWarmUp", () => {
       t.warmUp.start();
       t.warmUp.setEnabled(true);
       t.fireIdle();
-      await t.warmUp.whenSettled();
-      expect(t.stamp).toBeNull();
+      await expect(t.warmUp.whenSettled()).resolves.toBeUndefined();
+      expect(recognize).toHaveBeenCalledTimes(1);
       warn.mockRestore();
     }
   });
@@ -130,7 +97,7 @@ describe("TextRecognitionWarmUp", () => {
     expect(off.recognize).not.toHaveBeenCalled();
 
     const missing = setup();
-    missing.setBinary(null);
+    missing.setPresent(false);
     missing.warmUp.start();
     missing.warmUp.setEnabled(true);
     missing.fireIdle();
