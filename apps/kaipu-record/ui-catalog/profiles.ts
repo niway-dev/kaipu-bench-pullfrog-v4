@@ -20,6 +20,8 @@ export interface Profile {
   readonly cursorRecording?: boolean;
   /** Add the screenshot that draws real text (`fixtures/text/`), for the Select text states. */
   readonly textScreenshot?: boolean;
+  /** Add the screenshot saved with one locked redaction (`seed-vault.ts`), for the Permanent tag. */
+  readonly lockedRedaction?: boolean;
   /** Leave an unparseable canvas document beside "Settings page" (`seed-vault.ts`). */
   readonly corruptCanvas?: boolean;
   /** Seed something "Check and fix files" reports (`seed-vault.ts`). */
@@ -86,6 +88,13 @@ export const PROFILES = {
       "Flag image-canvas forced on: the image editor's content-box canvas, pan, zoom and export frame.",
     seed: "demo",
     flags: { "image-canvas": true },
+  },
+  "image-canvas-saved": {
+    description:
+      "Flag image-canvas forced on, and the vault adds “Saved redaction”, a screenshot saved with one redaction: its Permanent tag. A profile of its own, so the Library picker of the other canvas states still lists the same screenshots.",
+    seed: "demo",
+    flags: { "image-canvas": true },
+    lockedRedaction: true,
   },
   "image-canvas-unreadable": {
     description:

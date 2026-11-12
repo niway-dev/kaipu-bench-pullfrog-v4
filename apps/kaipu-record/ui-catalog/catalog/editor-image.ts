@@ -353,6 +353,18 @@ export const editorImage = catalog(
       demonstrates: ["editorImage.redactionNotice:shown"],
       gates: [{ flag: "image-canvas", side: "on" }],
     },
+    "redaction-locked": {
+      profile: "image-canvas-saved",
+      how: "Mock H4: with the flag forced on, open “Saved redaction” (a screenshot saved with one redaction over its middle) and rest the pointer on the redaction: a tag beside it says it is permanent and when it was saved. Clicking it selects nothing.",
+      steps: [
+        open(ASSETS.lockedShot),
+        { hover: { area: "editorImage.canvas" } },
+        { waitFor: { area: "editorImage.redactionLock" } },
+      ],
+      keepPointer: true,
+      demonstrates: ["editorImage.redactionLock:shown"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
     "inspect-off": {
       profile: "image-inspect",
       how: "With the flag forced on, open “Settings page”: the Inspect button is in the toolbar, off.",
@@ -572,10 +584,6 @@ export const editorImage = catalog(
       "editorImage.textStatus:unavailable": nc(
         "inducedFailure",
         "showing it needs a run without the recognition helper; the catalog could only get that with a test-only override of the helper path in production code (or by deleting the helper on the runner), and the real-app proof `verify/image-text.verify.ts` covers it by renaming the helper away",
-      ),
-      "editorImage.redactionLock:shown": nc(
-        "needsSetup",
-        "the tag shows on a selected saved redaction, and the select tool cannot click one (a saved redaction is not a hit target); the layer test pins it, and a catalog step waits for the owner to decide how a saved redaction gets selected",
       ),
       "editorImage.inspectColors:counting": nc(
         "transient",
