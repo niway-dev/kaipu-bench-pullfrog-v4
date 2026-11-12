@@ -474,7 +474,7 @@ export const editorImage = catalog(
     },
     "colors-copied": {
       profile: "image-inspect",
-      how: "With the flag forced on, open “Pricing page”, press Inspect, then Colors, and press a row's copy button: the row's bar and share are replaced by a green check and Copied for a moment, and a toast names the color (mock F5).",
+      how: "With the flag forced on, open “Pricing page”, press Inspect, then Colors, and press a row's copy button: the row's bar and share are replaced by a green check and Copied for a moment (mock F5). The toast that also names the color is closed before the shot, so it is not in the image.",
       steps: [
         ...colorsPanelOpen(ASSETS.colorsShot),
         {
