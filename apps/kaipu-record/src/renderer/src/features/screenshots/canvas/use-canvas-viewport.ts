@@ -241,12 +241,13 @@ export function useCanvasViewport(
     [enabled, apply],
   );
 
-  // Shift+1 fits the content in view (mock A6). Not while typing or with a dialog open.
+  // Shift+1 fits the content in view (mock A6). Not while typing, with a dialog open, or with
+  // an open toolbar menu (the same overlay guard as useToolShortcuts).
   useEffect(() => {
     if (!enabled) return;
     const onKey = (e: KeyboardEvent): void => {
-      const modalOpen = document.querySelector('[aria-modal="true"]') !== null;
-      if (!isFitContentKey(e, modalOpen)) return;
+      const overlayOpen = document.querySelector('[role="menu"], [aria-modal="true"]') !== null;
+      if (!isFitContentKey(e, overlayOpen)) return;
       e.preventDefault();
       fit();
     };
