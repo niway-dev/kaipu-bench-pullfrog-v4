@@ -310,7 +310,8 @@ export function registerScreenshotHandlers(
     }),
   );
 
-  // Whether a canvas document exists beside a shot, and when it was written; never rejects.
+  // Whether a canvas document exists beside a shot, and when it was written. Null only when it
+  // is missing; any other stat error rejects, so the renderer reports the document as unreadable.
   ipcMain.handle(
     IPC_CHANNELS.screenshotStatCanvas,
     scopedAdmitted("library", async (id: string): Promise<{ savedAt: number } | null> => {

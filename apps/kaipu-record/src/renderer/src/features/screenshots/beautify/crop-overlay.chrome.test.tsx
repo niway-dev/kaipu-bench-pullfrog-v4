@@ -78,4 +78,58 @@ describe("CropOverlay canvas chrome (mock A5)", () => {
     expect(screen.queryByTestId("export-frame-label")).toBeNull();
     expect(screen.queryAllByTestId("export-frame-handle")).toHaveLength(0);
   });
+  // The overlay's layout box stays 100 px; the view's zoom scales it on screen, so its
+  // bounding rect is 100 * zoom wide. Handles are drawn 9 screen px, hit radius is 12 screen px.
+  function mountZoomed(scene: EditorScene, zoom: number) {
+    const m = mount(scene, zoom);
+    const side = 100 * zoom;
+    m.overlay.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: side, height: side, right: side, bottom: side }) as DOMRect;
+    return m;
+  }
+
+  it("grabs a handle by its drawn edge when zoomed out", () => {
+    const scene = makeScene({ x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+    const { overlay } = mountZoomed(scene, 0.25);
+    // Top-left handle centre is at screen (2.5, 2.5); press 4 px right, inside the 4.5 px half-side.
+    fireEvent.pointerDown(overlay, { clientX: 6.5, clientY: 2.5 });
+    fireEvent.pointerMove(overlay, { clientX: 0, clientY: 0 });
+    fireEvent.pointerUp(overlay, { clientX: 0, clientY: 0 });
+    // A resize drags the top-left corner out; a missed press would redraw from the press point.
+    expect(scene.setCrop).toHaveBeenCalledWith(
+      expect.objectContaining({ x: 0, y: 0, w: expect.closeTo(0.9), h: expect.closeTo(0.9) }),
+    );
+  });
+
+  it("grabs a handle from within 12 screen px when zoomed in", () => {
+    const scene = makeScene(FRAME);
+    const { overlay } = mountZoomed(scene, 3);
+    // Top-left handle centre is at screen (30, 30); press 10 px right is inside the 12 px hit.
+    fireEvent.pointerDown(overlay, { clientX: 40, clientY: 30 });
+    fireEvent.pointerMove(overlay, { clientX: 90, clientY: 30 });
+    fireEvent.pointerUp(overlay, { clientX: 90, clientY: 30 });
+    // Resized from the top-left corner: x follows the pointer, the bottom-right stays at 0.6.
+    expect(scene.setCrop).toHaveBeenCalledWith(
+      expect.objectContaining({ x: expect.closeTo(0.3), w: expect.closeTo(0.3) }),
+    );
+  });
+
+  it("does not grab a handle from beyond 12 screen px when zoomed in", () => {
+    const scene = makeScene(FRAME);
+    const { overlay } = mountZoomed(scene, 3);
+    // Top-left handle centre is at screen (30, 30); press 14 px right is outside the 12 px hit
+    // but still inside the frame, so it moves the frame.
+    fireEvent.pointerDown(overlay, { clientX: 44, clientY: 30 });
+    fireEvent.pointerMove(overlay, { clientX: 74, clientY: 30 });
+    fireEvent.pointerUp(overlay, { clientX: 74, clientY: 30 });
+    // Moved the frame (x shifts, size kept) instead of resizing it.
+    expect(scene.setCrop).toHaveBeenCalledWith(
+      expect.objectContaining({ w: expect.closeTo(0.5), x: expect.closeTo(0.1 + 0.1) }),
+    );
+  });
+
+  it("leaves the dimmed stage inert to pointer presses", () => {
+    mount(makeScene(FRAME));
+    expect(screen.getByTestId("export-frame-dim")).toHaveAttribute("pointer-events", "none");
+  });
 });

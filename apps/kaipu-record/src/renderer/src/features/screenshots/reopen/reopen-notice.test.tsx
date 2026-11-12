@@ -2,8 +2,9 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDITABLE_NOTICE_MS, ReopenNotice } from "./reopen-notice";
 
-// Noon UTC on Nov 11: the 11th in every timezone from UTC-11 to UTC+11.
-const SAVED_AT = Date.UTC(2026, 10, 11, 12, 0, 0);
+// Noon in the local timezone on Nov 11: the component formats the day in local time,
+// so a fixed UTC instant would read as Nov 12 in zones such as UTC+12 to UTC+14.
+const SAVED_AT = new Date(2026, 10, 11, 12, 0, 0).getTime();
 
 describe("ReopenNotice, editable (I1)", () => {
   beforeEach(() => vi.useFakeTimers());
