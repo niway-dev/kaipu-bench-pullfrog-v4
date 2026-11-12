@@ -375,7 +375,9 @@ describe("AnnotationOptions — step delete line (NIW2-713)", () => {
     const step: Annotation = { id: "s1", kind: "step", x: 0.5, y: 0.5, color: "#f6055c", size: 1 };
     const scene = makeScene([step], "s1");
     render(<AnnotationOptions tools={makeTools()} scene={scene} />);
-    const line = screen.getByText("Delete renumbers the rest");
+    // The visible text is the accessible name (no aria-label hiding it), so a screen reader
+    // hears the renumbering warning and voice control can say what it sees.
+    const line = screen.getByRole("button", { name: "Delete renumbers the rest" });
     fireEvent.click(line);
     expect(scene.removeSelected).toHaveBeenCalledTimes(1);
   });
