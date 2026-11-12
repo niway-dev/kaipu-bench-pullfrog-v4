@@ -170,31 +170,62 @@
 
 /* ── Redaction style (canvas mode) ───────────── */
 
+.panelRedaction {
+  box-sizing: border-box;
+  width: 236px;
+}
+
 .redaction {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
 }
 
-.styleItem {
-  width: auto;
-  padding: 0 var(--space-md);
-  font-family: var(--font-family);
-  font-size: var(--font-size-sm);
-  color: var(--ie-mut);
+.styleRow {
+  display: flex;
+  gap: 6px;
 }
 
-.pickerOn.styleItem {
-  color: var(--ie-tx);
+.styleButton {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border: 1px solid var(--ie-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ie-tx2);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.styleButtonOn {
+  border-color: var(--ie-accent);
+  background: var(--ie-accent-soft);
+  color: var(--ie-accent);
+}
+
+.noteRow {
+  display: flex;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.noteIcon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ie-mut);
 }
 
 .note {
   margin: 0;
-  max-width: 220px;
   font-family: var(--font-family);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-label);
-  color: var(--ie-faint);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ie-tx2);
 }
 
 /* ── Text recognition status ("Select text" tool) ─ */
