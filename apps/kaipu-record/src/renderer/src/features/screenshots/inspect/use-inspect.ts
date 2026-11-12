@@ -568,7 +568,7 @@ export function useInspect({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [enabled, setActive, setRuler, setShift]);
+  }, [enabled, canvasMode, setActive, setRuler, setShift]);
 
   // A different image invalidates everything decoded from the old one.
   const displayUrl = image?.displayUrl;

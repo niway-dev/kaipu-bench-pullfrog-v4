@@ -41,6 +41,7 @@ import {
   InspectBar,
   InspectLayer,
   InspectToggle,
+  isEditingTarget,
   LocateOverlay,
   useColors,
   useInspect,
@@ -1239,6 +1240,8 @@ function ScreenshotEditorBody({
     if (!sheetOpen) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== "Escape") return;
+      // A field or a dialog keeps its own Esc.
+      if (isEditingTarget(e.target) || document.querySelector('[aria-modal="true"]')) return;
       // Capture phase + stop: the crop overlay also clears its frame on Esc.
       e.stopPropagation();
       setPanelOpen(false);
