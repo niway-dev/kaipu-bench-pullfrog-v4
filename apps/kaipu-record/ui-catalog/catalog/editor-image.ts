@@ -345,6 +345,40 @@ export const editorImage = catalog(
       ],
       demonstrates: ["editorImage.textSelection:selected"],
     },
+    "reopen-editable": {
+      profile: "image-canvas",
+      how: "With the flag forced on, open “Settings page”, pick Step, click the canvas, press Save and answer Overwrite; leave the editor and open “Settings page” again: a pill at the top of the stage says it reopened with everything editable, with the time it was saved, and fades after about four seconds.",
+      steps: [
+        open(ASSETS.settingsShot),
+        tool("Step"),
+        { click: { area: "editorImage.canvas" } },
+        {
+          click: {
+            area: "editorImage.toolbar",
+            part: { role: "button", name: "Save", exact: true },
+          },
+        },
+        { click: { area: "editorImage.page", part: { role: "button", name: "Overwrite" } } },
+        {
+          waitFor: {
+            area: "editorImage.toolbar",
+            part: { role: "button", name: "Saved", exact: true },
+          },
+        },
+        { navigate: "/library" },
+        open(ASSETS.settingsShot),
+        { waitFor: { area: "editorImage.reopenNotice" } },
+      ],
+      demonstrates: ["editorImage.reopenNotice:editable"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
+    "reopen-flat": {
+      profile: "image-canvas-unreadable",
+      how: "With the flag forced on and a corrupt editable document beside “Settings page”, open it: the flat image opens, with a pill that says the earlier drawings are part of it now and can no longer be moved, and stays until dismissed.",
+      steps: [open(ASSETS.settingsShot), { waitFor: { area: "editorImage.reopenNotice" } }],
+      demonstrates: ["editorImage.reopenNotice:flat"],
+      gates: [{ flag: "image-canvas", side: "on" }],
+    },
     "canvas-light": {
       profile: "image-canvas",
       how: "With the flag forced on, switch to the light theme and open “Settings page”: the canvas's dot grid takes the light colours.",

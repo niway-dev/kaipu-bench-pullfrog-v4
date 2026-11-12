@@ -47,6 +47,12 @@ import {
 import { SaveOptionsDialog } from "@renderer/features/screenshots/save-options-dialog";
 import { CaptureTitleInput } from "@renderer/features/screenshots/capture-title-input";
 import {
+  savedAtOf,
+  whyNoDocument,
+  type CanvasLoad,
+} from "@renderer/features/screenshots/reopen/canvas-load";
+import { ReopenNoticeSlot } from "@renderer/features/screenshots/reopen/reopen-notice";
+import {
   resolveCaptureTitle,
   useCaptureTitle,
 } from "@renderer/features/screenshots/use-capture-title";
@@ -171,9 +177,10 @@ function newImageAssetId(): string {
 }
 
 /**
- * Read and validate the document saved beside a vault shot. Null means "open the flattened
- * PNG instead": no document, a corrupt or unsupported one, a missing base asset, or a read
- * that failed. It never rejects, so a bad document can never keep the editor from opening.
+ * Read and validate the document saved beside a vault shot. Anything but `loaded` means
+ * "open the flattened PNG instead": `absent` when there is no document (a plain screenshot),
+ * `unreadable` when one exists but is corrupt or unsupported, lacks its base asset, or could
+ * not be read. It never rejects, so a bad document can never keep the editor from opening.
  */
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const isPng = (bytes: ArrayBuffer): boolean => {
@@ -181,38 +188,44 @@ const isPng = (bytes: ArrayBuffer): boolean => {
   return head.length === 8 && PNG_SIGNATURE.every((b, i) => head[i] === b);
 };
 
-async function loadCanvasDoc(id: string): Promise<LoadedCanvasDoc | null> {
+async function loadCanvasDoc(id: string): Promise<CanvasLoad<LoadedCanvasDoc>> {
+  const unreadable: CanvasLoad<LoadedCanvasDoc> = { status: "unreadable" };
   try {
     const stored = await window.electronAPI.readScreenshotCanvas(id);
-    if (!stored) return null;
+    // The reader answers null for a missing document and an unusable one alike.
+    if (!stored) return { status: await whyNoDocument(id) };
     const parsed = parseCanvasDoc(stored.docJson);
-    if (!parsed) return null;
+    if (!parsed) return unreadable;
     const bytes = stored.assets[parsed.base.assetId];
     // Not a PNG: the image would never load and the editor would stay disabled.
-    if (!bytes || !isPng(bytes)) return null;
+    if (!bytes || !isPng(bytes)) return unreadable;
     // An image whose asset is gone or not a PNG cannot be drawn or exported: like a bad base,
     // open the flattened PNG (which still shows it) instead of a document that would throw.
     const assets: CanvasAssets = {};
     for (const a of parsed.scene.annotations) {
       if (a.kind !== "image") continue;
       const asset = stored.assets[a.assetId];
-      if (!asset || !isPng(asset)) return null;
+      if (!asset || !isPng(asset)) return unreadable;
       assets[a.assetId] = asset;
     }
     // New annotations must not reuse an id the document already holds.
     reserveAnnotationIds(parsed.scene.annotations);
     return {
-      bytes,
-      scene: parsed.scene,
-      pixelWidth: parsed.base.pixelWidth,
-      pixelHeight: parsed.base.pixelHeight,
-      assets,
+      status: "loaded",
+      doc: {
+        bytes,
+        scene: parsed.scene,
+        pixelWidth: parsed.base.pixelWidth,
+        pixelHeight: parsed.base.pixelHeight,
+        assets,
+      },
+      savedAt: await savedAtOf(id),
     };
   } catch (error) {
     // The next save replaces the document with one built on the flat PNG, so a read that
     // failed (not a missing or invalid document) loses the editable layers: record it.
     captureException(error, { phase: "read-canvas" });
-    return null;
+    return unreadable;
   }
 }
 
@@ -236,12 +249,14 @@ export function ScreenshotEditor({
   const [canvasMode] = useState(useFlag("image-canvas"));
   const needsRead = canvasMode && source.kind === "local";
   const localId = source.kind === "local" ? source.id : null;
-  const [loaded, setLoaded] = useState<{ id: string; doc: LoadedCanvasDoc | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; load: CanvasLoad<LoadedCanvasDoc> } | null>(
+    null,
+  );
   useEffect(() => {
     if (!needsRead || localId === null) return;
     let cancelled = false;
-    void loadCanvasDoc(localId).then((doc) => {
-      if (!cancelled) setLoaded({ id: localId, doc });
+    void loadCanvasDoc(localId).then((load) => {
+      if (!cancelled) setLoaded({ id: localId, load });
     });
     return () => {
       cancelled = true;
@@ -253,7 +268,8 @@ export function ScreenshotEditor({
       source={source}
       fresh={fresh}
       canvasMode={canvasMode}
-      doc={needsRead ? (loaded?.doc ?? null) : null}
+      doc={needsRead && loaded?.load.status === "loaded" ? loaded.load.doc : null}
+      reopen={needsRead ? (loaded?.load ?? null) : null}
     />
   );
 }
@@ -263,12 +279,15 @@ function ScreenshotEditorBody({
   fresh,
   canvasMode,
   doc,
+  reopen,
 }: {
   source: ImageSource;
   fresh: boolean;
   canvasMode: boolean;
   /** The document a canvas-mode reopen found, or null (flat PNG, no annotations). */
   doc: LoadedCanvasDoc | null;
+  /** What the reopen found, for the notice on the stage (null: not a canvas-mode reopen). */
+  reopen: CanvasLoad<LoadedCanvasDoc> | null;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const tLibrary = useTranslations("library");
@@ -1331,6 +1350,7 @@ function ScreenshotEditorBody({
               <ZoomIn size={16} />
             </button>
           </div>
+          <ReopenNoticeSlot reopen={reopen} edited={dirty} />
         </div>
         <BeautifyPanel beautify={scene.beautify} />
       </div>

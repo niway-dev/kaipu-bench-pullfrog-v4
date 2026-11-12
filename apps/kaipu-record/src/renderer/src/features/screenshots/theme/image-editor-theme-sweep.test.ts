@@ -10,6 +10,7 @@ const ROOTS = [
   "features/screenshots/beautify",
   "features/screenshots/canvas",
   "features/screenshots/inspect",
+  "features/screenshots/reopen",
   "features/screenshots/text-selection",
   "features/screenshots/export",
 ];

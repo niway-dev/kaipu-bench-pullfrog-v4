@@ -190,6 +190,11 @@ export interface SeedOptions {
   /** Add the screenshot that draws real text (profiles that exercise text recognition). */
   textScreenshot?: boolean;
   /**
+   * Leave a canvas document that cannot be parsed beside "Settings page" (the image editor's
+   * reopen then opens the flat image and says so).
+   */
+  corruptCanvas?: boolean;
+  /**
    * Make "Check and fix files" find something: `fixable`, a recording whose file name does
    * not match its title; `attention`, a recording whose record cannot be read.
    */
@@ -397,6 +402,10 @@ export async function seedCatalogVault(vaultDir: string, options: SeedOptions): 
       createdAt: now - shot.ago,
       ...tagIdsOf("tags" in shot ? shot.tags : []),
     });
+  }
+
+  if (options.corruptCanvas) {
+    await writeFile(path.join(meta, `${SCREENSHOTS[0].stem}.canvas.json`), "{ not json\n");
   }
 
   if (options.textScreenshot) {
