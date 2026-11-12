@@ -173,7 +173,7 @@
   cursor: default;
 }
 
-/* Canvas mode: a divider, then "Fit" (mock A6). Accent while the off-content notice shows. */
+/* Canvas mode: a divider, then the Fit icon (mock A6). Accent while the off-content notice shows. */
 .zoomDivider {
   width: 1px;
   height: 16px;
@@ -182,15 +182,16 @@
 }
 
 .zoomFit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
   height: 28px;
-  padding: 0 var(--space-sm);
+  padding: 0;
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
   color: var(--ie-tx2);
-  font-family: var(--font-family);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition:
     background var(--transition),

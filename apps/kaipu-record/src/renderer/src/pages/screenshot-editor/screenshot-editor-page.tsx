@@ -19,6 +19,7 @@ import {
   openKindOf,
 } from "@renderer/features/screenshots/auto-capture-policy";
 import { DiscardChangesDialog } from "@renderer/features/screenshots/discard-changes-dialog";
+import { FitIcon } from "@renderer/features/screenshots/toolbar/editor-icons";
 import type { CanvasSavePayload } from "@shared/types/screenshot-canvas";
 import type { TextCacheSavePayload } from "@shared/types/text-recognition";
 import { captureException, reportError } from "@renderer/features/analytics";
@@ -1555,9 +1556,10 @@ function ScreenshotEditorBody({
                   className={styles.zoomFit}
                   data-notice={offContent != null}
                   title={t("zoomFit")}
+                  aria-label={t("zoomFitLabel")}
                   onClick={() => viewport.fit()}
                 >
-                  {t("zoomFitLabel")}
+                  <FitIcon size={16} />
                 </button>
               </>
             )}

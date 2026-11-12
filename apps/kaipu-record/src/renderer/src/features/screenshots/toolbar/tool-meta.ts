@@ -2,16 +2,14 @@ import {
   ArrowUpRight,
   Crop,
   Droplet,
-  EyeOff,
-  ListOrdered,
   MousePointer2,
   PenLine,
   Square,
   TextSelect,
   Type,
-  type LucideIcon,
 } from "lucide-react";
 import type { AnnotationTool } from "../annotations/tools";
+import { RedactIcon, StepIcon, type ToolIcon } from "./editor-icons";
 
 /** i18n keys (`screenshots` namespace) of the tools' plain labels. */
 export type ToolLabelKey =
@@ -57,7 +55,7 @@ export const DRAW_TOOLS = ["pen", "box", "arrow", "text", "step"] as const;
 export function toolMeta(
   tool: AnnotationTool,
   canvasMode: boolean,
-): { labelKey: ToolLabelKey; Icon: LucideIcon } {
+): { labelKey: ToolLabelKey; Icon: ToolIcon } {
   switch (tool) {
     case "select":
       return { labelKey: "toolSelect", Icon: MousePointer2 };
@@ -70,10 +68,10 @@ export function toolMeta(
     case "text":
       return { labelKey: "toolText", Icon: Type };
     case "step":
-      return { labelKey: "toolStep", Icon: ListOrdered };
+      return { labelKey: "toolStep", Icon: StepIcon };
     case "blur":
       return canvasMode
-        ? { labelKey: "toolRedact", Icon: EyeOff }
+        ? { labelKey: "toolRedact", Icon: RedactIcon }
         : { labelKey: "toolBlur", Icon: Droplet };
     case "crop":
       return { labelKey: canvasMode ? "toolExportFrame" : "toolCrop", Icon: Crop };
