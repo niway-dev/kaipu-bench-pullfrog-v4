@@ -52,7 +52,7 @@ test("editing a screenshot and saving writes a valid PNG to the vault", async ()
 
 /** Everything a resize of the toolbar could break, measured in the renderer. */
 interface ToolbarLayout {
-  /** `data-compact` on the row: "true" once the action labels have been dropped. */
+  /** `data-compact` on the row: "true" once the tools fold into Draw and More (mock B3). */
   compact: string | null;
   /** The toolbar's own scroll width exceeds its box — a control ran past the edge. */
   overflows: boolean;
@@ -65,7 +65,7 @@ interface ToolbarLayout {
 }
 
 /**
- * The toolbar settles a frame after the window does: useCompactRow re-measures from a
+ * The toolbar settles a frame after the window does: useCompactEditor re-measures from a
  * ResizeObserver, so a reading taken the instant `innerWidth` matches can still carry the
  * previous width's `data-compact` (seen on CI: "false" with the actions pushed outside at
  * 680px, then "true" and clean a moment later). Poll the reading instead of taking one.
@@ -74,7 +74,7 @@ async function expectToolbar(page: Page, expected: ToolbarLayout): Promise<void>
   await expect.poll(() => measureToolbar(page)).toEqual(expected);
 }
 
-/** The capture title field's width: what the compact row exists to protect (NIW2-351). */
+/** The capture title field's width: the full row keeps it readable at the editor floor (NIW2-351). */
 async function titleFieldWidth(page: Page): Promise<number> {
   return page
     .getByRole("toolbar")
