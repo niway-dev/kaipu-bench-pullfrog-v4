@@ -74,7 +74,7 @@ async function expectToolbar(page: Page, expected: ToolbarLayout): Promise<void>
   await expect.poll(() => measureToolbar(page)).toEqual(expected);
 }
 
-/** The capture title field's width: the full row keeps it readable at the editor floor (NIW2-351). */
+/** The capture title field's width: the full row keeps it readable down to 1180px (NIW2-351). */
 async function titleFieldWidth(page: Page): Promise<number> {
   return page
     .getByRole("toolbar")
@@ -143,10 +143,10 @@ async function resizeWindow(
 
 const ONE_CLEAN_ROW = { overflows: false, overlaps: [], outside: [], rowSpread: 0 };
 
-// The window the editor lives in: WINDOW_PRESETS.editor (shared/window-size.ts) names 1440
-// as its starting width and 1180 as the floor the window refuses to shrink below — every
-// /editor route shares it. Both must hold one clean row, and with room to spare the
-// action labels stay.
+// A screenshot opens in the image editor, whose window (WINDOW_PRESETS.editorImage in
+// shared/window-size.ts) starts at 1440 and has a 720 floor, so both widths here are above
+// the floor. 1180 is the floor of the other /editor routes (WINDOW_PRESETS.editor), not this
+// one. Both widths must hold one clean row, and with room to spare the action labels stay.
 for (const width of [1440, 1180]) {
   test(`the editor toolbar keeps one row, labels on, at ${width}px`, async () => {
     const { app, page, teardown } = await launchApp();
@@ -162,11 +162,12 @@ for (const width of [1440, 1180]) {
   });
 }
 
-// Below the editor floor (a display too small for it: `fitPresetToDisplay` clamps the floor
-// to the work area) the title gives way to the tools, per the owner's mock B3, which
-// supersedes NIW2-351's below-floor rule. The window floor (1180) still keeps title and labels.
-// Compact row: Save keeps its label, Copy is icon-only, the tools fold into Draw and More,
-// and the capture title input is not rendered.
+// The compact row (the owner's mock B3, which supersedes NIW2-351's below-floor rule) gives
+// the title way to the tools. The image editor's floor is 720 (see above), so 900px is above
+// it: the compact row is the normal layout at this width, not a fallback for a small display.
+// Only a display whose work area is narrower than the floor clamps it further
+// (`fitPresetToDisplay`). Compact row: Save keeps its label, Copy is icon-only, the tools fold
+// into Draw and More, and the capture title input is not rendered.
 async function expectCompactRow(page: Page): Promise<void> {
   await expectToolbar(page, { ...ONE_CLEAN_ROW, compact: "true" });
   const toolbar = page.getByRole("toolbar");
