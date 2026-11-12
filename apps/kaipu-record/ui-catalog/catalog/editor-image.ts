@@ -612,6 +612,8 @@ export const editorImage = catalog(
       steps: [
         open(ASSETS.pinsShot),
         inspectToggle,
+        // Two moves: one mouse event can land before the Inspect layer listens (seen once on the mini).
+        hoverAt(0.44, 0.34),
         hoverAt(0.45, 0.35),
         hudShown,
         { press: "1" },
