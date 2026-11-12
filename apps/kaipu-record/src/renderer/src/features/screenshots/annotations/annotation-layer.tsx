@@ -38,6 +38,8 @@ import type { EditorScene } from "./use-editor-scene";
 import type { AnnotationToolsController } from "./use-annotation-tools";
 import type { RecognizedWord } from "@kaipu/domain/schemas";
 import { nearestWord, wordBoxNorm, type TextLayerModel } from "../text-selection";
+import { gapMeasures, type WorldRect } from "../canvas/image-gap";
+import { ImageSelection } from "../canvas/image-selection";
 import styles from "./annotation-layer.module.css";
 
 interface Size {
@@ -92,6 +94,18 @@ interface LayerProps {
    * same pan and zoom.
    */
   text?: TextLayerModel;
+  /**
+   * Canvas mode (NIW2-711): told, on every change, which annotations are on screen while a
+   * shape is being drawn or moved (the stored ones with the drag applied, plus the draft), and
+   * null once nothing is in flight. The editor measures them so the export box grows with the
+   * drag instead of jumping on release. Must be referentially stable: the layer is memoized.
+   */
+  onLive?: (shown: readonly Annotation[] | null) => void;
+  /**
+   * Canvas mode (NIW2-711): the base image's pixel size. With it, a selected added image
+   * shows the gap to its nearest neighbour in source px. Absent = no gap measure.
+   */
+  natural?: { w: number; h: number };
 }
 
 /**
@@ -108,6 +122,8 @@ function AnnotationLayerImpl({
   canvasMode = false,
   imageUrls,
   text,
+  onLive,
+  natural,
 }: LayerProps): React.JSX.Element {
   const t = useTranslations("screenshots");
   const ref = useRef<HTMLDivElement>(null);
@@ -492,6 +508,11 @@ function AnnotationLayerImpl({
         : scene.annotations,
     [scene.annotations, live],
   );
+  // Tell the editor what is on screen while a drag is in flight (see `onLive`).
+  const inFlight = draft != null || live != null;
+  useEffect(() => {
+    onLive?.(inFlight ? (draft ? [...shown, draft] : shown) : null);
+  }, [onLive, inFlight, draft, shown]);
   // Added images (NIW2-703) wear the base's corner radius and shadow, in the same display
   // px (the layer's size IS the displayed shot). `state` is absent only in test doubles.
   const radius = scene.beautify.state?.radius ?? 0;
@@ -516,6 +537,24 @@ function AnnotationLayerImpl({
     tools.tool === "select" && !editing
       ? (shown.find((a) => a.id === scene.selectedId) ?? null)
       : null;
+  // A selected added image shows the gap to its nearest neighbour (mock A4). The base image
+  // is a neighbour too. World units: 1 = one source px of the base, so the number is the one
+  // the export has. Follows the drag, because it reads `shown`.
+  const selectedImage =
+    canvasMode && selectedAnnotation?.kind === "image" ? selectedAnnotation : null;
+  const gaps = useMemo(() => {
+    if (!selectedImage || !natural || natural.w <= 0 || natural.h <= 0) return [];
+    const world = (a: { x: number; y: number; w: number; h: number }): WorldRect => ({
+      x: a.x * natural.w,
+      y: a.y * natural.h,
+      w: a.w * natural.w,
+      h: a.h * natural.h,
+    });
+    const others: WorldRect[] = [{ x: 0, y: 0, w: natural.w, h: natural.h }];
+    for (const a of shown)
+      if (a.kind === "image" && a.id !== selectedImage.id) others.push(world(a));
+    return gapMeasures(world(selectedImage), others);
+  }, [selectedImage, natural, shown]);
 
   return (
     <div
@@ -604,6 +643,20 @@ function AnnotationLayerImpl({
           </g>
         )}
       </svg>
+      {selectedImage && (
+        <ImageSelection
+          rect={{
+            x: selectedImage.x * size.w,
+            y: selectedImage.y * size.h,
+            w: selectedImage.w * size.w,
+            h: selectedImage.h * size.h,
+          }}
+          pixelWidth={selectedImage.pixelWidth}
+          pixelHeight={selectedImage.pixelHeight}
+          gaps={gaps}
+          unit={natural && natural.w > 0 ? size.w / natural.w : 1}
+        />
+      )}
       {editing && (
         <textarea
           ref={textInputRef}
@@ -687,7 +740,10 @@ function sameLayerProps(p: LayerProps, n: LayerProps): boolean {
     // Added images follow the beautify radius and shadow; nothing else of it is read.
     p.scene.beautify.state?.radius === n.scene.beautify.state?.radius &&
     p.scene.beautify.state?.shadow === n.scene.beautify.state?.shadow &&
-    p.text === n.text
+    p.text === n.text &&
+    p.onLive === n.onLive &&
+    p.natural?.w === n.natural?.w &&
+    p.natural?.h === n.natural?.h
   );
 }
 
@@ -1064,8 +1120,16 @@ const ImageShape = React.memo(function ImageShape({
             <ImageRedactionTile key={b.id} a={a} blur={b} url={url} size={size} />
           ))}
       </g>
+      {/* The accent frame sits on the image's own edge (mock A4), a fixed 1.5 px on screen at
+          any zoom; the layer's HTML chrome adds the white halo, handles and tag. */}
       {selected && (
-        <rect className={styles.selOutline} x={x - 4} y={y - 4} width={w + 8} height={h + 8} />
+        <rect
+          className={`${styles.selOutline} ${styles.imageFrame}`}
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+        />
       )}
     </g>
   );

@@ -471,14 +471,14 @@ describe("ScreenshotEditorPage — Crop is the export frame (image-canvas)", () 
     expect(scene.exportFrame!.h).toBeCloseTo(0.4);
   });
 
-  it("flag on: Reset clears the export frame", async () => {
+  it("flag on: Remove (the export frame card's button) clears the export frame", async () => {
     imageCanvas = true;
     sizeTheCanvas();
     mount(PASTE);
     await loadImage();
     await drawCrop();
     await waitFor(() => expect(canvasEl().dataset.exportFrame).toBe("true"));
-    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(canvasEl().dataset.exportFrame).toBe("false"));
   });
 
@@ -539,9 +539,9 @@ describe("ScreenshotEditorPage — Crop is the export frame (image-canvas)", () 
       fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
       await waitFor(() => expect(canvasEl().dataset.hasContentOutside).toBe("false"));
       expect(canvasEl().dataset.exportFrame).toBe("true");
-      // The frame paints and exports nothing, yet Reset is live and clears it.
+      // The frame paints and exports nothing, yet Remove is live and clears it.
       fireEvent.click(screen.getByRole("button", { name: "Export frame" }));
-      const reset = screen.getByRole("button", { name: "Reset" });
+      const reset = screen.getByRole("button", { name: "Remove" });
       expect(reset).toBeEnabled();
       fireEvent.click(reset);
       await waitFor(() => expect(canvasEl().dataset.exportFrame).toBe("false"));

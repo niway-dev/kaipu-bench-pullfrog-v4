@@ -183,15 +183,25 @@ export function canvasExportGeometry(
 /**
  * The pixel size a canvas-mode export has at raster scale 1 (what Copy and Save produce):
  * the content box plus padding, or the export frame's window when one is set.
+ *
+ * `extents` replaces the ones measured from the scene's annotations: the editor passes the
+ * live ones while a shape is being drawn or moved, before the scene holds it.
  */
 export function exportPixelSize(
   scene: Scene,
   naturalW: number,
   naturalH: number,
   displayedW: number,
+  extents?: Extents,
 ): { w: number; h: number } {
   const g = canvasExportGeometry(scene, naturalW, naturalH, displayedW);
-  const { outW, outH } = frameWindow(scene, { href: "", naturalW, naturalH, ...g });
+  const { outW, outH } = frameWindow(scene, {
+    href: "",
+    naturalW,
+    naturalH,
+    ...g,
+    ...(extents ? { extents } : {}),
+  });
   return { w: outW, h: outH };
 }
 

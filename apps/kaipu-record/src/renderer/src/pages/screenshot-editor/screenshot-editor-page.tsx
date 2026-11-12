@@ -65,6 +65,7 @@ import {
   bakeCanvasRedactions,
   buildCanvasDoc,
   contentExtents,
+  exportPixelSize,
   extentsToDisplay,
   frameToWorld,
   intersectFrame,
@@ -77,7 +78,9 @@ import {
   type AnnotationTool,
   type CanvasAssets,
   type CanvasGeom,
+  type Annotation,
   type CropRect,
+  type Extents,
   type ImageAnnotation,
   type EditorScene,
   type Scene,
@@ -85,8 +88,13 @@ import {
 import {
   AddImageControl,
   CANVAS_ZOOM,
+  ExportBox,
+  ExportFrameCard,
+  OffContentNotice,
+  contentBoxFrame,
   isIdentityView,
   useCanvasViewport,
+  useOffContent,
   useDotGrid,
   useExtentsCompensation,
   useShotMetrics,
@@ -610,14 +618,48 @@ function ScreenshotEditorBody({
   const metrics = useShotMetrics(imgRef, canvasMode, imageReady);
   // How far the content sticks out past each side of the shot, in display px, from the
   // live annotations (the same measure the export uses, at the same scale).
+  // While a shape is drawn or moved the stored annotations do not hold it yet: the layer
+  // reports what is on screen (`onLive`) and the extents (in source px) follow the drag, so
+  // the box and its label grow live instead of jumping on release (mock A3). Only the
+  // extents are kept, and only when they change, so a drag that stays inside the shot does
+  // not re-render the page on every pointer move.
+  const metricsRef = useRef(metrics);
+  metricsRef.current = metrics;
+  const [liveExtents, setLiveExtents] = useState<Extents | null>(null);
+  const onLive = useCallback((shown: readonly Annotation[] | null): void => {
+    const m = metricsRef.current;
+    if (!shown || !m || m.w <= 0 || m.naturalW <= 0) {
+      setLiveExtents(null);
+      return;
+    }
+    const next = contentExtents(shown, m.naturalW, m.naturalH, m.naturalW / m.w);
+    setLiveExtents((prev) =>
+      prev &&
+      prev.left === next.left &&
+      prev.top === next.top &&
+      prev.right === next.right &&
+      prev.bottom === next.bottom
+        ? prev
+        : next,
+    );
+  }, []);
+  // The content box's overhang in source px (the export's own measure), live or stored.
+  const extentsNatural = useMemo(() => {
+    if (!canvasMode || !metrics || metrics.w <= 0 || metrics.naturalW <= 0) return ZERO_EXTENTS;
+    return (
+      liveExtents ??
+      contentExtents(
+        scene.annotations,
+        metrics.naturalW,
+        metrics.naturalH,
+        metrics.naturalW / metrics.w,
+      )
+    );
+  }, [canvasMode, metrics, scene.annotations, liveExtents]);
   const extents = useMemo(() => {
     if (!canvasMode || !metrics || metrics.w <= 0 || metrics.naturalW <= 0) return ZERO_EXTENTS;
-    const scale = metrics.naturalW / metrics.w;
-    return extentsToDisplay(
-      contentExtents(scene.annotations, metrics.naturalW, metrics.naturalH, scale),
-      scale,
-    );
-  }, [canvasMode, metrics, scene.annotations]);
+    return extentsToDisplay(extentsNatural, metrics.naturalW / metrics.w);
+  }, [canvasMode, metrics, extentsNatural]);
   // Growing or shrinking the content box re-centres the frame, which would slide the shot
   // on screen. Move the pan by the same amount so the shot stays where the user left it.
   // The first measurement is the baseline, so a reopened document with content outside the
@@ -654,6 +696,34 @@ function ScreenshotEditorBody({
     canvasMode && metrics && metrics.w > 0 && metrics.h > 0
       ? { naturalW: metrics.w, naturalH: metrics.h, pad: scene.beautify.state.padding, extents }
       : null;
+  // The exact pixel size Copy and Save produce (mock A1's label), from the export's own
+  // computation, so the label cannot say a size the export does not have.
+  const exportSize = useMemo(
+    () =>
+      canvasMode && metrics && metrics.w > 0 && metrics.naturalW > 0
+        ? exportPixelSize(
+            {
+              beautify: scene.beautify.state,
+              annotations: scene.annotations,
+              crop: scene.crop,
+              exportFrame: scene.exportFrame,
+            },
+            metrics.naturalW,
+            metrics.naturalH,
+            metrics.w,
+            extentsNatural,
+          )
+        : null,
+    [
+      canvasMode,
+      metrics,
+      scene.beautify.state,
+      scene.annotations,
+      scene.crop,
+      scene.exportFrame,
+      extentsNatural,
+    ],
+  );
   const exportFrameCrop: CropRect | undefined =
     canvasGeom && scene.exportFrame
       ? intersectFrame(worldToFrame(scene.exportFrame, canvasGeom))
@@ -678,6 +748,14 @@ function ScreenshotEditorBody({
   const shownZoom = canvasMode ? viewport.view.zoom : zoom;
   const zoomMin = canvasMode ? CANVAS_ZOOM.min : ZOOM_MIN;
   const zoomMax = canvasMode ? CANVAS_ZOOM.max : ZOOM_MAX;
+  // Mock A6: which way the content went once most of it left the visible stage.
+  const offContent = useOffContent(canvasRef, canvasMode && hasImage, [
+    viewport.view,
+    extents,
+    metrics,
+    scene.beautify.state.padding,
+    scene.exportFrame,
+  ]);
 
   // Images added to the canvas (NIW2-703). The bytes live in a ref: queued save and export jobs
   // read them when they RUN, and nothing renders from the bytes themselves. The display side is
@@ -1308,6 +1386,13 @@ function ScreenshotEditorBody({
             ref={canvasRef}
             className={styles.canvas}
             data-zoomed={shownZoom > 1}
+            // The chrome drawn in the zoomed frame (the export box, selection frames) reads this
+            // to stay one screen pixel / one font size at any zoom.
+            style={
+              canvasMode
+                ? ({ "--canvas-zoom": viewport.view.zoom } as React.CSSProperties)
+                : undefined
+            }
             {...(inspectEnabled ? { "data-inspect": String(inspect.active) } : {})}
             {...(canvasMode
               ? {
@@ -1334,13 +1419,31 @@ function ScreenshotEditorBody({
                     src={image.displayUrl}
                     canvas={canvasMode}
                     canvasMode={canvasMode}
-                    {...(canvasMode ? { imageUrls } : {})}
+                    {...(canvasMode
+                      ? {
+                          imageUrls,
+                          onLive,
+                          ...(metrics && metrics.naturalW > 0
+                            ? { natural: { w: metrics.naturalW, h: metrics.naturalH } }
+                            : {}),
+                        }
+                      : {})}
                     text={textLayer}
                   />
                   {inspectEnabled && <LocateOverlay image={colors.overlay} />}
                 </>
               }
               frameOverlay={tools.tool === "crop" ? <CropOverlay scene={cropScene} /> : undefined}
+              boxLayer={
+                canvasMode && scene.exportFrame == null ? (
+                  <ExportBox
+                    size={exportSize}
+                    labeled={
+                      !inspect.active && tools.tool !== "blur" && tools.tool !== "selectText"
+                    }
+                  />
+                ) : undefined
+              }
               imgRef={imgRef}
               zoom={shownZoom}
               pan={canvasMode ? { x: viewport.view.panX, y: viewport.view.panY } : undefined}
@@ -1406,8 +1509,34 @@ function ScreenshotEditorBody({
             >
               <ZoomIn size={16} />
             </button>
+            {canvasMode && (
+              <>
+                <span className={styles.zoomDivider} aria-hidden />
+                <button
+                  type="button"
+                  className={styles.zoomFit}
+                  data-notice={offContent != null}
+                  title={t("zoomFit")}
+                  onClick={() => viewport.fit()}
+                >
+                  {t("zoomFitLabel")}
+                </button>
+              </>
+            )}
           </div>
           <ReopenNoticeSlot reopen={reopen} edited={dirty} />
+          {canvasMode && offContent && (
+            <OffContentNotice direction={offContent} onFit={() => viewport.fit()} />
+          )}
+          {canvasMode && tools.tool === "crop" && (
+            <ExportFrameCard
+              hasFrame={scene.exportFrame != null}
+              onFit={() => {
+                if (canvasGeom) scene.setExportFrame(contentBoxFrame(canvasGeom));
+              }}
+              onRemove={() => scene.setExportFrame(undefined)}
+            />
+          )}
         </div>
         {compact ? (
           sheetOpen && (

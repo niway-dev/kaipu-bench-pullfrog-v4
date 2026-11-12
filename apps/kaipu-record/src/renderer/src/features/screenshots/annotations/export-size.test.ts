@@ -44,6 +44,11 @@ describe("exportPixelSize", () => {
     expect(exportPixelSize(scene([], 20), 1000, 600, 500)).toEqual({ w: 1080, h: 680 });
   });
 
+  it("takes live extents in place of the scene's own, for a shape still being drawn", () => {
+    const live = { left: 100, top: 0, right: 50, bottom: 20 };
+    expect(exportPixelSize(scene([]), 1000, 600, 1000, live)).toEqual({ w: 1150, h: 620 });
+  });
+
   it("grows with an image added to the right", () => {
     // The added image spans x 1.2 .. 1.7 of the base width: 700 px past the base's right edge.
     expect(exportPixelSize(scene([image(1.2)]), 1000, 600, 1000)).toEqual({ w: 1700, h: 600 });

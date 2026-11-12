@@ -1,0 +1,57 @@
+/* The export frame card (mock A5): pinned to the stage's top-left, 220 px wide. */
+.card {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  width: 220px;
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--ie-card);
+  border: 1px solid var(--ie-strong);
+  border-radius: 8px;
+  box-shadow: var(--ie-shadow);
+}
+
+.title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ie-tx);
+}
+
+.body {
+  margin: 4px 0 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ie-mut);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.button {
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid var(--ie-strong);
+  border-radius: 5px;
+  color: var(--ie-tx2);
+  font-family: var(--font-family);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

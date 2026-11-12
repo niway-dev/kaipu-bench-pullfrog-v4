@@ -173,6 +173,39 @@
   cursor: default;
 }
 
+/* Canvas mode: a divider, then "Fit" (mock A6). Accent while the off-content notice shows. */
+.zoomDivider {
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--space-xs);
+  background: var(--ie-sep);
+}
+
+.zoomFit {
+  height: 28px;
+  padding: 0 var(--space-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--ie-tx2);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.zoomFit:hover {
+  background: var(--ie-hover);
+  color: var(--ie-tx);
+}
+
+.zoomFit[data-notice="true"] {
+  color: var(--ie-accent);
+}
+
 .secondary,
 .save {
   display: inline-flex;

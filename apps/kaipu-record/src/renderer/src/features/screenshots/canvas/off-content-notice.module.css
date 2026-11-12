@@ -1,0 +1,35 @@
+/* The off-content notice (mock A6): a pill at the stage's bottom-right. */
+.notice {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  background: var(--ie-ov-bg);
+  border: 1px solid var(--ie-ov-bd);
+  border-radius: 18px;
+  color: var(--ie-ov-tx);
+  font-family: var(--font-family);
+  font-size: 12.5px;
+  cursor: pointer;
+  box-shadow: var(--ie-shadow);
+}
+
+.arrow {
+  flex: none;
+  color: var(--ie-accent);
+}
+
+.key {
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid var(--ie-ov-bd);
+  border-radius: 4px;
+  color: var(--ie-ov-tx);
+  font-family: var(--ie-font-mono);
+  font-size: 10.5px;
+}

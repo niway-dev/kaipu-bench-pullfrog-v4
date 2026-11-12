@@ -9,6 +9,8 @@ import { isEditingTarget } from "../inspect/inspect-keys";
 export function isFitContentKey(
   e: {
     code: string;
+    /** Not read: the character depends on the layout. Accepted so a real event fits. */
+    key?: string;
     shiftKey: boolean;
     metaKey: boolean;
     ctrlKey: boolean;

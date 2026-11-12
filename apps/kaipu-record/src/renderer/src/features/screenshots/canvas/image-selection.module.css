@@ -1,0 +1,91 @@
+/*
+ * Selected added image (mock A4). Lives in the annotation layer, which the canvas scales by
+ * the view's zoom; `--canvas-zoom` lets every line, handle and label undo that, so they stay
+ * the same size on screen at any zoom. Nothing here takes pointer input.
+ */
+.frame {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* The white halo: 1 px just outside and 1 px just inside the 1.5 px accent frame, so the
+   frame reads on any picture. */
+.haloOut,
+.haloIn {
+  position: absolute;
+  box-sizing: border-box;
+  border: calc(1px / var(--canvas-zoom, 1)) solid #fff;
+}
+
+.haloOut {
+  inset: calc(-1.75px / var(--canvas-zoom, 1));
+}
+
+.haloIn {
+  inset: calc(0.75px / var(--canvas-zoom, 1));
+}
+
+.handle {
+  position: absolute;
+  box-sizing: border-box;
+  width: calc(9px / var(--canvas-zoom, 1));
+  height: calc(9px / var(--canvas-zoom, 1));
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border: calc(1.5px / var(--canvas-zoom, 1)) solid var(--ie-accent);
+}
+
+/* Above the top edge, centred, at a fixed size on screen. */
+.tag {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px / var(--canvas-zoom, 1));
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 3px 8px;
+  transform: translateX(-50%) scale(calc(1 / var(--canvas-zoom, 1)));
+  transform-origin: center bottom;
+  background: var(--ie-ov-bg);
+  border: 1px solid var(--ie-ov-bd);
+  border-radius: 5px;
+  color: var(--ie-ov-tx);
+  font-family: var(--ie-font-mono);
+  font-size: 10.5px;
+}
+
+.tagLabel {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The gap measure: a dashed line across the empty space, the label centred on it. */
+.gapH,
+.gapV {
+  position: absolute;
+  pointer-events: none;
+}
+
+.gapH {
+  height: 0;
+  border-top: calc(1px / var(--canvas-zoom, 1)) dashed var(--ie-faint);
+}
+
+.gapV {
+  width: 0;
+  border-left: calc(1px / var(--canvas-zoom, 1)) dashed var(--ie-faint);
+}
+
+.gapLabel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(calc(1 / var(--canvas-zoom, 1)));
+  padding: 1px 5px;
+  background: var(--ie-ov-bg);
+  border-radius: 3px;
+  color: var(--ie-mut);
+  font-family: var(--ie-font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}

@@ -7,6 +7,8 @@ export {
   compositeScene,
   compositeSceneAt,
   clampRasterScale,
+  cropWindow,
+  exportPixelSize,
   MAX_RASTER_SIDE,
   type CompositeOptions,
   type CompositeResult,

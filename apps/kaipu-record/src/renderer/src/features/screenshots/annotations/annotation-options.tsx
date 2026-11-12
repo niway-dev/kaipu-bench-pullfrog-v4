@@ -155,7 +155,9 @@ export function AnnotationOptions({
   const t = useTranslations("screenshots");
   const selected = scene.annotations.find((a) => a.id === scene.selectedId) ?? null;
   const controls = resolveControls(tools, scene, selected);
-  const isCrop = tools.tool === "crop";
+  // Canvas mode: the crop tool edits the export frame and has its own card (mock A5), so the
+  // classic "Crop / Reset" row is not shown there.
+  const isCrop = tools.tool === "crop" && !canvasMode;
   // Canvas mode: the style control shows for the blur tool or a selected blur, and edits
   // that blur (one undoable change) or the style the next redaction takes.
   const styleTarget = selected?.kind === "blur" ? selected : null;

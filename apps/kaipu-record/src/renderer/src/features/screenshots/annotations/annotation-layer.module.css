@@ -19,6 +19,12 @@
   stroke-width: 1;
 }
 
+/* A selected added image (mock A4): 1.5 px on screen whatever the zoom. */
+.imageFrame {
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
 .handle {
   fill: var(--ie-card, #fff);
   stroke: var(--ie-accent);
