@@ -12,6 +12,7 @@ const analysis = {
     { id: 0, rgb: 0xffffff, count: 9000, distinct: 1, members: [{ rgb: 0xffffff, count: 9000 }] },
     { id: 1, rgb: 0x111827, count: 1000, distinct: 1, members: [{ rgb: 0x111827, count: 1000 }] },
   ],
+  exact: [],
 } satisfies ColorAnalysis;
 
 describe("locatedColor", () => {

@@ -72,6 +72,11 @@ export interface ColorAnalysis {
   /** Groups found; `groups` holds only the first `MAX_GROUPS` of them. */
   totalGroups: number;
   groups: ColorGroup[];
+  /**
+   * Every exact value, most frequent first (ties: lower color first). Filled only when the
+   * image is not a photograph: a group keeps just `MAX_MEMBERS`, so "Group off" needs this.
+   */
+  exact: ColorMember[];
 }
 
 /** The analysis plus what `locateMask` needs to find a group's pixels again. */
@@ -244,8 +249,25 @@ export function analyzeColors(
     groups.push({ id, rgb: members[0].rgb, count, distinct: groupDistinct[id], members });
   }
 
+  const allExact: ColorMember[] = [];
+  if (distinct < PHOTO_MIN_DISTINCT) {
+    // Ascending key order plus a stable sort gives "lower color first" on equal counts.
+    for (let key = 0; key < exact.length; key++) {
+      if (exact[key] !== 0) allExact.push({ rgb: key, count: exact[key] });
+    }
+    allExact.sort((x, y) => y.count - x.count);
+  }
+
   return {
-    analysis: { width, height, counted, distinct, totalGroups: order.length, groups },
+    analysis: {
+      width,
+      height,
+      counted,
+      distinct,
+      totalGroups: order.length,
+      groups,
+      exact: allExact,
+    },
     groupOfBin,
   };
 }
@@ -257,11 +279,9 @@ export function deltaE(a: number, b: number): number {
   return Math.hypot(x.l - y.l, x.a - y.a, x.b - y.b) * 100;
 }
 
-/** Every group's members as one list, most frequent first (ties: lower color first). */
+/** Every exact value, most frequent first (ties: lower color first); empty for a photograph. */
 export function flatColors(analysis: ColorAnalysis): ColorMember[] {
-  return analysis.groups
-    .flatMap((g) => g.members)
-    .sort((x, y) => y.count - x.count || x.rgb - y.rgb);
+  return analysis.exact;
 }
 
 export const isPhoto = (analysis: ColorAnalysis): boolean =>
@@ -293,39 +313,46 @@ export interface AreaBounds {
 /**
  * Connected regions (8-connectivity) of at least `MIN_AREA_PX` pixels among the pixels
  * `hit(pixelIndex)` accepts, and the bounds of the largest. Labels horizontal runs with a
- * union-find over runs, so memory follows the number of runs, not the 24 M pixels of a 6K image.
+ * union-find over labels, keeping only two rows of runs, so memory follows the number of
+ * labels, not the runs or the 24 M pixels of a 6K image.
  */
 export function regionsOf(
   hit: (pixel: number) => boolean,
   width: number,
   height: number,
 ): { areas: number; bounds: AreaBounds | null } {
-  let cap = 1024;
+  // Memory follows labels, not runs: only the previous and the current row's runs are kept.
+  let cap = 256;
   let parent = new Int32Array(cap);
-  let size = new Uint32Array(cap);
-  // A run's own span (never changed) apart from its region's bounds (kept on the root).
-  let runStart = new Int32Array(cap);
-  let runEnd = new Int32Array(cap);
+  let count = new Uint32Array(cap);
   let minX = new Int32Array(cap);
   let maxX = new Int32Array(cap);
   let minY = new Int32Array(cap);
   let maxY = new Int32Array(cap);
-  let runs = 0;
-  const grow = (): void => {
-    cap *= 2;
-    const widen = <T extends Int32Array | Uint32Array>(a: T): T => {
-      const next = new (a.constructor as new (n: number) => T)(cap);
-      next.set(a);
-      return next;
-    };
-    parent = widen(parent);
-    size = widen(size);
-    runStart = widen(runStart);
-    runEnd = widen(runEnd);
-    minX = widen(minX);
-    maxX = widen(maxX);
-    minY = widen(minY);
-    maxY = widen(maxY);
+  let labels = 0;
+  const widen = <T extends Int32Array | Uint32Array>(a: T): T => {
+    const next = new (a.constructor as new (n: number) => T)(cap);
+    next.set(a);
+    return next;
+  };
+  const newLabel = (x0: number, x1: number, y: number): number => {
+    if (labels === cap) {
+      cap *= 2;
+      parent = widen(parent);
+      count = widen(count);
+      minX = widen(minX);
+      maxX = widen(maxX);
+      minY = widen(minY);
+      maxY = widen(maxY);
+    }
+    const id = labels++;
+    parent[id] = id;
+    count[id] = x1 - x0 + 1;
+    minX[id] = x0;
+    maxX[id] = x1;
+    minY[id] = y;
+    maxY[id] = y;
+    return id;
   };
   const find = (r: number): number => {
     while (parent[r] !== r) {
@@ -334,25 +361,31 @@ export function regionsOf(
     }
     return r;
   };
-  const union = (a: number, b: number): void => {
+  const union = (a: number, b: number): number => {
     const ra = find(a);
     const rb = find(b);
-    if (ra === rb) return;
-    // The smaller index stays the root so the order is deterministic.
+    if (ra === rb) return ra;
+    // The smaller label stays the root so the order is deterministic.
     const [keep, drop] = ra < rb ? [ra, rb] : [rb, ra];
     parent[drop] = keep;
-    size[keep] += size[drop];
+    count[keep] += count[drop];
     minX[keep] = Math.min(minX[keep], minX[drop]);
     maxX[keep] = Math.max(maxX[keep], maxX[drop]);
     minY[keep] = Math.min(minY[keep], minY[drop]);
     maxY[keep] = Math.max(maxY[keep], maxY[drop]);
+    return keep;
   };
 
-  let prevFirst = 0;
-  let prevEnd = 0; // runs [prevFirst, prevEnd) belong to the previous row
+  // A row's runs as parallel growing arrays: start, end, label.
+  let prevS: number[] = [];
+  let prevE: number[] = [];
+  let prevL: number[] = [];
   for (let y = 0; y < height; y++) {
-    const rowFirst = runs;
+    const curS: number[] = [];
+    const curE: number[] = [];
+    const curL: number[] = [];
     const base = y * width;
+    let p = 0;
     let x = 0;
     while (x < width) {
       if (!hit(base + x)) {
@@ -361,33 +394,40 @@ export function regionsOf(
       }
       const start = x;
       while (x < width && hit(base + x)) x++;
-      if (runs === cap) grow();
-      const id = runs++;
-      parent[id] = id;
-      size[id] = x - start;
-      runStart[id] = start;
-      runEnd[id] = x - 1;
-      minX[id] = start;
-      maxX[id] = x - 1;
-      minY[id] = y;
-      maxY[id] = y;
+      const end = x - 1;
+      // Skip runs above that end left of this one's diagonal reach.
+      while (p < prevS.length && prevE[p] < start - 1) p++;
+      let label = -1;
+      for (let q = p; q < prevS.length && prevS[q] <= end + 1; q++) {
+        if (label === -1) label = find(prevL[q]);
+        else label = union(label, prevL[q]);
+      }
+      if (label === -1) {
+        label = newLabel(start, end, y);
+      } else {
+        const root = find(label);
+        count[root] += end - start + 1;
+        minX[root] = Math.min(minX[root], start);
+        maxX[root] = Math.max(maxX[root], end);
+        minY[root] = Math.min(minY[root], y);
+        maxY[root] = Math.max(maxY[root], y);
+        label = root;
+      }
+      curS.push(start);
+      curE.push(end);
+      curL.push(label);
     }
-    // Join with the previous row's runs that touch this one, diagonals included.
-    let p = prevFirst;
-    for (let r = rowFirst; r < runs; r++) {
-      while (p < prevEnd && runEnd[p] < runStart[r] - 1) p++;
-      for (let q = p; q < prevEnd && runStart[q] <= runEnd[r] + 1; q++) union(r, q);
-    }
-    prevFirst = rowFirst;
-    prevEnd = runs;
+    prevS = curS;
+    prevE = curE;
+    prevL = curL;
   }
 
   let areas = 0;
   let best = -1;
-  for (let r = 0; r < runs; r++) {
-    if (parent[r] !== r || size[r] < MIN_AREA_PX) continue;
+  for (let r = 0; r < labels; r++) {
+    if (parent[r] !== r || count[r] < MIN_AREA_PX) continue;
     areas++;
-    if (best === -1 || size[r] > size[best]) best = r;
+    if (best === -1 || count[r] > count[best]) best = r;
   }
   const bounds =
     best === -1

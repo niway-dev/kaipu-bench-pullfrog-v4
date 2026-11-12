@@ -68,6 +68,7 @@ const analysis: ColorAnalysis = {
   distinct: 1,
   totalGroups: 1,
   groups: [{ id: 0, rgb: 0xffffff, count: 1, distinct: 1, members: [] }],
+  exact: [],
 };
 const bitmapImage = (matched: number) => {
   const close = vi.fn();

@@ -198,7 +198,48 @@ function grid(rows: string[]): { hit: (i: number) => boolean; width: number; hei
 }
 const block = (w: number, h: number): string[] => Array.from({ length: h }, () => "#".repeat(w));
 
+describe("exact values", () => {
+  it("lists all seven equally frequent greys, not just the top MAX_MEMBERS of their group", () => {
+    const greys = [0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe];
+    const { data, width, height } = image(greys.map((v) => [[v, v, v], 10] as [Px, number]));
+    const { analysis } = analyzeColors(data, width, height);
+    expect(analysis.distinct).toBe(7);
+    expect(analysis.exact).toHaveLength(7);
+    expect(flatColors(analysis).map((m) => m.rgb)).toEqual(greys.map((v) => packRgb(v, v, v)));
+  });
+
+  it("leaves exact empty for a photograph", () => {
+    const n = PHOTO_MIN_DISTINCT + 5;
+    const data = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) {
+      data.set([i >> 8, i & 255, 7, 255], i * 4);
+    }
+    const { analysis } = analyzeColors(data, n, 1);
+    expect(analysis.distinct).toBeGreaterThanOrEqual(PHOTO_MIN_DISTINCT);
+    expect(analysis.exact).toEqual([]);
+  });
+});
+
 describe("regionsOf", () => {
+  it("merges labels that meet late (a U shape is one region)", () => {
+    const g = grid(["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", "#####"]);
+    const result = regionsOf(g.hit, g.width, g.height);
+    expect(result.areas).toBe(1);
+    expect(result.bounds).toEqual({ x: 0, y: 0, w: 5, h: 7 });
+  });
+
+  it("joins alternating one-pixel columns through a top row", () => {
+    const width = 41;
+    const rows = ["#".repeat(width)];
+    for (let y = 0; y < 5; y++) {
+      rows.push(Array.from({ length: width }, (_, x) => (x % 2 === 0 ? "#" : ".")).join(""));
+    }
+    const g = grid(rows);
+    const result = regionsOf(g.hit, g.width, g.height);
+    expect(result.areas).toBe(1);
+    expect(result.bounds).toEqual({ x: 0, y: 0, w: 41, h: 6 });
+  });
+
   it("counts two separate blobs as two areas and bounds the largest", () => {
     const small = block(4, 4); // 16 px = MIN_AREA_PX
     const big = block(6, 5);
@@ -246,6 +287,7 @@ describe("photo summary", () => {
     distinct,
     totalGroups: counts.length,
     groups: counts.map((c, i) => group(i, c)),
+    exact: [],
   });
 
   it("is a photo from PHOTO_MIN_DISTINCT exact values", () => {
@@ -314,6 +356,12 @@ describe("flatColors", () => {
       distinct: 4,
       totalGroups: 2,
       groups,
+      exact: [
+        { rgb: 0x40, count: 9 },
+        { rgb: 0x20, count: 5 },
+        { rgb: 0x30, count: 5 },
+        { rgb: 0x10, count: 2 },
+      ],
     });
     expect(flat.map((m) => m.rgb)).toEqual([0x40, 0x20, 0x30, 0x10]);
   });
