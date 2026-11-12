@@ -634,7 +634,7 @@ describe("toolbar B3: compact", () => {
     expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel")).toContainElement(panel as HTMLElement);
     expect(panel!.closest('[class*="sheet"]')).toBeNull();
-    expect(panel!.closest('[class*="optionsFloat"]')).toBeNull();
+    expect(panel!.closest('[data-ui-area="editorImage.canvas"]')).toBeNull();
   });
 
   it("marks the toolbar and the map areas", async () => {
@@ -712,8 +712,9 @@ describe("tool panel: the Tool tab of the side panel", () => {
   ])("%s shows %s in the panel, not over the stage", async (tool, label) => {
     await mount(ALL);
     fireEvent.click(btn(tool));
-    expect(within(panel()).getByText(label)).toBeInTheDocument();
-    expect(document.querySelector('[class*="optionsFloat"]')).toBeNull();
+    const option = within(panel()).getByText(label);
+    expect(option).toBeInTheDocument();
+    expect(option.closest('[data-ui-area="editorImage.canvas"]')).toBeNull();
   });
 
   it("Redact shows its Blur / Solid style in the panel", async () => {

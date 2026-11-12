@@ -911,7 +911,7 @@ describe.each([
     await waitFor(() => expect(panel()).toHaveAttribute("data-state", "list"));
     expect(screen.getByRole("tabpanel")).toContainElement(panel() as HTMLElement);
     // Nothing floats over the stage any more.
-    expect(panel()!.closest('[class*="optionsFloat"]')).toBeNull();
+    expect(panel()!.closest('[data-ui-area="editorImage.canvas"]')).toBeNull();
   });
 
   it("entering Inspect shows the Tool tab, its Colors button selects the Colors tab, and Beautify closes it", async () => {
