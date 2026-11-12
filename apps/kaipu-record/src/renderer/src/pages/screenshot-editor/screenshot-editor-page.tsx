@@ -827,14 +827,18 @@ function ScreenshotEditorBody({
 
   // The image `addImage` just placed, where it placed it (mock E3).
   const [justAdded, setJustAdded] = useState<{ id: string; x: number; y: number } | null>(null);
-  // The memory ends the moment the selection moves to anything else, so reselecting the image
-  // later shows the normal tag. (An undone add leaves an id no annotation has: nothing shows.)
-  useEffect(() => {
-    if (justAdded && scene.selectedId !== justAdded.id) setJustAdded(null);
-  }, [justAdded, scene.selectedId]);
+  // The memory ends the moment the selection moves to anything else or the image leaves its
+  // landing spot, so the tag never comes back, even if the image is dragged back there.
+  // (An undone add leaves an id no annotation has: nothing shows.)
   const justAddedAnnotation = justAdded
     ? scene.annotations.find((a) => a.id === justAdded.id)
     : undefined;
+  const justAddedMoved =
+    justAddedAnnotation?.kind === "image" &&
+    (justAddedAnnotation.x !== justAdded?.x || justAddedAnnotation.y !== justAdded?.y);
+  useEffect(() => {
+    if (justAdded && (scene.selectedId !== justAdded.id || justAddedMoved)) setJustAdded(null);
+  }, [justAdded, justAddedMoved, scene.selectedId]);
   const justAddedId =
     justAdded &&
     scene.selectedId === justAdded.id &&

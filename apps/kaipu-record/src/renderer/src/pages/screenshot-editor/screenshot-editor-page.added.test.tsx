@@ -18,6 +18,8 @@ vi.mock("@renderer/features/screenshots/export", () => ({
 }));
 
 // The layer is a probe: it reports the page's "just added" id and lets a test drive the scene.
+// Where the added image landed, read by the move-back probe.
+const landing = vi.hoisted(() => ({ x: undefined as number | undefined }));
 vi.mock("@renderer/features/screenshots/annotations/annotation-layer", () => ({
   AnnotationLayer: (props: {
     scene: {
@@ -40,6 +42,11 @@ vi.mock("@renderer/features/screenshots/annotations/annotation-layer", () => ({
         <button onClick={() => props.scene.select(added?.id ?? null)}>probe-select</button>
         <button onClick={() => added && props.scene.commitAnnotation(added.id, { x: 9 })}>
           probe-move
+        </button>
+        <button
+          onClick={() => added && props.scene.commitAnnotation(added.id, { x: landing.x ?? 0 })}
+        >
+          probe-move-back
         </button>
         <button onClick={() => props.scene.undo()}>probe-undo</button>
       </div>
@@ -190,6 +197,20 @@ describe("an image just added (NIW2-715)", () => {
     await pasted();
     probe("move");
     await waitFor(() => expect(justAddedId()).toBe(""));
+  });
+
+  it("stays a normal tag when the image is dragged back to where it landed", async () => {
+    await pasted();
+    landing.x = (JSON.parse(layer().dataset.annotations!) as { x: number }[]).at(-1)!.x;
+    probe("move");
+    await waitFor(() => expect(justAddedId()).toBe(""));
+    probe("move-back");
+    await waitFor(() =>
+      expect((JSON.parse(layer().dataset.annotations!) as { x: number }[]).at(-1)!.x).toBe(
+        landing.x,
+      ),
+    );
+    expect(justAddedId()).toBe("");
   });
 
   it("leaves no stale flag when the add is undone", async () => {
