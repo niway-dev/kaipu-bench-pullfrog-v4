@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { dismissToast, getToasts } from "@renderer/ui/toast-store";
 import type { ImageSource } from "@renderer/features/screenshots/image-source";
 import { ScreenshotEditorPage } from "./screenshot-editor-page";
@@ -255,7 +255,7 @@ describe("toolbar B2: keys", () => {
     expect(screen.getByRole("menu", { name: "Add image options" })).toBeInTheDocument();
   });
 
-  it("does nothing for M, and for a tool that is not shown, with the flags off", async () => {
+  it("does nothing for M with the flags off", async () => {
     await mount();
     press("m");
     expect(screen.queryByRole("menu")).toBeNull();
@@ -421,6 +421,50 @@ describe("toolbar B3: compact", () => {
     fireEvent.click(btn("Draw"));
     press("Escape");
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("closes a menu with Esc without clearing the export frame", async () => {
+    const originalRect = Element.prototype.getBoundingClientRect;
+    for (const prop of ["clientWidth", "clientHeight"]) {
+      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 200 });
+    }
+    for (const prop of ["naturalWidth", "naturalHeight"]) {
+      Object.defineProperty(HTMLImageElement.prototype, prop, {
+        configurable: true,
+        get: () => 400,
+      });
+    }
+    Element.prototype.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 200, right: 200, bottom: 200 }) as DOMRect;
+    Element.prototype.setPointerCapture = vi.fn();
+    onTestFinished(() => {
+      for (const prop of ["clientWidth", "clientHeight"]) {
+        Reflect.deleteProperty(HTMLElement.prototype, prop);
+      }
+      for (const prop of ["naturalWidth", "naturalHeight"]) {
+        Reflect.deleteProperty(HTMLImageElement.prototype, prop);
+      }
+      Element.prototype.getBoundingClientRect = originalRect;
+      // @ts-expect-error — jsdom has no pointer capture; the test stubbed it
+      delete Element.prototype.setPointerCapture;
+    });
+    await mount(ALL);
+    fireEvent.click(btn("Export frame"));
+    const overlay = await waitFor(() => {
+      const el = document.querySelector('[class*="overlay"]');
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+    fireEvent.pointerDown(overlay, { clientX: 20, clientY: 20, pointerId: 3 });
+    fireEvent.pointerMove(overlay, { clientX: 120, clientY: 100, pointerId: 3 });
+    fireEvent.pointerUp(overlay, { pointerId: 3 });
+    const view = document.querySelector('[data-ui-area="editorImage.canvasView"]')!;
+    await waitFor(() => expect(view.getAttribute("data-export-frame")).toBe("true"));
+    setPageWidth(900);
+    fireEvent.click(btn("Draw"));
+    press("Escape");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(view.getAttribute("data-export-frame")).toBe("true");
   });
 
   it("hides the title, keeps Save's label and makes Copy an icon", async () => {
