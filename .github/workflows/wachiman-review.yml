@@ -26,9 +26,7 @@ on:
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
   review:
-    # Temporary pin: the head of niway-dev/wachiman#199 (main after #194 and #195, plus the
-    # subscription token), unreleased. Move it to the release tag's commit once #199 is released.
-    uses: niway-dev/wachiman/.github/workflows/review.yml@a1ba00eed3ea4957caf9d20f244a56f3a2dbd4a3 # main + #199, unreleased
+    uses: niway-dev/wachiman/.github/workflows/review.yml@2dd954858c8c0e6fdb61185ec797f38cf7568bf4 # v1.13.0
     with:
       operator: csdev19
       model: claude-sonnet-5-5
