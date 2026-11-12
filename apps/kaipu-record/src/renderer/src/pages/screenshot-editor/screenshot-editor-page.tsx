@@ -1386,9 +1386,13 @@ function ScreenshotEditorBody({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [sheetOpen]);
 
+  // Colors' Group switch lives here: the panel unmounts when another tab opens.
+  const [colorsGrouped, setColorsGrouped] = useState(true);
   const colorsPanel = (
     <ColorsPanel
       colors={colors}
+      grouped={colorsGrouped}
+      onGroupedChange={setColorsGrouped}
       format={inspect.format}
       reading={inspect.status === "decoding"}
       unreadable={inspect.status === "error"}
