@@ -443,7 +443,7 @@ function ColorsPanelView({
             </ul>
           )}
           {boxes > 0 && <p className={styles.note}>{t("inspectColorsPairs", { boxes })}</p>}
-          {!photo && analysis.totalGroups > analysis.groups.length && (
+          {!photo && grouped && analysis.totalGroups > analysis.groups.length && (
             <span className={styles.status}>
               {t("inspectColorsMore", {
                 shown: analysis.groups.length,
