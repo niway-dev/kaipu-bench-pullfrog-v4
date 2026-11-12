@@ -335,6 +335,47 @@ describe("toolbar B2: keys", () => {
   });
 });
 
+/** Mounts the editor and draws an export frame at full width; returns the canvas view. */
+async function drawExportFrame(): Promise<Element> {
+  const originalRect = Element.prototype.getBoundingClientRect;
+  for (const prop of ["clientWidth", "clientHeight"]) {
+    Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 200 });
+  }
+  for (const prop of ["naturalWidth", "naturalHeight"]) {
+    Object.defineProperty(HTMLImageElement.prototype, prop, {
+      configurable: true,
+      get: () => 400,
+    });
+  }
+  Element.prototype.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, width: 200, height: 200, right: 200, bottom: 200 }) as DOMRect;
+  Element.prototype.setPointerCapture = vi.fn();
+  onTestFinished(() => {
+    for (const prop of ["clientWidth", "clientHeight"]) {
+      Reflect.deleteProperty(HTMLElement.prototype, prop);
+    }
+    for (const prop of ["naturalWidth", "naturalHeight"]) {
+      Reflect.deleteProperty(HTMLImageElement.prototype, prop);
+    }
+    Element.prototype.getBoundingClientRect = originalRect;
+    // @ts-expect-error — jsdom has no pointer capture; the test stubbed it
+    delete Element.prototype.setPointerCapture;
+  });
+  await mount(ALL);
+  fireEvent.click(btn("Export frame"));
+  const overlay = await waitFor(() => {
+    const el = document.querySelector('[class*="overlay"]');
+    expect(el).not.toBeNull();
+    return el as HTMLElement;
+  });
+  fireEvent.pointerDown(overlay, { clientX: 20, clientY: 20, pointerId: 3 });
+  fireEvent.pointerMove(overlay, { clientX: 120, clientY: 100, pointerId: 3 });
+  fireEvent.pointerUp(overlay, { pointerId: 3 });
+  const view = document.querySelector('[data-ui-area="editorImage.canvasView"]')!;
+  await waitFor(() => expect(view.getAttribute("data-export-frame")).toBe("true"));
+  return view;
+}
+
 describe("toolbar B3: compact", () => {
   it("is the full toolbar until the page reports a width under 1000 px", async () => {
     await mount(ALL);
@@ -424,46 +465,21 @@ describe("toolbar B3: compact", () => {
   });
 
   it("closes a menu with Esc without clearing the export frame", async () => {
-    const originalRect = Element.prototype.getBoundingClientRect;
-    for (const prop of ["clientWidth", "clientHeight"]) {
-      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => 200 });
-    }
-    for (const prop of ["naturalWidth", "naturalHeight"]) {
-      Object.defineProperty(HTMLImageElement.prototype, prop, {
-        configurable: true,
-        get: () => 400,
-      });
-    }
-    Element.prototype.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 200, height: 200, right: 200, bottom: 200 }) as DOMRect;
-    Element.prototype.setPointerCapture = vi.fn();
-    onTestFinished(() => {
-      for (const prop of ["clientWidth", "clientHeight"]) {
-        Reflect.deleteProperty(HTMLElement.prototype, prop);
-      }
-      for (const prop of ["naturalWidth", "naturalHeight"]) {
-        Reflect.deleteProperty(HTMLImageElement.prototype, prop);
-      }
-      Element.prototype.getBoundingClientRect = originalRect;
-      // @ts-expect-error — jsdom has no pointer capture; the test stubbed it
-      delete Element.prototype.setPointerCapture;
-    });
-    await mount(ALL);
-    fireEvent.click(btn("Export frame"));
-    const overlay = await waitFor(() => {
-      const el = document.querySelector('[class*="overlay"]');
-      expect(el).not.toBeNull();
-      return el as HTMLElement;
-    });
-    fireEvent.pointerDown(overlay, { clientX: 20, clientY: 20, pointerId: 3 });
-    fireEvent.pointerMove(overlay, { clientX: 120, clientY: 100, pointerId: 3 });
-    fireEvent.pointerUp(overlay, { pointerId: 3 });
-    const view = document.querySelector('[data-ui-area="editorImage.canvasView"]')!;
-    await waitFor(() => expect(view.getAttribute("data-export-frame")).toBe("true"));
+    const view = await drawExportFrame();
     setPageWidth(900);
     fireEvent.click(btn("Draw"));
     press("Escape");
     expect(screen.queryByRole("menu")).toBeNull();
+    expect(view.getAttribute("data-export-frame")).toBe("true");
+  });
+
+  it("closes the sheet with Esc without clearing the export frame", async () => {
+    const view = await drawExportFrame();
+    setPageWidth(900);
+    fireEvent.click(btn("Panel"));
+    expect(screen.getByText("Beautify")).toBeInTheDocument();
+    press("Escape");
+    expect(screen.queryByText("Beautify")).toBeNull();
     expect(view.getAttribute("data-export-frame")).toBe("true");
   });
 

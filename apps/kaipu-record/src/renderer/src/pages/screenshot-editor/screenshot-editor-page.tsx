@@ -1237,10 +1237,13 @@ function ScreenshotEditorBody({
   useEffect(() => {
     if (!sheetOpen) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") setPanelOpen(false);
+      if (e.key !== "Escape") return;
+      // Capture phase + stop: the crop overlay also clears its frame on Esc.
+      e.stopPropagation();
+      setPanelOpen(false);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [sheetOpen]);
 
   const colorsPanel = (
