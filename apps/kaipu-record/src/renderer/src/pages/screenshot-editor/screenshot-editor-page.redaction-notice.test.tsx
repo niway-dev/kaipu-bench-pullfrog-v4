@@ -240,25 +240,21 @@ describe("ScreenshotEditor — redaction notice (image-canvas)", () => {
     expect(localStorage.getItem(REDACTION_NOTICE_KEY)).toBe("1");
   });
 
-  it("the edit autosave waits while it is open and runs once it is acknowledged", async () => {
+  it("the edit autosave still runs while it is open", async () => {
     readCanvas.mockResolvedValue(stored(docJson()));
     mountLocal();
     await loadImage();
     vi.useFakeTimers();
     drawRedaction();
     expect(notice()).not.toBeNull();
-    // Well past the 800 ms debounce: a dirty scene with no notice would have saved by now.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000);
-    });
-    expect(saveScreenshot).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
     });
     expect(saveScreenshot).toHaveBeenCalledTimes(1);
     expect((saveScreenshot.mock.calls[0][1] as { overwriteId?: string }).overwriteId).toBe(
       "shot-1",
     );
+    // The notice is still there: only Got it or an explicit save acknowledges it.
+    expect(notice()).not.toBeNull();
   });
 });

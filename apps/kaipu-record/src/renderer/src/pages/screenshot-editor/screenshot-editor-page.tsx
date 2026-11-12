@@ -943,7 +943,8 @@ function ScreenshotEditorBody({
   // edit and every save bakes redactions into the stored asset, so the notice opens the first
   // time an unsaved redaction exists on a machine that has not acknowledged it. It is derived,
   // not scheduled: no unsaved redaction (none drawn, all undone, or all already locked in a
-  // reopened document) means no notice. While it is open the edit autosave waits.
+  // reopened document) means no notice. The edit autosave keeps running while it is open: the
+  // in-memory image stays unredacted, so "Undo redaction" still works after a save.
   const [noticeSeen, setNoticeSeen] = useState(hasSeenRedactionNotice);
   const [noticeHidden, setNoticeHidden] = useState(false);
   const hasUnsavedRedaction =
@@ -953,6 +954,9 @@ function ScreenshotEditorBody({
     if (!hasUnsavedRedaction) setNoticeHidden(false);
   }, [hasUnsavedRedaction]);
   const noticeOpen = hasUnsavedRedaction && !noticeSeen && !noticeHidden;
+  // Queued saves run later than the render that enqueued them: they read the live value.
+  const noticeOpenRef = useRef(noticeOpen);
+  noticeOpenRef.current = noticeOpen;
   const acknowledgeNotice = (): void => {
     markRedactionNoticeSeen();
     setNoticeSeen(true);
@@ -1037,7 +1041,7 @@ function ScreenshotEditorBody({
     enqueue(async () => {
       if (!alive.current) return null;
       // An explicit save bakes the redactions in: it counts as having read the notice.
-      if (!opts.silent && noticeOpen) acknowledgeNotice();
+      if (!opts.silent && noticeOpenRef.current) acknowledgeNotice();
       const revision = sceneRevision.current;
       const snap = latest.current.scene;
       const draftAtStart = latest.current.draft;
@@ -1196,8 +1200,7 @@ function ScreenshotEditorBody({
 
   // Save the edits a moment after the last one, so closing the window loses at most that.
   useEffect(() => {
-    // The redaction notice holds the debounced save: it is the last moment before the pixels go.
-    if (!dirty || !savedId || !imageReady || discarding || noticeOpen) return;
+    if (!dirty || !savedId || !imageReady || discarding) return;
     const timer = setTimeout(() => void autosaveEdits(), AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the scene change re-arms it
@@ -1206,7 +1209,6 @@ function ScreenshotEditorBody({
     savedId,
     imageReady,
     discarding,
-    noticeOpen,
     scene.beautify.state,
     scene.annotations,
     scene.crop,
