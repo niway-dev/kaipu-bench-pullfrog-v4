@@ -12,7 +12,6 @@ import {
   formatShare,
   isPhoto,
   NOTABLE_MEMBER_SHARE,
-  PHOTO_COVERAGE,
   unpackRgb,
   type ColorGroup,
   type LocateTarget,
@@ -404,7 +403,12 @@ function ColorsPanelView({
                 {t("inspectColorsPhotoBody", {
                   distinct: analysis.distinct,
                   shown: shown.groups.length,
-                  percent: Math.round(PHOTO_COVERAGE * 100),
+                  // What the groups shown really cover: below PHOTO_COVERAGE when the groups
+                  // sent run out before reaching it.
+                  percent:
+                    analysis.counted > 0
+                      ? Math.floor(((analysis.counted - shown.other) / analysis.counted) * 100)
+                      : 0,
                 })}
               </p>
             </div>

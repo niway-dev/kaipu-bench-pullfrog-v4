@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ColorsPanel } from "./colors-panel";
+import type { ColorAnalysis } from "./histogram";
 import type { ColorsController } from "./use-colors";
 
 function controller(patch: Partial<ColorsController>): ColorsController {
@@ -34,5 +35,46 @@ describe("ColorsPanel while counting", () => {
     );
     expect(screen.getByText("Reading colors…")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).not.toHaveAttribute("aria-valuenow");
+  });
+});
+
+describe("ColorsPanel photo card", () => {
+  const photoAnalysis = (counted: number, counts: number[]): ColorAnalysis => ({
+    width: 1,
+    height: 1,
+    counted,
+    distinct: 5000,
+    totalGroups: counts.length,
+    groups: counts.map((count, id) => ({ id, rgb: id, count, distinct: 1, members: [] })),
+    exact: [],
+  });
+  const ready = (analysis: ColorAnalysis) =>
+    render(
+      <ColorsPanel
+        colors={controller({ status: "ready", progress: null, analysis })}
+        format="hex"
+        reading={false}
+      />,
+    );
+
+  it("says the share the groups shown actually cover when the goal is reached", () => {
+    // Three groups of 30 pixels cover 90 of 100: the 80% goal is reached at the third.
+    ready(photoAnalysis(100, [30, 30, 30, 5, 5]));
+    expect(
+      screen.getByText(/Showing the 3 groups that cover 90% of the image/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not claim 80% when the groups sent end before reaching it", () => {
+    // 200 groups of 2 pixels cover 400 of 1000: the list ends first, so 40%, not 80%.
+    ready(
+      photoAnalysis(
+        1000,
+        Array.from({ length: 200 }, () => 2),
+      ),
+    );
+    const body = screen.getByText(/Showing the 200 groups/);
+    expect(body).toHaveTextContent("cover 40% of the image");
+    expect(body).not.toHaveTextContent("80%");
   });
 });
