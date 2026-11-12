@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, Images } from "lucide-react";
 import { useTranslations } from "@kaipu/i18n";
 import { reportError } from "@renderer/features/analytics";
@@ -7,7 +7,7 @@ import { isMaintenanceError } from "@renderer/features/library/vault-errors";
 import { useScreenshotMode } from "@renderer/features/screenshots/use-screenshot-mode";
 import { useSupportedCaptureModes } from "@renderer/features/screenshots/use-supported-capture-modes";
 import { uiArea } from "@renderer/lib/ui-area";
-import { ToolButton } from "../toolbar/tip";
+import { Kbd, ToolButton } from "../toolbar/tip";
 import { ADD_IMAGE_KEY } from "../toolbar/tool-meta";
 import { LibraryImagePicker } from "./library-image-picker";
 import styles from "./add-image-control.module.css";
@@ -47,6 +47,31 @@ export function AddImageControl({
   // Unknown yet counts as available: main answers `unsupported` and nothing happens.
   const captureAvailable = supported === null || supported.includes(mode);
 
+  const menuRef = useRef<HTMLDivElement>(null);
+  const enabledItems = (): HTMLButtonElement[] =>
+    Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
+    ).filter((el) => !el.disabled);
+
+  // Opening puts focus on the first enabled item, so the arrows work at once.
+  useEffect(() => {
+    if (open) enabledItems()[0]?.focus();
+  }, [open]);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent): void => {
+    const items = enabledItems();
+    if (items.length === 0) return;
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    let next: number;
+    if (e.key === "ArrowDown") next = at < 0 ? 0 : (at + 1) % items.length;
+    else if (e.key === "ArrowUp") next = at <= 0 ? items.length - 1 : at - 1;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = items.length - 1;
+    else return;
+    e.preventDefault();
+    items[next]?.focus();
+  };
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -83,6 +108,7 @@ export function AddImageControl({
             className={styles.button}
             aria-haspopup="menu"
             aria-expanded={open}
+            data-active={open || picking ? "true" : undefined}
             onClick={() => onOpenChange(!open)}
           >
             <ImagePlus size={19} />
@@ -91,7 +117,13 @@ export function AddImageControl({
         {open && (
           <>
             <div className={styles.backdrop} onClick={() => onOpenChange(false)} aria-hidden />
-            <div className={styles.menu} role="menu" aria-label={t("addImageMenu")}>
+            <div
+              ref={menuRef}
+              className={styles.menu}
+              role="menu"
+              aria-label={t("addImageMenu")}
+              onKeyDown={onMenuKeyDown}
+            >
               <button
                 type="button"
                 role="menuitem"
@@ -100,7 +132,7 @@ export function AddImageControl({
                 title={captureAvailable ? undefined : t("notAvailable")}
                 onClick={() => void newCapture()}
               >
-                <Camera size={16} />
+                <Camera size={15} />
                 {t("addImageNewCapture")}
               </button>
               <button
@@ -112,10 +144,13 @@ export function AddImageControl({
                   setPicking(true);
                 }}
               >
-                <Images size={16} />
+                <Images size={15} />
                 {t("addImageFromLibrary")}
               </button>
-              <p className={styles.hint}>{t("addImageHint", { shortcut: pasteShortcutLabel() })}</p>
+              <p className={styles.hint}>
+                {t("addImagePasteHint")}
+                <Kbd>{pasteShortcutLabel()}</Kbd>
+              </p>
             </div>
           </>
         )}
