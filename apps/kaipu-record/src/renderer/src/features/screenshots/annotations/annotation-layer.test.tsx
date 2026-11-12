@@ -939,6 +939,29 @@ describe("AnnotationLayer — measure (NIW2-702)", () => {
     expect(g?.textContent).toBe("40 px");
   });
 
+  it("an unselected measure has no end dots and a borderless pill, but still a halo", () => {
+    const { container } = renderMeasureLayer(makeScene([ruler], null));
+    const g = container.querySelector('[data-kind="measure"]');
+    expect(g?.hasAttribute("data-selected")).toBe(false);
+    expect(screen.queryAllByTestId("resize-handle")).toHaveLength(0);
+    expect(g?.querySelector("rect")?.getAttribute("stroke")).toBeNull();
+    expect(g?.querySelector("[data-measure-halo]")).not.toBeNull();
+  });
+
+  it("a selected measure draws round end dots in its color and a bordered pill", () => {
+    const { container } = renderMeasureLayer(makeScene([ruler], "m1"));
+    const g = container.querySelector('[data-kind="measure"]');
+    expect(g?.getAttribute("data-selected")).toBe("true");
+    const dots = screen.getAllByTestId("resize-handle");
+    expect(dots).toHaveLength(2);
+    for (const d of dots) {
+      expect(d.tagName.toLowerCase()).toBe("circle");
+      expect(d.getAttribute("r")).toBe("5");
+      expect(d.getAttribute("stroke")).toBe(ruler.color);
+    }
+    expect(g?.querySelector("rect")?.getAttribute("stroke")).not.toBeNull();
+  });
+
   it("dragging an end handle commits one patch that changes only that end", () => {
     const scene = makeScene([ruler], "m1");
     const { layer } = renderMeasureLayer(scene);
