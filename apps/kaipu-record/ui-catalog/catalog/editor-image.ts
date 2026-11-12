@@ -283,6 +283,7 @@ export const editorImage = catalog(
         { waitFor: { area: "editorImage.libraryPicker", state: "hidden" } },
       ],
       demonstrates: ["editorImage.canvasView:justAdded"],
+      keepToasts: true,
       after: leaveAndRestore,
     },
     "two-images": {

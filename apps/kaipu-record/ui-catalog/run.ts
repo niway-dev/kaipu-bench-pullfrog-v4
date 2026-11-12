@@ -625,8 +625,15 @@ async function runAction(ctx: Ctx, name: string): Promise<void> {
       await ctx.main.waitForFunction(() => !!window.electronAPI, undefined, { timeout: 15_000 });
       return;
     case "restoreVault": {
+      // A save the app started on leaving the editor can still be writing into
+      // `.kaipu`; the retries ride out ENOTEMPTY from a file landing mid-delete.
       for (const entry of readdirSync(ctx.vaultDir)) {
-        rmSync(path.join(ctx.vaultDir, entry), { recursive: true, force: true });
+        rmSync(path.join(ctx.vaultDir, entry), {
+          recursive: true,
+          force: true,
+          maxRetries: 5,
+          retryDelay: 200,
+        });
       }
       cpSync(ctx.vaultSnapshot, ctx.vaultDir, { recursive: true });
       return;
@@ -963,8 +970,9 @@ async function shoot(
 
   try {
     // A toast a step caused ("Restored your previous edit") covers the corner of the window
-    // for five seconds; it is not part of any state, so it is closed like a user would.
-    if (!target) {
+    // for five seconds; it is not part of the state, so it is closed like a user would,
+    // unless the state says the toast is what it shows.
+    if (!target && !spec.keepToasts) {
       await page.evaluate(() => {
         for (const close of document.querySelectorAll<HTMLButtonElement>(
           '[role="alert"] button[aria-label="Close"]',
