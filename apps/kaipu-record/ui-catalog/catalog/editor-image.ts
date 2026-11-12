@@ -664,7 +664,7 @@ export const editorImage = catalog(
         // The panel's Copy text runs the same copy as Cmd+C. A click gives the page focus and a
         // user gesture, which the clipboard write needs under the driver; a bare keypress did not
         // copy there. The toast renders in the app shell, outside this screen's areas, so no step
-        // can wait on it; it stays 4 s, past the shot.
+        // can wait on it; `keepToasts` leaves it open for the shot.
         {
           click: {
             area: "editorImage.textStatus",
@@ -672,6 +672,7 @@ export const editorImage = catalog(
           },
         },
       ],
+      keepToasts: true,
       demonstrates: ["editorImage.textSelection:copied"],
       gates: [{ flag: "image-text", side: "on" }],
     },
