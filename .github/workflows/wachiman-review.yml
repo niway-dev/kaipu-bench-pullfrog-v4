@@ -1,5 +1,7 @@
 name: Wachiman review
-# Get the key at https://console.anthropic.com and save it as the repository secret ANTHROPIC_API_KEY.
+# The review runs on a Claude subscription, not an API key: run `claude setup-token` signed in to the
+# account whose plan should pay and save the token as the repository secret CLAUDE_CODE_OAUTH_TOKEN
+# (ADR 0037 of niway-dev/wachiman). The token lasts a year and shares that plan's usage limits.
 # Pinned to an exact release tag, so a new engine release runs here only after this line is edited
 # (ADR 0001 of niway-dev/wachiman). Releases never move a tag, but a repository admin could;
 # only a full commit SHA is immutable.
@@ -11,10 +13,11 @@ name: Wachiman review
 # The review focus for this repository is in `.github/agent-review.md`.
 # Sonnet 5.5 high reviews directly; the optional second-pass verifier is disabled.
 # The default caps still bound each run ($0.75 per batch, $3 per review), and all automatic runs
-# on one pull request share $6 (`auto_budget_usd`, v1.5.0).
-# When the Anthropic API refuses the call (no credit, a rejected key, a persistent rate limit), the
-# pull request gets a "Not reviewed" notice and the check passes (`on_provider_unavailable: warn`,
-# the default since v1.6.0); set it to `fail` to fail the check instead.
+# on one pull request share $6 (`auto_budget_usd`, v1.5.0). On a subscription those dollars are an
+# estimate at API prices, not a charge.
+# When the subscription refuses the call (a usage limit, a rejected token, a persistent rate limit),
+# the pull request gets a "Not reviewed" notice and the check passes (`on_provider_unavailable: warn`,
+# the default since v1.6.0); set it to `fail` to fail the check instead. Nothing falls back to an API key.
 on:
   # `synchronize`: every push to a ready pull request gets an incremental review of what changed
   # since the last reviewed commit (ADR 0028, amendment of 2026-11-01).
@@ -23,13 +26,13 @@ on:
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
   review:
-    # Temporary pin: an unreleased commit (v1.12.0, the changes merged after it, and the fix of
-    # niway-dev/wachiman#194). Move it to the release tag's commit once that fix is released.
-    uses: niway-dev/wachiman/.github/workflows/review.yml@fd97f2da761cfb7b0d25b3b4de4227285589bc5f # main + #194, unreleased
+    # Temporary pin: the head of niway-dev/wachiman#199 (main after #194 and #195, plus the
+    # subscription token), unreleased. Move it to the release tag's commit once #199 is released.
+    uses: niway-dev/wachiman/.github/workflows/review.yml@a1ba00eed3ea4957caf9d20f244a56f3a2dbd4a3 # main + #199, unreleased
     with:
       operator: csdev19
       model: claude-sonnet-5-5
       effort: high
       verify: false
     secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
