@@ -44,20 +44,17 @@ export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 /** Electron accelerator string per action (e.g. "Command+Control+X"). */
 export type ShortcutSettings = Record<ShortcutAction, string>;
 
-/** Which on-screen group a shortcut belongs to (drives the Shortcuts page sections). */
-export type ShortcutGroup = "recording" | "app";
-
 /**
  * The single source of truth for every shortcut: its default accelerator plus all
  * the human-readable copy. The Shortcuts page, the status bar, and the default
  * settings all derive from this array — change a label or default here and every
  * surface updates. (Keep this in sync with the handlers wired in `main/index.ts`.)
+ * The array order is the row order on the Shortcuts page.
  */
 export interface ShortcutDefinition {
   action: ShortcutAction;
   /** Electron accelerators used when the user hasn't rebound the action, per platform. */
   defaultAccelerator: { mac: string; win: string };
-  group: ShortcutGroup;
   /** Title shown on the Shortcuts page (e.g. "Start recording"). */
   label: string;
   /** One-line explanation shown under the label. */
@@ -86,39 +83,28 @@ export interface ShortcutDefinition {
  * drift — the shape this repo already uses to pin DEFAULT_LOCALE.
  */
 export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
-  {
-    action: "startRecording",
-    defaultAccelerator: { mac: "Command+Shift+2", win: "Control+Alt+2" },
-    group: "recording",
-    label: "Open capture widget · Recording",
-    description: "Press again to close, cancel or stop the recording",
-    statusWord: "record",
-  },
-  {
-    action: "bringToFront",
-    defaultAccelerator: { mac: "Command+Control+O", win: "Control+Alt+O" },
-    group: "app",
-    label: "Bring Kaipu to front",
-    description: "Show the app window if it slips behind or out of reach",
-    statusWord: "show app",
-  },
   // ⌘⇧1 and ⌘⇧2 open the capture widget (the overlay with its mode chips): ⌘⇧1 ready to take
-  // a screenshot, ⌘⇧2 (`startRecording`, above) ready to record. They are deliberate: macOS
+  // a screenshot, ⌘⇧2 (`startRecording`, below) ready to record. They are deliberate: macOS
   // owns ⌘⇧3, ⌘⇧4 and ⌘⇧5 for its own screenshots and recording toolbar, while 1 and 2 are
   // free and sit right beside them. Pressing the other one while the widget is open switches
   // its intent, as P and V do inside it.
   {
     action: "captureScreenshot",
     defaultAccelerator: { mac: "Command+Shift+1", win: "Control+Alt+1" },
-    group: "app",
     label: "Open capture widget · Screenshot",
     description: "Pick what to capture; press again to close",
     statusWord: "capture",
   },
   {
+    action: "startRecording",
+    defaultAccelerator: { mac: "Command+Shift+2", win: "Control+Alt+2" },
+    label: "Open capture widget · Recording",
+    description: "Press again to close, cancel or stop the recording",
+    statusWord: "record",
+  },
+  {
     action: "captureWindow",
     defaultAccelerator: { mac: "Command+Control+W", win: "Control+Alt+W" },
-    group: "app",
     label: "Capture window",
     description: "Capture one window, not the screen around it",
     statusWord: "window",
@@ -130,10 +116,16 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   {
     action: "captureInstant",
     defaultAccelerator: { mac: "Command+Control+X", win: "Control+Alt+X" },
-    group: "app",
     label: "Instant capture",
     description: "Capture the screen under the cursor at once, no selector",
     statusWord: "instant",
+  },
+  {
+    action: "bringToFront",
+    defaultAccelerator: { mac: "Command+Control+O", win: "Control+Alt+O" },
+    label: "Bring Kaipu to front",
+    description: "Show the app window if it slips behind or out of reach",
+    statusWord: "show app",
   },
 ];
 

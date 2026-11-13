@@ -1873,8 +1873,6 @@
   "shortcuts": {
     "title": "Atajos",
     "subtitle": "Atajos de teclado globales — funcionan desde cualquier app mientras grabas. Haz clic en un atajo para reasignarlo.",
-    "groupRecording": "Grabación",
-    "groupApp": "Aplicación",
     "changeShortcut": "Cambiar atajo",
     "noteAlreadyBound": "{description} · ya asignado a «{label}»",
     "noteInUse": "{description} · en uso por otra app",

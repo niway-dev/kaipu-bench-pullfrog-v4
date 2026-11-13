@@ -9,7 +9,6 @@ import {
   activeShortcutDefinitions,
   type ShortcutAction,
   type ShortcutDefinition,
-  type ShortcutGroup,
 } from "@shared/types";
 import type { CaptureMode } from "@shared/types/screenshot-capture";
 import { defaultShortcutsFor } from "@shared/shortcut-defaults";
@@ -32,27 +31,6 @@ const DESC_KEY = {
   captureInstant: "captureInstantDesc",
 } as const;
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <div className={styles.section}>
-      <h2 className={styles.sectionTitle}>{title}</h2>
-      <Card>{children}</Card>
-    </div>
-  );
-}
-
-const shortcutsInGroup = (
-  group: ShortcutGroup,
-  enabledModes?: readonly CaptureMode[],
-): readonly ShortcutDefinition[] =>
-  activeShortcutDefinitions(enabledModes).filter((def) => def.group === group);
-
 /**
  * Dedicated page for the global keyboard shortcuts. Each binding is rebindable
  * (click to capture); the main process registers them system-wide and reports,
@@ -67,12 +45,6 @@ export function ShortcutsPage({
   const t = useTranslations("shortcuts");
   const { settings, update } = useAppSettings();
   const shortcuts = settings?.shortcuts ?? defaultShortcutsFor(window.electronAPI.platform);
-
-  // On-screen sections, in order. Their rows come from SHORTCUT_DEFINITIONS, minus switched-off actions.
-  const GROUPS: ReadonlyArray<{ key: ShortcutGroup; title: string }> = [
-    { key: "recording", title: t("groupRecording") },
-    { key: "app", title: t("groupApp") },
-  ];
 
   // Which global shortcuts actually registered (false = another app owns it).
   // Re-query whenever the bindings change (main re-registers on update).
@@ -149,12 +121,8 @@ export function ShortcutsPage({
         <p className={styles.pageSubtitle}>{t("subtitle")}</p>
       </div>
 
-      <div {...uiArea("shortcuts.list")} className={styles.sections}>
-        {GROUPS.map(({ key, title }) => (
-          <Section key={key} title={title}>
-            {shortcutsInGroup(key, enabledModes).map(renderRow)}
-          </Section>
-        ))}
+      <div {...uiArea("shortcuts.list")} className={styles.list}>
+        <Card>{activeShortcutDefinitions(enabledModes).map(renderRow)}</Card>
       </div>
     </div>
   );

@@ -1873,8 +1873,6 @@
   "shortcuts": {
     "title": "Shortcuts",
     "subtitle": "Global keyboard shortcuts — they work from any app while you record. Click a shortcut to rebind it.",
-    "groupRecording": "Recording",
-    "groupApp": "App",
     "changeShortcut": "Change shortcut",
     "noteAlreadyBound": "{description} · already bound to “{label}”",
     "noteInUse": "{description} · in use by another app",

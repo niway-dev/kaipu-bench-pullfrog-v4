@@ -9,7 +9,7 @@ export const shortcuts = catalog("shortcuts", {
   },
   conflict: {
     profile: "default",
-    how: "Click the first shortcut (the recording widget key) and press the combination Bring Kaipu to front uses: the page refuses it and names the action that owns it.",
+    how: "Click the first shortcut (the screenshot widget key) and press the combination Bring Kaipu to front uses: the page refuses it and names the action that owns it.",
     steps: [
       { navigate: "/shortcuts" },
       { click: { area: "shortcuts.list", part: { role: "button", name: "Change shortcut" } } },

@@ -1,7 +1,7 @@
 /*
- * Shortcuts page chrome — a single scrolling column of titled sections, mirroring
+ * Shortcuts page chrome — a single scrolling column with one card of shortcuts, mirroring
  * the Settings page. The Card/Row primitives carry their own styling; this file
- * only frames the page, its header, and the sections.
+ * only frames the page, its header, and the list.
  */
 
 .page {
@@ -38,31 +38,11 @@
   color: var(--text-secondary);
 }
 
-/* ── Sections ───────────────────────────────── */
+/* ── List ───────────────────────────────────── */
 
-.sections {
+.list {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
   padding-bottom: var(--space-xl);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.sectionTitle {
-  margin: 0;
-  padding: 0 var(--space-xs);
-  font-family: var(--font-family);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-label);
-  letter-spacing: 0;
-  color: var(--text-4);
 }

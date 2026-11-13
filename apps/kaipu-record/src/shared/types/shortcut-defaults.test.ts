@@ -67,7 +67,6 @@ describe("the desktop shortcut defaults", () => {
     expect(SHORTCUT_ACTIONS).not.toContain("stopRecording");
     const start = SHORTCUT_DEFINITIONS.find((d) => d.action === "startRecording");
     expect(start).toMatchObject({
-      group: "recording",
       label: "Open capture widget · Recording",
       description: "Press again to close, cancel or stop the recording",
     });
@@ -77,11 +76,10 @@ describe("the desktop shortcut defaults", () => {
     const capture = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureScreenshot");
     const window = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureWindow");
     expect(capture).toMatchObject({
-      group: "app",
       label: "Open capture widget · Screenshot",
       description: "Pick what to capture; press again to close",
     });
-    expect(window).toMatchObject({ group: "app", label: "Capture window", statusWord: "window" });
+    expect(window).toMatchObject({ label: "Capture window", statusWord: "window" });
   });
 
   it("binds each action to the accelerator domain declares for Windows", () => {
