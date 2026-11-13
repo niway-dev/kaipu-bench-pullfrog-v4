@@ -13,7 +13,7 @@ list, one row per action, in `SHORTCUT_DEFINITIONS` order: ⇧⌘1, ⇧⌘2, ⌃
 (`src/renderer/src/pages/shortcuts/shortcuts-page.tsx`).
 
 Each row shows a click-to-rebind control. The actions and their default accelerators
-(`src/shared/types/ipc.ts:88-138`):
+(`src/shared/types/ipc.ts:85-130`, `SHORTCUT_DEFINITIONS`):
 
 - _Open capture widget · Screenshot_ (action `captureScreenshot`) — `Command+Shift+1` (⇧⌘1) — opens
   the same widget ready to take a screenshot, in the current screenshot mode (Frame, Screen, or
