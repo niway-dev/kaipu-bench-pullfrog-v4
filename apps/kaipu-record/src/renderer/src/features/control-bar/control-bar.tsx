@@ -27,7 +27,7 @@ interface ControlBarProps {
   onPause(): void;
   onResume(): void;
   onStop(): void;
-  /** The real (rebindable) Stop shortcut label, e.g. "⌃⌘S". */
+  /** The real (rebindable) shortcut label that also stops a take, e.g. "⌃⌘X". */
   stopShortcut?: string;
   /** What is recorded: the mode and, for an area drawn with one, its ratio ("16:9"). */
   modeChip?: { mode: CaptureMode; ratio: string | null };

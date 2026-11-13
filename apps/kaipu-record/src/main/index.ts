@@ -84,6 +84,7 @@ import {
   getShortcutStatus,
   unregisterGlobalShortcuts,
 } from "./shortcuts/global-shortcuts";
+import { decideStartShortcut } from "./shortcuts/start-shortcut";
 import {
   initMainAnalytics,
   setMainAnalyticsEnabled,
@@ -98,7 +99,9 @@ import {
 } from "@shared/types/screenshot-capture";
 import type { RecordTarget } from "./screenshots/capture-handler";
 import {
+  cancelCaptureOverlay,
   disposeCaptureOverlay,
+  isCaptureOverlayOpen,
   prewarmCaptureOverlay,
   registerScreenshotHandlers,
   type ScreenshotHandlers,
@@ -995,11 +998,23 @@ app.whenReady().then(async () => {
   registerGlobalShortcuts({
     getShortcuts: () => getAppSettings().shortcuts,
     handlers: {
-      // "Start recording" opens the selector in the last used mode, as the button does.
-      startRecording: () => triggerRecordSelector(),
-      stopRecording: () => {
-        markRecordTiming("stop shortcut: stop sent to the recorder");
-        mainWindow?.webContents.send(IPC_CHANNELS.recordingCommand, "stop");
+      // "Start capturing" (⌃⌘X) is the one Kaipu key: it opens the selector in the last used
+      // mode, as the button does, and a second press stops the take (a countdown too: the
+      // renderer's "stop" cancels it) or closes the selector, as Esc does.
+      startRecording: () => {
+        const decision = decideStartShortcut({
+          takeActive: hub?.isActive() ?? false,
+          takePending: hub?.isPending() ?? false,
+          overlayOpen: isCaptureOverlayOpen(),
+        });
+        if (decision === "stop") {
+          markRecordTiming("start shortcut pressed again: stop sent to the recorder");
+          mainWindow?.webContents.send(IPC_CHANNELS.recordingCommand, "stop");
+        } else if (decision === "close") {
+          cancelCaptureOverlay();
+        } else {
+          triggerRecordSelector();
+        }
       },
       bringToFront: bringAppToFront,
       captureScreenshot: () => triggerShortcutCapture("captureScreenshot"),

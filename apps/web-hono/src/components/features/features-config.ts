@@ -137,7 +137,6 @@ export const FEATURE_CHAPTERS = [
         body: "items.startAnywhere.body",
         chips: [
           { kind: "kbd", prefix: keys("startRecording"), key: "items.startAnywhere.k1" },
-          { kind: "kbd", prefix: keys("stopRecording"), key: "items.startAnywhere.k2" },
           { kind: "kbd", prefix: keys("captureScreenshot"), key: "items.startAnywhere.k3" },
           { kind: "kbd", prefix: keys("captureInstant"), key: "items.startAnywhere.k5" },
           { kind: "kbd", prefix: keys("bringToFront"), key: "items.startAnywhere.k4" },

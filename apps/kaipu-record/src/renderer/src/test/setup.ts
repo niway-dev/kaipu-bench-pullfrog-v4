@@ -310,7 +310,6 @@ window.electronAPI = {
   onRecordingShadeState: () => () => {},
   getShortcutStatus: async () => ({
     startRecording: true,
-    stopRecording: true,
     bringToFront: true,
     captureScreenshot: true,
     captureWindow: true,

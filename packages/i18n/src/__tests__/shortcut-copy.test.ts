@@ -10,13 +10,13 @@ import es from "../../messages/es.json";
  * same shape `settings.service.test.ts` uses to pin DEFAULT_LOCALE.
  *
  * It exists because every shortcut the landing printed was wrong: the page
- * advertised ⌘⇧P for a binding that is ⌘⌃C, and nothing was comparing them.
+ * advertised ⌘⇧P for a binding that was ⌘⌃C, and nothing was comparing them.
  */
 describe("the landing's shortcut copy", () => {
   const expected = formatAccelerator(DEFAULT_ACCELERATORS.mac.startRecording);
 
   it("matches the real start-recording default", () => {
-    expect(expected).toBe("⌘⌃C");
+    expect(expected).toBe("⌘⌃X");
     expect(en.landing.homeChapter1Pill2).toBe(expected);
     expect(es.landing.homeChapter1Pill2).toBe(expected);
   });

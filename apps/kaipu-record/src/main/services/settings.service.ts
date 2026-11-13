@@ -70,71 +70,115 @@ export function mergeShortcuts(
 }
 
 /**
- * Shortcuts that were global bindings once and no longer are. A settings file written by a
- * build that still had them carries these keys; `mergeShortcuts` already ignores any key
- * outside `SHORTCUT_ACTIONS`, so they vanish on the next write; the list lets the load notice
- * the file predates the trim and persist the clean one right away.
- */
-const REMOVED_SHORTCUT_ACTIONS = [
-  "captureScreen",
-  "captureFrame",
-  "recordArea",
-  "toggleMicrophone",
-  "toggleSystemAudio",
-  "toggleCamera",
-] as const;
-
-/**
- * The previous default of an action whose default moved (captureScreenshot ⌘⇧1, captureInstant
- * ⌘⌃I, and their Windows pairs). A user still on the old default gets the new one; a custom
- * binding is never touched. Literals, on purpose: they are history, not the current defaults.
- */
-const MOVED_SHORTCUT_DEFAULTS: Partial<Record<ShortcutAction, readonly string[]>> = {
-  captureScreenshot: ["Command+Control+X", "Control+Alt+X"],
-  captureInstant: ["Command+Control+I", "Control+Alt+I"],
-};
-
-/**
  * Version of the shortcut set the migration below brings a settings file to. The store writes
  * it next to the settings (`shortcutsVersion`); a file without it, or with an older one,
- * predates the trim. Bump it only for a migration that must run once more.
+ * predates the migration steps above that version. Bump it, and add a step tagged with the
+ * new number, only for a change that must run once more.
+ *
+ *   1: the global shortcuts were trimmed to five and the capture ones moved to ⌘⇧1 / ⌘⇧2.
+ *   2: ⌃⌘X became the one Kaipu key (`startRecording`, "Start capturing"); ⌃⌘S is gone.
  */
-export const SHORTCUTS_VERSION = 1;
+export const SHORTCUTS_VERSION = 2;
 
 /**
- * Upgrade a persisted `shortcuts` object written before the trim: drop the removed actions'
+ * Shortcuts that were global bindings once and no longer are, by the version that removed
+ * them. A settings file written by an older build carries these keys; `mergeShortcuts`
+ * already ignores any key outside `SHORTCUT_ACTIONS`, so they vanish on the next write; the
+ * list lets the load notice the file predates the removal and persist the clean one right away.
+ */
+const REMOVED_SHORTCUT_ACTIONS: ReadonlyArray<{ version: number; actions: readonly string[] }> = [
+  {
+    version: 1,
+    actions: [
+      "captureScreen",
+      "captureFrame",
+      "recordArea",
+      "toggleMicrophone",
+      "toggleSystemAudio",
+      "toggleCamera",
+    ],
+  },
+  { version: 2, actions: ["stopRecording"] },
+];
+
+/**
+ * The previous default of an action whose default moved, by the version that moved it. A user
+ * still on the old default gets the new one; a custom binding is never touched. Steps are
+ * tagged because a file already at version 1 must not replay version 1's moves: its
+ * `captureScreenshot` may be a deliberate ⌃⌘X. Literals, on purpose: they are history, not
+ * the current defaults. Within a version the order matters: a step runs against the result of
+ * the ones before it.
+ *
+ *   1: captureScreenshot ⌃⌘X -> ⌘⇧1, captureInstant ⌃⌘I -> ⌘⇧2 (and their Windows pairs).
+ *   2: startRecording ⌃⌘C -> ⌃⌘X (Control+Alt+C -> Control+Alt+X on Windows).
+ */
+const MOVED_SHORTCUT_DEFAULTS: ReadonlyArray<{
+  version: number;
+  action: ShortcutAction;
+  from: readonly string[];
+}> = [
+  { version: 1, action: "captureScreenshot", from: ["Command+Control+X", "Control+Alt+X"] },
+  { version: 1, action: "captureInstant", from: ["Command+Control+I", "Control+Alt+I"] },
+  { version: 2, action: "startRecording", from: ["Command+Control+C", "Control+Alt+C"] },
+];
+
+/**
+ * Upgrade a persisted `shortcuts` object written by an older build: drop the removed actions'
  * keys and, for an action still on its old default, drop that value too so `mergeShortcuts`
  * falls back to this platform's new default. A custom binding is never touched.
  *
- * Runs at load only, never inside `mergeSettings` (which runs on every write), and only for
- * a file whose `fromVersion` is older than `SHORTCUTS_VERSION`. The store persists the new
- * version with the result, so a user who later rebinds an action to an old default keeps it.
- * Returns the input untouched for anything that is not an object.
+ * One exception, for a clash: when another action is already bound to the combo the moved
+ * action's new default would take (a user who rebound `captureScreenshot` to ⌃⌘X before
+ * ⌃⌘X became the start key), the moved action keeps its old binding. The custom binding
+ * wins and nothing is registered twice; the user can rebind the other one on the Shortcuts page.
+ *
+ * Runs at load only, never inside `mergeSettings` (which runs on every write), and only the
+ * steps newer than `fromVersion`. The store persists the new version with the result, so a
+ * user who later rebinds an action to an old default keeps it. Returns the input untouched for
+ * anything that is not an object.
  */
 export function migrateLegacyShortcuts(
   stored: unknown,
   fromVersion = 0,
+  platform: string = process.platform,
 ): { shortcuts: unknown; migrated: boolean } {
   if (fromVersion >= SHORTCUTS_VERSION) return { shortcuts: stored, migrated: false };
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
     return { shortcuts: stored, migrated: false };
   }
   const next: Record<string, unknown> = { ...(stored as Record<string, unknown>) };
+  const defaults = defaultShortcutsFor(platform);
   let migrated = false;
-  for (const action of REMOVED_SHORTCUT_ACTIONS) {
-    if (action in next) {
-      delete next[action];
-      migrated = true;
+  for (const version of range(fromVersion + 1, SHORTCUTS_VERSION)) {
+    for (const step of REMOVED_SHORTCUT_ACTIONS.filter((entry) => entry.version === version)) {
+      for (const action of step.actions) {
+        if (action in next) {
+          delete next[action];
+          migrated = true;
+        }
+      }
     }
-  }
-  for (const [action, oldDefaults] of Object.entries(MOVED_SHORTCUT_DEFAULTS)) {
-    const value = next[action];
-    if (typeof value === "string" && oldDefaults?.includes(value)) {
-      delete next[action];
+    for (const step of MOVED_SHORTCUT_DEFAULTS.filter((entry) => entry.version === version)) {
+      const value = next[step.action];
+      if (typeof value !== "string" || !step.from.includes(value)) continue;
+      const effective = mergeShortcuts(next, platform);
+      const newDefault = defaults[step.action];
+      const clash = SHORTCUT_ACTIONS.some(
+        (other) => other !== step.action && effective[other] === newDefault,
+      );
+      if (clash) continue;
+      delete next[step.action];
       migrated = true;
     }
   }
   return { shortcuts: migrated ? next : stored, migrated };
+}
+
+/** `from..to` inclusive. */
+function range(from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let n = from; n <= to; n += 1) out.push(n);
+  return out;
 }
 
 function isFrameRect(value: unknown): value is CaptureRect {

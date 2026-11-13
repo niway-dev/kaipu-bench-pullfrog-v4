@@ -424,7 +424,7 @@ describe("shortcuts written before the trim", () => {
 
     expect(store.getAppSettings().shortcuts.captureScreenshot).toBe("Command+Control+X");
     const onDisk = JSON.parse(await readFile(file, "utf-8"));
-    expect(onDisk.shortcutsVersion).toBe(1);
+    expect(onDisk.shortcutsVersion).toBe(2);
   });
 
   it("stamps a first run so its later bindings are never migrated", async () => {
@@ -433,6 +433,63 @@ describe("shortcuts written before the trim", () => {
     const onDisk = JSON.parse(
       await readFile(join(mockState.userDataDir, "settings.json"), "utf-8"),
     );
-    expect(onDisk.shortcutsVersion).toBe(1);
+    expect(onDisk.shortcutsVersion).toBe(2);
+  });
+
+  it("moves a version 1 file's ⌃⌘C start to ⌃⌘X once, drops stopRecording and stamps version 2", async () => {
+    const file = join(mockState.userDataDir, "settings.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        shortcutsVersion: 1,
+        shortcuts: {
+          startRecording: "Command+Control+C",
+          stopRecording: "Command+Control+S",
+          bringToFront: "Command+Control+O",
+          captureScreenshot: "Command+Shift+1",
+          captureWindow: "Command+Control+W",
+          captureInstant: "Command+Shift+2",
+        },
+      }),
+    );
+    const store = await loadStore();
+    store.registerSettings();
+
+    const { shortcuts } = store.getAppSettings();
+    expect(shortcuts.startRecording).toBe("Command+Control+X");
+    expect(shortcuts).not.toHaveProperty("stopRecording");
+    const onDisk = JSON.parse(await readFile(file, "utf-8"));
+    expect(onDisk.shortcutsVersion).toBe(2);
+    expect(onDisk.shortcuts.startRecording).toBe("Command+Control+X");
+    expect(onDisk.shortcuts).not.toHaveProperty("stopRecording");
+  });
+
+  it("does not migrate a version 2 file: ⌃⌘C picked after the upgrade stays", async () => {
+    const file = join(mockState.userDataDir, "settings.json");
+    await writeFile(
+      file,
+      JSON.stringify({ shortcutsVersion: 2, shortcuts: { startRecording: "Command+Control+C" } }),
+    );
+    const store = await loadStore();
+    store.registerSettings();
+
+    expect(store.getAppSettings().shortcuts.startRecording).toBe("Command+Control+C");
+  });
+
+  it("keeps a version 1 user's custom ⌃⌘X capture binding and leaves start on ⌃⌘C", async () => {
+    const file = join(mockState.userDataDir, "settings.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        shortcutsVersion: 1,
+        shortcuts: { startRecording: "Command+Control+C", captureScreenshot: "Command+Control+X" },
+      }),
+    );
+    const store = await loadStore();
+    store.registerSettings();
+
+    const { shortcuts } = store.getAppSettings();
+    expect(shortcuts.captureScreenshot).toBe("Command+Control+X");
+    expect(shortcuts.startRecording).toBe("Command+Control+C");
   });
 });

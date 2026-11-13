@@ -100,8 +100,8 @@ describe("OnboardingOverlay", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
-    // The hint shows the real default binding (⌃⌘C on mac), not the old ⌘⇧P literal.
-    expect(await screen.findByText(/⌘C/)).toBeInTheDocument();
+    // The hint shows the real default binding (⌃⌘X on mac), not the old ⌘⇧P literal.
+    expect(await screen.findByText(/⌘X/)).toBeInTheDocument();
     expect(screen.queryByText("⌘⇧P")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /start recording/i }));
@@ -124,7 +124,7 @@ describe("OnboardingOverlay", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
-    expect(await screen.findByText("Ctrl+Alt+C")).toBeInTheDocument();
+    expect(await screen.findByText("Ctrl+Alt+X")).toBeInTheDocument();
     expect(screen.getByText(/even from the system tray/)).toBeInTheDocument();
     expect(screen.queryByText(/⌘|⌃|menu bar/)).toBeNull();
   });

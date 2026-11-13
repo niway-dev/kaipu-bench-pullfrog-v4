@@ -137,6 +137,16 @@ const overlay: OverlayPort = {
   destroyAll: () => overlayWindows?.destroyAll(),
 };
 
+/** Whether the capture selector is up waiting for the user to pick. */
+export function isCaptureOverlayOpen(): boolean {
+  return overlayWindows?.isPicking() ?? false;
+}
+
+/** Close the open capture selector the way Esc does; nothing happens when none is up. */
+export function cancelCaptureOverlay(): void {
+  overlayWindows?.cancelPick();
+}
+
 /**
  * Quit: the overlay windows, spares included, are destroyed and never loaded again. Holds
  * even when no instance existed yet: the first pick after this gets a disposed instance,

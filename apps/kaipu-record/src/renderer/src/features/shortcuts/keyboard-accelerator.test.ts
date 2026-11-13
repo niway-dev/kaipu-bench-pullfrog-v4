@@ -94,23 +94,23 @@ describe("captureShortcut on Windows", () => {
 
 describe("conflictingAction", () => {
   const shortcuts = {
-    startRecording: "Command+Control+C",
-    stopRecording: "Command+Control+S",
-    captureScreenshot: "Command+Control+X",
+    startRecording: "Command+Control+X",
+    bringToFront: "Command+Control+O",
+    captureScreenshot: "Command+Shift+1",
   };
 
   it("finds another action already bound to the accelerator", () => {
-    // Rebinding stopRecording to startRecording's combo.
-    expect(conflictingAction(shortcuts, "stopRecording", "Command+Control+C")).toBe(
+    // Rebinding bringToFront to startRecording's combo.
+    expect(conflictingAction(shortcuts, "bringToFront", "Command+Control+X")).toBe(
       "startRecording",
     );
   });
 
   it("ignores the action's own current binding (re-picking the same combo is fine)", () => {
-    expect(conflictingAction(shortcuts, "startRecording", "Command+Control+C")).toBeNull();
+    expect(conflictingAction(shortcuts, "startRecording", "Command+Control+X")).toBeNull();
   });
 
   it("returns null when the accelerator is free", () => {
-    expect(conflictingAction(shortcuts, "stopRecording", "Command+Control+K")).toBeNull();
+    expect(conflictingAction(shortcuts, "bringToFront", "Command+Control+K")).toBeNull();
   });
 });

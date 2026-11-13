@@ -10,14 +10,17 @@ const REMOVED = [
   "Mute / unmute microphone",
   "System audio on / off",
   "Show / hide camera",
+  "Stop recording",
 ];
 
 describe("ShortcutsPage", () => {
-  it("lists only the five shortcuts with the flag as shipped (Window off)", async () => {
+  it("lists only the four shortcuts with the flag as shipped (Window off)", async () => {
     render(<ShortcutsPage />);
     expect(await screen.findByText("Open capture")).toBeInTheDocument();
-    expect(screen.getByText("Start recording")).toBeInTheDocument();
-    expect(screen.getByText("Stop recording")).toBeInTheDocument();
+    expect(screen.getByText("Start capturing")).toBeInTheDocument();
+    expect(
+      screen.getByText("Open the capture selector; press again to stop or close"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Bring Kaipu to front")).toBeInTheDocument();
     expect(screen.getByText("Instant capture")).toBeInTheDocument();
     expect(screen.queryByText("Capture window")).not.toBeInTheDocument();

@@ -34,7 +34,6 @@ export type Theme = "light" | "dark";
 /** Actions that can be bound to a global keyboard shortcut. */
 export const SHORTCUT_ACTIONS = [
   "startRecording",
-  "stopRecording",
   "bringToFront",
   "captureScreenshot",
   "captureWindow",
@@ -42,7 +41,7 @@ export const SHORTCUT_ACTIONS = [
 ] as const;
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
-/** Electron accelerator string per action (e.g. "Command+Control+C"). */
+/** Electron accelerator string per action (e.g. "Command+Control+X"). */
 export type ShortcutSettings = Record<ShortcutAction, string>;
 
 /** Which on-screen group a shortcut belongs to (drives the Shortcuts page sections). */
@@ -86,19 +85,11 @@ export interface ShortcutDefinition {
 export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   {
     action: "startRecording",
-    defaultAccelerator: { mac: "Command+Control+C", win: "Control+Alt+C" },
+    defaultAccelerator: { mac: "Command+Control+X", win: "Control+Alt+X" },
     group: "recording",
-    label: "Start recording",
-    description: "Begin a screen recording from anywhere",
+    label: "Start capturing",
+    description: "Open the capture selector; press again to stop or close",
     statusWord: "start",
-  },
-  {
-    action: "stopRecording",
-    defaultAccelerator: { mac: "Command+Control+S", win: "Control+Alt+S" },
-    group: "recording",
-    label: "Stop recording",
-    description: "End the current recording from anywhere",
-    statusWord: "stop",
   },
   {
     action: "bringToFront",

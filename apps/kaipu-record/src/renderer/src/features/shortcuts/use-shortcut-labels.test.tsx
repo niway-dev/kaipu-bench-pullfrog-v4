@@ -7,7 +7,6 @@ const settingsWith = (startRecording: string): AppSettings =>
   ({
     shortcuts: {
       startRecording,
-      stopRecording: "Command+Control+S",
       bringToFront: "Command+Control+O",
       captureScreenshot: "Command+Shift+1",
       captureWindow: "Command+Control+W",
@@ -18,11 +17,10 @@ const settingsWith = (startRecording: string): AppSettings =>
 describe("useShortcutLabels", () => {
   it("returns the bindings from settings as formatted labels", async () => {
     const { result } = renderHook(() => useShortcutLabels());
-    // The test stub's settings carry the macOS defaults (Command+Control+C/S/O, Command+Shift+1/2).
+    // The test stub's settings carry the macOS defaults (Command+Control+X/O, Command+Shift+1/2).
     await waitFor(() =>
       expect(result.current).toEqual({
-        startRecording: "⌃⌘C",
-        stopRecording: "⌃⌘S",
+        startRecording: "⌃⌘X",
         bringToFront: "⌃⌘O",
         captureScreenshot: "⇧⌘1",
         captureWindow: "⌃⌘W",
@@ -33,7 +31,7 @@ describe("useShortcutLabels", () => {
 
   it("updates on a settings-changed broadcast (reflects a rebind without a remount/focus)", async () => {
     window.electronAPI.getSettings = vi.fn(async () =>
-      settingsWith("Command+Control+C"),
+      settingsWith("Command+Control+X"),
     ) as unknown as typeof window.electronAPI.getSettings;
     let subscriber: ((settings: AppSettings) => void) | null = null;
     window.electronAPI.onSettingsChanged = ((callback: (settings: AppSettings) => void) => {
@@ -42,10 +40,10 @@ describe("useShortcutLabels", () => {
     }) as unknown as typeof window.electronAPI.onSettingsChanged;
 
     const { result } = renderHook(() => useShortcutLabels());
-    await waitFor(() => expect(result.current?.startRecording).toBe("⌃⌘C"));
+    await waitFor(() => expect(result.current?.startRecording).toBe("⌃⌘X"));
 
     // The always-alive control-bar window never remounts/focuses; the broadcast
-    // is what keeps its Stop-shortcut hint current.
+    // is what keeps its shortcut hint current.
     act(() => subscriber?.(settingsWith("Command+Control+G")));
     await waitFor(() => expect(result.current?.startRecording).toBe("⌃⌘G"));
   });
@@ -55,11 +53,11 @@ describe("useShortcutLabels", () => {
     const original = api.platform;
     api.platform = "win32";
     window.electronAPI.getSettings = vi.fn(async () =>
-      settingsWith("Control+Alt+C"),
+      settingsWith("Control+Alt+X"),
     ) as unknown as typeof window.electronAPI.getSettings;
     try {
       const { result } = renderHook(() => useShortcutLabels());
-      await waitFor(() => expect(result.current?.startRecording).toBe("Ctrl+Alt+C"));
+      await waitFor(() => expect(result.current?.startRecording).toBe("Ctrl+Alt+X"));
     } finally {
       api.platform = original;
     }

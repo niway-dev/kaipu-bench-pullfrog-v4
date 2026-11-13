@@ -372,7 +372,7 @@
     "homeChapter1Serif": "One take. No setup.",
     "homeChapter1Body": "Screen, your voice, system audio and a floating camera — started from the menu bar or a shortcut. Pause, keep going, stop. It’s already saved.",
     "homeChapter1Pill1": "Menu bar",
-    "homeChapter1Pill2": "⌘⌃C",
+    "homeChapter1Pill2": "⌘⌃X",
     "homeChapter1Pill3": "Camera bubble",
     "homeChapter1Pill4": "System audio",
     "homeChapter2Label": "Capture",
@@ -1866,8 +1866,8 @@
     "accessibilityGrant": "Allow",
     "doneTitle": "You're all set",
     "donePressPre": "Press",
-    "donePressPost": "anywhere — even from the menu bar — to start recording.",
-    "donePressPostWindows": "anywhere — even from the system tray — to start recording."
+    "donePressPost": "anywhere — even from the menu bar — to start capturing.",
+    "donePressPostWindows": "anywhere — even from the system tray — to start capturing."
   },
   "shortcuts": {
     "title": "Shortcuts",
@@ -1878,10 +1878,8 @@
     "noteAlreadyBound": "{description} · already bound to “{label}”",
     "noteInUse": "{description} · in use by another app",
     "alreadyBoundTitle": "Already bound to “{label}” — pick a different combo",
-    "startRecordingLabel": "Start recording",
-    "startRecordingDesc": "Begin a screen recording from anywhere",
-    "stopRecordingLabel": "Stop recording",
-    "stopRecordingDesc": "End the current recording from anywhere",
+    "startRecordingLabel": "Start capturing",
+    "startRecordingDesc": "Open the capture selector; press again to stop or close",
     "bringToFrontLabel": "Bring Kaipu to front",
     "bringToFrontDesc": "Show the app window if it slips behind or out of reach",
     "captureScreenshotLabel": "Open capture",
@@ -1891,7 +1889,6 @@
     "captureInstantLabel": "Instant capture",
     "captureInstantDesc": "Capture the screen under the cursor at once, no selector",
     "statusStart": "start",
-    "statusStop": "stop",
     "statusShowApp": "show app",
     "statusCapture": "capture",
     "shortcutInactive": "This shortcut isn't active — pick a different combo",
@@ -2529,8 +2526,7 @@
       "startAnywhere": {
         "title": "Start from anywhere",
         "body": "A capture panel in the menu bar, and global shortcuts that work from any app. Rebind any of them.",
-        "k1": "Start",
-        "k2": "Stop",
+        "k1": "Start or stop",
         "k3": "Screenshot",
         "k4": "Show app",
         "k5": "Instant capture"

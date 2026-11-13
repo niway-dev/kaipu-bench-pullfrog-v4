@@ -19,7 +19,6 @@ import { uiArea } from "@renderer/lib/ui-area";
 /** action → `shortcuts` namespace keys (labels/descriptions live in i18n, not the shared defs). */
 const LABEL_KEY = {
   startRecording: "startRecordingLabel",
-  stopRecording: "stopRecordingLabel",
   bringToFront: "bringToFrontLabel",
   captureScreenshot: "captureScreenshotLabel",
   captureWindow: "captureWindowLabel",
@@ -27,7 +26,6 @@ const LABEL_KEY = {
 } as const;
 const DESC_KEY = {
   startRecording: "startRecordingDesc",
-  stopRecording: "stopRecordingDesc",
   bringToFront: "bringToFrontDesc",
   captureScreenshot: "captureScreenshotDesc",
   captureWindow: "captureWindowDesc",
