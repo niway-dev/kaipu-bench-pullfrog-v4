@@ -11,6 +11,14 @@
 export const RECORDING_READY_DESTINATIONS = ["youtube", "vertical", "github"] as const;
 export type RecordingReadyDestination = (typeof RECORDING_READY_DESTINATIONS)[number];
 
+/**
+ * Main → card: `remainingMs` until the card hides itself, or `null` while the auto-hide is
+ * held (the pointer is over the card). The card's bar mirrors it; main does the hiding.
+ */
+export interface RecordingReadyTimer {
+  remainingMs: number | null;
+}
+
 /** Main window → main → card: what the card shows about the fresh recording. */
 export interface RecordingReadyPayload {
   assetId: string;

@@ -13,6 +13,7 @@ const {
   READY_DEFAULT_CARD_HEIGHT,
   READY_WINDOW_PADDING,
   READY_LOAD_TIMEOUT_MS,
+  READY_AUTO_HIDE_MS,
 } = await import("./recording-ready-window");
 
 const PRIMARY = { id: 1, workArea: { x: 0, y: 25, width: 1512, height: 957 } };
@@ -193,10 +194,12 @@ describe("RecordingReadyWindow", () => {
     const next = { ...FRESH, assetId: "asset-2" };
     await expect(ready.show(next)).resolves.toBe(true);
     expect(windows).toHaveLength(1);
-    expect(window().webContents.send).toHaveBeenLastCalledWith(
-      IPC_CHANNELS.recordingReadyPayload,
-      next,
-    );
+    const payloads = window()
+      .webContents.send.mock.calls.filter(
+        ([channel]) => channel === IPC_CHANNELS.recordingReadyPayload,
+      )
+      .map(([, payload]) => payload);
+    expect(payloads.at(-1)).toEqual(next);
   });
 
   it("is asked for by the main window through `recording-ready:show`, which validates", async () => {
@@ -334,5 +337,124 @@ describe("RecordingReadyWindow", () => {
     expect(window().destroy).toHaveBeenCalled();
     await expect(ready.show(FRESH)).resolves.toBe(false);
     expect(windows).toHaveLength(2);
+  });
+  describe("auto-hide, like the capture toast", () => {
+    const timerSends = (window: FakeWindow): unknown[] =>
+      window.webContents.send.mock.calls
+        .filter(([channel]) => channel === IPC_CHANNELS.recordingReadyTimer)
+        .map(([, timer]) => timer);
+
+    it("hides itself READY_AUTO_HIDE_MS after the card is on screen, not after show()", () => {
+      vi.useFakeTimers();
+      const { ready, window, cardReady, openInMain } = setup();
+      void ready.show(FRESH);
+      // The renderer is still loading: the clock has not started.
+      vi.advanceTimersByTime(READY_LOAD_TIMEOUT_MS - 1);
+      cardReady();
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 1);
+      expect(window().hide).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(window().hide).toHaveBeenCalledTimes(1);
+      expect(window().setVisibleOnAllWorkspaces).toHaveBeenLastCalledWith(false, {
+        visibleOnFullScreen: false,
+        skipTransformProcessType: true,
+      });
+      expect(openInMain).not.toHaveBeenCalled();
+    });
+
+    it("holds while the pointer is over the card and restarts in full when it leaves", () => {
+      vi.useFakeTimers();
+      const { ready, window, cardReady, fromCard } = setup();
+      void ready.show(FRESH);
+      cardReady();
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 100);
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: true });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS * 5);
+      expect(window().hide).not.toHaveBeenCalled();
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: false });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 1);
+      expect(window().hide).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(window().hide).toHaveBeenCalledTimes(1);
+    });
+
+    it("tells the card's bar every start and stop of the timer", () => {
+      vi.useFakeTimers();
+      const { ready, window, cardReady, fromCard } = setup();
+      void ready.show(FRESH);
+      cardReady();
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: true });
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: false });
+      expect(timerSends(window())).toEqual([
+        { remainingMs: READY_AUTO_HIDE_MS },
+        { remainingMs: null },
+        { remainingMs: READY_AUTO_HIDE_MS },
+      ]);
+    });
+
+    it("a new recording starts the clock over; a resting pointer keeps holding it", () => {
+      vi.useFakeTimers();
+      const { ready, window, cardReady, fromCard } = setup();
+      void ready.show(FRESH);
+      cardReady();
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 100);
+      void ready.show({ ...FRESH, assetId: "asset-2" });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 1);
+      expect(window().hide).not.toHaveBeenCalled();
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: true });
+      void ready.show({ ...FRESH, assetId: "asset-3" });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS * 2);
+      expect(window().hide).not.toHaveBeenCalled();
+    });
+
+    it("an action stops the clock; hidden under the pointer, the next card still counts", () => {
+      vi.useFakeTimers();
+      const { ready, window, cardReady, fromCard, press } = setup();
+      void ready.show(FRESH);
+      cardReady();
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: true });
+      press({ kind: "dismiss" });
+      expect(window().hide).toHaveBeenCalledTimes(1);
+      // The card hid under the pointer, so it never reported leaving.
+      void ready.show({ ...FRESH, assetId: "asset-2" });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS);
+      expect(window().hide).toHaveBeenCalledTimes(2);
+    });
+
+    it("a window the system closed mid-countdown never hides the next card", () => {
+      vi.useFakeTimers();
+      const { ready, windows, window, cardReady, fromCard } = setup();
+      void ready.show(FRESH);
+      cardReady();
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: true });
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: false });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 100);
+      windows[0]!.closed?.();
+      const next = { ...FRESH, assetId: "asset-2" };
+      void ready.show(next);
+      // The old deadline passes while the new window is still loading.
+      vi.advanceTimersByTime(200);
+      cardReady();
+      expect(windows).toHaveLength(2);
+      expect(window().showInactive).toHaveBeenCalledTimes(1);
+      expect(window().webContents.send).toHaveBeenCalledWith(
+        IPC_CHANNELS.recordingReadyPayload,
+        next,
+      );
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 1);
+      expect(window().hide).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(window().hide).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores hover reports from any other renderer", () => {
+      vi.useFakeTimers();
+      const { ready, window, cardReady, listeners } = setup();
+      void ready.show(FRESH);
+      cardReady();
+      listeners.get(IPC_CHANNELS.recordingReadyHover)?.({ sender: MAIN_SENDER }, { paused: true });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS);
+      expect(window().hide).toHaveBeenCalledTimes(1);
+    });
   });
 });

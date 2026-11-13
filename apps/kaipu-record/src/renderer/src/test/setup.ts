@@ -348,6 +348,8 @@ window.electronAPI = {
     ready: () => {},
     action: () => {},
     resize: () => {},
+    hover: () => {},
+    onTimer: () => () => {},
   },
   onRecordingReadyOpen: () => () => {},
   onOpenSavedScreenshot: () => () => {},

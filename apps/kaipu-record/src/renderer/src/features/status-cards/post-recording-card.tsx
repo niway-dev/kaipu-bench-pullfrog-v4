@@ -45,14 +45,20 @@ export interface PostRecordingCardProps {
   onOpen?(): void;
   /** The catalog area this card is (`uiArea("…")`), put on its root. */
   ui?: UiAreaProps;
+  /** The floating window's auto-hide bar, flush with the bottom edge; none in the app. */
+  countdown?: React.ReactNode;
+  /** The pointer entered or left the card: the floating window holds its auto-hide. */
+  onMouseEnter?(): void;
+  onMouseLeave?(): void;
 }
 
 /**
  * "Your video is ready" (NIW2-584): the card shown right after a recording, floating on the
  * desktop in its own window (`RecordingReadyCard`), or on the recording page's status stack
- * when that window could not open. It asks where the video is going, with chips into Prepare, and stays until the
- * user picks something, closes it or leaves the page — there is no timer, since the question
- * is the point. Settings → Export quality turns it off.
+ * when that window could not open. It asks where the video is going, with chips into Prepare.
+ * In the app it stays until the user picks something, closes it or leaves the page; the
+ * floating window hides it on a timer, like the capture toast (`RecordingReadyWindow`).
+ * Settings → Export quality turns it off.
  */
 export function PostRecordingCard({
   durationSeconds,
@@ -63,6 +69,9 @@ export function PostRecordingCard({
   onDismiss,
   onOpen,
   ui,
+  countdown,
+  onMouseEnter,
+  onMouseLeave,
 }: PostRecordingCardProps): React.JSX.Element {
   const t = useTranslations("postRecording");
   const subtitle = [
@@ -92,6 +101,9 @@ export function PostRecordingCard({
       onDismiss={onDismiss}
       dismissLabel={t("dismiss")}
       footer={t("footer")}
+      edge={countdown}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       <StatusCardText>{t("question")}</StatusCardText>
       <ul className={styles.chips}>

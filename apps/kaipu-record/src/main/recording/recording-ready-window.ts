@@ -30,6 +30,11 @@ export const READY_CARD_MARGIN = 18;
  * main window shows its in-app card instead.
  */
 export const READY_LOAD_TIMEOUT_MS = 3000;
+/**
+ * How long the card stays on screen with the pointer away from it: the capture toast's
+ * `TOAST_AUTO_HIDE_MS`, so both corner cards leave the same way.
+ */
+export const READY_AUTO_HIDE_MS = 10_000;
 
 /** The slice of `BrowserWindow` the card uses, so tests can pass a fake. */
 export interface ReadyWindow {
@@ -104,8 +109,10 @@ export function readyWindowBounds(workArea: Rectangle, cardHeight: number): Rect
  * and never brings the app forward: `showInactive`, and on macOS a non-activating panel.
  *
  * Unlike the toast it is focusable, so once the user clicks into it Escape closes it; it
- * still never takes focus by itself. It has no timer (the question is the point): it stays
- * until an action, ✕ or Escape, and the next recording re-targets the same window.
+ * still never takes focus by itself. Like the toast it hides itself `READY_AUTO_HIDE_MS`
+ * after it is on screen, holding while the pointer is over it and starting over in full when
+ * the pointer leaves; an action, ✕ or Escape closes it sooner. The video is safe either way:
+ * it is already in the library. The next recording re-targets the same window.
  * Content protection keeps it out of the next recording and of screenshots.
  */
 export class RecordingReadyWindow {
@@ -120,6 +127,9 @@ export class RecordingReadyWindow {
   /** The `show()` waiting for a new window's renderer: settled by card-ready or a failure. */
   private pending: { resolve(shown: boolean): void; timer: ReturnType<typeof setTimeout> } | null =
     null;
+  private autoHide: ReturnType<typeof setTimeout> | null = null;
+  /** The pointer is over the card (last `recording-ready:hover`); reset when it hides. */
+  private pointerInside = false;
 
   constructor(private readonly deps: RecordingReadyDeps) {
     deps.ipc.handle(IPC_CHANNELS.recordingReadyShow, (event, payload) => {
@@ -134,6 +144,19 @@ export class RecordingReadyWindow {
       this.rendererReady = true;
       this.present();
       this.settle(true);
+      // The card is on screen only now: the auto-hide counts from here, not from `show`.
+      if (this.payload) this.restartAutoHide();
+    });
+    deps.ipc.on(IPC_CHANNELS.recordingReadyHover, (event, payload) => {
+      if (!this.isOwnSender(event.sender) || !this.payload) return;
+      const paused = (payload as { paused?: unknown } | undefined)?.paused;
+      if (paused === true) {
+        this.pointerInside = true;
+        this.stopAutoHide();
+      } else if (paused === false) {
+        this.pointerInside = false;
+        this.restartAutoHide();
+      }
     });
     deps.ipc.on(IPC_CHANNELS.recordingReadyResize, (event, payload) => {
       if (!this.isOwnSender(event.sender)) return;
@@ -170,6 +193,9 @@ export class RecordingReadyWindow {
     this.workArea = this.displayWorkArea();
     if (this.rendererReady) {
       this.present();
+      // A new take under a resting pointer: a full bar, frozen, not the last card's leftover.
+      if (this.pointerInside) this.sendTimer(READY_AUTO_HIDE_MS);
+      this.restartAutoHide();
       return Promise.resolve(true);
     }
     // A newer card replaces an older one still waiting: the older one is not lost, it was
@@ -187,7 +213,10 @@ export class RecordingReadyWindow {
 
   /** Hide the card (✕, Escape, or before an action hands off to the main window). */
   close(): void {
+    this.stopAutoHide();
     this.payload = null;
+    // Hidden under a resting pointer, the card never reports it left.
+    this.pointerInside = false;
     if (!this.window || this.window.isDestroyed()) return;
     this.window.hide();
     this.setSpaceBehavior(false);
@@ -250,6 +279,9 @@ export class RecordingReadyWindow {
       if (this.window !== window) return;
       this.window = null;
       this.rendererReady = false;
+      // A countdown left running would hide the next card while its new window still loads.
+      this.clearAutoHide();
+      this.pointerInside = false;
       this.settle(false);
     });
     window.webContents.on("did-fail-load", () => this.fail(window));
@@ -266,7 +298,9 @@ export class RecordingReadyWindow {
     if (this.window !== window) return;
     this.window = null;
     this.rendererReady = false;
+    this.stopAutoHide();
     this.payload = null;
+    this.pointerInside = false;
     if (!window.isDestroyed()) window.destroy();
     this.settle(false);
   }
@@ -287,6 +321,39 @@ export class RecordingReadyWindow {
     window.webContents.send(IPC_CHANNELS.recordingReadyPayload, this.payload);
     this.setSpaceBehavior(true);
     window.showInactive();
+  }
+
+  /** Start the auto-hide over in full, unless the pointer is holding the card. */
+  private restartAutoHide(): void {
+    if (this.pointerInside) {
+      this.stopAutoHide();
+      return;
+    }
+    this.clearAutoHide();
+    this.autoHide = setTimeout(() => {
+      this.autoHide = null;
+      this.close();
+    }, READY_AUTO_HIDE_MS);
+    this.sendTimer(READY_AUTO_HIDE_MS);
+  }
+
+  /** Hold the auto-hide; the card's bar freezes where it is. */
+  private stopAutoHide(): void {
+    this.sendTimer(null);
+    this.clearAutoHide();
+  }
+
+  private clearAutoHide(): void {
+    if (this.autoHide === null) return;
+    clearTimeout(this.autoHide);
+    this.autoHide = null;
+  }
+
+  /** The card's bar mirrors main's timer; main stays the one that hides the card. */
+  private sendTimer(remainingMs: number | null): void {
+    const window = this.window;
+    if (!window || window.isDestroyed() || !this.rendererReady) return;
+    window.webContents.send(IPC_CHANNELS.recordingReadyTimer, { remainingMs });
   }
 
   /** Join every Space, full-screen ones included, while shown; leave them when hidden. */

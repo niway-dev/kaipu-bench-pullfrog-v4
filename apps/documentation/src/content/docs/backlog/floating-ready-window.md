@@ -23,9 +23,14 @@ system notification. It now opens in its own window:
 - content-protected, so a later recording or screenshot never captures it;
 - on every Space, full-screen ones included, while shown (the capture toast's behavior).
 
-The content, styles and i18n are the same `PostRecordingCard` as before. It has no timer:
-it stays until an action, ✕ or Escape (Escape works once the user has clicked into it,
-because the window never takes focus by itself). The next recording replaces it.
+The content, styles and i18n are the same `PostRecordingCard` as before. Like the capture
+toast, it hides itself 10 s after it is on screen (`READY_AUTO_HIDE_MS`): the pointer over the
+card holds it, leaving starts the 10 s over, and a 2 px bar at the bottom edge drains with the
+timer. Before 2026-11-13 it had no timer and stayed up until dismissed, which left it stuck
+in the corner; the video is already in the library, so the card can leave on its own. An action,
+✕ or Escape closes it sooner (Escape works once the user has clicked into it, because the
+window never takes focus by itself). The next recording replaces it and starts the timer over.
+The in-app fallback card on the recording page keeps no timer.
 
 Every action closes the window, then shows and focuses the main window and navigates it:
 a chip or More places into Prepare (through `preparePath`), Edit first into the editor,
