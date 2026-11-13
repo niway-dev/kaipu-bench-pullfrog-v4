@@ -131,12 +131,10 @@ export const captureOverlay = catalog(
         },
         record("frame"),
         { waitFor: { window: "capture-overlay" } },
-        {
-          click: {
-            area: "captureOverlay.captureWidget",
-            part: { role: "button", name: "Record" },
-          },
-        },
+        // Enter, not a click on "Record": a role match by name also finds the "Recording" chip.
+        { waitMs: 500 },
+        { press: "Enter", on: "capture-overlay" },
+        { waitFor: { area: "captureOverlay.captureWidget", part: { text: "Starting in" } } },
       ],
       demonstrates: ["captureOverlay.captureWidget:counting"],
       ready: { area: "captureOverlay.captureWidget" },
