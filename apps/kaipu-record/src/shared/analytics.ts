@@ -26,8 +26,9 @@ export type FlagName = (typeof FLAG_NAMES)[number];
  */
 export const FLAG_DEFAULTS: Record<FlagName, boolean> = {
   // Cursor-free macOS capture with an editable cursor, on for Screen, Frame and Window
-  // with the webcam and audio. The PostHog flag stays as a kill switch: disabled there,
-  // the SDK returns undefined and this default applies; enabled at 0%, it turns it off.
+  // with the webcam and audio. Its PostHog flag was deleted on 2026-11-12, so this default
+  // always applies: there is no remote kill switch. To get one back, recreate the flag
+  // disabled, then enable it at 0% (see desktop/analytics-and-flags).
   "native-cursor-capture": true,
   // Screenshots during a take (macOS only): off until it is validated in the real app.
   "capture-while-recording": false,
