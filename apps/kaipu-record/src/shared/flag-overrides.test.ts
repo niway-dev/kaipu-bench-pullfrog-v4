@@ -16,19 +16,19 @@ describe("parseFlagOverrides", () => {
   });
 
   it("rejects an unknown key and keeps the valid ones", () => {
-    const { overrides, rejected } = parseFlagOverrides('{"nope":true,"bypass-login":false}', {
+    const { overrides, rejected } = parseFlagOverrides('{"nope":true,"image-canvas":false}', {
       isPackaged: false,
     });
-    expect(overrides).toEqual({ "bypass-login": false });
+    expect(overrides).toEqual({ "image-canvas": false });
     expect(rejected).toEqual(["nope (unknown flag)"]);
   });
 
   it("rejects a non-boolean value", () => {
-    const { overrides, rejected } = parseFlagOverrides('{"bypass-login":"yes"}', {
+    const { overrides, rejected } = parseFlagOverrides('{"image-canvas":"yes"}', {
       isPackaged: false,
     });
     expect(overrides).toEqual({});
-    expect(rejected).toEqual(["bypass-login (not a boolean)"]);
+    expect(rejected).toEqual(["image-canvas (not a boolean)"]);
   });
 
   it("yields no overrides for invalid JSON or a non-object", () => {
@@ -47,8 +47,8 @@ describe("parseFlagOverrides", () => {
 
 describe("readFlagOverridesArg", () => {
   it("round-trips through the process argument", () => {
-    const argv = ["electron", "--foo", flagOverridesArg({ "bypass-login": false })];
-    expect(readFlagOverridesArg(argv)).toEqual({ "bypass-login": false });
+    const argv = ["electron", "--foo", flagOverridesArg({ "image-canvas": false })];
+    expect(readFlagOverridesArg(argv)).toEqual({ "image-canvas": false });
   });
 
   it("is empty when the argument is absent", () => {

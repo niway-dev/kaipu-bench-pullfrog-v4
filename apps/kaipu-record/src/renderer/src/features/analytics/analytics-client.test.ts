@@ -24,13 +24,13 @@ describe("isFlagEnabled overrides", () => {
   afterEach(() => setOverrides(original));
 
   it("returns the override even though analytics never started", () => {
-    setOverrides({ "native-cursor-capture": true, "bypass-login": false });
+    setOverrides({ "native-cursor-capture": true, "image-canvas": true });
     expect(isFlagEnabled("native-cursor-capture", false)).toBe(true);
-    expect(isFlagEnabled("bypass-login", true)).toBe(false);
+    expect(isFlagEnabled("image-canvas", false)).toBe(true);
   });
 
   it("falls back to the default for a flag with no override", () => {
     setOverrides({ "native-cursor-capture": true });
-    expect(isFlagEnabled("bypass-login", true)).toBe(true);
+    expect(isFlagEnabled("image-canvas", true)).toBe(true);
   });
 });
