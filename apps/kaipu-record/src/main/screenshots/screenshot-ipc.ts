@@ -7,6 +7,7 @@ import { IPC_CHANNELS } from "@shared/types/ipc";
 import type { LocalRecording } from "@shared/types/library-storage";
 import {
   isEnabledCaptureMode,
+  type CaptureIntent,
   type CaptureMode,
   type OverlayAnswer,
 } from "@shared/types/screenshot-capture";
@@ -61,17 +62,15 @@ let overlayBusy: () => boolean = () => false;
 /**
  * The next pick's guess: the intent of the last one (record before any), opened in that
  * intent's remembered mode. Nothing when that pick shows no overlay: a mode switched off
- * (Window, NIW2-469), or Screen on a lone display.
+ * (Window, NIW2-469). Screen on a lone display opens the widget like any other pick.
  */
 const overlayWarmup: OverlayWarmup = {
   next: (lastIntent) => {
     const intent = lastIntent ?? "record";
     const settings = getAppSettings();
     const ui = intent === "record" ? settings.recordingMode : settings.screenshotMode;
-    const displays = screen.getAllDisplays();
     if (!isEnabledCaptureMode(ui)) return null;
-    if (ui === "screen" && displays.length === 1) return null;
-    return { ui, intent, displays };
+    return { ui, intent, displays: screen.getAllDisplays() };
   },
   canWarm: () => !overlayBusy(),
 };
@@ -142,6 +141,16 @@ export function isCaptureOverlayOpen(): boolean {
   return overlayWindows?.isPicking() ?? false;
 }
 
+/** The intent the open capture widget shows now (after any P / V switch); null with none up. */
+export function captureOverlayIntent(): CaptureIntent | null {
+  return overlayWindows?.currentIntent() ?? null;
+}
+
+/** Switch the open capture widget to `intent`, as P / V inside it do; nothing when none is up. */
+export function switchCaptureOverlayIntent(intent: CaptureIntent): void {
+  overlayWindows?.switchIntent(intent);
+}
+
 /** Close the open capture selector the way Esc does; nothing happens when none is up. */
 export function cancelCaptureOverlay(): void {
   overlayWindows?.cancelPick();
@@ -190,7 +199,7 @@ export function registerScreenshotHandlers(
   const toastSeam = deferToastUntilAfterCapture(
     appWindows,
     (request) => showToast?.(request),
-    // No overlay answered (Screen on a lone display): the display under the pointer.
+    // No overlay answered (the instant capture): the display under the pointer.
     () => screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id,
   );
   observePick = toastSeam.onPick;

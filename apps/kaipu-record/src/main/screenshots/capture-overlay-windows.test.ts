@@ -799,6 +799,41 @@ describe("CaptureOverlayWindows: switching mode inside the overlay", () => {
     expect(states(first)).toHaveLength(count);
   });
 
+  it("reports the live intent while a pick is open (after a switch), and null otherwise", () => {
+    const { port, second } = pickWith("screen");
+    expect(port.currentIntent()).toBe("capture");
+
+    second.send(IPC_CHANNELS.screenshotOverlayIntent, { intent: "record" });
+    expect(port.currentIntent()).toBe("record");
+
+    port.cancelPick();
+    expect(port.currentIntent()).toBeNull();
+  });
+
+  it("switchIntent, from the shortcut, rebroadcasts like P / V and ignores no-ops and instant", () => {
+    const { port, first, second } = pickWith("screen");
+
+    port.switchIntent("record");
+    for (const window of [first, second]) {
+      expect(states(window).at(-1)).toMatchObject({ mode: "screen", intent: "record" });
+    }
+    expect(port.currentIntent()).toBe("record");
+
+    const count = states(first).length;
+    port.switchIntent("record");
+    port.switchIntent("instant");
+    expect(states(first)).toHaveLength(count);
+
+    port.switchIntent("capture");
+    expect(states(first).at(-1)).toMatchObject({ intent: "capture" });
+  });
+
+  it("switchIntent with no pick open does nothing", () => {
+    const port = new CaptureOverlayWindows({ enabledModes: CAPTURE_MODES, platform: "darwin" });
+    expect(() => port.switchIntent("record")).not.toThrow();
+    expect(port.currentIntent()).toBeNull();
+  });
+
   it("entering Frame puts the frame on the display that asked, and focuses it", () => {
     const { first, second } = pickWith("screen");
 

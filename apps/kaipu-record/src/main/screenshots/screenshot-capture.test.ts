@@ -192,19 +192,30 @@ describe("MacProvider", () => {
       expect(runCli).toHaveBeenCalledWith("screencapture", ["-l", "123", "-o", "-x", "/tmp/x.png"]);
     });
 
-    it("screen with one display skips the overlay and captures its bounds", async () => {
+    it("screen with one display opens the overlay like any other pick, then captures its bounds", async () => {
+      answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
       const out = await macProvider().capture({ mode: "screen", overlay: fake });
-      expect(fake.pick).not.toHaveBeenCalled();
+      expect(fake.pick).toHaveBeenCalledWith("screen", [main]);
       expect(log).toEqual([
-        "settle",
+        "pick:screen",
         "hideAll",
+        "settle",
         "runCli:-R 0,0,1440,900 -x /tmp/x.png",
         "destroyAll",
       ]);
       expect(out).toEqual({ kind: "captured", png: PNG, mode: "screen", action: "capture" });
     });
 
-    it("one display waits for the settle delay before running screencapture", async () => {
+    it("screen with one display captures nothing until the overlay answers", async () => {
+      // Esc on the widget: no shot, no take.
+      const out = await macProvider().capture({ mode: "screen", overlay: fake });
+      expect(out).toEqual({ kind: "cancelled" });
+      expect(runCli).not.toHaveBeenCalled();
+      expect(log).toEqual(["pick:screen", "destroyAll"]);
+    });
+
+    it("one display waits for the settle delay after the answer before running screencapture", async () => {
+      answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
       let release = (): void => {};
       settle = () => new Promise<void>((resolve) => (release = resolve));
       const pending = macProvider().capture({ mode: "screen", overlay: fake });
@@ -253,13 +264,31 @@ describe("MacProvider", () => {
       expect(runCli).not.toHaveBeenCalled();
     });
 
-    it("screen with one display in the record intent records it without an overlay", async () => {
-      // "Start recording" in Screen on a lone display: the take starts, it does not only
-      // set the target (which left the user with no recording at all).
+    it("screen with one display in the record intent opens the overlay and records what it answers", async () => {
+      // Every entry opens the widget: nothing records until the user confirms in it.
+      answer = { kind: "display", mode: "screen", action: "record", displayId: 1 };
       const out = await macProvider().capture({ mode: "screen", overlay: fake, intent: "record" });
-      expect(fake.pick).not.toHaveBeenCalled();
+      expect(fake.pick).toHaveBeenCalledWith("screen", [main], "record");
       expect(out).toEqual({ kind: "record", start: true, displayId: 1, rect: null });
       expect(runCli).not.toHaveBeenCalled();
+    });
+
+    it("screen with one display in the record intent starts nothing when the overlay is cancelled", async () => {
+      const out = await macProvider().capture({ mode: "screen", overlay: fake, intent: "record" });
+      expect(fake.pick).toHaveBeenCalledWith("screen", [main], "record");
+      expect(out).toEqual({ kind: "cancelled" });
+    });
+
+    it("the instant capture on one display still opens no overlay", async () => {
+      const out = await macProvider().capture({ mode: "screen", overlay: fake, intent: "instant" });
+      expect(fake.pick).not.toHaveBeenCalled();
+      expect(out).toEqual({ kind: "captured", png: PNG, mode: "screen", action: "capture" });
+      expect(log).toEqual([
+        "settle",
+        "hideAll",
+        "runCli:-R 0,0,1440,900 -x /tmp/x.png",
+        "destroyAll",
+      ]);
     });
 
     it("frame converts the display-relative rect to global DIP", async () => {
@@ -430,10 +459,11 @@ describe("MacProvider", () => {
         log.push("runCli");
         throw new Error("boom");
       });
+      answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
       await expect(macProvider().capture({ mode: "screen", overlay: fake })).rejects.toThrow(
         "boom",
       );
-      expect(log).toEqual(["settle", "hideAll", "runCli", "destroyAll"]);
+      expect(log).toEqual(["pick:screen", "hideAll", "settle", "runCli", "destroyAll"]);
     });
 
     it("destroys the overlay when pick itself throws", async () => {
@@ -557,11 +587,26 @@ describe("WindowsProvider", () => {
     expect(MODES.map((m) => provider().supports(m))).toEqual([true, true, true]);
   });
 
-  it("screen with one display in the record intent records it without an overlay", async () => {
+  it("screen with one display in the record intent opens the overlay and records what it answers", async () => {
+    answer = { kind: "display", mode: "screen", action: "record", displayId: 1 };
     const out = await provider().capture({ mode: "screen", overlay: fake, intent: "record" });
-    expect(fake.pick).not.toHaveBeenCalled();
+    expect(fake.pick).toHaveBeenCalledWith("screen", [primary], "record");
     expect(out).toEqual({ kind: "record", start: true, displayId: 1, rect: null });
     expect(log).not.toContain("getSources");
+  });
+
+  it("screen with one display in the record intent starts nothing when the overlay is cancelled", async () => {
+    const out = await provider().capture({ mode: "screen", overlay: fake, intent: "record" });
+    expect(fake.pick).toHaveBeenCalledWith("screen", [primary], "record");
+    expect(out).toEqual({ kind: "cancelled" });
+    expect(log).not.toContain("getSources");
+  });
+
+  it("the instant capture on one display still opens no overlay", async () => {
+    const out = await provider().capture({ mode: "screen", overlay: fake, intent: "instant" });
+    expect(fake.pick).not.toHaveBeenCalled();
+    expect(out).toEqual({ kind: "captured", png: PNG("one"), mode: "screen", action: "capture" });
+    expect(log).toEqual(["settle", "hideAll", "getSources", "destroyAll"]);
   });
 
   it("frame: pick, hide, capture, destroy, in that order, cropped in physical pixels", async () => {
@@ -763,6 +808,7 @@ describe("WindowsProvider", () => {
   });
 
   it("falls back to the lone source when its display_id is empty", async () => {
+    answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
     sources = [{ display_id: "", thumbnail: image({ width: 1920, height: 1080 }, "lone") }];
     const out = await provider().capture({ mode: "screen", overlay: fake });
     expect(out).toEqual({ kind: "captured", png: PNG("lone"), mode: "screen", action: "capture" });
@@ -781,14 +827,16 @@ describe("WindowsProvider", () => {
     });
   });
 
-  it("screen with one display skips the overlay, settles, hides and captures", async () => {
+  it("screen with one display opens the overlay, hides, settles and captures", async () => {
+    answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
     const out = await provider().capture({ mode: "screen", overlay: fake });
-    expect(fake.pick).not.toHaveBeenCalled();
-    expect(log).toEqual(["settle", "hideAll", "getSources", "destroyAll"]);
+    expect(fake.pick).toHaveBeenCalledWith("screen", [primary]);
+    expect(log).toEqual(["pick:screen", "hideAll", "settle", "getSources", "destroyAll"]);
     expect(out).toEqual({ kind: "captured", png: PNG("one"), mode: "screen", action: "capture" });
   });
 
-  it("one display waits for the settle delay before asking for sources", async () => {
+  it("one display waits for the settle delay after the answer before asking for sources", async () => {
+    answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
     let release = (): void => {};
     settle = () => new Promise<void>((resolve) => (release = resolve));
     const pending = provider().capture({ mode: "screen", overlay: fake });
@@ -814,6 +862,7 @@ describe("WindowsProvider", () => {
   });
 
   it("an empty source list answers cancelled with a warning and destroys", async () => {
+    answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     sources = [];
     expect(await provider().capture({ mode: "screen", overlay: fake })).toEqual({
@@ -824,6 +873,7 @@ describe("WindowsProvider", () => {
   });
 
   it("an empty thumbnail is not a match: cancelled with a warning, nothing cropped", async () => {
+    answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     sources = [{ display_id: "1", thumbnail: image({ width: 0, height: 0 }, "empty") }];
     expect(await provider().capture({ mode: "screen", overlay: fake })).toEqual({
@@ -855,6 +905,7 @@ describe("WindowsProvider", () => {
   });
 
   it("destroys the overlay and rethrows when getSources throws", async () => {
+    answer = { kind: "display", mode: "screen", action: "capture", displayId: 1 };
     const throwing = new WindowsProvider({
       getSources: async () => {
         throw new Error("boom");

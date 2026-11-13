@@ -201,12 +201,16 @@ Payloads of the capture channels (`CaptureMode` is `"frame" | "window" | "screen
 
 The global shortcut actions that feed `screenshot:hotkey` are `captureScreenshot` (default
 ⌘⇧1) and `captureWindow`, and main resolves the mode before broadcasting
-(`main/screenshots/shortcut-capture.ts`). `captureScreenshot` opens the capture widget with the
-current mode, `AppSettings.screenshotMode`, or with `"frame"` when the platform cannot serve the
-stored one. `captureWindow` opens the overlay in Window mode. The per-mode shortcuts
-(`captureScreen`, `captureFrame`) were removed from the global set, along with `recordArea` and the
-three live input toggles; a third action, `captureInstant` (default ⌘⇧2), takes the screen under
-the cursor with no overlay (`intent: "instant"`).
+(`main/screenshots/shortcut-capture.ts`). `captureScreenshot` opens the capture widget in the
+screenshot intent with the current mode, `AppSettings.screenshotMode`, or with `"frame"` when the
+platform cannot serve the stored one. `captureWindow` opens the overlay in Window mode. The
+per-mode shortcuts (`captureScreen`, `captureFrame`) were removed from the global set, along with
+`recordArea` and the three live input toggles; a third action, `captureInstant` (default ⌃⌘X),
+takes the screen under the cursor with no overlay (`intent: "instant"`). `startRecording`
+(default ⌘⇧2) opens the same widget in the recording intent with `AppSettings.recordingMode`.
+A widget key pressed again closes the widget; the other widget key switches its intent
+(`main/shortcuts/widget-shortcut.ts`). Every entry confirms on the widget, on one display too;
+only the instant capture skips it.
 
 **Window mode is disabled** by one flag, `WINDOW_MODE_ENABLED = false` in
 `shared/types/screenshot-capture.ts` (owner decision 2026-10-18: buggy, stays off until fixed;

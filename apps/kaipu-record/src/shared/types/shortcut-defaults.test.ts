@@ -38,22 +38,22 @@ describe("the desktop shortcut defaults", () => {
   it("pins the shortcuts to their documented macOS combos", () => {
     const mac = defaultShortcutsFor("darwin");
     expect(mac).toEqual({
-      startRecording: "Command+Control+X",
+      startRecording: "Command+Shift+2",
       bringToFront: "Command+Control+O",
       captureScreenshot: "Command+Shift+1",
       captureWindow: "Command+Control+W",
-      captureInstant: "Command+Shift+2",
+      captureInstant: "Command+Control+X",
     });
   });
 
   it("pins the shortcuts to their documented Windows combos", () => {
     const win = defaultShortcutsFor("win32");
     expect(win).toEqual({
-      startRecording: "Control+Alt+X",
+      startRecording: "Control+Alt+2",
       bringToFront: "Control+Alt+O",
       captureScreenshot: "Control+Alt+1",
       captureWindow: "Control+Alt+W",
-      captureInstant: "Control+Alt+2",
+      captureInstant: "Control+Alt+X",
     });
   });
 
@@ -63,23 +63,24 @@ describe("the desktop shortcut defaults", () => {
     }
   });
 
-  it("has no separate stop shortcut: the start key stops a take on a second press", () => {
+  it("has no separate stop shortcut: the record key stops a take on a second press", () => {
     expect(SHORTCUT_ACTIONS).not.toContain("stopRecording");
     const start = SHORTCUT_DEFINITIONS.find((d) => d.action === "startRecording");
     expect(start).toMatchObject({
       group: "recording",
-      label: "Start capturing",
-      description: "Open the capture selector; press again to stop or close",
+      label: "Open capture widget · Recording",
+      description:
+        "Open the capture widget ready to record; press again to close it, cancel the countdown or stop the recording",
     });
   });
 
-  it("describes the generic capture shortcut as opening the capture widget", () => {
+  it("describes the screenshot shortcut as opening the capture widget", () => {
     const capture = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureScreenshot");
     const window = SHORTCUT_DEFINITIONS.find((d) => d.action === "captureWindow");
     expect(capture).toMatchObject({
       group: "app",
-      label: "Open capture",
-      description: "Open the capture widget to choose what to capture",
+      label: "Open capture widget · Screenshot",
+      description: "Open the capture widget ready to take a screenshot; press again to close it",
     });
     expect(window).toMatchObject({ group: "app", label: "Capture window", statusWord: "window" });
   });
@@ -108,8 +109,8 @@ describe("the desktop shortcut defaults", () => {
   });
 
   it("resolves win32 to the Windows pair and everything else to macOS's", () => {
-    expect(defaultShortcutsFor("win32").startRecording).toBe("Control+Alt+X");
-    expect(defaultShortcutsFor("darwin").startRecording).toBe("Command+Control+X");
+    expect(defaultShortcutsFor("win32").startRecording).toBe("Control+Alt+2");
+    expect(defaultShortcutsFor("darwin").startRecording).toBe("Command+Shift+2");
     // Linux is not a supported target yet; it falls back to the macOS pair.
     expect(defaultShortcutsFor("linux")).toEqual(defaultShortcutsFor("darwin"));
   });

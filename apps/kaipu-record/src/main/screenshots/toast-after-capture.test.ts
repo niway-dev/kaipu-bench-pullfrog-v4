@@ -43,7 +43,7 @@ describe("deferToastUntilAfterCapture", () => {
     expect(showToast).toHaveBeenCalledWith({ ...PAYLOAD, displayId: 3 });
   });
 
-  it("uses the fallback display when no overlay answered (single-display Screen)", () => {
+  it("uses the fallback display when no overlay answered (the instant capture)", () => {
     const { showToast, seam } = setup();
     seam.windows.beforeCapture();
     seam.onQuietCapture(PAYLOAD);

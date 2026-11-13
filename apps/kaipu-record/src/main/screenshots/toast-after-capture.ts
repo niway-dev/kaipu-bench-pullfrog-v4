@@ -12,7 +12,7 @@ import type { CaptureToastShowRequest } from "./capture-toast-window";
  * so the app itself is never hidden and the toast can show while that window stays hidden.
  *
  * The display comes from the overlay's answer; a capture that opened no overlay
- * (Screen on a single display) uses `fallbackDisplayId`.
+ * (the instant capture) uses `fallbackDisplayId`.
  */
 export function deferToastUntilAfterCapture(
   windows: CaptureWindowHooks,

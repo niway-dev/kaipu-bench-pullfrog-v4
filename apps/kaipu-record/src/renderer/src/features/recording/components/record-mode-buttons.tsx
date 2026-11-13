@@ -30,7 +30,7 @@ interface RecordModeButtonsProps {
   mode: CaptureMode;
   /** The remembered Frame area, described beside the chips while Frame is current. */
   area: RememberedArea | null;
-  /** The `startRecording` shortcut as a label ("⌃⌘X"); hidden when missing. */
+  /** The `startRecording` shortcut as a label ("⌘⇧2"); hidden when missing. */
   shortcut?: string;
   /** Open the selector in the last used mode. */
   onStart(): void;

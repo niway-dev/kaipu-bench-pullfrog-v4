@@ -84,7 +84,7 @@ import {
   getShortcutStatus,
   unregisterGlobalShortcuts,
 } from "./shortcuts/global-shortcuts";
-import { decideStartShortcut } from "./shortcuts/start-shortcut";
+import { decideWidgetShortcut, type WidgetShortcutKey } from "./shortcuts/widget-shortcut";
 import {
   initMainAnalytics,
   setMainAnalyticsEnabled,
@@ -100,8 +100,10 @@ import {
 import type { RecordTarget } from "./screenshots/capture-handler";
 import {
   cancelCaptureOverlay,
+  captureOverlayIntent,
   disposeCaptureOverlay,
   isCaptureOverlayOpen,
+  switchCaptureOverlayIntent,
   prewarmCaptureOverlay,
   registerScreenshotHandlers,
   type ScreenshotHandlers,
@@ -731,6 +733,42 @@ function triggerShortcutCapture(action: CaptureShortcut): void {
   triggerCaptureScreenshot({ mode });
 }
 
+/**
+ * A widget key (⌘⇧1 `captureScreenshot`, ⌘⇧2 `startRecording`): open the capture widget in the
+ * key's intent, close it on a second press of the same key, or switch its intent when the
+ * other key is pressed. The decision is `decideWidgetShortcut`.
+ */
+function pressWidgetKey(key: WidgetShortcutKey): void {
+  const intent = key === "record" ? "record" : "capture";
+  const decision = decideWidgetShortcut({
+    key,
+    takeActive: hub?.isActive() ?? false,
+    takePending: hub?.isPending() ?? false,
+    overlayOpen: isCaptureOverlayOpen(),
+    overlayIntent: captureOverlayIntent(),
+  });
+  switch (decision) {
+    case "stop":
+      markRecordTiming("record shortcut pressed again: stop sent to the recorder");
+      mainWindow?.webContents.send(IPC_CHANNELS.recordingCommand, "stop");
+      return;
+    case "close":
+      cancelCaptureOverlay();
+      return;
+    case "switch":
+      switchCaptureOverlayIntent(intent);
+      return;
+    case "during-take":
+      // What ⌘⇧1 always did over a take: capture quietly, or the "finish the recording" notice.
+      triggerShortcutCapture("captureScreenshot");
+      return;
+    case "open":
+      if (key === "record") triggerRecordSelector();
+      else triggerShortcutCapture("captureScreenshot");
+      return;
+  }
+}
+
 /** The toast after a quiet capture; created once the app is ready. */
 let captureToast: CaptureToastWindow | null = null;
 /** "Your video is ready", floating on the desktop after a take; created once the app is ready. */
@@ -998,26 +1036,12 @@ app.whenReady().then(async () => {
   registerGlobalShortcuts({
     getShortcuts: () => getAppSettings().shortcuts,
     handlers: {
-      // "Start capturing" (⌃⌘X) is the one Kaipu key: it opens the selector in the last used
-      // mode, as the button does, and a second press stops the take (a countdown too: the
-      // renderer's "stop" cancels it) or closes the selector, as Esc does.
-      startRecording: () => {
-        const decision = decideStartShortcut({
-          takeActive: hub?.isActive() ?? false,
-          takePending: hub?.isPending() ?? false,
-          overlayOpen: isCaptureOverlayOpen(),
-        });
-        if (decision === "stop") {
-          markRecordTiming("start shortcut pressed again: stop sent to the recorder");
-          mainWindow?.webContents.send(IPC_CHANNELS.recordingCommand, "stop");
-        } else if (decision === "close") {
-          cancelCaptureOverlay();
-        } else {
-          triggerRecordSelector();
-        }
-      },
+      // ⌘⇧2 opens the capture widget in the recording intent, ⌘⇧1 in the screenshot one. A
+      // second press of the same key closes it (or, for ⌘⇧2, stops a take: a countdown too,
+      // the renderer's "stop" cancels it); the other key switches the open widget's intent.
+      startRecording: () => pressWidgetKey("record"),
       bringToFront: bringAppToFront,
-      captureScreenshot: () => triggerShortcutCapture("captureScreenshot"),
+      captureScreenshot: () => pressWidgetKey("capture"),
       captureWindow: () => triggerShortcutCapture("captureWindow"),
       captureInstant: () => triggerCaptureScreenshot({ mode: "screen", intent: "instant" }),
     },

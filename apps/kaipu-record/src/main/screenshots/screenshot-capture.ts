@@ -184,15 +184,11 @@ export async function pickTarget(
 }
 
 /**
- * Screen on a lone display needs no overlay: the whole display, captured as asked, or
- * recorded when the overlay was opened to record. Only "Start recording" opens the selector
- * in the record intent, and with nothing left to pick that request is the take itself, so
- * it starts, as "Record this display" does on several displays. `select` would only set the
- * target: the selector closes and nothing records.
+ * The instant capture's target: the whole display, captured, with no overlay. Every other
+ * entry (any mode, one display or several) picks on the overlay and confirms there.
  */
-function wholeDisplay(display: Display, intent: CaptureIntent = "capture"): CaptureTarget {
-  const action: CaptureAction = intent === "record" ? "record" : "capture";
-  return { display, rect: null, mode: "screen", action, viaOverlay: false };
+function wholeDisplay(display: Display): CaptureTarget {
+  return { display, rect: null, mode: "screen", action: "capture", viaOverlay: false };
 }
 
 /**
@@ -280,14 +276,7 @@ export class MacProvider implements ScreenshotCaptureProvider {
       overlay,
       async () => {
         if (intent === "instant") return instantTarget(this.deps);
-        const displays = await this.deps.getDisplays();
-        // One display: nothing to choose, so Screen skips the overlay entirely.
-        if (mode === "screen" && displays.length === 1) {
-          // No overlay to wait on, but `beforeCapture` just hid the app: let it leave the screen.
-          await this.deps.settle();
-          return wholeDisplay(displays[0]!, intent);
-        }
-        return pickTarget(overlay, mode, displays, intent);
+        return pickTarget(overlay, mode, await this.deps.getDisplays(), intent);
       },
       // `-R` takes global points (DIP), not pixels, and handles Retina itself.
       (target) => this.captureTarget(target),
@@ -406,12 +395,7 @@ export class WindowsProvider implements ScreenshotCaptureProvider {
       overlay,
       async () => {
         if (intent === "instant") return instantTarget(this.deps);
-        const displays = await this.deps.getDisplays();
-        if (mode === "screen" && displays.length === 1) {
-          await this.deps.settle(); // the app was just hidden: let it leave the screen
-          return wholeDisplay(displays[0]!, intent);
-        }
-        return pickTarget(overlay, mode, displays, intent);
+        return pickTarget(overlay, mode, await this.deps.getDisplays(), intent);
       },
       async ({ display, rect, mode: picked, action, windowId, fullSize }) => {
         if (picked === "window" && windowId && rect) {

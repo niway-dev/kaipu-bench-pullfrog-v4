@@ -85,11 +85,12 @@ export interface ShortcutDefinition {
 export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   {
     action: "startRecording",
-    defaultAccelerator: { mac: "Command+Control+X", win: "Control+Alt+X" },
+    defaultAccelerator: { mac: "Command+Shift+2", win: "Control+Alt+2" },
     group: "recording",
-    label: "Start capturing",
-    description: "Open the capture selector; press again to stop or close",
-    statusWord: "start",
+    label: "Open capture widget · Recording",
+    description:
+      "Open the capture widget ready to record; press again to close it, cancel the countdown or stop the recording",
+    statusWord: "record",
   },
   {
     action: "bringToFront",
@@ -99,15 +100,17 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     description: "Show the app window if it slips behind or out of reach",
     statusWord: "show app",
   },
-  // Opens the capture widget (the overlay with its mode chips) to choose what to capture.
-  // ⌘⇧1 and ⌘⇧2 are deliberate: macOS owns ⌘⇧3, ⌘⇧4 and ⌘⇧5 for its own screenshots and
-  // recording toolbar, while 1 and 2 are free and sit right beside them.
+  // ⌘⇧1 and ⌘⇧2 open the capture widget (the overlay with its mode chips): ⌘⇧1 ready to take
+  // a screenshot, ⌘⇧2 (`startRecording`, above) ready to record. They are deliberate: macOS
+  // owns ⌘⇧3, ⌘⇧4 and ⌘⇧5 for its own screenshots and recording toolbar, while 1 and 2 are
+  // free and sit right beside them. Pressing the other one while the widget is open switches
+  // its intent, as P and V do inside it.
   {
     action: "captureScreenshot",
     defaultAccelerator: { mac: "Command+Shift+1", win: "Control+Alt+1" },
     group: "app",
-    label: "Open capture",
-    description: "Open the capture widget to choose what to capture",
+    label: "Open capture widget · Screenshot",
+    description: "Open the capture widget ready to take a screenshot; press again to close it",
     statusWord: "capture",
   },
   {
@@ -124,7 +127,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   // "capture while recording" on, it grabs the recorded area like every other capture.
   {
     action: "captureInstant",
-    defaultAccelerator: { mac: "Command+Shift+2", win: "Control+Alt+2" },
+    defaultAccelerator: { mac: "Command+Control+X", win: "Control+Alt+X" },
     group: "app",
     label: "Instant capture",
     description: "Capture the screen under the cursor at once, no selector",

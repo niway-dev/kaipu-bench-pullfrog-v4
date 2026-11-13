@@ -629,6 +629,23 @@ export class CaptureOverlayWindows implements OverlayPort {
     return !!this.session?.settle;
   }
 
+  /** The intent the open pick shows right now (after any P / V switch); null with none open. */
+  currentIntent(): CaptureIntent | null {
+    return this.session?.settle ? this.intent : null;
+  }
+
+  /**
+   * Switch the open pick between Screenshot and Record, as P / V on an overlay do: every
+   * overlay re-renders and confirms with the new intent. No-op with no pick open, for the
+   * intent already showing, and for `instant`, which opens no overlay.
+   */
+  switchIntent(intent: CaptureIntent): void {
+    if (!this.session?.settle) return;
+    if ((intent !== "capture" && intent !== "record") || intent === this.intent) return;
+    this.intent = intent;
+    this.broadcastState();
+  }
+
   /** Answer the open pick `cancelled`, exactly as Esc does; the provider tears the windows down. */
   cancelPick(): void {
     this.answer({ kind: "cancelled" });
@@ -906,9 +923,7 @@ export class CaptureOverlayWindows implements OverlayPort {
       if (!this.session?.settle || this.displayOf(event) === null) return;
       const intent = (payload as { intent?: unknown } | undefined)?.intent;
       // The overlay only switches between the two choices it offers; `instant` opens none.
-      if ((intent !== "capture" && intent !== "record") || intent === this.intent) return;
-      this.intent = intent;
-      this.broadcastState();
+      if (intent === "capture" || intent === "record") this.switchIntent(intent);
     });
 
     this.deps.ipc.on(IPC_CHANNELS.screenshotOverlayHiddenAck, (event) => {

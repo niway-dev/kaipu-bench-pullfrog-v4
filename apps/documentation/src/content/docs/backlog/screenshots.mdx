@@ -396,7 +396,7 @@ Following the app's main/preload/renderer split:
 Not yet executed. Screen and Frame on macOS need a real desktop (overlays, Spaces,
 several displays), so these are manual checks.
 
-- [ ] One display: Screen captures it directly, with no overlay.
+- [ ] One display: Screen opens the capture widget on it and captures only on confirm (NIW2-750); the instant capture is the one entry with no overlay.
 - [ ] Two displays: Screen shows the chooser; pressing a digit or clicking picks that display and the shot is of it.
 - [ ] One Retina display and one non-Retina display: each shot has the right pixel size and no offset.
 - [ ] Frame on each display: the shot matches the frame box exactly, including on a display left of or above the main one.

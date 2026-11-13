@@ -7,7 +7,7 @@ import { uiArea } from "@renderer/lib/ui-area";
 
 export function DoneStep(): React.JSX.Element {
   const t = useTranslations("onboarding");
-  // The live binding, never a literal: the default is ⌃⌘X and the user can rebind it
+  // The live binding, never a literal: the default is ⌘⇧2 and the user can rebind it
   // on the Shortcuts page. (The original screen shipped a hardcoded ⌘⇧P that no
   // shortcut ever matched.)
   const shortcuts = useShortcutLabels();

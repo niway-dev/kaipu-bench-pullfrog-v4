@@ -405,26 +405,26 @@ describe("shortcuts written before the trim", () => {
       file,
       JSON.stringify({
         shortcuts: {
-          captureScreenshot: "Command+Control+X",
+          startRecording: "Command+Control+C",
           toggleMicrophone: "Command+Control+M",
         },
       }),
     );
     let store = await loadStore();
     store.registerSettings();
-    expect(store.getAppSettings().shortcuts.captureScreenshot).toBe("Command+Shift+1");
+    expect(store.getAppSettings().shortcuts.startRecording).toBe("Command+Shift+2");
 
-    // The user rebinds to the old default, then restarts.
+    // The user rebinds to an old default, then restarts.
     store.updateAppSettings({
-      shortcuts: { ...store.getAppSettings().shortcuts, captureScreenshot: "Command+Control+X" },
+      shortcuts: { ...store.getAppSettings().shortcuts, startRecording: "Command+Control+C" },
     });
     mockState.handlers.clear();
     store = await loadStore();
     store.registerSettings();
 
-    expect(store.getAppSettings().shortcuts.captureScreenshot).toBe("Command+Control+X");
+    expect(store.getAppSettings().shortcuts.startRecording).toBe("Command+Control+C");
     const onDisk = JSON.parse(await readFile(file, "utf-8"));
-    expect(onDisk.shortcutsVersion).toBe(2);
+    expect(onDisk.shortcutsVersion).toBe(3);
   });
 
   it("stamps a first run so its later bindings are never migrated", async () => {
@@ -433,10 +433,10 @@ describe("shortcuts written before the trim", () => {
     const onDisk = JSON.parse(
       await readFile(join(mockState.userDataDir, "settings.json"), "utf-8"),
     );
-    expect(onDisk.shortcutsVersion).toBe(2);
+    expect(onDisk.shortcutsVersion).toBe(3);
   });
 
-  it("moves a version 1 file's ⌃⌘C start to ⌃⌘X once, drops stopRecording and stamps version 2", async () => {
+  it("brings a version 1 file (0.18.0) to the widget keys: start ⌘⇧2, instant ⌃⌘X, stopRecording dropped", async () => {
     const file = join(mockState.userDataDir, "settings.json");
     await writeFile(
       file,
@@ -456,19 +456,47 @@ describe("shortcuts written before the trim", () => {
     store.registerSettings();
 
     const { shortcuts } = store.getAppSettings();
-    expect(shortcuts.startRecording).toBe("Command+Control+X");
+    expect(shortcuts.startRecording).toBe("Command+Shift+2");
+    expect(shortcuts.captureInstant).toBe("Command+Control+X");
     expect(shortcuts).not.toHaveProperty("stopRecording");
     const onDisk = JSON.parse(await readFile(file, "utf-8"));
-    expect(onDisk.shortcutsVersion).toBe(2);
-    expect(onDisk.shortcuts.startRecording).toBe("Command+Control+X");
+    expect(onDisk.shortcutsVersion).toBe(3);
+    expect(onDisk.shortcuts.startRecording).toBe("Command+Shift+2");
+    expect(onDisk.shortcuts.captureInstant).toBe("Command+Control+X");
     expect(onDisk.shortcuts).not.toHaveProperty("stopRecording");
   });
 
-  it("does not migrate a version 2 file: ⌃⌘C picked after the upgrade stays", async () => {
+  it("swaps start and instant on a version 2 file with both on their old defaults, with no duplicate", async () => {
     const file = join(mockState.userDataDir, "settings.json");
     await writeFile(
       file,
-      JSON.stringify({ shortcutsVersion: 2, shortcuts: { startRecording: "Command+Control+C" } }),
+      JSON.stringify({
+        shortcutsVersion: 2,
+        shortcuts: {
+          startRecording: "Command+Control+X",
+          bringToFront: "Command+Control+O",
+          captureScreenshot: "Command+Shift+1",
+          captureWindow: "Command+Control+W",
+          captureInstant: "Command+Shift+2",
+        },
+      }),
+    );
+    const store = await loadStore();
+    store.registerSettings();
+
+    const { shortcuts } = store.getAppSettings();
+    expect(shortcuts.startRecording).toBe("Command+Shift+2");
+    expect(shortcuts.captureInstant).toBe("Command+Control+X");
+    expect(new Set(Object.values(shortcuts)).size).toBe(Object.values(shortcuts).length);
+    const onDisk = JSON.parse(await readFile(file, "utf-8"));
+    expect(onDisk.shortcutsVersion).toBe(3);
+  });
+
+  it("does not migrate a version 3 file: ⌃⌘C picked after the upgrade stays", async () => {
+    const file = join(mockState.userDataDir, "settings.json");
+    await writeFile(
+      file,
+      JSON.stringify({ shortcutsVersion: 3, shortcuts: { startRecording: "Command+Control+C" } }),
     );
     const store = await loadStore();
     store.registerSettings();
@@ -476,13 +504,19 @@ describe("shortcuts written before the trim", () => {
     expect(store.getAppSettings().shortcuts.startRecording).toBe("Command+Control+C");
   });
 
-  it("keeps a version 1 user's custom ⌃⌘X capture binding and leaves start on ⌃⌘C", async () => {
+  it("keeps a version 2 user's custom ⌃⌘X capture binding: instant and start stay where they were", async () => {
     const file = join(mockState.userDataDir, "settings.json");
     await writeFile(
       file,
       JSON.stringify({
-        shortcutsVersion: 1,
-        shortcuts: { startRecording: "Command+Control+C", captureScreenshot: "Command+Control+X" },
+        shortcutsVersion: 2,
+        shortcuts: {
+          startRecording: "Command+Control+C",
+          bringToFront: "Command+Control+O",
+          captureScreenshot: "Command+Control+X",
+          captureWindow: "Command+Control+W",
+          captureInstant: "Command+Shift+2",
+        },
       }),
     );
     const store = await loadStore();
@@ -490,6 +524,8 @@ describe("shortcuts written before the trim", () => {
 
     const { shortcuts } = store.getAppSettings();
     expect(shortcuts.captureScreenshot).toBe("Command+Control+X");
+    expect(shortcuts.captureInstant).toBe("Command+Shift+2");
     expect(shortcuts.startRecording).toBe("Command+Control+C");
+    expect(new Set(Object.values(shortcuts)).size).toBe(Object.values(shortcuts).length);
   });
 });

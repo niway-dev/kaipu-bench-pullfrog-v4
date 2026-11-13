@@ -15,23 +15,25 @@ sections, _Recording_ and _App_, one row per action
 Each row shows a click-to-rebind control. The actions and their default accelerators
 (`src/shared/types/ipc.ts:79-162`):
 
-- _Start capturing_ (action `startRecording`) — `Command+Control+X` (⌃⌘X) — the one Kaipu key:
-  opens the capture selector in the last used mode; pressed again it stops a take (a countdown
-  too, which cancels it) or closes the selector, as Esc does. There is no separate stop
-  shortcut (the old ⌃⌘S was removed); the tray item and the control bar's Stop button still work.
-  The decision lives in `decideStartShortcut` (`src/main/shortcuts/start-shortcut.ts`).
+- _Open capture widget · Recording_ (action `startRecording`) — `Command+Shift+2` (⇧⌘2) — opens
+  the capture widget ready to record. Pressed again it closes the widget, cancels the countdown
+  or stops the recording. There is no separate stop shortcut; the tray item and the control bar's
+  Stop button also work. The decision lives in `decideWidgetShortcut`
+  (`src/main/shortcuts/widget-shortcut.ts`).
+- _Open capture widget · Screenshot_ (action `captureScreenshot`) — `Command+Shift+1` (⇧⌘1) — opens
+  the same widget ready to take a screenshot, in the current screenshot mode (Frame, Screen, or
+  Window while Window mode is enabled). Pressed again it closes the widget.
 - _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
   reach (the "rescue" backstop).
-- _Open capture_ — `Command+Shift+1` (⇧⌘1) — open the capture widget to choose what to capture,
-  in the current screenshot mode (Frame, Screen, or Window while Window mode is enabled).
-- _Instant capture_ — `Command+Shift+2` (⇧⌘2) — capture the screen under the cursor at once, no
-  selector. macOS owns `Command+Shift+3/4/5` for its own screenshots; 1 and 2 are free.
+- _Instant capture_ (action `captureInstant`) — `Command+Control+X` (⌃⌘X) — capture the screen
+  under the cursor at once, no selector.
 - _Capture window_ — `Command+Control+W` (⌃⌘W) — capture one window. Listed and registered only
   while Window mode is enabled (`ENABLED_CAPTURE_MODES`); otherwise the row is hidden.
 
-Those are the macOS defaults. Windows defaults use `Control+Alt+<same key>` (`Control+Alt+1` and `Control+Alt+2` for the two
-capture rows) (shown as `Ctrl+Alt+X` for the start key), resolved per platform by `defaultShortcutsFor` in
-`src/shared/shortcut-defaults.ts`.
+Those are the macOS defaults. macOS owns `Command+Shift+3/4/5` for its own screenshots, which is
+why the widget keys use 1 and 2. Windows defaults use `Control+Alt+<key>` with the same key
+(`Control+Alt+1` screenshot widget, `Control+Alt+2` recording widget, `Control+Alt+X` instant
+capture), resolved per platform by `defaultShortcutsFor` in `src/shared/shortcut-defaults.ts`.
 
 These are _global_ (system-wide) shortcuts: they fire even when another app is focused,
 which is the whole point — the user is usually inside the app being recorded. To rebind
@@ -96,7 +98,7 @@ event, so in-page keyboard input never triggers it.
 
 🟡 **Partial (page fully E2E-able; global firing not headless-testable).**
 
-✅ **Implemented (the page slice)** — `e2e/shortcuts.e2e.ts` rebinds _Start capturing_ to a new
+✅ **Implemented (the page slice)** — `e2e/shortcuts.e2e.ts` rebinds _Open capture widget · Recording_ to a new
 accelerator and asserts persistence via a `getSettings()` round-trip. The actual OS-level
 accelerator firing stays manual.
 
@@ -132,9 +134,9 @@ test("rebinding a shortcut on /shortcuts persists the new accelerator", async ()
       location.hash = "#/shortcuts";
     });
 
-    // The first "Start capturing" row still shows the default ⌃⌘X.
+    // The first row ("Open capture widget · Recording") still shows the default ⇧⌘2.
     const control = page.getByRole("button", { name: "Change shortcut" }).first();
-    await expect(control).toHaveText("⌃⌘X");
+    await expect(control).toHaveText("⇧⌘2");
 
     // Enter capture mode, then press a valid Control+<letter> combo. Control (not
     // Command) is the more reliable modifier to synthesize under Linux xvfb, and
@@ -177,9 +179,9 @@ window.electronAPI.getShortcutStatus())` should report the actions; do not hard-
 
 ## Not covered / manual
 
-- **Actual global-accelerator firing** (`⌘⌃C` start, `⌘⌃S` stop, `⌘⌃O` show app, `⇧⌘1`
-  capture widget, `⇧⌘2` instant capture) while another app is focused — verify manually on macOS, ideally in a packaged
-  build, because Electron `globalShortcut` is an OS-level hotkey Playwright's in-page input
+- **Actual global-accelerator firing** (`⇧⌘2` recording widget, `⇧⌘1` screenshot widget,
+  `⌃⌘X` instant capture, `⌃⌘O` show app) while another app is focused — verify manually on
+  macOS, ideally in a packaged build, because Electron `globalShortcut` is an OS-level hotkey Playwright's in-page input
   cannot invoke.
 - **"In use by another app" surfacing** — requires a second process owning the combo at the
   OS level; not reproducible headless. Manual.

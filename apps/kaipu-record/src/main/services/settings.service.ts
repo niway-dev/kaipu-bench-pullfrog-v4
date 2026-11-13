@@ -77,8 +77,11 @@ export function mergeShortcuts(
  *
  *   1: the global shortcuts were trimmed to five and the capture ones moved to ⌘⇧1 / ⌘⇧2.
  *   2: ⌃⌘X became the one Kaipu key (`startRecording`, "Start capturing"); ⌃⌘S is gone.
+ *   3: the keys open the capture widget: ⌘⇧1 in screenshot intent, ⌘⇧2 (`startRecording`) in
+ *      recording intent, and ⌃⌘X is the instant capture. `startRecording` and `captureInstant`
+ *      swap keys.
  */
-export const SHORTCUTS_VERSION = 2;
+export const SHORTCUTS_VERSION = 3;
 
 /**
  * Shortcuts that were global bindings once and no longer are, by the version that removed
@@ -102,15 +105,21 @@ const REMOVED_SHORTCUT_ACTIONS: ReadonlyArray<{ version: number; actions: readon
 ];
 
 /**
- * The previous default of an action whose default moved, by the version that moved it. A user
- * still on the old default gets the new one; a custom binding is never touched. Steps are
+ * The previous defaults of an action whose default moved, by the version that moved it. A user
+ * still on one of them gets the CURRENT default; a custom binding is never touched. Steps are
  * tagged because a file already at version 1 must not replay version 1's moves: its
  * `captureScreenshot` may be a deliberate ⌃⌘X. Literals, on purpose: they are history, not
- * the current defaults. Within a version the order matters: a step runs against the result of
- * the ones before it.
+ * the current defaults.
  *
- *   1: captureScreenshot ⌃⌘X -> ⌘⇧1, captureInstant ⌃⌘I -> ⌘⇧2 (and their Windows pairs).
- *   2: startRecording ⌃⌘C -> ⌃⌘X (Control+Alt+C -> Control+Alt+X on Windows).
+ * A step never says where an action lands: that is whatever `defaultShortcutsFor` says now,
+ * so a file two versions behind goes straight to the final state instead of through
+ * intermediate defaults that no longer exist (version 1's ⌃⌘C and version 2's ⌃⌘X both end
+ * on the same new `startRecording` key).
+ *
+ *   1: captureScreenshot ⌃⌘X -> ⌘⇧1, captureInstant ⌃⌘I -> its current default (and the
+ *      Windows pairs).
+ *   3: startRecording ⌃⌘C or ⌃⌘X -> ⌘⇧2; captureInstant ⌘⇧2 -> ⌃⌘X (Control+Alt+C / X -> 2,
+ *      Control+Alt+2 -> X on Windows).
  */
 const MOVED_SHORTCUT_DEFAULTS: ReadonlyArray<{
   version: number;
@@ -119,18 +128,27 @@ const MOVED_SHORTCUT_DEFAULTS: ReadonlyArray<{
 }> = [
   { version: 1, action: "captureScreenshot", from: ["Command+Control+X", "Control+Alt+X"] },
   { version: 1, action: "captureInstant", from: ["Command+Control+I", "Control+Alt+I"] },
-  { version: 2, action: "startRecording", from: ["Command+Control+C", "Control+Alt+C"] },
+  {
+    version: 3,
+    action: "startRecording",
+    from: ["Command+Control+C", "Control+Alt+C", "Command+Control+X", "Control+Alt+X"],
+  },
+  { version: 3, action: "captureInstant", from: ["Command+Shift+2", "Control+Alt+2"] },
 ];
 
 /**
  * Upgrade a persisted `shortcuts` object written by an older build: drop the removed actions'
- * keys and, for an action still on its old default, drop that value too so `mergeShortcuts`
- * falls back to this platform's new default. A custom binding is never touched.
+ * keys and, for an action still on an old default, drop that value too so `mergeShortcuts`
+ * falls back to this platform's current default. A custom binding is never touched.
  *
- * One exception, for a clash: when another action is already bound to the combo the moved
- * action's new default would take (a user who rebound `captureScreenshot` to ⌃⌘X before
- * ⌃⌘X became the start key), the moved action keeps its old binding. The custom binding
- * wins and nothing is registered twice; the user can rebind the other one on the Shortcuts page.
+ * The moves are decided together, against the FINAL assignment, never one at a time against
+ * stale values: `startRecording` and `captureInstant` swap keys (start takes ⌘⇧2 that instant
+ * held, instant takes ⌃⌘X that start held), and a one-at-a-time check would see each other's
+ * old key as taken and refuse both. The rule instead: every action on an old default is
+ * moving; a moving action whose new default is held by an action that is NOT moving (a user
+ * who bound `captureScreenshot` to ⌃⌘X, say) stays on its old binding, which may in turn
+ * block another move, so it repeats until nothing changes. The custom binding wins, nothing
+ * is registered twice, and the user can rebind on the Shortcuts page.
  *
  * Runs at load only, never inside `mergeSettings` (which runs on every write), and only the
  * steps newer than `fromVersion`. The store persists the new version with the result, so a
@@ -149,27 +167,45 @@ export function migrateLegacyShortcuts(
   const next: Record<string, unknown> = { ...(stored as Record<string, unknown>) };
   const defaults = defaultShortcutsFor(platform);
   let migrated = false;
-  for (const version of range(fromVersion + 1, SHORTCUTS_VERSION)) {
-    for (const step of REMOVED_SHORTCUT_ACTIONS.filter((entry) => entry.version === version)) {
-      for (const action of step.actions) {
-        if (action in next) {
-          delete next[action];
-          migrated = true;
-        }
+  const pending = range(fromVersion + 1, SHORTCUTS_VERSION);
+  for (const step of REMOVED_SHORTCUT_ACTIONS.filter((entry) => pending.includes(entry.version))) {
+    for (const action of step.actions) {
+      if (action in next) {
+        delete next[action];
+        migrated = true;
       }
     }
-    for (const step of MOVED_SHORTCUT_DEFAULTS.filter((entry) => entry.version === version)) {
-      const value = next[step.action];
-      if (typeof value !== "string" || !step.from.includes(value)) continue;
-      const effective = mergeShortcuts(next, platform);
-      const newDefault = defaults[step.action];
-      const clash = SHORTCUT_ACTIONS.some(
-        (other) => other !== step.action && effective[other] === newDefault,
+  }
+  const steps = MOVED_SHORTCUT_DEFAULTS.filter((entry) => pending.includes(entry.version));
+  const moving = new Set<ShortcutAction>(
+    SHORTCUT_ACTIONS.filter((action) => {
+      const value = next[action];
+      return (
+        typeof value === "string" &&
+        steps.some((step) => step.action === action && step.from.includes(value))
       );
-      if (clash) continue;
-      delete next[step.action];
-      migrated = true;
+    }),
+  );
+  // What each action is bound to once the moving ones took their new defaults.
+  const finalBinding = (action: ShortcutAction): string =>
+    moving.has(action) ? defaults[action] : mergeShortcuts(next, platform)[action];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const action of moving) {
+      const taken = SHORTCUT_ACTIONS.some(
+        (other) =>
+          other !== action && !moving.has(other) && finalBinding(other) === defaults[action],
+      );
+      if (taken) {
+        moving.delete(action);
+        changed = true;
+      }
     }
+  }
+  for (const action of moving) {
+    delete next[action];
+    migrated = true;
   }
   return { shortcuts: migrated ? next : stored, migrated };
 }
