@@ -40,25 +40,16 @@ export const recordingShade = catalog(
       demonstrates: ["recordingShade.areaBorder:area"],
       after: [{ action: "stopTake" }],
     },
-
-    "countdown-display": {
-      profile: "recording",
-      how: "Ask for a take of the first display without the overlay (as the instant shortcut and the tray do): the shade counts down over the whole display.",
-      steps: [
-        { action: "selectFirstScreen" },
-        { action: "requestTake" },
-        { waitFor: { area: "recordingShade.countdown" }, timeoutMs: 10_000 },
-      ],
-      demonstrates: ["recordingShade.countdown:fullDisplay"],
-      gates: [{ setting: "recordingCountdownSeconds", side: "3" }],
-      after: [{ action: "stopTake" }],
-    },
   },
   {
     notCapturable: {
       "recordingShade.countdown:area": nc(
         "needsSetup",
-        "the shade counts down over a region only for a stored area or the instant shortcut, and both need a real display id that no catalog step can write; the overlay's own countdown now runs on the widget (ADR 0056)",
+        "no product path starts it today: the shade counts down only when main gets a record answer without `countdownDone`, and every overlay start now counts on the widget (ADR 0056) or has no countdown. Follow-up: remove the shade countdown and this area",
+      ),
+      "recordingShade.countdown:fullDisplay": nc(
+        "needsSetup",
+        "same reason: Screen mode always opens the overlay, so no start reaches the shade's full-display countdown",
       ),
     },
     oneSided: {
