@@ -1681,9 +1681,11 @@ function ScreenshotEditorBody({
             // A click on the stage itself, outside the frame, leaves the crop tool (with a crop
             // set). Never one that ends a pan, nor one that began on the frame (its target).
             onClick={(e) => {
+              // Read first so every click clears a finished pan, whatever else it does.
+              const endsPan = viewport.consumePanClick();
               if (tools.tool !== "crop" || cropScene.crop == null) return;
               if (e.target !== e.currentTarget || e.button !== 0) return;
-              if (canvasMode && viewport.panMode !== "idle") return;
+              if (canvasMode && (endsPan || viewport.panMode !== "idle")) return;
               leaveCrop();
             }}
             {...(canvasMode
