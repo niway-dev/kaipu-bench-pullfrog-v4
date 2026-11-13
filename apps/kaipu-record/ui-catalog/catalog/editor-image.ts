@@ -141,6 +141,12 @@ const cropDone: Step = {
 };
 /** The cropped stage, with the chip in the page (it fades in under the pointer). */
 const chipInPage: Step = { waitFor: { area: "editorImage.cropChip" } };
+/**
+ * The chip is in the page on the first windowed render, but the stage remounts the shot's
+ * <img> then, and it measures itself again once decoded: a shot taken at once can catch the
+ * window mid-measure (a wide strip). Nothing in the page marks that end, so give it a beat.
+ */
+const windowSettled: Step = { waitMs: 400 };
 const afterCrop: readonly Step[] = [
   { navigate: "/library" },
   { waitFor: { area: "editorImage.canvas", state: "hidden" } },
@@ -271,14 +277,14 @@ export const editorImage = catalog(
     "crop-applied": {
       profile: "default",
       how: "Open “Settings page”, pick Crop, drag a frame and press Done: the crop tool is left, the crop is kept and the stage shows only the cropped part.",
-      steps: [...drawCrop("Crop"), cropDone, chipInPage],
+      steps: [...drawCrop("Crop"), cropDone, chipInPage, windowSettled],
       demonstrates: ["editorImage.canvas:cropped"],
       after: afterCrop,
     },
     "crop-applied-chip": {
       profile: "default",
       how: "As “Crop applied”, then rest the pointer on the cropped image: the “Cropped” chip appears above its top-left corner.",
-      steps: [...drawCrop("Crop"), cropDone, chipInPage, hoverCanvas],
+      steps: [...drawCrop("Crop"), cropDone, chipInPage, windowSettled, hoverCanvas],
       keepPointer: true,
       demonstrates: ["editorImage.cropChip:shown"],
       after: afterCrop,
@@ -557,7 +563,7 @@ export const editorImage = catalog(
     "canvas-export-frame-applied": {
       profile: "image-canvas",
       how: "With the flag forced on, open “Settings page”, pick the Export frame tool, drag a rectangle and press Done: the tool is left, the frame is kept and the stage shows only what it exports.",
-      steps: [...drawCrop("Export frame"), cropDone, chipInPage],
+      steps: [...drawCrop("Export frame"), cropDone, chipInPage, windowSettled],
       demonstrates: ["editorImage.canvasView:exportFrameApplied"],
       gates: [{ flag: "image-canvas", side: "on" }],
       after: afterCrop,
@@ -565,7 +571,7 @@ export const editorImage = catalog(
     "canvas-export-frame-chip": {
       profile: "image-canvas",
       how: "As “Canvas export frame applied”, then rest the pointer on the framed image: the “Cropped” chip appears above the frame's top-left corner.",
-      steps: [...drawCrop("Export frame"), cropDone, chipInPage, hoverCanvas],
+      steps: [...drawCrop("Export frame"), cropDone, chipInPage, windowSettled, hoverCanvas],
       keepPointer: true,
       demonstrates: ["editorImage.cropChip:shown"],
       gates: [{ flag: "image-canvas", side: "on" }],
