@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildExceptionProperties, initMainAnalytics } from "./analytics.service";
+import {
+  buildExceptionProperties,
+  initMainAnalytics,
+  resolvePosthogHost,
+} from "./analytics.service";
 
 const constructed = vi.hoisted(() => ({ count: 0 }));
 vi.mock("posthog-node", () => ({
@@ -33,5 +37,16 @@ describe("initMainAnalytics", () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("no PostHog key"));
     // And stays inert: no client, so nothing can leave the device.
     expect(constructed.count).toBe(0);
+  });
+});
+
+describe("resolvePosthogHost", () => {
+  it("keeps a configured host", () => {
+    expect(resolvePosthogHost("https://eu.i.posthog.com")).toBe("https://eu.i.posthog.com");
+  });
+
+  it("defaults when the host is unset or empty (an unset CI variable)", () => {
+    expect(resolvePosthogHost(undefined)).toBe("https://us.i.posthog.com");
+    expect(resolvePosthogHost("")).toBe("https://us.i.posthog.com");
   });
 });

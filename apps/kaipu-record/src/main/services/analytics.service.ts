@@ -18,10 +18,14 @@ export function buildExceptionProperties(
   };
 }
 
+/** Pure: the PostHog host, defaulted. `||`, not `??`: an unset CI variable is inlined as "". Tested. */
+export function resolvePosthogHost(host: string | undefined): string {
+  return host || "https://us.i.posthog.com";
+}
+
 function startClient(key: string): void {
   client = new PostHog(key, {
-    // `||`, not `??`: an unset CI variable is inlined as "", which is not a host.
-    host: import.meta.env.MAIN_VITE_POSTHOG_HOST || "https://us.i.posthog.com",
+    host: resolvePosthogHost(import.meta.env.MAIN_VITE_POSTHOG_HOST),
     flushAt: 1,
     flushInterval: 0,
   });
