@@ -9,7 +9,8 @@ let started = false;
 /** Privacy-locked config. Pure + exported so the privacy guarantees are tested. */
 export function buildPosthogConfig(host: string | undefined): Partial<PostHogConfig> {
   return {
-    api_host: host ?? "https://us.i.posthog.com",
+    // `||`, not `??`: an unset CI variable is inlined as "", which is not a host.
+    api_host: host || "https://us.i.posthog.com",
     autocapture: false, // never capture DOM/clicks — could leak recorded UI
     capture_pageview: false,
     disable_session_recording: true, // never record the screen-recorder's own screen

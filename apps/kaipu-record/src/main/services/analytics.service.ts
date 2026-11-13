@@ -20,7 +20,8 @@ export function buildExceptionProperties(
 
 function startClient(key: string): void {
   client = new PostHog(key, {
-    host: import.meta.env.MAIN_VITE_POSTHOG_HOST ?? "https://us.i.posthog.com",
+    // `||`, not `??`: an unset CI variable is inlined as "", which is not a host.
+    host: import.meta.env.MAIN_VITE_POSTHOG_HOST || "https://us.i.posthog.com",
     flushAt: 1,
     flushInterval: 0,
   });

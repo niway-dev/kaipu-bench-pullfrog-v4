@@ -14,6 +14,10 @@ describe("buildPosthogConfig", () => {
   it("falls back to the US host when none is provided", () => {
     expect(buildPosthogConfig(undefined).api_host).toBe("https://us.i.posthog.com");
   });
+
+  it("treats an empty host (an unset CI variable) as no host", () => {
+    expect(buildPosthogConfig("").api_host).toBe("https://us.i.posthog.com");
+  });
 });
 
 describe("isFlagEnabled overrides", () => {
