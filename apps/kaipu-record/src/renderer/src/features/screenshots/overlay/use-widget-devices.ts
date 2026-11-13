@@ -30,8 +30,8 @@ export function useWidgetDevices(
   api: RecordingTogglesApi & Partial<Pick<KaipuElectronAPI, "updateSettings">>,
   enabled: boolean,
 ): WidgetDevices {
-  const microphones = useMicrophones();
-  const cameras = useCameras();
+  const microphones = useMicrophones(enabled);
+  const cameras = useCameras(enabled);
   const [selectedMicrophone, setSelectedMicrophone] =
     useState<RecordingSettings["selectedMicrophone"]>(null);
   const [cameraId, setCameraId] = useState<string | null>(null);
