@@ -49,4 +49,11 @@ describe("ShortcutInput", () => {
     render(<ShortcutInput value="Command+Control+C" onChange={vi.fn()} unavailable />);
     expect(screen.getByRole("button")).toHaveAttribute("data-unavailable");
   });
+
+  it("draws each key as its own keycap", () => {
+    render(<ShortcutInput value="Command+Shift+1" onChange={vi.fn()} />);
+    expect(
+      Array.from(screen.getByRole("button").querySelectorAll("kbd"), (el) => el.textContent),
+    ).toEqual(["⇧", "⌘", "1"]);
+  });
 });

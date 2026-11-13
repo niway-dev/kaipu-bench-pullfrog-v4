@@ -15,18 +15,22 @@ import styles from "./app-shell.module.css";
 import { uiArea } from "@renderer/lib/ui-area";
 
 /**
- * action → `shortcuts` namespace status-word keys for the status bar. Instant
- * capture and Window are left out on purpose: the bar stays at three hints, and
- * the Shortcuts page lists every binding.
+ * action → `shortcuts` namespace status-word keys for the status bar, in the order the bar
+ * shows them: the two widget keys, the instant capture, then the rescue key. Window is left
+ * out on purpose: the bar stays at four hints, and the Shortcuts page lists every binding.
  */
 const STATUS_KEY: Partial<
-  Record<ShortcutAction, "statusStart" | "statusShowApp" | "statusCapture">
+  Record<ShortcutAction, "statusCapture" | "statusRecord" | "statusInstant" | "statusShowApp">
 > = {
-  startRecording: "statusStart",
-  bringToFront: "statusShowApp",
   captureScreenshot: "statusCapture",
+  startRecording: "statusRecord",
+  captureInstant: "statusInstant",
+  bringToFront: "statusShowApp",
 };
-const STATUS_BAR_DEFINITIONS = SHORTCUT_DEFINITIONS.filter((def) => STATUS_KEY[def.action]);
+const STATUS_BAR_ORDER = Object.keys(STATUS_KEY) as ShortcutAction[];
+const STATUS_BAR_DEFINITIONS = STATUS_BAR_ORDER.flatMap((action) =>
+  SHORTCUT_DEFINITIONS.filter((def) => def.action === action),
+);
 
 /**
  * The video editor runs edge to edge: its panes are separated by rules, not set

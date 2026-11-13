@@ -25,12 +25,12 @@ describe("DEFAULT_ACCELERATORS", () => {
   it("binds the capture shortcuts on both platforms", () => {
     expect(DEFAULT_ACCELERATORS.mac).toMatchObject({
       captureScreenshot: "Command+Shift+1",
-      captureInstant: "Command+Shift+2",
+      captureInstant: "Command+Control+X",
       captureWindow: "Command+Control+W",
     });
     expect(DEFAULT_ACCELERATORS.windows).toMatchObject({
       captureScreenshot: "Control+Alt+1",
-      captureInstant: "Control+Alt+2",
+      captureInstant: "Control+Alt+X",
       captureWindow: "Control+Alt+W",
     });
   });
@@ -45,9 +45,9 @@ describe("DEFAULT_ACCELERATORS", () => {
     expect(SHORTCUT_ACTIONS).not.toContain("stopRecording");
   });
 
-  it("binds the one Kaipu key, startRecording, to X on both platforms", () => {
-    expect(DEFAULT_ACCELERATORS.mac.startRecording).toBe("Command+Control+X");
-    expect(DEFAULT_ACCELERATORS.windows.startRecording).toBe("Control+Alt+X");
+  it("binds startRecording to the second widget key, 2, on both platforms", () => {
+    expect(DEFAULT_ACCELERATORS.mac.startRecording).toBe("Command+Shift+2");
+    expect(DEFAULT_ACCELERATORS.windows.startRecording).toBe("Control+Alt+2");
   });
 
   it("keeps Command off the Windows column", () => {
@@ -58,7 +58,7 @@ describe("DEFAULT_ACCELERATORS", () => {
     }
   });
 
-  it("never uses CommandOrControl, which would put Ctrl+X on start capturing", () => {
+  it("never uses CommandOrControl, which would put Ctrl+X on the instant capture", () => {
     for (const platform of ["mac", "windows"] as const) {
       for (const accelerator of Object.values(DEFAULT_ACCELERATORS[platform])) {
         expect(accelerator).not.toMatch(/CommandOrControl/);

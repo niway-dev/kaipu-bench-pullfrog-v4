@@ -22,11 +22,12 @@ test("rebinding a shortcut on /shortcuts persists the new accelerator", async ()
       location.hash = "#/shortcuts";
     });
 
-    // First row is "Start capturing", still on its default ⌃⌘X. The rebind control
-    // is the ShortcutInput button (aria-label "Change shortcut"); its text is the
-    // macOS-symbol label of the current accelerator.
-    const control = page.getByRole("button", { name: "Change shortcut" }).first();
-    await expect(control).toHaveText("⌃⌘X");
+    // The page lists the shortcuts in SHORTCUT_DEFINITIONS order: ⇧⌘1 (Screenshot) first, then
+    // "Open capture widget · Recording", still on its default ⇧⌘2. The rebind control is the
+    // ShortcutInput button (aria-label "Change shortcut"); its text is the macOS-symbol label
+    // of the current accelerator.
+    const control = page.getByRole("button", { name: "Change shortcut" }).nth(1);
+    await expect(control).toHaveText("⇧⌘2");
 
     // Click to enter capture mode: ShortcutInput toggles `listening`, suspends the
     // global shortcuts (so the combo reaches the renderer instead of firing), and
@@ -37,7 +38,7 @@ test("rebinding a shortcut on /shortcuts persists the new accelerator", async ()
 
     // Press a valid, non-conflicting combo. captureShortcut requires Command or
     // Control plus a letter/digit; Control+D collides with none of the defaults
-    // (Command+Control+{X,O,W}). It reads event.code ("KeyD" → "D") + modifier
+    // (Command+Shift+{1,2}, Command+Control+{X,O,W}). It reads event.code ("KeyD" → "D") + modifier
     // flags, producing the Electron accelerator "Control+D".
     await page.keyboard.press("Control+D");
 

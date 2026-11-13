@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslations } from "@kaipu/i18n";
-import { captureShortcut, formatAccelerator } from "./keyboard-accelerator";
+import { acceleratorKeys, captureShortcut } from "./keyboard-accelerator";
 import styles from "./shortcut-input.module.css";
 
 export interface ShortcutInputProps {
@@ -67,7 +67,17 @@ export function ShortcutInput({
       onClick={() => setListening((on) => !on)}
       onBlur={() => setListening(false)}
     >
-      {listening ? t("pressKeys") : formatAccelerator(value)}
+      {listening ? (
+        t("pressKeys")
+      ) : (
+        <span className={styles.keys}>
+          {acceleratorKeys(value).map((key) => (
+            <kbd key={key} className={styles.key}>
+              {key}
+            </kbd>
+          ))}
+        </span>
+      )}
     </button>
   );
 }

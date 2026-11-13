@@ -2003,6 +2003,34 @@ describe("CaptureOverlay — the Capture | Record switch", () => {
     );
   });
 
+  it("opened to record on one display, the hint drops the line about each display's card", async () => {
+    const { api } = fakeApi({}, SCREEN);
+    render(
+      <CaptureOverlay
+        enabledModes={CAPTURE_MODES}
+        query={query("screen", { intent: "record", count: 1, index: 1, ids: [42] })}
+        api={api}
+      />,
+    );
+    await screen.findByTestId("screen-card");
+    expect(screen.getByTestId("hint-pill")).toHaveTextContent(/^Esc cancel$/);
+  });
+
+  it("opened to record on two displays, the hint keeps the line about each display's card", async () => {
+    const { api } = fakeApi({}, SCREEN);
+    render(
+      <CaptureOverlay
+        enabledModes={CAPTURE_MODES}
+        query={query("screen", { intent: "record", count: 2, index: 1, ids: [42, 7] })}
+        api={api}
+      />,
+    );
+    await screen.findByTestId("screen-card");
+    expect(screen.getByTestId("hint-pill")).toHaveTextContent(
+      "Each display shows its own card · Esc cancel",
+    );
+  });
+
   it("the Screen card carries the switch and, opened to record, Record this display and the inputs", async () => {
     const { api, answer } = fakeApi({}, SCREEN);
     render(

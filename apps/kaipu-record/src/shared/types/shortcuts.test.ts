@@ -22,12 +22,21 @@ describe("shortcut definitions", () => {
     expect(Object.keys(defaultShortcutsFor("darwin")).sort()).toEqual([...SHORTCUT_ACTIONS].sort());
   });
 
-  it("gives every action a label, description, status word, and group", () => {
+  it("gives every action a label, description and status word", () => {
     for (const def of SHORTCUT_DEFINITIONS) {
       expect(def.label.length).toBeGreaterThan(0);
       expect(def.description.length).toBeGreaterThan(0);
       expect(def.statusWord.length).toBeGreaterThan(0);
-      expect(["recording", "app"]).toContain(def.group);
     }
+  });
+
+  it("lists the shortcuts in the order the Shortcuts page shows them", () => {
+    expect(SHORTCUT_DEFINITIONS.map((def) => def.action)).toEqual([
+      "captureScreenshot",
+      "startRecording",
+      "captureWindow",
+      "captureInstant",
+      "bringToFront",
+    ]);
   });
 });

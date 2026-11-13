@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { captureShortcut, conflictingAction, formatAccelerator } from "./keyboard-accelerator";
+import {
+  acceleratorKeys,
+  captureShortcut,
+  conflictingAction,
+  formatAccelerator,
+} from "./keyboard-accelerator";
 
 function event(
   over: Partial<Parameters<typeof captureShortcut>[0]>,
@@ -89,6 +94,16 @@ describe("captureShortcut on Windows", () => {
     expect(
       captureShortcut(event({ code: "KeyC", metaKey: true, ctrlKey: true }), "win32"),
     ).toBeNull();
+  });
+});
+
+describe("acceleratorKeys", () => {
+  it("returns one keycap per key on macOS, modifiers first", () => {
+    expect(acceleratorKeys("Command+Shift+1", "darwin")).toEqual(["⇧", "⌘", "1"]);
+  });
+
+  it("returns one keycap per key on Windows, in Ctrl, Alt, Shift, Win order", () => {
+    expect(acceleratorKeys("Control+Alt+1", "win32")).toEqual(["Ctrl", "Alt", "1"]);
   });
 });
 

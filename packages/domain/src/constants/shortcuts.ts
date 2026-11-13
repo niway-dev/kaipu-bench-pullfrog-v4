@@ -39,14 +39,15 @@ export type ShortcutPlatform = "mac" | "windows";
  * combinations macOS reserves (screenshots, VoiceOver's Control+Option) and the
  * crowded Command+Shift space browsers and editors lean on — which matters more
  * than usual here, since a global shortcut overrides whatever app is being
- * recorded. The two screenshot shortcuts are the deliberate exception: they use
- * `Command+Shift+1` and `Command+Shift+2`, next to the system's own screenshot
- * keys. macOS owns Cmd+Shift+3, 4 and 5; 1 and 2 are free, and the digits read
- * as "the capture keys" beside them.
+ * recorded. The two capture-widget keys are the deliberate exception: `Command+Shift+1`
+ * (the widget ready for a screenshot) and `Command+Shift+2` (`startRecording`, the widget
+ * ready to record) sit next to the system's own screenshot keys. macOS owns Cmd+Shift+3, 4
+ * and 5; 1 and 2 are free, and the digits read as "the capture keys" beside them. The
+ * instant capture, which opens no widget, keeps the `Command+Control` family on X.
  *
  * Windows uses `Control+Alt` for the same intent. `CommandOrControl` was
  * rejected: it collapses to plain `Ctrl` on Windows, which would put Ctrl+X —
- * cut — on "start capturing", globally.
+ * cut — on the instant capture, globally.
  *
  * The Windows column is **unvalidated**. Nobody has tested these against
  * Windows' own reserved shortcuts, because there is no Windows build yet. It is
@@ -55,18 +56,18 @@ export type ShortcutPlatform = "mac" | "windows";
  */
 export const DEFAULT_ACCELERATORS: Record<ShortcutPlatform, Record<ShortcutAction, string>> = {
   mac: {
-    startRecording: "Command+Control+X",
+    startRecording: "Command+Shift+2",
     bringToFront: "Command+Control+O",
     captureScreenshot: "Command+Shift+1",
     captureWindow: "Command+Control+W",
-    captureInstant: "Command+Shift+2",
+    captureInstant: "Command+Control+X",
   },
   windows: {
-    startRecording: "Control+Alt+X",
+    startRecording: "Control+Alt+2",
     bringToFront: "Control+Alt+O",
     captureScreenshot: "Control+Alt+1",
     captureWindow: "Control+Alt+W",
-    captureInstant: "Control+Alt+2",
+    captureInstant: "Control+Alt+X",
   },
 };
 

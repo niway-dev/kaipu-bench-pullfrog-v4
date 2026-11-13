@@ -8,30 +8,32 @@ description: "How the /shortcuts page edits and persists global accelerators via
 ## The flow
 
 Entry: the user opens the _Shortcuts_ sidebar page (route `/shortcuts`, registered at
-`src/renderer/src/app/router.tsx:40`). The page lists every global keyboard shortcut in two
-sections, _Recording_ and _App_, one row per action
-(`src/renderer/src/pages/shortcuts/shortcuts-page.tsx:81-84`, `161-166`).
+`src/renderer/src/app/router.tsx:40`). The page lists every global keyboard shortcut in one
+list, one row per action, in `SHORTCUT_DEFINITIONS` order: ⇧⌘1, ⇧⌘2, ⌃⌘X, ⌃⌘O
+(`src/renderer/src/pages/shortcuts/shortcuts-page.tsx`).
 
 Each row shows a click-to-rebind control. The actions and their default accelerators
-(`src/shared/types/ipc.ts:79-162`):
+(`src/shared/types/ipc.ts:85-130`, `SHORTCUT_DEFINITIONS`):
 
-- _Start capturing_ (action `startRecording`) — `Command+Control+X` (⌃⌘X) — the one Kaipu key:
-  opens the capture selector in the last used mode; pressed again it stops a take (a countdown
-  too, which cancels it) or closes the selector, as Esc does. There is no separate stop
-  shortcut (the old ⌃⌘S was removed); the tray item and the control bar's Stop button still work.
-  The decision lives in `decideStartShortcut` (`src/main/shortcuts/start-shortcut.ts`).
-- _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
-  reach (the "rescue" backstop).
-- _Open capture_ — `Command+Shift+1` (⇧⌘1) — open the capture widget to choose what to capture,
-  in the current screenshot mode (Frame, Screen, or Window while Window mode is enabled).
-- _Instant capture_ — `Command+Shift+2` (⇧⌘2) — capture the screen under the cursor at once, no
-  selector. macOS owns `Command+Shift+3/4/5` for its own screenshots; 1 and 2 are free.
+- _Open capture widget · Screenshot_ (action `captureScreenshot`) — `Command+Shift+1` (⇧⌘1) — opens
+  the same widget ready to take a screenshot, in the current screenshot mode (Frame, Screen, or
+  Window while Window mode is enabled). Pressed again it closes the widget.
+- _Open capture widget · Recording_ (action `startRecording`) — `Command+Shift+2` (⇧⌘2) — opens
+  the capture widget ready to record. Pressed again it closes the widget, cancels the countdown
+  or stops the recording. There is no separate stop shortcut; the tray item and the control bar's
+  Stop button also work. The decision lives in `decideWidgetShortcut`
+  (`src/main/shortcuts/widget-shortcut.ts`).
 - _Capture window_ — `Command+Control+W` (⌃⌘W) — capture one window. Listed and registered only
   while Window mode is enabled (`ENABLED_CAPTURE_MODES`); otherwise the row is hidden.
+- _Instant capture_ (action `captureInstant`) — `Command+Control+X` (⌃⌘X) — capture the screen
+  under the cursor at once, no selector.
+- _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
+  reach (the "rescue" backstop).
 
-Those are the macOS defaults. Windows defaults use `Control+Alt+<same key>` (`Control+Alt+1` and `Control+Alt+2` for the two
-capture rows) (shown as `Ctrl+Alt+X` for the start key), resolved per platform by `defaultShortcutsFor` in
-`src/shared/shortcut-defaults.ts`.
+Those are the macOS defaults. macOS owns `Command+Shift+3/4/5` for its own screenshots, which is
+why the widget keys use 1 and 2. Windows defaults use `Control+Alt+<key>` with the same key
+(`Control+Alt+1` screenshot widget, `Control+Alt+2` recording widget, `Control+Alt+X` instant
+capture), resolved per platform by `defaultShortcutsFor` in `src/shared/shortcut-defaults.ts`.
 
 These are _global_ (system-wide) shortcuts: they fire even when another app is focused,
 which is the whole point — the user is usually inside the app being recorded. To rebind
@@ -82,10 +84,13 @@ Windows a combo with the Windows key is rejected, because the OS reserves those)
 that touches Electron's `globalShortcut`. `applyGlobalShortcuts()` calls
 `globalShortcut.unregisterAll()` then `globalShortcut.register(accelerator, handler)` for
 each action, recording success/failure in `status` (`global-shortcuts.ts:39-46`).
-`src/main/index.ts:344-353` wires the handlers (`triggerStartRecording`, a `recordingCommand`
-"stop" send, `bringAppToFront`, `triggerCaptureScreenshot`) and re-applies on every
-`onSettingsChanged`, so a rebind on the page re-registers system-wide. The suspend/resume
-IPC (`index.ts:318-334`) also re-registers as a backstop if the suspending window is
+`src/main/index.ts:1038-1049` wires the handlers: `startRecording` and `captureScreenshot`
+both go through `pressWidgetKey` (`index.ts:741`), which asks `decideWidgetShortcut`
+(`src/main/shortcuts/widget-shortcut.ts`) whether to open, close, switch the widget's intent
+or stop the take; `captureWindow` goes through `triggerShortcutCapture`, `captureInstant`
+calls `triggerCaptureScreenshot` with the `instant` intent, and `bringToFront` has its own
+handler. It re-applies on every `shortcuts` settings change, so a rebind on the page
+re-registers system-wide. The suspend/resume IPC (`index.ts:1005-1021`) also re-registers as a backstop if the suspending window is
 destroyed mid-capture.
 
 **Key point:** the accelerator only _fires_ at the OS level via `globalShortcut`. That
@@ -96,7 +101,7 @@ event, so in-page keyboard input never triggers it.
 
 🟡 **Partial (page fully E2E-able; global firing not headless-testable).**
 
-✅ **Implemented (the page slice)** — `e2e/shortcuts.e2e.ts` rebinds _Start capturing_ to a new
+✅ **Implemented (the page slice)** — `e2e/shortcuts.e2e.ts` rebinds _Open capture widget · Recording_ to a new
 accelerator and asserts persistence via a `getSettings()` round-trip. The actual OS-level
 accelerator firing stays manual.
 
@@ -105,7 +110,7 @@ Two clearly distinct concerns:
 - **The page — config, validation, persistence:** renderer-only, driven entirely through
   real IPC against a throwaway `userData`. Fully E2E-able with the existing harness. No
   mocking required.
-- **The global accelerator actually firing** (`⌘⌃C` starting a recording while another app
+- **The global accelerator actually firing** (`⇧⌘2` opening the capture widget while another app
   is focused): **not headless-testable.** Electron's `globalShortcut` is an OS-level hotkey;
   Playwright's `page.keyboard` / `page.evaluate` dispatch DOM events inside the renderer and
   never reach the OS hotkey layer. Triggering a real global accelerator needs OS-level input
@@ -132,9 +137,10 @@ test("rebinding a shortcut on /shortcuts persists the new accelerator", async ()
       location.hash = "#/shortcuts";
     });
 
-    // The first "Start capturing" row still shows the default ⌃⌘X.
-    const control = page.getByRole("button", { name: "Change shortcut" }).first();
-    await expect(control).toHaveText("⌃⌘X");
+    // The second row ("Open capture widget · Recording", after ⇧⌘1 Screenshot) still shows
+    // the default ⇧⌘2.
+    const control = page.getByRole("button", { name: "Change shortcut" }).nth(1);
+    await expect(control).toHaveText("⇧⌘2");
 
     // Enter capture mode, then press a valid Control+<letter> combo. Control (not
     // Command) is the more reliable modifier to synthesize under Linux xvfb, and
@@ -177,9 +183,9 @@ window.electronAPI.getShortcutStatus())` should report the actions; do not hard-
 
 ## Not covered / manual
 
-- **Actual global-accelerator firing** (`⌘⌃C` start, `⌘⌃S` stop, `⌘⌃O` show app, `⇧⌘1`
-  capture widget, `⇧⌘2` instant capture) while another app is focused — verify manually on macOS, ideally in a packaged
-  build, because Electron `globalShortcut` is an OS-level hotkey Playwright's in-page input
+- **Actual global-accelerator firing** (`⇧⌘2` recording widget, `⇧⌘1` screenshot widget,
+  `⌃⌘X` instant capture, `⌃⌘O` show app) while another app is focused — verify manually on
+  macOS, ideally in a packaged build, because Electron `globalShortcut` is an OS-level hotkey Playwright's in-page input
   cannot invoke.
 - **"In use by another app" surfacing** — requires a second process owning the combo at the
   OS level; not reproducible headless. Manual.

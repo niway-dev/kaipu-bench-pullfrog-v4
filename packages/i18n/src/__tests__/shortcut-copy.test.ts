@@ -16,7 +16,7 @@ describe("the landing's shortcut copy", () => {
   const expected = formatAccelerator(DEFAULT_ACCELERATORS.mac.startRecording);
 
   it("matches the real start-recording default", () => {
-    expect(expected).toBe("⌘⌃X");
+    expect(expected).toBe("⌘⇧2");
     expect(en.landing.homeChapter1Pill2).toBe(expected);
     expect(es.landing.homeChapter1Pill2).toBe(expected);
   });

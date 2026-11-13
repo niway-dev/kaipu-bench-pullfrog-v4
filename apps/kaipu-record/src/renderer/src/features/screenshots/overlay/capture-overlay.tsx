@@ -312,7 +312,13 @@ export function CaptureOverlay({
   return (
     <>
       {body}
-      <HintPill mode={mode} platform={platform} modeCount={enabledModes.length} intent={intent} />
+      <HintPill
+        mode={mode}
+        platform={platform}
+        modeCount={enabledModes.length}
+        intent={intent}
+        displayCount={query.count}
+      />
       <DisplayLabel index={query.index} />
     </>
   );
@@ -324,11 +330,13 @@ function HintPill({
   platform,
   modeCount,
   intent,
+  displayCount,
 }: {
   mode: CaptureMode;
   platform: KeyPlatform;
   modeCount: number;
   intent: CaptureIntent;
+  displayCount: number;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const copyKey = copyKeyLabel(platform);
@@ -337,7 +345,10 @@ function HintPill({
     intent === "record"
       ? mode === "frame"
         ? t("overlay.hintFrameRecord", { keys })
-        : t("overlay.hintPickRecord")
+        : mode === "screen" && displayCount === 1
+          ? // One display shows one card: "each display shows its own card" would be noise.
+            t("overlay.hintPickRecordSingle")
+          : t("overlay.hintPickRecord")
       : mode === "frame"
         ? t("overlay.hintFrame", { copyKey, keys })
         : t("overlay.hintPick", { copyKey, keys });

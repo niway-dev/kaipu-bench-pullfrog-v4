@@ -5,7 +5,7 @@ import { formatAccelerator } from "./keyboard-accelerator";
 export type ShortcutLabels = Record<ShortcutAction, string>;
 
 /**
- * The current global-shortcut bindings as display labels (e.g. "⌃⌘X"), for hints
+ * The current global-shortcut bindings as display labels (e.g. "⌘⇧2"), for hints
  * shown around the UI. Queries settings on mount and subscribes to changes, so a
  * rebind on the Shortcuts page is reflected everywhere — including the floating
  * control-bar window, which is shown with `showInactive()` and kept alive across

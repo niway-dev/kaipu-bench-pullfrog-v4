@@ -114,11 +114,11 @@ const TEXT_NAMES: Record<string, string> = {
 const TEXT_ORDER = ["Ctrl", "Alt", "Shift", "Win"];
 
 /**
- * Render an Electron accelerator as a label for `platform`: macOS glyphs on macOS
- * ("Command+Control+C" → "⌃⌘C"), Windows-style text elsewhere
- * ("Control+Alt+C" → "Ctrl+Alt+C").
+ * The keys of an Electron accelerator as `platform` names them, modifiers first in the
+ * platform's order: "Command+Control+C" → ["⌃", "⌘", "C"] on macOS, "Control+Alt+C" →
+ * ["Ctrl", "Alt", "C"] elsewhere. One entry per keycap.
  */
-export function formatAccelerator(accelerator: string, platform: string = hostPlatform()): string {
+export function acceleratorKeys(accelerator: string, platform: string = hostPlatform()): string[] {
   const mac = platform === "darwin";
   const names = mac ? MAC_SYMBOLS : TEXT_NAMES;
   const order = mac ? MAC_ORDER : TEXT_ORDER;
@@ -130,6 +130,15 @@ export function formatAccelerator(accelerator: string, platform: string = hostPl
     else if (!modifiers.includes(name)) modifiers.push(name);
   }
   modifiers.sort((a, b) => order.indexOf(a) - order.indexOf(b));
-  if (mac) return modifiers.join("") + key;
-  return [...modifiers, key].filter(Boolean).join("+");
+  return [...modifiers, key].filter(Boolean);
+}
+
+/**
+ * Render an Electron accelerator as a label for `platform`: macOS glyphs on macOS
+ * ("Command+Control+C" → "⌃⌘C"), Windows-style text elsewhere
+ * ("Control+Alt+C" → "Ctrl+Alt+C").
+ */
+export function formatAccelerator(accelerator: string, platform: string = hostPlatform()): string {
+  const keys = acceleratorKeys(accelerator, platform);
+  return platform === "darwin" ? keys.join("") : keys.join("+");
 }
