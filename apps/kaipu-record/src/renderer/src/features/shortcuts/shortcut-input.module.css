@@ -56,7 +56,8 @@
   border-color: var(--accent-primary);
 }
 
-.input[data-unavailable] {
+/* Not while listening: the prompt keeps the accent colour of its accent border. */
+.input[data-unavailable]:not([data-listening]) {
   color: var(--accent-red, #e5484d);
 }
 
