@@ -1,4 +1,7 @@
 import posthog, { type PostHogConfig } from "posthog-js";
+// Bundled, not lazy-loaded: the SDK would fetch it from PostHog's script origin, which the
+// renderer CSP (script-src 'self') blocks, and exception autocapture would stay silently off.
+import "posthog-js/dist/exception-autocapture";
 import { DEFAULT_PRODUCT, DEFAULT_SURFACE, type FlagName } from "@shared/analytics";
 
 /** `posthog.init` has run; it cannot be undone, only opted out of. */
