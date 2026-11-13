@@ -147,6 +147,17 @@ describe("CropOverlay", () => {
     expect(onLeave).not.toHaveBeenCalled();
   });
 
+  it("Enter on a focused button presses the button and does not leave", () => {
+    const scene = makeScene({ x: 0.2, y: 0.2, w: 0.5, h: 0.5 });
+    const onLeave = vi.fn();
+    renderSizedOverlay(scene, onLeave);
+    const button = document.createElement("button");
+    document.body.appendChild(button);
+    fireEvent.keyDown(button, { key: "Enter" });
+    button.remove();
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
   it("a click outside an existing crop leaves the tool without changing the crop", () => {
     const scene = makeScene({ x: 0.2, y: 0.2, w: 0.5, h: 0.5 });
     const onLeave = vi.fn();

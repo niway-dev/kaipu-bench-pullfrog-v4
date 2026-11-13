@@ -96,7 +96,10 @@ export function CropOverlay({
       if (isEditingText(e.target) || document.querySelector('[aria-modal="true"]')) return;
       // Esc and Enter leave the tool and keep the crop (Reset and Undo remove it). Abort any
       // in-progress drag first so the trailing pointerup can't commit another history entry.
-      if (e.key === "Escape" || e.key === "Enter") {
+      // Enter on a focused control (Reset, a toolbar button) is that control's own press.
+      const onControl =
+        e.target instanceof Element && e.target.closest('button, a, [role="button"]') != null;
+      if (e.key === "Escape" || (e.key === "Enter" && !onControl)) {
         e.preventDefault();
         if (drag.current) drag.current = null;
         setLive(undefined);
