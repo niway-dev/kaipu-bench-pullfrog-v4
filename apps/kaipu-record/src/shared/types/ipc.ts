@@ -69,9 +69,12 @@ export interface ShortcutDefinition {
 /**
  * The accelerators are LITERALS here, and deliberately, even though
  * `DEFAULT_ACCELERATORS.mac` and `.windows` in `@kaipu/domain/constants` hold
- * the same pairs and the marketing site reads them. macOS uses
- * `Command+Control`; Windows uses `Control+Alt` (`CommandOrControl` would
- * collapse to plain Ctrl there and bind Ctrl+C, copy, globally).
+ * the same pairs and the marketing site reads them. On macOS the two
+ * capture-widget keys use `Command+Shift` (1 and 2, beside the system's own
+ * screenshot keys) and the rest use `Command+Control`; Windows uses
+ * `Control+Alt` (`CommandOrControl` would collapse to plain Ctrl there and put
+ * Ctrl+X, cut, on the instant capture globally). The reasoning lives above
+ * `DEFAULT_ACCELERATORS` in the domain file.
  *
  * This file is reachable from the PRELOAD bundle, which externalizes workspace
  * packages and then cannot load their TypeScript at runtime — importing one

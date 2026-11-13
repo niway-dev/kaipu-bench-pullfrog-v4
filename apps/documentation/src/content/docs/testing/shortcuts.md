@@ -13,7 +13,7 @@ sections, _Recording_ and _App_, one row per action
 (`src/renderer/src/pages/shortcuts/shortcuts-page.tsx:81-84`, `161-166`).
 
 Each row shows a click-to-rebind control. The actions and their default accelerators
-(`src/shared/types/ipc.ts:79-162`):
+(`src/shared/types/ipc.ts:88-138`):
 
 - _Open capture widget · Recording_ (action `startRecording`) — `Command+Shift+2` (⇧⌘2) — opens
   the capture widget ready to record. Pressed again it closes the widget, cancels the countdown
@@ -84,10 +84,13 @@ Windows a combo with the Windows key is rejected, because the OS reserves those)
 that touches Electron's `globalShortcut`. `applyGlobalShortcuts()` calls
 `globalShortcut.unregisterAll()` then `globalShortcut.register(accelerator, handler)` for
 each action, recording success/failure in `status` (`global-shortcuts.ts:39-46`).
-`src/main/index.ts:344-353` wires the handlers (`triggerStartRecording`, a `recordingCommand`
-"stop" send, `bringAppToFront`, `triggerCaptureScreenshot`) and re-applies on every
-`onSettingsChanged`, so a rebind on the page re-registers system-wide. The suspend/resume
-IPC (`index.ts:318-334`) also re-registers as a backstop if the suspending window is
+`src/main/index.ts:1038-1049` wires the handlers: `startRecording` and `captureScreenshot`
+both go through `pressWidgetKey` (`index.ts:741`), which asks `decideWidgetShortcut`
+(`src/main/shortcuts/widget-shortcut.ts`) whether to open, close, switch the widget's intent
+or stop the take; `captureWindow` goes through `triggerShortcutCapture`, `captureInstant`
+calls `triggerCaptureScreenshot` with the `instant` intent, and `bringToFront` has its own
+handler. It re-applies on every `shortcuts` settings change, so a rebind on the page
+re-registers system-wide. The suspend/resume IPC (`index.ts:1005-1021`) also re-registers as a backstop if the suspending window is
 destroyed mid-capture.
 
 **Key point:** the accelerator only _fires_ at the OS level via `globalShortcut`. That
@@ -107,7 +110,7 @@ Two clearly distinct concerns:
 - **The page — config, validation, persistence:** renderer-only, driven entirely through
   real IPC against a throwaway `userData`. Fully E2E-able with the existing harness. No
   mocking required.
-- **The global accelerator actually firing** (`⌘⌃C` starting a recording while another app
+- **The global accelerator actually firing** (`⇧⌘2` opening the capture widget while another app
   is focused): **not headless-testable.** Electron's `globalShortcut` is an OS-level hotkey;
   Playwright's `page.keyboard` / `page.evaluate` dispatch DOM events inside the renderer and
   never reach the OS hotkey layer. Triggering a real global accelerator needs OS-level input
