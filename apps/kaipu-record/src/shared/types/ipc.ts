@@ -88,8 +88,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     defaultAccelerator: { mac: "Command+Shift+2", win: "Control+Alt+2" },
     group: "recording",
     label: "Open capture widget · Recording",
-    description:
-      "Open the capture widget ready to record; press again to close it, cancel the countdown or stop the recording",
+    description: "Press again to close, cancel or stop the recording",
     statusWord: "record",
   },
   {
@@ -110,7 +109,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     defaultAccelerator: { mac: "Command+Shift+1", win: "Control+Alt+1" },
     group: "app",
     label: "Open capture widget · Screenshot",
-    description: "Open the capture widget ready to take a screenshot; press again to close it",
+    description: "Pick what to capture; press again to close",
     statusWord: "capture",
   },
   {

@@ -69,8 +69,7 @@ describe("the desktop shortcut defaults", () => {
     expect(start).toMatchObject({
       group: "recording",
       label: "Open capture widget · Recording",
-      description:
-        "Open the capture widget ready to record; press again to close it, cancel the countdown or stop the recording",
+      description: "Press again to close, cancel or stop the recording",
     });
   });
 
@@ -80,7 +79,7 @@ describe("the desktop shortcut defaults", () => {
     expect(capture).toMatchObject({
       group: "app",
       label: "Open capture widget · Screenshot",
-      description: "Open the capture widget ready to take a screenshot; press again to close it",
+      description: "Pick what to capture; press again to close",
     });
     expect(window).toMatchObject({ group: "app", label: "Capture window", statusWord: "window" });
   });

@@ -19,9 +19,7 @@ describe("ShortcutsPage", () => {
     expect(await screen.findByText("Open capture widget · Screenshot")).toBeInTheDocument();
     expect(screen.getByText("Open capture widget · Recording")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Open the capture widget ready to record; press again to close it, cancel the countdown or stop the recording",
-      ),
+      screen.getByText("Press again to close, cancel or stop the recording"),
     ).toBeInTheDocument();
     expect(screen.getByText("Bring Kaipu to front")).toBeInTheDocument();
     expect(screen.getByText("Instant capture")).toBeInTheDocument();
