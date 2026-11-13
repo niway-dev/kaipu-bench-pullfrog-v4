@@ -2486,6 +2486,21 @@ describe("CaptureOverlay — the countdown runs on the widget (ADR 0056)", () =>
     );
   });
 
+  it("while it counts, everything but Cancel and Record is inert, so Tab and Space change nothing", async () => {
+    await renderCounting(3);
+    const locked = (): Element[] => Array.from(document.querySelectorAll("[inert]"));
+    expect(locked()).toHaveLength(0);
+
+    press("Enter");
+
+    // Capture as, Area, Ratio, the three inputs and the hints.
+    expect(locked()).toHaveLength(7);
+    expect(screen.getByRole("button", { name: "Cancel" }).closest("[inert]")).toBeNull();
+    expect(screen.getByTestId("start-recording").closest("[inert]")).toBeNull();
+    expect(screen.getByRole("button", { name: "Screenshot" }).closest("[inert]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "16:9" }).closest("[inert]")).not.toBeNull();
+  });
+
   it("More settings during the count stops it, opens the settings and answers nothing", async () => {
     const { answer, setCounting, openRecordSettings } = await renderCounting(3);
     press("Enter");
@@ -2815,6 +2830,19 @@ describe("CaptureOverlay — the device menus", () => {
     await flush();
     return fake;
   }
+
+  it("Enter on a device menu item reaches no overlay shortcut: it does not start the recording", async () => {
+    devices.microphones = [{ deviceId: "usb", label: "USB mic" }];
+    const { answer, setCounting } = await renderRecording();
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose Microphone device" }));
+    fireEvent.keyDown(screen.getByRole("menuitemradio", { name: "USB mic" }), { key: "Enter" });
+    // The confirm persists the box first, so give it time to answer before asserting nothing did.
+    await flush();
+
+    expect(setCounting).not.toHaveBeenCalled();
+    expect(answer).not.toHaveBeenCalled();
+  });
 
   it("the Microphone name opens a menu of radio items; choosing one writes the shared recording settings", async () => {
     devices.microphones = [

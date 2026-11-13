@@ -199,7 +199,7 @@ export function CaptureWidget({
         )}
 
         <div className={styles.row}>
-          <div className={styles.group}>
+          <div className={styles.group} inert={counting || undefined}>
             <span className={styles.label}>{t("widget.captureAs")}</span>
             <div className={styles.segments} role="group" aria-label={t("overlay.intent")}>
               <button
@@ -224,7 +224,7 @@ export function CaptureWidget({
               </button>
             </div>
           </div>
-          <div className={styles.group}>
+          <div className={styles.group} inert={counting || undefined}>
             <span className={styles.label}>{t("widget.area")}</span>
             <div className={styles.segments} role="group" aria-label={t("overlay.modes")}>
               {chrome.modes.map((mode, index) => {
@@ -259,7 +259,7 @@ export function CaptureWidget({
               )}
             </div>
           </div>
-          <div className={styles.group}>
+          <div className={styles.group} inert={counting || undefined}>
             <span className={styles.label}>{t("widget.ratio")}</span>
             <div
               className={styles.segments}
@@ -322,6 +322,7 @@ export function CaptureWidget({
                   selectedDevice={selected ?? null}
                   onSelectDevice={select}
                   onToggle={() => chrome.toggles?.toggle(key)}
+                  locked={counting}
                 />
               );
             })}
@@ -398,7 +399,7 @@ export function CaptureWidget({
           </div>
         )}
 
-        <div className={styles.hints} data-testid="widget-hints">
+        <div className={styles.hints} data-testid="widget-hints" inert={counting || undefined}>
           {frameMode && (
             <span className={styles.hintGroup}>
               <span className={styles.label}>{t("widget.hintBox")}</span>
@@ -459,6 +460,7 @@ function InputCell({
   selectedDevice,
   onSelectDevice,
   onToggle,
+  locked,
 }: {
   state: "microphone" | "systemAudio" | "camera";
   on: boolean;
@@ -474,6 +476,8 @@ function InputCell({
   selectedDevice: string | null;
   onSelectDevice?(id: string): void;
   onToggle(): void;
+  /** While the countdown runs the cell is neither clickable nor focusable. */
+  locked: boolean;
 }): React.JSX.Element {
   const t = useTranslations("screenshots");
   const [open, setOpen] = useState(false);
@@ -498,6 +502,7 @@ function InputCell({
     <div
       ref={cell}
       className={styles.input}
+      inert={locked || undefined}
       data-on={on}
       data-halo={lit || undefined}
       data-blocked={blocked || undefined}
@@ -535,7 +540,17 @@ function InputCell({
         <Kbd>{hint}</Kbd>
       </button>
       {open && devices && (
-        <ul role="menu" className={styles.menu} data-edge={edge} aria-label={name}>
+        <ul
+          role="menu"
+          className={styles.menu}
+          data-edge={edge}
+          aria-label={name}
+          // Enter on a menu item picks the device; it must not also reach the overlay's
+          // window-level Enter, which starts the recording.
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.stopPropagation();
+          }}
+        >
           {devices.length === 0 && <li className={styles.menuEmpty}>{t("widget.noDevices")}</li>}
           {devices.map((device) => (
             <li key={device.id} role="none">

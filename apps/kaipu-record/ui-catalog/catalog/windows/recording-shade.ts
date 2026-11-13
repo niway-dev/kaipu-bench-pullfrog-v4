@@ -1,6 +1,10 @@
 import { catalog, type Step } from "../../types";
+import { nc } from "../not-capturable";
 
-/** The overlay's own start: its countdown runs on the shade, over the chosen region. */
+/**
+ * The overlay's own start. Its countdown runs on the widget (ADR 0056), so the shade shows no
+ * countdown here, only the border once the take starts.
+ */
 const fromOverlay = (mode: string): Step[] => [
   { call: "requestRecordSelector", args: [mode], on: "main" },
   { waitFor: { window: "capture-overlay" } },
@@ -37,22 +41,12 @@ export const recordingShade = catalog(
       after: [{ action: "stopTake" }],
     },
 
-    "countdown-area": {
-      profile: "recording",
-      how: "Open the overlay in Frame mode and press Enter on its frame; shot during the countdown.",
-      steps: [
-        ...fromOverlay("frame"),
-        { waitFor: { area: "recordingShade.countdown" }, timeoutMs: 10_000 },
-      ],
-      demonstrates: ["recordingShade.countdown:area"],
-      gates: [{ setting: "recordingCountdownSeconds", side: "3" }],
-      after: [{ action: "stopTake" }],
-    },
     "countdown-display": {
       profile: "recording",
-      how: "Ask to record in Screen mode: with one display there is no chooser, the countdown starts at once.",
+      how: "Ask for a take of the first display without the overlay (as the instant shortcut and the tray do): the shade counts down over the whole display.",
       steps: [
-        { call: "requestRecordSelector", args: ["screen"], on: "main" },
+        { action: "selectFirstScreen" },
+        { action: "requestTake" },
         { waitFor: { area: "recordingShade.countdown" }, timeoutMs: 10_000 },
       ],
       demonstrates: ["recordingShade.countdown:fullDisplay"],
@@ -61,6 +55,12 @@ export const recordingShade = catalog(
     },
   },
   {
+    notCapturable: {
+      "recordingShade.countdown:area": nc(
+        "needsSetup",
+        "the shade counts down over a region only for a stored area or the instant shortcut, and both need a real display id that no catalog step can write; the overlay's own countdown now runs on the widget (ADR 0056)",
+      ),
+    },
     oneSided: {
       "recordingShade.countdown": "with `recordingCountdownSeconds` 0 there is no countdown",
     },
