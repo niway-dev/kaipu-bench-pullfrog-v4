@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildPosthogConfig, isFlagEnabled } from "./analytics-client";
 
@@ -17,6 +19,12 @@ describe("buildPosthogConfig", () => {
 
   it("treats an empty host (an unset CI variable) as no host", () => {
     expect(buildPosthogConfig("").api_host).toBe("https://us.i.posthog.com");
+  });
+
+  it("uses a host the renderer CSP lets it connect to", () => {
+    const html = readFileSync(resolve(__dirname, "../../../index.html"), "utf8");
+    const connectSrc = html.match(/content="[^"]*connect-src ([^;"]+)/)?.[1].split(/\s+/) ?? [];
+    expect(connectSrc).toContain(buildPosthogConfig(undefined).api_host);
   });
 });
 
