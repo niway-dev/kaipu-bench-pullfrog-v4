@@ -58,7 +58,7 @@ interface WindowPickerProps {
 
 /**
  * Window mode: the window under the pointer is highlighted (accent fill, 2 px accent border,
- * its title above it) with the mode pill and the action bar attached. A click captures the
+ * its title above it) with the capture widget docked to the work area (ADR 0056). A click captures the
  * window under the click; a click where there is no window answers nothing. Enter and
  * ⌘C / Ctrl+C capture or copy the highlighted one.
  *

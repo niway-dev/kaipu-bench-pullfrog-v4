@@ -480,8 +480,9 @@ function InputCell({
   const cell = useRef<HTMLDivElement | null>(null);
   const [lit, setLit] = useState(false);
   useEffect(() => {
+    // Another input's toggle ends this one's halo at once: its timer is cancelled below.
+    setLit(halo !== null);
     if (halo === null) return;
-    setLit(true);
     const timer = setTimeout(() => setLit(false), TOAST_MS);
     return () => clearTimeout(timer);
   }, [halo]);

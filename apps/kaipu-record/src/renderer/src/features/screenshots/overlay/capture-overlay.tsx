@@ -87,11 +87,13 @@ interface CaptureOverlayProps {
  * answers "this rectangle / this window / this display" with an action, or "cancelled";
  * main captures the pixels.
  *
- * Keys: 1..n (one per enabled mode) switch the mode (here at once, and on every other overlay through main), Esc
- * anywhere cancels; Enter and ⌘C / Ctrl+C belong to each mode's UI. Only the first answer
- * is sent: a second Esc, or Enter after a click, does nothing (main also keeps only the
- * first, across every display). Main also cancels on Esc itself, so this renderer-side
- * handler is not the only way out.
+ * Keys: 1..n (one per enabled mode) switch the mode (here at once, and on every other overlay
+ * through main), Esc cancels; Enter and ⌘C / Ctrl+C belong to each mode's UI. While the
+ * countdown runs here, Esc and Cancel stop only the count (main's own Esc yields through
+ * `setCounting`) and a second one cancels. Only the first answer is sent: a second Esc, or
+ * Enter after a click, does nothing (main also keeps only the first, across every display).
+ * Main also cancels on Esc itself when no count runs, so this renderer-side handler is not the
+ * only way out.
  */
 export function CaptureOverlay({
   query: loadedQuery,

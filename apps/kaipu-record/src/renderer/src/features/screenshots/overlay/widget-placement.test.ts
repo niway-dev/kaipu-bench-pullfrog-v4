@@ -15,7 +15,7 @@ describe("widgetWidth", () => {
     expect(widgetWidth(AREA)).toBe(WIDGET_MAX_WIDTH_DIP);
   });
 
-  it("shrinks to keep a margin on each side of a 1280 px work area", () => {
+  it("keeps the design width on a 1280 px work area and shrinks only below it", () => {
     const narrow = { ...AREA, width: 1280 };
     const width = widgetWidth(narrow);
     expect(width).toBeLessThanOrEqual(1280 - 2 * WIDGET_EDGE_GAP_DIP);

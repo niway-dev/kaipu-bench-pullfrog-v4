@@ -150,16 +150,6 @@
   border-radius: 2px;
 }
 
-.kbd {
-  padding: 1px 5px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: inherit;
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 4px;
-  opacity: 0.85;
-}
-
 /* ── Window mode ───────────────────────────────────────────────── */
 
 .windowSheet {

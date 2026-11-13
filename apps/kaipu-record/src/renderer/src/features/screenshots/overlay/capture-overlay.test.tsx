@@ -2209,7 +2209,7 @@ describe("CaptureOverlay — the keyboard works from the first paint", () => {
 });
 
 describe("CaptureOverlay — a box under the minimum", () => {
-  it("can be shot, with Enter or the Capture button, though it cannot be recorded", async () => {
+  it("can be shot with Enter and the Capture button stays enabled", async () => {
     const tiny = { x: 100, y: 120, width: 40, height: 30 };
     const { api, answer } = fakeApi({ "42": tiny });
     render(<CaptureOverlay enabledModes={CAPTURE_MODES} query={query("frame")} api={api} />);
@@ -2462,6 +2462,30 @@ describe("CaptureOverlay — the countdown runs on the widget (ADR 0056)", () =>
     );
   });
 
+  it("the box cannot be dragged, resized or redrawn while it counts: the answer carries the box shown", async () => {
+    const { answer } = await renderCounting(3);
+    // Pointer events bubble from the box to the sheet's handlers, whatever the coordinates.
+    const sheet = screen.getByTestId("capture-frame");
+    press("Enter");
+
+    // Inside the box (move), on the dim sheet (redraw) and on a corner (resize).
+    for (const [x, y] of [
+      [300, 270],
+      [20, 20],
+      [area.x, area.y],
+    ] as const) {
+      fireEvent.pointerDown(sheet, { button: 0, clientX: x, clientY: y });
+      fireEvent.pointerMove(sheet, { clientX: x + 60, clientY: y + 40 });
+      fireEvent.pointerUp(sheet, { clientX: x + 60, clientY: y + 40 });
+    }
+
+    expect(frameGeometry()).toEqual(area);
+    await tick(3000);
+    expect(answer).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ action: "record", countdownDone: true, rect: area }),
+    );
+  });
+
   it("More settings during the count stops it, opens the settings and answers nothing", async () => {
     const { answer, setCounting, openRecordSettings } = await renderCounting(3);
     press("Enter");
@@ -2641,6 +2665,21 @@ describe("CaptureOverlay — M, A and W toggle the inputs", () => {
     expect(toast()).toHaveTextContent("✓ Camera on W");
     await tick(500);
     expect(toast()).toBeNull();
+  });
+
+  it("a second toggle inside 1.5 s hands the halo over: no input stays lit afterwards", async () => {
+    await renderInputs();
+    vi.useFakeTimers();
+
+    press("a");
+    await tick(500);
+    press("w");
+    expect(screen.getByTestId("input-systemAudio")).not.toHaveAttribute("data-halo");
+    expect(screen.getByTestId("input-camera")).toHaveAttribute("data-halo", "true");
+
+    await tick(1500);
+    expect(screen.getByTestId("input-camera")).not.toHaveAttribute("data-halo");
+    expect(screen.getByTestId("input-systemAudio")).not.toHaveAttribute("data-halo");
   });
 
   it("a click on the toggle changes the input and shows no toast", async () => {

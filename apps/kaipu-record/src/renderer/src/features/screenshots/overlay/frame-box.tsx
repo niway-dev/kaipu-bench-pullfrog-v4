@@ -122,10 +122,11 @@ interface FrameBoxProps {
 
 /**
  * Frame mode: a resizable rectangle with eight handles and a draggable body, redrawn from
- * scratch by dragging on the dim sheet outside it, with the mode pill and the action bar
- * attached. Enter or Capture confirms it, ⌘C / Ctrl+C or Copy confirms it as a copy; Esc
- * (handled by the overlay) cancels. A key press during a drag ends the drag first. Geometry
- * is window-local DIP, which is display-relative because the window covers the display.
+ * scratch by dragging on the dim sheet outside it, with the capture widget docked to the work
+ * area (ADR 0056). Enter or Capture confirms it, ⌘C / Ctrl+C or Copy confirms it as a copy;
+ * Esc (handled by the overlay) cancels. A key press during a drag ends the drag first, and the
+ * box is frozen while the countdown runs. Geometry is window-local DIP, which is
+ * display-relative because the window covers the display.
  */
 export function FrameBox({
   query,
@@ -200,6 +201,9 @@ export function FrameBox({
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;
+    // The countdown records the box it started with: a drag now would show one area and
+    // record another.
+    if (chrome.countdown !== null) return;
     const crop = toCrop(frame, area);
     const point = toPoint(event.clientX, event.clientY, area);
     const tol = { x: HANDLE_HIT_DIP / area.width, y: HANDLE_HIT_DIP / area.height };
