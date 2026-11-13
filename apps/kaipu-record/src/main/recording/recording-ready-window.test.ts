@@ -421,6 +421,32 @@ describe("RecordingReadyWindow", () => {
       expect(window().hide).toHaveBeenCalledTimes(2);
     });
 
+    it("a window the system closed mid-countdown never hides the next card", () => {
+      vi.useFakeTimers();
+      const { ready, windows, window, cardReady, fromCard } = setup();
+      void ready.show(FRESH);
+      cardReady();
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: true });
+      fromCard(IPC_CHANNELS.recordingReadyHover, { paused: false });
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 100);
+      windows[0]!.closed?.();
+      const next = { ...FRESH, assetId: "asset-2" };
+      void ready.show(next);
+      // The old deadline passes while the new window is still loading.
+      vi.advanceTimersByTime(200);
+      cardReady();
+      expect(windows).toHaveLength(2);
+      expect(window().showInactive).toHaveBeenCalledTimes(1);
+      expect(window().webContents.send).toHaveBeenCalledWith(
+        IPC_CHANNELS.recordingReadyPayload,
+        next,
+      );
+      vi.advanceTimersByTime(READY_AUTO_HIDE_MS - 1);
+      expect(window().hide).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(window().hide).toHaveBeenCalledTimes(1);
+    });
+
     it("ignores hover reports from any other renderer", () => {
       vi.useFakeTimers();
       const { ready, window, cardReady, listeners } = setup();

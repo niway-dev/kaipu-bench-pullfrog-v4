@@ -279,6 +279,9 @@ export class RecordingReadyWindow {
       if (this.window !== window) return;
       this.window = null;
       this.rendererReady = false;
+      // A countdown left running would hide the next card while its new window still loads.
+      this.clearAutoHide();
+      this.pointerInside = false;
       this.settle(false);
     });
     window.webContents.on("did-fail-load", () => this.fail(window));
