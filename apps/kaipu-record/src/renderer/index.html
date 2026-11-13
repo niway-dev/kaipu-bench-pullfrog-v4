@@ -4,9 +4,13 @@
     <meta charset="UTF-8" />
     <title>Kaipu Record</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- connect-src lists the PostHog API and assets hosts: without them every posthog-js
+         request (feature flags, events, exceptions) is blocked. Keep in sync with the
+         default host in features/analytics/analytics-client.ts (a test checks it). A
+         VITE_POSTHOG_HOST other than the default needs its own entry here too. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob: https://us.i.posthog.com https://us-assets.i.posthog.com"
     />
   </head>
 

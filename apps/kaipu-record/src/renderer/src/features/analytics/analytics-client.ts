@@ -1,4 +1,7 @@
 import posthog, { type PostHogConfig } from "posthog-js";
+// Bundled, not lazy-loaded: the SDK would fetch it from PostHog's script origin, which the
+// renderer CSP (script-src 'self') blocks, and exception autocapture would stay silently off.
+import "posthog-js/dist/exception-autocapture";
 import { DEFAULT_PRODUCT, DEFAULT_SURFACE, type FlagName } from "@shared/analytics";
 
 /** `posthog.init` has run; it cannot be undone, only opted out of. */
@@ -9,7 +12,8 @@ let started = false;
 /** Privacy-locked config. Pure + exported so the privacy guarantees are tested. */
 export function buildPosthogConfig(host: string | undefined): Partial<PostHogConfig> {
   return {
-    api_host: host ?? "https://us.i.posthog.com",
+    // `||`, not `??`: an unset CI variable is inlined as "", which is not a host.
+    api_host: host || "https://us.i.posthog.com",
     autocapture: false, // never capture DOM/clicks — could leak recorded UI
     capture_pageview: false,
     disable_session_recording: true, // never record the screen-recorder's own screen
