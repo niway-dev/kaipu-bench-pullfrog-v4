@@ -32,6 +32,7 @@ import {
 import {
   BeautifiedFrame,
   BeautifyPanel,
+  CropChip,
   CropOverlay,
   DEFAULT_BEAUTIFY,
   FLAT_BEAUTIFY,
@@ -782,6 +783,11 @@ function ScreenshotEditorBody({
           extentsNatural,
         )
       : null;
+  // Leaving and re-entering the crop tool (NIW2-759). The crop is committed on every drag, so
+  // leaving is only a tool change: the stage then shows the cropped part, and the chip, the
+  // double-click and the X key bring the crop tool back with the same crop.
+  const leaveCrop = (): void => tools.setTool("select");
+  const enterCrop = (): void => tools.setTool("crop");
   const shownZoom = canvasMode ? viewport.view.zoom : zoom;
   const zoomMin = canvasMode ? CANVAS_ZOOM.min : ZOOM_MIN;
   const zoomMax = canvasMode ? CANVAS_ZOOM.max : ZOOM_MAX;
@@ -1378,7 +1384,7 @@ function ScreenshotEditorBody({
       if (keysOwnEsc || document.querySelector('[aria-modal="true"]')) return;
       // An open toolbar menu takes this Esc; the sheet closes on the next one.
       if (document.querySelector('[role="menu"]')) return;
-      // Capture phase + stop: the crop overlay also clears its frame on Esc.
+      // Capture phase + stop: the crop overlay also leaves the tool on Esc.
       e.stopPropagation();
       setPanelOpen(false);
     };
@@ -1671,6 +1677,14 @@ function ScreenshotEditorBody({
                 : undefined
             }
             {...(inspectEnabled ? { "data-inspect": String(inspect.active) } : {})}
+            // A click on the stage itself, outside the frame, leaves the crop tool (with a crop
+            // set). Never one that ends a pan, nor one that began on the frame (its target).
+            onClick={(e) => {
+              if (tools.tool !== "crop" || cropScene.crop == null) return;
+              if (e.target !== e.currentTarget || e.button !== 0) return;
+              if (canvasMode && viewport.panMode !== "idle") return;
+              leaveCrop();
+            }}
             {...(canvasMode
               ? {
                   ...viewport.bindings,
@@ -1688,6 +1702,10 @@ function ScreenshotEditorBody({
               src={image.displayUrl}
               beautify={scene.beautify.state}
               crop={tools.tool === "crop" ? undefined : canvasMode ? exportFrameCrop : scene.crop}
+              windowChip={<CropChip onEnter={enterCrop} zoom={shownZoom} />}
+              onWindowDoubleClick={() => {
+                if (tools.tool === "select" && !(inspectEnabled && inspect.active)) enterCrop();
+              }}
               overlay={
                 <>
                   <AnnotationLayer
@@ -1720,6 +1738,7 @@ function ScreenshotEditorBody({
                 tools.tool === "crop" ? (
                   <CropOverlay
                     scene={cropScene}
+                    onLeave={leaveCrop}
                     chrome={
                       canvasMode
                         ? { zoom: viewport.view.zoom, pixelSize: framePixelSize }
