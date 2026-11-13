@@ -21,15 +21,15 @@ work area, not to the selection.
 
 ## Decisions
 
-| Decision                                                                                               | Why                                                              | ADR                  |
-| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | -------------------- |
-| One toolbar for both intents, docked to the work area                                                  | The owner can find the controls without following the box        | creates 0056         |
-| Centred, 16 px above the work area's bottom edge; jumps to the top (16 px below) if the box reaches it | A free edge always exists unless the box fills the area          | 0056                 |
-| No free edge (Screen mode, full-height box): stays at the bottom and covers that strip                 | The widget hides before capture, so the strip is in the image    | 0056                 |
-| Ratios show in both intents                                                                            | The owner wants one layout; the box locks to the ratio either way | none                 |
-| Keys `M` / `A` / `W` toggle mic / system audio / camera, Recording only                                | `C` would clash with ⌘C and with an accidental camera toggle     | none                 |
-| Countdown runs inside the widget; the widget stays visible and dims                                    | The owner sees what will start and can cancel with Esc           | 0030 (reused)        |
-| The old pieces are deleted, not restyled                                                               | Restyling in place was already tried and rejected                | 0056 (alternatives)  |
+| Decision                                                                                               | Why                                                               | ADR                 |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------- |
+| One toolbar for both intents, docked to the work area                                                  | The owner can find the controls without following the box         | creates 0056        |
+| Centred, 16 px above the work area's bottom edge; jumps to the top (16 px below) if the box reaches it | A free edge always exists unless the box fills the area           | 0056                |
+| No free edge (Screen mode, full-height box): stays at the bottom and covers that strip                 | The widget hides before capture, so the strip is in the image     | 0056                |
+| Ratios show in both intents                                                                            | The owner wants one layout; the box locks to the ratio either way | none                |
+| Keys `M` / `A` / `W` toggle mic / system audio / camera, Recording only                                | `C` would clash with ⌘C and with an accidental camera toggle      | none                |
+| Countdown runs inside the widget; the widget stays visible and dims                                    | The owner sees what will start and can cancel with Esc            | 0030 (reused)       |
+| The old pieces are deleted, not restyled                                                               | Restyling in place was already tried and rejected                 | 0056 (alternatives) |
 
 ## Open questions
 
