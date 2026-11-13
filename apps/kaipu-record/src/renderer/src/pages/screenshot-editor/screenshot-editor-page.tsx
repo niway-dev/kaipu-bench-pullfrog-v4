@@ -783,11 +783,6 @@ function ScreenshotEditorBody({
           extentsNatural,
         )
       : null;
-  // Leaving and re-entering the crop tool (NIW2-759). The crop is committed on every drag, so
-  // leaving is only a tool change: the stage then shows the cropped part, and the chip, the
-  // double-click and the X key bring the crop tool back with the same crop.
-  const leaveCrop = (): void => tools.setTool("select");
-  const enterCrop = (): void => tools.setTool("crop");
   const shownZoom = canvasMode ? viewport.view.zoom : zoom;
   const zoomMin = canvasMode ? CANVAS_ZOOM.min : ZOOM_MIN;
   const zoomMax = canvasMode ? CANVAS_ZOOM.max : ZOOM_MAX;
@@ -1502,6 +1497,12 @@ function ScreenshotEditorBody({
     tools.setTool(tool);
     afterPick(tool);
   };
+  // Leaving and re-entering the crop tool (NIW2-759). The crop is committed on every drag, so
+  // leaving is only a tool change: the stage then shows the cropped part, and the chip, the
+  // double-click and the X key bring the crop tool back with the same crop. Both go through
+  // `pickTool`, like the toolbar and the X key, so re-entering shows the Tool tab with Done.
+  const leaveCrop = (): void => pickTool("select");
+  const enterCrop = (): void => pickTool("crop");
   // The Add image menu is open: the page owns it so the `M` key and "•••" can open it too.
   const [addOpen, setAddOpen] = useState(false);
   useToolShortcuts({

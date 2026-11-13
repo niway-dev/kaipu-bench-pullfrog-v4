@@ -150,6 +150,16 @@ describe.each([
     expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
   });
 
+  it("coming back from the Beautify tab shows the Tool tab, with Done", async () => {
+    await cropTool(canvas);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Beautify" }));
+    fireEvent.click(await waitFor(() => chip()!));
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    expect(screen.getByRole("tab", { name: "Tool" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+  });
+
   it("a double-click on the cropped image brings the crop tool back", async () => {
     await cropTool(canvas);
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
