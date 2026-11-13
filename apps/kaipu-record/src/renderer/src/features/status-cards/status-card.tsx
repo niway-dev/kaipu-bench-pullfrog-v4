@@ -26,6 +26,8 @@ export interface StatusCardProps {
   dismissIcon?: "close" | "minimize";
   /** Muted line under a hairline at the bottom. */
   footer?: React.ReactNode;
+  /** A strip flush with the card's bottom edge, under the footer (the floating card's timer). */
+  edge?: React.ReactNode;
   onMouseEnter?(): void;
   onMouseLeave?(): void;
   children?: React.ReactNode;
@@ -51,6 +53,7 @@ export function StatusCard({
   dismissLabel,
   dismissIcon = "close",
   footer,
+  edge,
   onMouseEnter,
   onMouseLeave,
   children,
@@ -93,6 +96,7 @@ export function StatusCard({
       </header>
       {children && <div className={styles.body}>{children}</div>}
       {footer && <footer className={styles.footer}>{footer}</footer>}
+      {edge}
     </section>
   );
 }

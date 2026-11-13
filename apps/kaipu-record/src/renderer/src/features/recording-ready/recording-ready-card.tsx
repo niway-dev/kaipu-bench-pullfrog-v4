@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { RecordingReadyPayload } from "@shared/types/recording-ready";
+import type { RecordingReadyPayload, RecordingReadyTimer } from "@shared/types/recording-ready";
 import type { RecordingReadyCardBridge } from "@shared/types/electron-api";
 import { PostRecordingCard } from "@renderer/features/status-cards/post-recording-card";
 import styles from "./recording-ready-card.module.css";
@@ -11,22 +11,45 @@ interface RecordingReadyCardProps {
 }
 
 /**
+ * The bar's state: each running timer from main is a new `run` (the animation restarts from
+ * full over `durationMs`); a held timer freezes the current run where it is.
+ */
+interface BarState {
+  run: number;
+  durationMs: number;
+  running: boolean;
+}
+
+/**
  * Root of the "Your video is ready" window (`?window=recording-ready`), floating on the
  * desktop after a take. The same `PostRecordingCard` the recording page falls back to; it
  * only renders main's payload and reports presses. Main closes the window and takes the
  * main window where the press goes. The card's height is reported so the window fits it.
+ * Main hides it on a timer that the pointer holds; the bar at the bottom mirrors that timer
+ * (`recording-ready:timer`), like the capture toast's.
  */
 export function RecordingReadyCard({
   api = window.electronAPI.recordingReadyCard,
 }: RecordingReadyCardProps): React.JSX.Element | null {
   const [payload, setPayload] = useState<RecordingReadyPayload | null>(null);
+  const [bar, setBar] = useState<BarState>({ run: 0, durationMs: 0, running: false });
   const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const unsubscribe = api.onShow(setPayload);
+    const unsubscribeShow = api.onShow(setPayload);
+    const unsubscribeTimer = api.onTimer(({ remainingMs }: RecordingReadyTimer) =>
+      setBar((previous) =>
+        remainingMs === null
+          ? { ...previous, running: false }
+          : { run: previous.run + 1, durationMs: remainingMs, running: true },
+      ),
+    );
     // After subscribing: main sends the current payload in answer.
     api.ready();
-    return unsubscribe;
+    return () => {
+      unsubscribeShow();
+      unsubscribeTimer();
+    };
   }, [api]);
 
   // Escape closes it, once the user has clicked into the card (it never takes focus itself).
@@ -68,6 +91,18 @@ export function RecordingReadyCard({
         onEditFirst={payload.canEdit ? () => api.action({ kind: "edit" }) : undefined}
         onDismiss={() => api.action({ kind: "dismiss" })}
         onOpen={() => api.action({ kind: "open" })}
+        onMouseEnter={() => api.hover(true)}
+        onMouseLeave={() => api.hover(false)}
+        countdown={
+          <div className={styles.bar} aria-hidden>
+            <i
+              key={bar.run}
+              data-run={bar.run > 0 ? "true" : "false"}
+              data-running={bar.running ? "true" : "false"}
+              style={{ animationDuration: `${bar.durationMs}ms` }}
+            />
+          </div>
+        }
       />
     </div>
   );

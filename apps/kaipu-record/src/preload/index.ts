@@ -15,7 +15,11 @@ import type {
 } from "@shared/types/screenshot-capture";
 import { WorkspaceStampGuard } from "@shared/workspace-stamp-guard";
 import type { KaipuElectronAPI } from "@shared/types/electron-api";
-import type { RecordingReadyHandOff, RecordingReadyPayload } from "@shared/types/recording-ready";
+import type {
+  RecordingReadyHandOff,
+  RecordingReadyPayload,
+  RecordingReadyTimer,
+} from "@shared/types/recording-ready";
 import {
   STALE_WORKSPACE,
   type WorkspacePrepareRequest,
@@ -410,6 +414,12 @@ const kaipuApi: KaipuElectronAPI = {
     ready: () => ipcRenderer.send(IPC_CHANNELS.recordingReadyCardReady),
     action: (action) => ipcRenderer.send(IPC_CHANNELS.recordingReadyAction, action),
     resize: (height) => ipcRenderer.send(IPC_CHANNELS.recordingReadyResize, { height }),
+    hover: (paused) => ipcRenderer.send(IPC_CHANNELS.recordingReadyHover, { paused }),
+    onTimer: (callback) => {
+      const listener = (_e: IpcRendererEvent, timer: RecordingReadyTimer): void => callback(timer);
+      ipcRenderer.on(IPC_CHANNELS.recordingReadyTimer, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.recordingReadyTimer, listener);
+    },
   },
   onRecordingReadyOpen: (callback) => {
     const listener = (_e: IpcRendererEvent, handOff: RecordingReadyHandOff): void =>

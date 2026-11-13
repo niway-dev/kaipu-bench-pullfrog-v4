@@ -565,6 +565,10 @@ export const IPC_CHANNELS = {
   recordingReadyAction: "recording-ready:action",
   // Card → main: `{ height: number }`, the card's height in DIP, so the window fits it.
   recordingReadyResize: "recording-ready:resize",
+  // Card → main: `{ paused: boolean }`, the pointer entered (true) or left (false) the card.
+  recordingReadyHover: "recording-ready:hover",
+  // Main → card: `RecordingReadyTimer`, sent from every start, restart and stop of the auto-hide.
+  recordingReadyTimer: "recording-ready:timer",
   // Main → main window: `RecordingReadyHandOff`, where to navigate after an action.
   recordingReadyOpen: "recording-ready:open",
   // Recording engine (renderer ↔ main)

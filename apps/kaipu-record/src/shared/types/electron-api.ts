@@ -22,6 +22,7 @@ import type {
   RecordingReadyAction,
   RecordingReadyHandOff,
   RecordingReadyPayload,
+  RecordingReadyTimer,
 } from "./recording-ready";
 import type { FlagName, SerializedError } from "../analytics";
 import type { RecordingWriterKind } from "../webcam-track";
@@ -148,6 +149,10 @@ export interface RecordingReadyCardBridge {
   action(action: RecordingReadyAction): void;
   /** The card's height in DIP, so main sizes the window to it. */
   resize(height: number): void;
+  /** The pointer entered (true) or left (false) the card: main holds or restarts the auto-hide. */
+  hover(paused: boolean): void;
+  /** Main's auto-hide, for the card's bar. Returns an unsubscribe fn. */
+  onTimer(callback: (timer: RecordingReadyTimer) => void): () => void;
 }
 
 /** macOS media permissions the recorder cares about. */
