@@ -12,21 +12,24 @@ import {
   type RememberedArea,
 } from "@shared/types/screenshot-capture";
 import { useTranslations } from "@kaipu/i18n";
+import { sanitizeCountdownSeconds } from "@shared/types/ipc";
 import { FrameBox } from "./frame-box";
 import {
-  copyKeyLabel,
   detectKeyPlatform,
   intentForKey,
   modeForKey,
+  toggleForKey,
+  type InputToggleKey,
   type KeyPlatform,
 } from "./overlay-keys";
+import type { InputToast, OverlayChrome } from "./overlay-chrome";
 import type { OverlayQuery } from "./overlay-query";
-import { useOverlayToggles } from "./record-chrome";
 import { ScreenCard } from "./screen-card";
-import type { OverlayChrome } from "./selection-chrome";
+import { TOAST_MS } from "./capture-widget";
+import { useOverlayToggles } from "./use-overlay-toggles";
+import { useWidgetDevices } from "./use-widget-devices";
 import { WindowPicker } from "./window-picker";
 import styles from "./capture-overlay.module.css";
-import { uiArea } from "@renderer/lib/ui-area";
 
 /** How long the hide ack waits for an animation frame before answering anyway. */
 export const HIDDEN_ACK_FALLBACK_MS = 50;
@@ -216,29 +219,6 @@ export function CaptureOverlay({
     [bridge, query.displayId],
   );
 
-  // Layout effect: Esc and the mode keys work from the first paint (see FrameBox).
-  useLayoutEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancel();
-        return;
-      }
-      const nextIntent = intentForKey(event);
-      if (nextIntent) {
-        event.preventDefault();
-        if (!answered.current) setIntent(nextIntent);
-        return;
-      }
-      const next = modeForKey(event, enabledModes);
-      if (!next) return;
-      event.preventDefault();
-      switchMode(next);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cancel, switchMode, enabledModes, setIntent]);
-
   // Main hid the window and waits until this renderer has drawn one more frame, so its
   // last painted frame cannot end up in the shot. A hidden window may never run its
   // animation frames, so a short timer races the frame; main's 250 ms cap stays the
@@ -265,6 +245,97 @@ export function CaptureOverlay({
   // Mic, System audio and Camera live on the overlay only when it opened to record.
   const recording = intent === "record";
   const toggles = useOverlayToggles(api, recording);
+  const devices = useWidgetDevices(api, recording);
+
+  // The configured countdown, read when the overlay is (or becomes) a recording one.
+  const [countdownSeconds, setCountdownSeconds] = useState<number>(() =>
+    sanitizeCountdownSeconds(undefined),
+  );
+  useEffect(() => {
+    if (!recording) return;
+    let live = true;
+    api
+      .getSettings()
+      .then((settings) => {
+        if (live) setCountdownSeconds(sanitizeCountdownSeconds(settings.recordingCountdownSeconds));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [api, recording]);
+
+  // The countdown runs here, in the widget (ADR 0056), and the record answer carries
+  // `countdownDone`, so neither main nor the recorder counts a second time.
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const counting = useRef(false);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const endCountdown = useCallback(() => {
+    clearInterval(countdownTimer.current);
+    countdownTimer.current = undefined;
+    if (!counting.current) return;
+    counting.current = false;
+    setCountdown(null);
+    bridge.setCounting(false);
+  }, [bridge]);
+  // Leaving mid-count (the window closed) must not leave a timer ticking.
+  useEffect(() => () => clearInterval(countdownTimer.current), []);
+
+  const request = useCallback<SendAnswer>(
+    (answer, beforeSend) => {
+      const records =
+        (answer.kind === "rect" || answer.kind === "display") && isRecordAction(answer.action);
+      if (!records || countdownSeconds <= 0) {
+        send(answer, beforeSend);
+        return;
+      }
+      // A second confirm during the count, or after the answer, does nothing.
+      if (counting.current || answered.current || persisting.current) return;
+      counting.current = true;
+      let remaining = countdownSeconds;
+      setCountdown(remaining);
+      bridge.setCounting(true);
+      countdownTimer.current = setInterval(() => {
+        remaining -= 1;
+        if (remaining > 0) {
+          setCountdown(remaining);
+          return;
+        }
+        endCountdown();
+        send({ ...answer, countdownDone: true }, beforeSend);
+      }, 1000);
+    },
+    [bridge, countdownSeconds, endCountdown, send],
+  );
+
+  // Esc and the Cancel button end the countdown first; a second one cancels the overlay.
+  const cancelOrStopCount = useCallback(() => {
+    if (counting.current) {
+      endCountdown();
+      return;
+    }
+    cancel();
+  }, [cancel, endCountdown]);
+
+  const [toast, setToast] = useState<InputToast | null>(null);
+  const toastId = useRef(0);
+  const showToast = useCallback((input: InputToggleKey, on: boolean) => {
+    toastId.current += 1;
+    setToast({ id: toastId.current, input, on });
+  }, []);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const moreSettings = useCallback(() => {
+    if (answered.current) return;
+    answered.current = true;
+    endCountdown();
+    bridge.openRecordSettings();
+  }, [bridge, endCountdown]);
+
   const chrome = useMemo<OverlayChrome>(
     () => ({
       mode,
@@ -272,12 +343,64 @@ export function CaptureOverlay({
       platform,
       intent,
       onMode: switchMode,
-      onCancel: cancel,
+      onCancel: cancelOrStopCount,
       onIntent: setIntent,
-      ...(recording ? { toggles } : {}),
+      ...(recording ? { toggles, devices } : {}),
+      toast,
+      countdown,
+      countdownSeconds,
+      onMoreSettings: moreSettings,
     }),
-    [mode, enabledModes, platform, intent, switchMode, cancel, recording, toggles, setIntent],
+    [
+      mode,
+      enabledModes,
+      platform,
+      intent,
+      switchMode,
+      cancelOrStopCount,
+      recording,
+      toggles,
+      devices,
+      setIntent,
+      toast,
+      countdown,
+      countdownSeconds,
+      moreSettings,
+    ],
   );
+
+  // Layout effect: Esc and the mode keys work from the first paint (see FrameBox).
+  useLayoutEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelOrStopCount();
+        return;
+      }
+      // While the countdown runs the widget is committed: only Esc and Cancel act.
+      if (counting.current) return;
+      const nextIntent = intentForKey(event);
+      if (nextIntent) {
+        event.preventDefault();
+        if (!answered.current) setIntent(nextIntent);
+        return;
+      }
+      const input = toggleForKey(event, intent);
+      if (input) {
+        event.preventDefault();
+        if (answered.current) return;
+        const became = toggles.toggle(input);
+        if (became !== null) showToast(input, became);
+        return;
+      }
+      const next = modeForKey(event, enabledModes);
+      if (!next) return;
+      event.preventDefault();
+      switchMode(next);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cancelOrStopCount, switchMode, enabledModes, setIntent, intent, toggles, showToast]);
 
   if (!received) return null;
 
@@ -288,7 +411,7 @@ export function CaptureOverlay({
         bridge={bridge}
         hoverDisplayId={state.hoverDisplayId}
         chrome={chrome}
-        send={send}
+        send={request}
       />
     ) : mode === "window" && enabledModes.includes("window") ? (
       <WindowPicker
@@ -298,7 +421,7 @@ export function CaptureOverlay({
         hoverDisplayId={state.hoverDisplayId}
         cursor={state.cursor ?? null}
         chrome={chrome}
-        send={send}
+        send={request}
       />
     ) : (
       <FrameMode
@@ -306,60 +429,14 @@ export function CaptureOverlay({
         api={api}
         frameDisplayId={state.frameDisplayId}
         chrome={chrome}
-        send={send}
+        send={request}
       />
     );
   return (
     <>
       {body}
-      <HintPill
-        mode={mode}
-        platform={platform}
-        modeCount={enabledModes.length}
-        intent={intent}
-        displayCount={query.count}
-      />
       <DisplayLabel index={query.index} />
     </>
-  );
-}
-
-/** The key hint at the bottom of every overlay. */
-function HintPill({
-  mode,
-  platform,
-  modeCount,
-  intent,
-  displayCount,
-}: {
-  mode: CaptureMode;
-  platform: KeyPlatform;
-  modeCount: number;
-  intent: CaptureIntent;
-  displayCount: number;
-}): React.JSX.Element {
-  const t = useTranslations("screenshots");
-  const copyKey = copyKeyLabel(platform);
-  const keys = `1–${modeCount}`;
-  const text =
-    intent === "record"
-      ? mode === "frame"
-        ? t("overlay.hintFrameRecord", { keys })
-        : mode === "screen" && displayCount === 1
-          ? // One display shows one card: "each display shows its own card" would be noise.
-            t("overlay.hintPickRecordSingle")
-          : t("overlay.hintPickRecord")
-      : mode === "frame"
-        ? t("overlay.hintFrame", { copyKey, keys })
-        : t("overlay.hintPick", { copyKey, keys });
-  return (
-    <span
-      {...uiArea("captureOverlay.hintPill")}
-      className={styles.hintPill}
-      data-testid="hint-pill"
-    >
-      {text}
-    </span>
   );
 }
 

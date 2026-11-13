@@ -77,8 +77,8 @@ export const captureToast = catalog(
         { waitFor: { window: "capture-overlay" } },
         {
           click: {
-            area: "captureOverlay.selectionToolbar",
-            part: { role: "button", name: "Copy" },
+            area: "captureOverlay.captureWidget",
+            part: { role: "button", name: "Copy to clipboard" },
           },
           on: "capture-overlay",
         },
