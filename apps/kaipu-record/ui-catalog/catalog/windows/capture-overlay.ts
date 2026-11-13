@@ -115,7 +115,14 @@ export const captureOverlay = catalog(
     "record-key-toast": {
       profile: "recording",
       how: "Open the overlay to record and press M: the widget toasts the new microphone state for 1.5 s.",
-      steps: [record("frame"), { waitFor: { window: "capture-overlay" } }, { press: "m" }],
+      steps: [
+        record("frame"),
+        { waitFor: { window: "capture-overlay" } },
+        { waitMs: 500 },
+        // On the overlay: without `on` the key goes to the main window and nothing toasts.
+        { press: "m", on: "capture-overlay" },
+        { waitFor: { area: "captureOverlay.captureWidget", part: { role: "status" } } },
+      ],
       demonstrates: ["captureOverlay.captureWidget:keyToast"],
       ready: { area: "captureOverlay.captureWidget" },
       after: [cancel],
