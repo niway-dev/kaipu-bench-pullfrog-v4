@@ -57,5 +57,7 @@ describe("useShotMetrics", () => {
     act(() => observers.forEach((o) => o.callback()));
 
     expect(result.current).toMatchObject({ w: 400, h: 300 });
+    // Later resizes of the cropped shot are tracked: the observer now watches the new <img>.
+    expect([...observers[0]!.observed]).toEqual([second]);
   });
 });
