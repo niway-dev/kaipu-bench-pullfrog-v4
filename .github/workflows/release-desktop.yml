@@ -163,6 +163,13 @@ jobs:
           # The website the browser sign-in opens (https://kaipu.app/auth/desktop). Frozen into
           # the binary like the server URL.
           MAIN_VITE_WEB_URL: ${{ vars.MAIN_VITE_WEB_URL }}
+          # PostHog project key and host, shared with the web (release-web.yml). The renderer
+          # reads VITE_*, main reads MAIN_VITE_*; both are inlined at build time. Without them
+          # PostHog never starts in the shipped app: no feature flags, analytics or errors.
+          VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
+          MAIN_VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+          MAIN_VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
         run: |
           # Fail here rather than ship: an unset value inlines as `undefined`, and the
           # main process throws on startup (src/main/index.ts), so the app would open
@@ -174,6 +181,11 @@ jobs:
           # Without it the shipped app cannot start a sign-in at all.
           test -n "$MAIN_VITE_WEB_URL" || {
             echo "::error::MAIN_VITE_WEB_URL is not set — add it to the production Environment"
+            exit 1
+          }
+          # Without it every remote flag falls back to its code default, silently.
+          test -n "$VITE_POSTHOG_KEY" || {
+            echo "::error::VITE_POSTHOG_KEY is not set — add it to the production Environment"
             exit 1
           }
           bun run build
@@ -316,6 +328,13 @@ jobs:
           # The website the browser sign-in opens (https://kaipu.app/auth/desktop). Frozen into
           # the binary like the server URL.
           MAIN_VITE_WEB_URL: ${{ vars.MAIN_VITE_WEB_URL }}
+          # PostHog project key and host, shared with the web (release-web.yml). The renderer
+          # reads VITE_*, main reads MAIN_VITE_*; both are inlined at build time. Without them
+          # PostHog never starts in the shipped app: no feature flags, analytics or errors.
+          VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
+          MAIN_VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+          MAIN_VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
         run: |
           test -n "$MAIN_VITE_SERVER_URL" || {
             echo "::error::MAIN_VITE_SERVER_URL is not set — add it to the production Environment"
@@ -324,6 +343,11 @@ jobs:
           # Without it the shipped app cannot start a sign-in at all.
           test -n "$MAIN_VITE_WEB_URL" || {
             echo "::error::MAIN_VITE_WEB_URL is not set — add it to the production Environment"
+            exit 1
+          }
+          # Without it every remote flag falls back to its code default, silently.
+          test -n "$VITE_POSTHOG_KEY" || {
+            echo "::error::VITE_POSTHOG_KEY is not set — add it to the production Environment"
             exit 1
           }
           bun run build
