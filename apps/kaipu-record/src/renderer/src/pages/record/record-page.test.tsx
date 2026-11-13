@@ -125,6 +125,16 @@ describe("RecordPage auto-start", () => {
     expect(startRecording).toHaveBeenCalledTimes(1);
   });
 
+  it("passes skipCountdown when main says the overlay already counted down", () => {
+    renderAt({ startAt: 100, skipCountdown: true });
+    expect(startRecording).toHaveBeenCalledExactlyOnceWith({ skipCountdown: true });
+  });
+
+  it("a plain startAt starts with no options", () => {
+    renderAt({ startAt: 100 });
+    expect(startRecording).toHaveBeenCalledExactlyOnceWith();
+  });
+
   it("does not auto-start when there is no selected source", () => {
     setupState.selectedSource = null;
     renderAt({ startAt: 100 });
@@ -206,7 +216,7 @@ describe("RecordPage idle layout (design Kaipu Record Modes)", () => {
     // No source card: what to record is picked in the selector.
     expect(screen.queryByText("CHOOSE A SOURCE")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: /Start recording/ }));
+    fireEvent.click(screen.getByRole("button", { name: /New recording/ }));
     fireEvent.click(screen.getByRole("button", { name: /^Screen/ }));
     expect(requestRecordSelector.mock.calls).toEqual([[undefined], ["screen"]]);
     // A click never starts a take by itself: main opens the selector first.
@@ -296,7 +306,7 @@ describe("RecordPage idle layout (design Kaipu Record Modes)", () => {
   it("keeps the recording layout while a take runs", () => {
     setupState.isRecording = true;
     renderAt(undefined);
-    expect(screen.queryByRole("button", { name: /Start recording/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /New recording/ })).toBeNull();
     expect(screen.getByRole("button", { name: /Stop recording/ })).toBeInTheDocument();
   });
 });

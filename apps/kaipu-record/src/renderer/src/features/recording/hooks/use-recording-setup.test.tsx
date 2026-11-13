@@ -197,6 +197,20 @@ describe("useRecordingSetup", () => {
     );
   });
 
+  it("startRecording({ skipCountdown }) forwards the option; a plain start passes none", () => {
+    mockSettings = SETTINGS({ selectedSource: SCREEN });
+    const { result } = renderHook(() => useRecordingSetup());
+
+    act(() => result.current.startRecording({ skipCountdown: true }));
+    expect(recorderRequestStart).toHaveBeenLastCalledWith(expect.any(Function), {
+      skipCountdown: true,
+    });
+
+    recorderRequestStart.mockClear();
+    act(() => result.current.startRecording());
+    expect(recorderRequestStart.mock.calls[0]).toHaveLength(1);
+  });
+
   it("a slow initial settings read never overwrites a newer audio change", async () => {
     const original = { ...window.electronAPI };
     const listeners: Array<(settings: AppSettings) => void> = [];

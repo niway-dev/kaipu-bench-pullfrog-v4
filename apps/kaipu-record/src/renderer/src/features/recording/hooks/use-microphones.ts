@@ -11,11 +11,15 @@ import type { Microphone } from "@renderer/features/recording/types";
  * the OS is still hiding every label, which is the one case where there is no other way
  * to ask. Once permission has been granted, `enumerateDevices` returns real labels on its
  * own and the probe never runs again.
+ *
+ * `enabled` false reads nothing: the capture overlay opened to take a screenshot never
+ * enumerates devices, so it can never reach the probe above.
  */
-export function useMicrophones(): Microphone[] {
+export function useMicrophones(enabled = true): Microphone[] {
   const [microphones, setMicrophones] = useState<Microphone[]>([]);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
 
     const audioInputs = async (): Promise<MediaDeviceInfo[]> => {
@@ -53,7 +57,7 @@ export function useMicrophones(): Microphone[] {
       cancelled = true;
       navigator.mediaDevices.removeEventListener("devicechange", load);
     };
-  }, []);
+  }, [enabled]);
 
   return microphones;
 }
