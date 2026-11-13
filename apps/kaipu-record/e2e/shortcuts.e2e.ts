@@ -22,10 +22,11 @@ test("rebinding a shortcut on /shortcuts persists the new accelerator", async ()
       location.hash = "#/shortcuts";
     });
 
-    // First row is "Open capture widget · Recording", still on its default ⇧⌘2. The rebind control
-    // is the ShortcutInput button (aria-label "Change shortcut"); its text is the
-    // macOS-symbol label of the current accelerator.
-    const control = page.getByRole("button", { name: "Change shortcut" }).first();
+    // The page lists the shortcuts in SHORTCUT_DEFINITIONS order: ⇧⌘1 (Screenshot) first, then
+    // "Open capture widget · Recording", still on its default ⇧⌘2. The rebind control is the
+    // ShortcutInput button (aria-label "Change shortcut"); its text is the macOS-symbol label
+    // of the current accelerator.
+    const control = page.getByRole("button", { name: "Change shortcut" }).nth(1);
     await expect(control).toHaveText("⇧⌘2");
 
     // Click to enter capture mode: ShortcutInput toggles `listening`, suspends the

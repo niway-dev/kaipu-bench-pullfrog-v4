@@ -8,25 +8,25 @@ description: "How the /shortcuts page edits and persists global accelerators via
 ## The flow
 
 Entry: the user opens the _Shortcuts_ sidebar page (route `/shortcuts`, registered at
-`src/renderer/src/app/router.tsx:40`). The page lists every global keyboard shortcut in two
-sections, _Recording_ and _App_, one row per action
-(`src/renderer/src/pages/shortcuts/shortcuts-page.tsx:81-84`, `161-166`).
+`src/renderer/src/app/router.tsx:40`). The page lists every global keyboard shortcut in one
+list, one row per action, in `SHORTCUT_DEFINITIONS` order: ⇧⌘1, ⇧⌘2, ⌃⌘X, ⌃⌘O
+(`src/renderer/src/pages/shortcuts/shortcuts-page.tsx`).
 
 Each row shows a click-to-rebind control. The actions and their default accelerators
 (`src/shared/types/ipc.ts:88-138`):
 
+- _Open capture widget · Screenshot_ (action `captureScreenshot`) — `Command+Shift+1` (⇧⌘1) — opens
+  the same widget ready to take a screenshot, in the current screenshot mode (Frame, Screen, or
+  Window while Window mode is enabled). Pressed again it closes the widget.
 - _Open capture widget · Recording_ (action `startRecording`) — `Command+Shift+2` (⇧⌘2) — opens
   the capture widget ready to record. Pressed again it closes the widget, cancels the countdown
   or stops the recording. There is no separate stop shortcut; the tray item and the control bar's
   Stop button also work. The decision lives in `decideWidgetShortcut`
   (`src/main/shortcuts/widget-shortcut.ts`).
-- _Open capture widget · Screenshot_ (action `captureScreenshot`) — `Command+Shift+1` (⇧⌘1) — opens
-  the same widget ready to take a screenshot, in the current screenshot mode (Frame, Screen, or
-  Window while Window mode is enabled). Pressed again it closes the widget.
-- _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
-  reach (the "rescue" backstop).
 - _Instant capture_ (action `captureInstant`) — `Command+Control+X` (⌃⌘X) — capture the screen
   under the cursor at once, no selector.
+- _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
+  reach (the "rescue" backstop).
 - _Capture window_ — `Command+Control+W` (⌃⌘W) — capture one window. Listed and registered only
   while Window mode is enabled (`ENABLED_CAPTURE_MODES`); otherwise the row is hidden.
 
@@ -137,8 +137,9 @@ test("rebinding a shortcut on /shortcuts persists the new accelerator", async ()
       location.hash = "#/shortcuts";
     });
 
-    // The first row ("Open capture widget · Recording") still shows the default ⇧⌘2.
-    const control = page.getByRole("button", { name: "Change shortcut" }).first();
+    // The second row ("Open capture widget · Recording", after ⇧⌘1 Screenshot) still shows
+    // the default ⇧⌘2.
+    const control = page.getByRole("button", { name: "Change shortcut" }).nth(1);
     await expect(control).toHaveText("⇧⌘2");
 
     // Enter capture mode, then press a valid Control+<letter> combo. Control (not
