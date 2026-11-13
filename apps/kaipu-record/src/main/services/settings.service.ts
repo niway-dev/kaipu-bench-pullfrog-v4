@@ -118,8 +118,10 @@ const REMOVED_SHORTCUT_ACTIONS: ReadonlyArray<{ version: number; actions: readon
  *
  *   1: captureScreenshot ⌃⌘X -> ⌘⇧1, captureInstant ⌃⌘I -> its current default (and the
  *      Windows pairs).
- *   3: startRecording ⌃⌘C or ⌃⌘X -> ⌘⇧2; captureInstant ⌘⇧2 -> ⌃⌘X (Control+Alt+C / X -> 2,
- *      Control+Alt+2 -> X on Windows).
+ *   2: startRecording ⌃⌘C -> its current default (Control+Alt+C on Windows).
+ *   3: startRecording ⌃⌘X -> ⌘⇧2; captureInstant ⌘⇧2 -> ⌃⌘X (Control+Alt+X -> 2,
+ *      Control+Alt+2 -> X on Windows). ⌃⌘C stays in step 2 only: a version 2 file on ⌃⌘C
+ *      chose it after version 2 ran, so it is a custom binding.
  */
 const MOVED_SHORTCUT_DEFAULTS: ReadonlyArray<{
   version: number;
@@ -128,11 +130,8 @@ const MOVED_SHORTCUT_DEFAULTS: ReadonlyArray<{
 }> = [
   { version: 1, action: "captureScreenshot", from: ["Command+Control+X", "Control+Alt+X"] },
   { version: 1, action: "captureInstant", from: ["Command+Control+I", "Control+Alt+I"] },
-  {
-    version: 3,
-    action: "startRecording",
-    from: ["Command+Control+C", "Control+Alt+C", "Command+Control+X", "Control+Alt+X"],
-  },
+  { version: 2, action: "startRecording", from: ["Command+Control+C", "Control+Alt+C"] },
+  { version: 3, action: "startRecording", from: ["Command+Control+X", "Control+Alt+X"] },
   { version: 3, action: "captureInstant", from: ["Command+Shift+2", "Control+Alt+2"] },
 ];
 

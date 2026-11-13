@@ -651,6 +651,17 @@ describe("migrateLegacyShortcuts", () => {
     expect(migrateLegacyShortcuts(v3, 3, "darwin")).toEqual({ shortcuts: v3, migrated: false });
   });
 
+  it("keeps a version 2 file's startRecording on ⌃⌘C: it was chosen after version 2 ran", () => {
+    const file = { ...v2Mac, startRecording: "Command+Control+C" };
+    const merged = load(file, "darwin", 2);
+    expect(merged.startRecording).toBe("Command+Control+C");
+    expect(merged.captureInstant).toBe("Command+Control+X");
+    noDuplicates(merged);
+    expect(load({ ...v2Win, startRecording: "Control+Alt+C" }, "win32", 2).startRecording).toBe(
+      "Control+Alt+C",
+    );
+  });
+
   it("keeps a custom startRecording binding, from any version", () => {
     for (const from of [0, 1, 2]) {
       expect(
