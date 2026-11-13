@@ -28,6 +28,16 @@ describe("buildPosthogConfig", () => {
   });
 });
 
+describe("exception autocapture", () => {
+  it("ships in the bundle, so the CSP never has to allow PostHog scripts", () => {
+    // Importing analytics-client registers the extension; without it posthog-js would
+    // try to load it from PostHog's script origin, which script-src 'self' blocks.
+    const extensions = (window as { __PosthogExtensions__?: { errorWrappingFunctions?: unknown } })
+      .__PosthogExtensions__;
+    expect(extensions?.errorWrappingFunctions).toBeDefined();
+  });
+});
+
 describe("isFlagEnabled overrides", () => {
   const original = window.electronAPI.flagOverrides;
   const setOverrides = (value: unknown): void => {
