@@ -1867,8 +1867,8 @@
     "accessibilityGrant": "Permitir",
     "doneTitle": "¡Todo listo!",
     "donePressPre": "Presiona",
-    "donePressPost": "en cualquier lugar — incluso desde la barra de menú — para empezar a grabar.",
-    "donePressPostWindows": "en cualquier lugar — incluso desde la bandeja del sistema — para empezar a grabar."
+    "donePressPost": "en cualquier lugar — incluso desde la barra de menú — para abrir el widget de captura y elegir qué grabar.",
+    "donePressPostWindows": "en cualquier lugar — incluso desde la bandeja del sistema — para abrir el widget de captura y elegir qué grabar."
   },
   "shortcuts": {
     "title": "Atajos",

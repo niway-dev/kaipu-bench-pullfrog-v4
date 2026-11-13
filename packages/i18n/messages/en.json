@@ -1867,8 +1867,8 @@
     "accessibilityGrant": "Allow",
     "doneTitle": "You're all set",
     "donePressPre": "Press",
-    "donePressPost": "anywhere — even from the menu bar — to start recording.",
-    "donePressPostWindows": "anywhere — even from the system tray — to start recording."
+    "donePressPost": "anywhere — even from the menu bar — to open the capture widget, then pick what to record.",
+    "donePressPostWindows": "anywhere — even from the system tray — to open the capture widget, then pick what to record."
   },
   "shortcuts": {
     "title": "Shortcuts",
