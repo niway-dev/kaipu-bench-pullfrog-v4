@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/niway-dev/kaipu-record/compare/web-v0.12.1...web-v0.13.0) (2026-11-13)
+
+
+### Features
+
+* **desktop:** add an instant capture shortcut ([93ea999](https://github.com/niway-dev/kaipu-record/commit/93ea99945de936e2b1c48602732e661a6ef6e5fa))
+
 ## [0.12.1](https://github.com/niway-dev/kaipu-record/compare/web-v0.12.0...web-v0.12.1) (2026-11-11)
 
 
