@@ -83,13 +83,13 @@ export function buildTrayMenuTemplate(input: TrayMenuInput): MenuItemConstructor
   if (recording) {
     items.push({
       label: labels.stopRecording,
-      ...display(shortcuts.stopRecording),
+      ...display(shortcuts.startRecording),
       click: actions.stopRecording,
     });
   } else if (countingDown) {
     items.push({
       label: labels.cancelCountdown,
-      ...display(shortcuts.stopRecording),
+      ...display(shortcuts.startRecording),
       click: actions.stopRecording,
     });
   }

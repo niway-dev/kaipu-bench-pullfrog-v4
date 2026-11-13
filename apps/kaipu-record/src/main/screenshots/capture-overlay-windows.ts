@@ -624,6 +624,16 @@ export class CaptureOverlayWindows implements OverlayPort {
       });
   }
 
+  /** True while an overlay is up waiting for the user's answer (not once it answered). */
+  isPicking(): boolean {
+    return !!this.session?.settle;
+  }
+
+  /** Answer the open pick `cancelled`, exactly as Esc does; the provider tears the windows down. */
+  cancelPick(): void {
+    this.answer({ kind: "cancelled" });
+  }
+
   destroyAll(): void {
     const entries = this.entries;
     this.entries = [];

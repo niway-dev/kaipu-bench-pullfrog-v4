@@ -372,7 +372,7 @@
     "homeChapter1Serif": "Una toma. Sin preparar nada.",
     "homeChapter1Body": "Pantalla, tu voz, el audio del sistema y una cámara flotante — desde la barra de menú o con un atajo. Pausa, sigue, detén. Ya está guardado.",
     "homeChapter1Pill1": "Barra de menú",
-    "homeChapter1Pill2": "⌘⌃C",
+    "homeChapter1Pill2": "⌘⌃X",
     "homeChapter1Pill3": "Cámara flotante",
     "homeChapter1Pill4": "Audio del sistema",
     "homeChapter2Label": "Captura",
@@ -1866,8 +1866,8 @@
     "accessibilityGrant": "Permitir",
     "doneTitle": "¡Todo listo!",
     "donePressPre": "Presiona",
-    "donePressPost": "en cualquier lugar — incluso desde la barra de menú — para grabar.",
-    "donePressPostWindows": "en cualquier lugar — incluso desde la bandeja del sistema — para grabar."
+    "donePressPost": "en cualquier lugar — incluso desde la barra de menú — para iniciar una captura.",
+    "donePressPostWindows": "en cualquier lugar — incluso desde la bandeja del sistema — para iniciar una captura."
   },
   "shortcuts": {
     "title": "Atajos",
@@ -1878,10 +1878,8 @@
     "noteAlreadyBound": "{description} · ya asignado a «{label}»",
     "noteInUse": "{description} · en uso por otra app",
     "alreadyBoundTitle": "Ya asignado a «{label}» — elige otra combinación",
-    "startRecordingLabel": "Iniciar grabación",
-    "startRecordingDesc": "Empieza una grabación de pantalla desde cualquier lugar",
-    "stopRecordingLabel": "Detener grabación",
-    "stopRecordingDesc": "Termina la grabación actual desde cualquier lugar",
+    "startRecordingLabel": "Iniciar captura",
+    "startRecordingDesc": "Abre el selector de captura; púlsalo de nuevo para detener o cerrar",
     "bringToFrontLabel": "Traer Kaipu al frente",
     "bringToFrontDesc": "Muestra la ventana si queda detrás o fuera de alcance",
     "captureScreenshotLabel": "Abrir captura",
@@ -1890,8 +1888,7 @@
     "captureWindowDesc": "Captura una sola ventana, sin la pantalla que la rodea",
     "captureInstantLabel": "Captura instantánea",
     "captureInstantDesc": "Captura al instante la pantalla bajo el cursor, sin selector",
-    "statusStart": "grabar",
-    "statusStop": "detener",
+    "statusStart": "iniciar",
     "statusShowApp": "mostrar app",
     "statusCapture": "capturar",
     "shortcutInactive": "Este atajo no está activo — elige otra combinación",
@@ -2529,8 +2526,7 @@
       "startAnywhere": {
         "title": "Empieza desde cualquier lugar",
         "body": "Un panel de captura en la barra de menú y atajos globales que funcionan desde cualquier app. Puedes cambiar cualquiera.",
-        "k1": "Empezar",
-        "k2": "Detener",
+        "k1": "Empezar o detener",
         "k3": "Captura",
         "k4": "Mostrar app",
         "k5": "Captura instantánea"

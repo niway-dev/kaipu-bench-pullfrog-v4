@@ -18,8 +18,7 @@ const labels: TrayMenuLabels = {
 };
 
 const shortcuts = {
-  startRecording: "Command+Control+C",
-  stopRecording: "Command+Control+S",
+  startRecording: "Command+Control+X",
   captureScreenshot: "Command+Shift+1",
 } as ShortcutSettings;
 
@@ -92,7 +91,7 @@ describe("buildTrayMenuTemplate", () => {
     expect(names(items).slice(0, 4)).toEqual(["Open", "---", "Record", "Stop recording"]);
     expect(submenu(items).map((i) => i.enabled)).toEqual([false, false, false]);
     const stop = items.find((i) => i.label === "Stop recording")!;
-    expect(stop).toMatchObject({ accelerator: "Command+Control+S", registerAccelerator: false });
+    expect(stop).toMatchObject({ accelerator: "Command+Control+X", registerAccelerator: false });
     expect(stop.enabled).not.toBe(false);
   });
 

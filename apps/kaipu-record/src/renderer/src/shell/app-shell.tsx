@@ -16,14 +16,13 @@ import { uiArea } from "@renderer/lib/ui-area";
 
 /**
  * action → `shortcuts` namespace status-word keys for the status bar. Instant
- * capture and Window are left out on purpose: the bar stays at four hints, and
+ * capture and Window are left out on purpose: the bar stays at three hints, and
  * the Shortcuts page lists every binding.
  */
 const STATUS_KEY: Partial<
-  Record<ShortcutAction, "statusStart" | "statusStop" | "statusShowApp" | "statusCapture">
+  Record<ShortcutAction, "statusStart" | "statusShowApp" | "statusCapture">
 > = {
   startRecording: "statusStart",
-  stopRecording: "statusStop",
   bringToFront: "statusShowApp",
   captureScreenshot: "statusCapture",
 };

@@ -667,6 +667,24 @@ describe("CaptureOverlayWindows: answers", () => {
     });
   });
 
+  it("isPicking is true while the pick waits for an answer, and cancelPick answers cancelled", async () => {
+    const port = overlays();
+    expect(port.isPicking()).toBe(false);
+    const picked = port.pick("frame", [left]);
+    expect(port.isPicking()).toBe(true);
+
+    port.cancelPick();
+
+    expect(await picked).toEqual({ kind: "cancelled" });
+    expect(port.isPicking()).toBe(false);
+  });
+
+  it("cancelPick with no pick open does nothing", () => {
+    const port = overlays();
+    expect(() => port.cancelPick()).not.toThrow();
+    expect(port.isPicking()).toBe(false);
+  });
+
   it("a second pick while one is up answers cancelled and leaves the first alone", async () => {
     const port = overlays();
     const first = port.pick("screen", [left, right]);

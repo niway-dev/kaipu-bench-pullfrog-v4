@@ -29,7 +29,6 @@ interface GlobalShortcutDeps {
 let deps: GlobalShortcutDeps | null = null;
 const status: Record<ShortcutAction, boolean> = {
   startRecording: false,
-  stopRecording: false,
   bringToFront: false,
   captureScreenshot: false,
   captureWindow: false,

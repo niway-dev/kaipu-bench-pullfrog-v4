@@ -24,7 +24,7 @@ export function ControlBarWindowRoot(): React.JSX.Element {
       onPause={() => window.electronAPI.controlCommand("pause")}
       onResume={() => window.electronAPI.controlCommand("resume")}
       onStop={() => window.electronAPI.controlCommand("stop")}
-      stopShortcut={shortcuts?.stopRecording}
+      stopShortcut={shortcuts?.startRecording}
       modeChip={modeChip}
       inputs={{
         microphone: recording.isMicrophoneEnabled,

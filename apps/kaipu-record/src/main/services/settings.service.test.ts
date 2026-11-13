@@ -51,7 +51,6 @@ describe("mergeSettings", () => {
   it("keeps valid stored values", () => {
     const shortcuts = {
       startRecording: "Command+Control+1",
-      stopRecording: "Command+Control+2",
       bringToFront: "Command+Control+3",
       captureScreenshot: "Command+Control+4",
       captureWindow: "Command+Control+0",
@@ -319,11 +318,10 @@ describe("mergeShortcuts", () => {
     expect(
       mergeShortcuts({
         startRecording: "Command+Control+G",
-        stopRecording: "",
+        bringToFront: "",
       }),
     ).toEqual({
       startRecording: "Command+Control+G",
-      stopRecording: DEFAULT_SHORTCUTS.stopRecording,
       bringToFront: DEFAULT_SHORTCUTS.bringToFront,
       captureScreenshot: DEFAULT_SHORTCUTS.captureScreenshot,
       captureWindow: DEFAULT_SHORTCUTS.captureWindow,
@@ -360,13 +358,13 @@ describe("mergeShortcuts", () => {
 describe("platform-specific shortcut defaults", () => {
   it("gives a Windows user Control+Alt defaults", () => {
     expect(mergeSettingsFor(null, "win32").shortcuts).toEqual(defaultShortcutsFor("win32"));
-    expect(mergeSettingsFor(null, "win32").shortcuts.startRecording).toBe("Control+Alt+C");
+    expect(mergeSettingsFor(null, "win32").shortcuts.startRecording).toBe("Control+Alt+X");
   });
 
   it("keeps a stored binding and fills the rest with the platform's defaults", () => {
     const merged = mergeShortcutsFor({ startRecording: "Control+Alt+G" }, "win32");
     expect(merged.startRecording).toBe("Control+Alt+G");
-    expect(merged.stopRecording).toBe("Control+Alt+S");
+    expect(merged.bringToFront).toBe("Control+Alt+O");
   });
 });
 
@@ -567,16 +565,84 @@ describe("migrateLegacyShortcuts", () => {
     toggleSystemAudio: "Command+Control+A",
     toggleCamera: "Command+Control+K",
   };
-  const load = (stored: unknown, platform = "darwin") =>
-    mergeShortcutsFor(migrateLegacyShortcuts(stored).shortcuts, platform);
+  const load = (stored: unknown, platform = "darwin", fromVersion = 0) =>
+    mergeShortcutsFor(migrateLegacyShortcuts(stored, fromVersion, platform).shortcuts, platform);
 
   it("moves a user still on the old defaults to the new ones", () => {
     const merged = load(oldMac);
     expect(merged.captureScreenshot).toBe("Command+Shift+1");
     expect(merged.captureInstant).toBe("Command+Shift+2");
     // Unchanged defaults stay as they were.
-    expect(merged.startRecording).toBe("Command+Control+C");
     expect(merged.captureWindow).toBe("Command+Control+W");
+  });
+
+  it("moves startRecording from ⌃⌘C to ⌃⌘X, and Control+Alt+C to Control+Alt+X on Windows", () => {
+    expect(load(oldMac).startRecording).toBe("Command+Control+X");
+    expect(load({ startRecording: "Control+Alt+C" }, "win32").startRecording).toBe("Control+Alt+X");
+  });
+
+  it("keeps a custom startRecording binding", () => {
+    expect(load({ ...oldMac, startRecording: "Command+Control+G" }).startRecording).toBe(
+      "Command+Control+G",
+    );
+  });
+
+  it("migrates a version 1 file once more, without replaying version 1's moves", () => {
+    const v1 = {
+      startRecording: "Command+Control+C",
+      stopRecording: "Command+Control+S",
+      bringToFront: "Command+Control+O",
+      captureScreenshot: "Command+Shift+1",
+      captureWindow: "Command+Control+W",
+      captureInstant: "Command+Shift+2",
+    };
+    const result = migrateLegacyShortcuts(v1, 1, "darwin");
+    expect(result.migrated).toBe(true);
+    expect(result.shortcuts).not.toHaveProperty("stopRecording");
+    expect(result.shortcuts).not.toHaveProperty("startRecording");
+    expect(load(v1, "darwin", 1).startRecording).toBe("Command+Control+X");
+  });
+
+  it("does not re-run on a version 2 file: an old default picked afterwards stays", () => {
+    const v2 = { startRecording: "Command+Control+C", stopRecording: "Command+Control+S" };
+    expect(migrateLegacyShortcuts(v2, 2, "darwin")).toEqual({ shortcuts: v2, migrated: false });
+  });
+
+  it("keeps a version 1 user's deliberate ⌃⌘X on captureScreenshot, and startRecording on ⌃⌘C", () => {
+    // ⌃⌘X is also the new startRecording default: registering both would fail the second.
+    // The custom binding wins, and startRecording keeps the binding it already had.
+    const v1 = {
+      startRecording: "Command+Control+C",
+      bringToFront: "Command+Control+O",
+      captureScreenshot: "Command+Control+X",
+    };
+    const result = migrateLegacyShortcuts(v1, 1, "darwin");
+    const merged = load(v1, "darwin", 1);
+    expect(merged.captureScreenshot).toBe("Command+Control+X");
+    expect(merged.startRecording).toBe("Command+Control+C");
+    expect(new Set(Object.values(merged)).size).toBe(Object.values(merged).length);
+    // Nothing to rewrite; the store still stamps the new version.
+    expect(result.migrated).toBe(false);
+  });
+
+  it("does the same on Windows with Control+Alt+X", () => {
+    const merged = load(
+      { startRecording: "Control+Alt+C", captureWindow: "Control+Alt+X" },
+      "win32",
+      1,
+    );
+    expect(merged.captureWindow).toBe("Control+Alt+X");
+    expect(merged.startRecording).toBe("Control+Alt+C");
+  });
+
+  it("a version 0 file on the old captureScreenshot default still lands on ⌃⌘X for start", () => {
+    // captureScreenshot's old default (⌃⌘X) is migrated away first, so it does not clash.
+    const merged = load({
+      startRecording: "Command+Control+C",
+      captureScreenshot: "Command+Control+X",
+    });
+    expect(merged.startRecording).toBe("Command+Control+X");
+    expect(merged.captureScreenshot).toBe("Command+Shift+1");
   });
 
   it("moves the Windows old defaults to the Windows new ones", () => {
@@ -602,6 +668,7 @@ describe("migrateLegacyShortcuts", () => {
     const result = migrateLegacyShortcuts(oldMac);
     expect(result.migrated).toBe(true);
     for (const key of [
+      "stopRecording",
       "captureScreen",
       "captureFrame",
       "recordArea",
@@ -615,7 +682,10 @@ describe("migrateLegacyShortcuts", () => {
 
   it("leaves a current file alone and reports nothing to persist", () => {
     const current = { startRecording: "Command+Control+G", captureScreenshot: "Command+Shift+1" };
-    expect(migrateLegacyShortcuts(current)).toEqual({ shortcuts: current, migrated: false });
+    expect(migrateLegacyShortcuts(current, 0, "darwin")).toEqual({
+      shortcuts: current,
+      migrated: false,
+    });
   });
 
   it("does nothing for a file already at the current version", () => {

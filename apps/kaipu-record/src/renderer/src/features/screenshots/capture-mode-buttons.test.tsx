@@ -11,8 +11,7 @@ const BASE_SETTINGS: AppSettings = {
 };
 
 const shortcuts = {
-  startRecording: "⌃⌘C",
-  stopRecording: "⌃⌘S",
+  startRecording: "⌃⌘X",
   bringToFront: "⌃⌘O",
   captureScreenshot: "⇧⌘1",
   captureWindow: "⌃⌘W",

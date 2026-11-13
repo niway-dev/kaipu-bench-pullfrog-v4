@@ -5,7 +5,7 @@
  * and those are two different apps. The web cannot import from
  * `apps/kaipu-record`, so before this existed the landing carried the glyphs as
  * typed characters — and all three of them were wrong (it advertised ⌘⇧P for a
- * shortcut that is ⌘⌃C). Nothing failed, because nothing was comparing them.
+ * shortcut that was ⌘⌃C at the time). Nothing failed, because nothing was comparing them.
  * Domain is pure and both apps can depend on it, so one definition removes the
  * class of bug rather than the instance.
  *
@@ -17,7 +17,6 @@
 
 export const SHORTCUT_ACTIONS = [
   "startRecording",
-  "stopRecording",
   "bringToFront",
   "captureScreenshot",
   "captureWindow",
@@ -46,8 +45,8 @@ export type ShortcutPlatform = "mac" | "windows";
  * as "the capture keys" beside them.
  *
  * Windows uses `Control+Alt` for the same intent. `CommandOrControl` was
- * rejected: it collapses to plain `Ctrl` on Windows, which would put Ctrl+C —
- * copy — on "start recording", globally.
+ * rejected: it collapses to plain `Ctrl` on Windows, which would put Ctrl+X —
+ * cut — on "start capturing", globally.
  *
  * The Windows column is **unvalidated**. Nobody has tested these against
  * Windows' own reserved shortcuts, because there is no Windows build yet. It is
@@ -56,16 +55,14 @@ export type ShortcutPlatform = "mac" | "windows";
  */
 export const DEFAULT_ACCELERATORS: Record<ShortcutPlatform, Record<ShortcutAction, string>> = {
   mac: {
-    startRecording: "Command+Control+C",
-    stopRecording: "Command+Control+S",
+    startRecording: "Command+Control+X",
     bringToFront: "Command+Control+O",
     captureScreenshot: "Command+Shift+1",
     captureWindow: "Command+Control+W",
     captureInstant: "Command+Shift+2",
   },
   windows: {
-    startRecording: "Control+Alt+C",
-    stopRecording: "Control+Alt+S",
+    startRecording: "Control+Alt+X",
     bringToFront: "Control+Alt+O",
     captureScreenshot: "Control+Alt+1",
     captureWindow: "Control+Alt+W",
@@ -90,8 +87,8 @@ const GLYPHS: Record<ShortcutPlatform, Record<string, string>> = {
 };
 
 /**
- * Render an accelerator the way the platform writes it: `Command+Control+C`
- * becomes `⌘⌃C` on macOS and stays `Ctrl+Alt+C` on Windows.
+ * Render an accelerator the way the platform writes it: `Command+Control+X`
+ * becomes `⌘⌃X` on macOS and stays `Ctrl+Alt+X` on Windows.
  *
  * Unknown parts pass through unchanged rather than being dropped, so a binding
  * this function does not recognise still shows something true.

@@ -41,7 +41,13 @@ describe("DEFAULT_ACCELERATORS", () => {
         [...SHORTCUT_ACTIONS].sort(),
       );
     }
-    expect(SHORTCUT_ACTIONS).toHaveLength(6);
+    expect(SHORTCUT_ACTIONS).toHaveLength(5);
+    expect(SHORTCUT_ACTIONS).not.toContain("stopRecording");
+  });
+
+  it("binds the one Kaipu key, startRecording, to X on both platforms", () => {
+    expect(DEFAULT_ACCELERATORS.mac.startRecording).toBe("Command+Control+X");
+    expect(DEFAULT_ACCELERATORS.windows.startRecording).toBe("Control+Alt+X");
   });
 
   it("keeps Command off the Windows column", () => {
@@ -52,7 +58,7 @@ describe("DEFAULT_ACCELERATORS", () => {
     }
   });
 
-  it("never uses CommandOrControl, which would put Ctrl+C on start recording", () => {
+  it("never uses CommandOrControl, which would put Ctrl+X on start capturing", () => {
     for (const platform of ["mac", "windows"] as const) {
       for (const accelerator of Object.values(DEFAULT_ACCELERATORS[platform])) {
         expect(accelerator).not.toMatch(/CommandOrControl/);
@@ -63,13 +69,13 @@ describe("DEFAULT_ACCELERATORS", () => {
 
 describe("formatAccelerator", () => {
   it("renders macOS modifiers as glyphs with no separator", () => {
-    expect(formatAccelerator("Command+Control+C")).toBe("⌘⌃C");
+    expect(formatAccelerator("Command+Control+X")).toBe("⌘⌃X");
     expect(formatAccelerator("Command+Shift+P")).toBe("⌘⇧P");
     expect(formatAccelerator("Command+Alt+X")).toBe("⌘⌥X");
   });
 
   it("leaves Windows accelerators spelled out", () => {
-    expect(formatAccelerator("Control+Alt+C", "windows")).toBe("Control+Alt+C");
+    expect(formatAccelerator("Control+Alt+X", "windows")).toBe("Control+Alt+X");
   });
 
   it("passes an unknown part through instead of dropping it", () => {

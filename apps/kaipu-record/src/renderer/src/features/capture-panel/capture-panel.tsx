@@ -240,7 +240,7 @@ export function CapturePanel(): React.JSX.Element {
           <RecordButton
             variant="compact"
             isRecording
-            shortcut={shortcuts?.stopRecording}
+            shortcut={shortcuts?.startRecording}
             onClick={stopRecording}
           />
         </>
