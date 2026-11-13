@@ -23,12 +23,12 @@ Each row shows a click-to-rebind control. The actions and their default accelera
   or stops the recording. There is no separate stop shortcut; the tray item and the control bar's
   Stop button also work. The decision lives in `decideWidgetShortcut`
   (`src/main/shortcuts/widget-shortcut.ts`).
+- _Capture window_ — `Command+Control+W` (⌃⌘W) — capture one window. Listed and registered only
+  while Window mode is enabled (`ENABLED_CAPTURE_MODES`); otherwise the row is hidden.
 - _Instant capture_ (action `captureInstant`) — `Command+Control+X` (⌃⌘X) — capture the screen
   under the cursor at once, no selector.
 - _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
   reach (the "rescue" backstop).
-- _Capture window_ — `Command+Control+W` (⌃⌘W) — capture one window. Listed and registered only
-  while Window mode is enabled (`ENABLED_CAPTURE_MODES`); otherwise the row is hidden.
 
 Those are the macOS defaults. macOS owns `Command+Shift+3/4/5` for its own screenshots, which is
 why the widget keys use 1 and 2. Windows defaults use `Control+Alt+<key>` with the same key
