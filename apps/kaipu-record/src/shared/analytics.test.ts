@@ -17,8 +17,6 @@ describe("flag model", () => {
     for (const name of FLAG_NAMES) {
       expect(typeof FLAG_DEFAULTS[name]).toBe("boolean");
     }
-    // Login is bypassed pre-auth.
-    expect(FLAG_DEFAULTS["bypass-login"]).toBe(true);
     expect(FLAG_DEFAULTS["native-cursor-capture"]).toBe(true);
     expect(FLAG_DEFAULTS["image-canvas"]).toBe(false);
     expect(FLAG_DEFAULTS["image-inspect"]).toBe(false);

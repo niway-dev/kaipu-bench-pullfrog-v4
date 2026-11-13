@@ -11,7 +11,6 @@ import type { RecordingRatio } from "./types/screenshot-capture";
 
 /** Feature flags the app reads. Names must match the PostHog dashboard exactly. */
 export const FLAG_NAMES = [
-  "bypass-login",
   "native-cursor-capture",
   "capture-while-recording",
   "image-canvas",
@@ -22,14 +21,14 @@ export type FlagName = (typeof FLAG_NAMES)[number];
 
 /**
  * Value used when a flag is unresolved (offline, still loading, or the SDK is
- * disabled because the key is absent). Chosen so behavior is deterministic
- * offline: login is bypassed (there is no login UI yet), experiments stay off.
+ * disabled because the key is absent). Unresolved flags fall back to these
+ * values, so behavior is deterministic offline, and experiments stay off.
  */
 export const FLAG_DEFAULTS: Record<FlagName, boolean> = {
-  "bypass-login": true,
   // Cursor-free macOS capture with an editable cursor, on for Screen, Frame and Window
-  // with the webcam and audio. The PostHog flag stays as a kill switch: disabled there,
-  // the SDK returns undefined and this default applies; enabled at 0%, it turns it off.
+  // with the webcam and audio. Its PostHog flag was deleted on 2026-11-12, so this default
+  // always applies: there is no remote kill switch. To get one back, recreate the flag
+  // disabled, then enable it at 0% (see desktop/analytics-and-flags).
   "native-cursor-capture": true,
   // Screenshots during a take (macOS only): off until it is validated in the real app.
   "capture-while-recording": false,

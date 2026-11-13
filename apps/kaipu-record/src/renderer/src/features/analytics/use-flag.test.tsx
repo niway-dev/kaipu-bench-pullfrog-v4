@@ -13,13 +13,13 @@ afterEach(() => vi.clearAllMocks());
 
 describe("useFlag", () => {
   it("returns the flag default when unresolved", () => {
-    const { result } = renderHook(() => useFlag("bypass-login"));
-    expect(result.current).toBe(true); // FLAG_DEFAULTS["bypass-login"]
+    const { result } = renderHook(() => useFlag("native-cursor-capture"));
+    expect(result.current).toBe(true); // FLAG_DEFAULTS["native-cursor-capture"]
   });
 
   it("reflects a resolved flag value", () => {
     vi.mocked(isFlagEnabled).mockReturnValue(false);
-    const { result } = renderHook(() => useFlag("bypass-login"));
+    const { result } = renderHook(() => useFlag("native-cursor-capture"));
     expect(result.current).toBe(false);
   });
 });
