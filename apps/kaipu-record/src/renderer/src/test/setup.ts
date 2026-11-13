@@ -329,6 +329,8 @@ window.electronAPI = {
     chooseFrameDisplay: () => {},
     setMode: () => {},
     setIntent: () => {},
+    setCounting: () => {},
+    openRecordSettings: () => {},
     onState: () => () => {},
     onHiddenAckRequest: () => () => {},
     hiddenAck: () => {},

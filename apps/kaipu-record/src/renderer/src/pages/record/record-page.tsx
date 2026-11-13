@@ -40,6 +40,8 @@ import { uiArea } from "@renderer/lib/ui-area";
 /** Navigation state main's requests leave on the Record page (see AppRoot). */
 interface RecordNavState {
   startAt?: number;
+  /** The overlay already ran the countdown: this start begins the take at once. */
+  skipCountdown?: boolean;
   openPicker?: number;
   /** The picker was opened as the Window mode of "Start recording": a pick starts. */
   startOnPick?: boolean;
@@ -91,9 +93,10 @@ export function RecordPage(): React.JSX.Element {
     const startAt = navState?.startAt;
     if (startAt && startedForRef.current !== startAt && selectedSource && !isRecording) {
       startedForRef.current = startAt;
-      startRecording();
+      if (navState?.skipCountdown === true) startRecording({ skipCountdown: true });
+      else startRecording();
     }
-  }, [navState?.startAt, selectedSource, isRecording, startRecording]);
+  }, [navState?.startAt, navState?.skipCountdown, selectedSource, isRecording, startRecording]);
 
   // The tray's "Change", or Window from "Start recording", navigates here with an
   // `openPicker` flag (see AppRoot) — open the source picker once per flag. Opened as the

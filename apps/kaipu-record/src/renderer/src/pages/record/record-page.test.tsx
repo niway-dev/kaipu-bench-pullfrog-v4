@@ -125,6 +125,16 @@ describe("RecordPage auto-start", () => {
     expect(startRecording).toHaveBeenCalledTimes(1);
   });
 
+  it("passes skipCountdown when main says the overlay already counted down", () => {
+    renderAt({ startAt: 100, skipCountdown: true });
+    expect(startRecording).toHaveBeenCalledExactlyOnceWith({ skipCountdown: true });
+  });
+
+  it("a plain startAt starts with no options", () => {
+    renderAt({ startAt: 100 });
+    expect(startRecording).toHaveBeenCalledExactlyOnceWith();
+  });
+
   it("does not auto-start when there is no selected source", () => {
     setupState.selectedSource = null;
     renderAt({ startAt: 100 });

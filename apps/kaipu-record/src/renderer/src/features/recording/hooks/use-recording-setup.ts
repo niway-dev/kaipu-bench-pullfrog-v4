@@ -63,7 +63,7 @@ export interface RecordingSetup {
   countdown: number | null;
   canStartRecording: boolean;
   /** Begin recording after a short countdown (used by the Record page). */
-  startRecording(): void;
+  startRecording(options?: { skipCountdown?: boolean }): void;
   /** Cancel a pending start, or stop an active recording — whichever applies. */
   stopRecording(): void;
   /** Stop if recording, otherwise start (with the same countdown). */
@@ -175,33 +175,40 @@ export function useRecordingSetup(): RecordingSetup {
   const cameraEnabledRef = useRef(isCameraEnabled);
   cameraEnabledRef.current = isCameraEnabled;
 
-  const startRecording = useCallback(() => {
-    if (recorder.status !== "idle" || !sourceRef.current) return;
-    recorder.requestStart((): StartInput => {
-      const source = sourceRef.current;
-      if (!source) throw new Error("startRecording: no source selected");
-      const engineQuality = qualityToEngine(qualityRef.current);
-      const wm = watermarkRef.current;
-      const { deviceId, ...bubble } = cameraBubbleRef.current;
-      return {
-        sourceId: source.id,
-        sourceName: source.name,
-        area: areaRef.current,
-        microphoneDeviceId: micEnabledRef.current ? (micRef.current?.deviceId ?? null) : null,
-        systemAudio: systemAudioRef.current,
-        audio: audioRef.current,
-        width: engineQuality.width,
-        height: engineQuality.height,
-        frameRate: engineQuality.frameRate,
-        videoBitrate: engineQuality.videoBitrate,
-        watermark: wm.enabled ? wm.config : null,
-        webcamWhenEnabled: { deviceId, lines: webcamCaptureLines(bubble), bubble },
-        webcam: cameraEnabledRef.current
-          ? { deviceId, lines: webcamCaptureLines(bubble), bubble }
-          : null,
+  const startRecording = useCallback(
+    (options?: { skipCountdown?: boolean }) => {
+      if (recorder.status !== "idle" || !sourceRef.current) return;
+      const resolveInput = (): StartInput => {
+        const source = sourceRef.current;
+        if (!source) throw new Error("startRecording: no source selected");
+        const engineQuality = qualityToEngine(qualityRef.current);
+        const wm = watermarkRef.current;
+        const { deviceId, ...bubble } = cameraBubbleRef.current;
+        return {
+          sourceId: source.id,
+          sourceName: source.name,
+          area: areaRef.current,
+          microphoneDeviceId: micEnabledRef.current ? (micRef.current?.deviceId ?? null) : null,
+          systemAudio: systemAudioRef.current,
+          audio: audioRef.current,
+          width: engineQuality.width,
+          height: engineQuality.height,
+          frameRate: engineQuality.frameRate,
+          videoBitrate: engineQuality.videoBitrate,
+          watermark: wm.enabled ? wm.config : null,
+          webcamWhenEnabled: { deviceId, lines: webcamCaptureLines(bubble), bubble },
+          webcam: cameraEnabledRef.current
+            ? { deviceId, lines: webcamCaptureLines(bubble), bubble }
+            : null,
+        };
       };
-    });
-  }, [recorder]);
+      // Only an explicit skip adds the second argument; every other start is called as before.
+      if (options?.skipCountdown === true)
+        recorder.requestStart(resolveInput, { skipCountdown: true });
+      else recorder.requestStart(resolveInput);
+    },
+    [recorder],
+  );
 
   const stopRecording = useCallback(() => recorder.stopOrCancel(), [recorder]);
 
