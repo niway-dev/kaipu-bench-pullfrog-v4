@@ -145,9 +145,10 @@ export const captureOverlay = catalog(
       ],
       demonstrates: ["captureOverlay.captureWidget:counting"],
       ready: { area: "captureOverlay.captureWidget" },
-      // The first Escape ends the count, the second closes the overlay.
+      // The first Escape only ends the count, so it is a bare key press: `cancel` would wait
+      // for the overlay to close and time out. The second Escape closes the overlay.
       after: [
-        cancel,
+        { press: "Escape", on: "capture-overlay" },
         cancel,
         { call: "updateSettings", args: [{ recordingCountdownSeconds: 3 }], on: "main" },
       ],
