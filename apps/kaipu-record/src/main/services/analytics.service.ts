@@ -34,7 +34,12 @@ function startClient(key: string): void {
  */
 export function initMainAnalytics(deviceId: string, enabled: boolean): void {
   const key = import.meta.env.MAIN_VITE_POSTHOG_KEY;
-  if (!key || handlersInstalled) return;
+  if (!key) {
+    // Releases up to 0.18.0 shipped without a key and nothing said so.
+    console.warn("[analytics] no PostHog key in this build: flags use their code defaults");
+    return;
+  }
+  if (handlersInstalled) return;
   handlersInstalled = true;
   distinctId = deviceId || "anonymous";
   if (enabled) startClient(key);
