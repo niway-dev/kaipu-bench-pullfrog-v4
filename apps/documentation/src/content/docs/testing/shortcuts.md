@@ -15,8 +15,11 @@ sections, _Recording_ and _App_, one row per action
 Each row shows a click-to-rebind control. The actions and their default accelerators
 (`src/shared/types/ipc.ts:79-162`):
 
-- _Start recording_ — `Command+Control+C` (⌃⌘C) — begin a recording from anywhere.
-- _Stop recording_ — `Command+Control+S` (⌃⌘S) — end the current recording from anywhere.
+- _Start capturing_ (action `startRecording`) — `Command+Control+X` (⌃⌘X) — the one Kaipu key:
+  opens the capture selector in the last used mode; pressed again it stops a take (a countdown
+  too, which cancels it) or closes the selector, as Esc does. There is no separate stop
+  shortcut (the old ⌃⌘S was removed); the tray item and the control bar's Stop button still work.
+  The decision lives in `decideStartShortcut` (`src/main/shortcuts/start-shortcut.ts`).
 - _Bring Kaipu to front_ — `Command+Control+O` (⌃⌘O) — show the window if it slips out of
   reach (the "rescue" backstop).
 - _Open capture_ — `Command+Shift+1` (⇧⌘1) — open the capture widget to choose what to capture,
@@ -27,7 +30,7 @@ Each row shows a click-to-rebind control. The actions and their default accelera
   while Window mode is enabled (`ENABLED_CAPTURE_MODES`); otherwise the row is hidden.
 
 Those are the macOS defaults. Windows defaults use `Control+Alt+<same key>` (`Control+Alt+1` and `Control+Alt+2` for the two
-capture rows) (shown as `Ctrl+Alt+C`), resolved per platform by `defaultShortcutsFor` in
+capture rows) (shown as `Ctrl+Alt+X` for the start key), resolved per platform by `defaultShortcutsFor` in
 `src/shared/shortcut-defaults.ts`.
 
 These are _global_ (system-wide) shortcuts: they fire even when another app is focused,
@@ -55,7 +58,7 @@ accelerator string (requires `Command` or `Control` + a letter/digit, else retur
 Windows a combo with the Windows key is rejected, because the OS reserves those);
 `conflictingAction` detects a duplicate against the other bindings _before_ saving;
 `formatAccelerator` renders the label for the bridge's `platform`: macOS symbols on macOS
-(⌃⌘C), text on Windows (`Ctrl+Alt+C`).
+(⌃⌘X), text on Windows (`Ctrl+Alt+X`).
 
 **Persistence path.** A captured accelerator flows `onChange` → `handleChange`
 (`shortcuts-page.tsx:69-79`): it rejects a `conflictingAction` clash, otherwise calls
@@ -93,7 +96,7 @@ event, so in-page keyboard input never triggers it.
 
 🟡 **Partial (page fully E2E-able; global firing not headless-testable).**
 
-✅ **Implemented (the page slice)** — `e2e/shortcuts.e2e.ts` rebinds _Start recording_ to a new
+✅ **Implemented (the page slice)** — `e2e/shortcuts.e2e.ts` rebinds _Start capturing_ to a new
 accelerator and asserts persistence via a `getSettings()` round-trip. The actual OS-level
 accelerator firing stays manual.
 
@@ -129,9 +132,9 @@ test("rebinding a shortcut on /shortcuts persists the new accelerator", async ()
       location.hash = "#/shortcuts";
     });
 
-    // The first "Start recording" row still shows the default ⌃⌘C.
+    // The first "Start capturing" row still shows the default ⌃⌘X.
     const control = page.getByRole("button", { name: "Change shortcut" }).first();
-    await expect(control).toHaveText("⌃⌘C");
+    await expect(control).toHaveText("⌃⌘X");
 
     // Enter capture mode, then press a valid Control+<letter> combo. Control (not
     // Command) is the more reliable modifier to synthesize under Linux xvfb, and
